@@ -688,7 +688,6 @@ export class RinkRenderer {
     if (options.isPlaying) return;
 
     const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
-    const hasSelection = Boolean(options.selectedPointId);
 
     for (let i = 0; i < sorted.length - 1; i++) {
       const p0 = sorted[i];
