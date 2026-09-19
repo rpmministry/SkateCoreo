@@ -22,11 +22,13 @@ import {
   Tag,
   SlidersHorizontal,
   Music,
-  Mic
+  Mic,
+  Route
 } from 'lucide-react';
 
 import { ChoreographyPathPoint, Program, ElementLog } from '../types';
 import { useAudioEngine } from '../hooks/useAudioEngine';
+import { audioEngine } from '../core/audio/AudioEngine';
 import { RinkMath, DEFAULT_RINK_DIMENSIONS, CanvasViewportMetrics } from '../core/canvas/RinkMath';
 import { RinkRenderer } from '../core/canvas/RinkRenderer';
 import { useChoreographyStore, DEFAULT_CHOREOGRAPHY_POINTS } from '../store/useChoreographyStore';
@@ -55,7 +57,7 @@ interface RinkCanvasProps {
 
 interface DragState {
   targetId: string;
-  type: 'anchor' | 'cp1' | 'cp2';
+  type: 'anchor' | 'cp1' | 'cp2' | 'curve';
 }
 
 import { STANDARD_FIGURES, ROLLART_STANDARD_FIGURES } from '../constants/figures';
@@ -244,12 +246,12 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     return RinkMath.calculateViewportMetrics(w, h, DEFAULT_RINK_DIMENSIONS, padding);
   }, [containerSize]);
 
-  // Estado cinemático del avatar patinador (activo únicamente si la ruta está conectada en Fase 3)
-  const isPathGenerated = phase === 'curve' && points.length >= 2;
+  // Estado cinemático del avatar patinador (activo automáticamente al haber 2 o más puntos)
+  const isPathGenerated = points.length >= 2;
   const skaterState = isPathGenerated ? RinkMath.interpolateSkaterPosition(points, audio.currentTimeMs) : null;
 
-  // Render Loop Principal de Canvas 2D con Cámara Virtual y Retina Display (devicePixelRatio)
-  useEffect(() => {
+  // Render Frame Unificado de Canvas 2D con Cámara Virtual y Retina Display (devicePixelRatio)
+  const renderFrame = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -268,11 +270,21 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     }
 
     const metrics = getMetrics();
+    const currentPoints = useChoreographyStore.getState().points;
+    const currentSelectedId = useChoreographyStore.getState().selectedPointId;
+    const currentShowHandles = useChoreographyStore.getState().showControlHandles;
+    const currentShowGrid = useChoreographyStore.getState().showRinkGrid;
+    const currentFullTrail = useChoreographyStore.getState().showFullTrailOverride;
+
+    const currentPlayTime = audio.isPlaying ? audioEngine.getCurrentTimeMs() : audio.currentTimeMs;
+    const currentAvatar = currentPoints.length >= 2
+      ? RinkMath.interpolateSkaterPosition(currentPoints, currentPlayTime)
+      : null;
 
     ctx.save();
-    // 1. Escala para pantallas Retina/OLED móviles de alta densidad
+    // 1. Escala para pantallas Retina/OLED de alta densidad
     ctx.scale(dpr, dpr);
-    // 2. Limpieza de pantalla en unidades lógicas CSS
+    // 2. Limpieza total del frame anterior (Elimina cualquier rastro previo o artefactos visuales)
     ctx.clearRect(0, 0, cssW, cssH);
 
     // 3. Aplicación de la Cámara Virtual (Pan & Zoom)
@@ -280,60 +292,87 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     ctx.scale(camera.zoom, camera.zoom);
 
     const renderOpts = {
-      showRinkGrid,
-      showControlHandles,
-      selectedPointId,
-      activeSegmentIndex: skaterState?.activePointIndex ?? null,
-      isPathGenerated,
+      showRinkGrid: currentShowGrid,
+      showControlHandles: currentShowHandles,
+      selectedPointId: currentSelectedId,
+      activeSegmentIndex: currentAvatar?.activePointIndex ?? null,
+      isPathGenerated: currentPoints.length >= 2,
       phase,
       isPlaying: audio.isPlaying,
-      showFullTrailOverride,
-      currentTimeMs: audio.currentTimeMs,
-      avatar: skaterState
+      showFullTrailOverride: currentFullTrail,
+      currentTimeMs: currentPlayTime,
+      avatar: currentAvatar
     };
 
-    // 1. Pista reglamentaria y marcas World Skate
+    // Capa 0: Pista reglamentaria y marcas World Skate
     RinkRenderer.drawRinkFloor(ctx, metrics, DEFAULT_RINK_DIMENSIONS, renderOpts);
 
-    // 2. Curvas de trayectoria (Línea guía en pausa, o Trazado Dinámico durante reproducción)
-    RinkRenderer.drawTrajectories(ctx, metrics, points, renderOpts);
+    // Capa 1: Curvas de trayectoria (Línea guía permanente en pausa, o Trazado Dinámico durante reproducción)
+    RinkRenderer.drawTrajectories(ctx, metrics, currentPoints, renderOpts);
 
-    // 3. Tiradores Bézier CP1 y CP2 (SOLO en Fase 3 y cuando no está en reproducción activa)
-    if (!audio.isPlaying) {
-      RinkRenderer.drawBezierControlOverlay(ctx, metrics, points, renderOpts);
+    // Capa 2: Tiradores Bézier CP1 y CP2 (SOLO en modo edición / !isPlaying)
+    if (!audio.isPlaying && currentShowHandles && currentPoints.length >= 2) {
+      RinkRenderer.drawBezierControlOverlay(ctx, metrics, currentPoints, renderOpts);
     }
 
-    // 4. Nodos de Tiempo (Time Nodes)
-    RinkRenderer.drawTimeNodes(ctx, metrics, points, selectedPointId);
+    // Capa 3: Nodos de Tiempo (Time Nodes en Ámbar Neón)
+    RinkRenderer.drawTimeNodes(ctx, metrics, currentPoints, currentSelectedId);
 
-    // 5. Puntos de anclaje de posición estándar
-    RinkRenderer.drawAnchorPoints(ctx, metrics, points, selectedPointId);
+    // Capa 4: Puntos de anclaje de posición estándar (Menta Neón)
+    RinkRenderer.drawAnchorPoints(ctx, metrics, currentPoints, currentSelectedId);
 
-    // 6. Elementos técnicos RollArt
-    RinkRenderer.drawTechnicalElements(ctx, metrics, points, elements);
+    // Capa 5: Elementos técnicos RollArt
+    RinkRenderer.drawTechnicalElements(ctx, metrics, currentPoints, elements);
 
-    // 7. AVATAR CINEMÁTICO DEL PATINADOR/A (CAPA SUPERIOR)
-    if (isPathGenerated && skaterState) {
-      RinkRenderer.drawSkaterAvatar(ctx, metrics, skaterState, skaterGender);
+    // Capa 6: AVATAR CINEMÁTICO DEL PATINADOR/A (CAPA SUPERIOR)
+    if (currentPoints.length >= 2 && currentAvatar) {
+      RinkRenderer.drawSkaterAvatar(ctx, metrics, currentAvatar, skaterGender);
     }
 
     ctx.restore();
   }, [
-    points,
-    audio.currentTimeMs,
+    containerSize,
+    getMetrics,
+    camera,
+    phase,
     audio.isPlaying,
-    showFullTrailOverride,
+    audio.currentTimeMs,
+    elements,
+    skaterGender
+  ]);
+
+  // Loop de Renderizado Fluido a 60fps con requestAnimationFrame durante reproducción
+  useEffect(() => {
+    if (!audio.isPlaying) {
+      renderFrame();
+      return;
+    }
+
+    let animId: number;
+    const loop = () => {
+      renderFrame();
+      animId = requestAnimationFrame(loop);
+    };
+    animId = requestAnimationFrame(loop);
+
+    return () => {
+      cancelAnimationFrame(animId);
+    };
+  }, [audio.isPlaying, renderFrame]);
+
+  // Redibujado reactivo instantáneo ante cualquier cambio de coordenadas, selección o cámara en modo edición
+  useEffect(() => {
+    if (!audio.isPlaying) {
+      renderFrame();
+    }
+  }, [
+    points,
     selectedPointId,
     showControlHandles,
     showRinkGrid,
-    elements,
-    getMetrics,
-    skaterState,
-    isPathGenerated,
-    phase,
-    skaterGender,
-    containerSize,
-    camera
+    showFullTrailOverride,
+    audio.currentTimeMs,
+    renderFrame
   ]);
 
   // POINTER DOWN: Hit Testing en espacio del mundo con radio táctil dinámico
@@ -352,12 +391,16 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     const hitRadius = 30 / camera.zoom;
     let hitFound = false;
 
-    // 1. En FASE 3 (Ajuste de Curvas): Comprobar tiradores Bézier CP1 y CP2
-    if (phase === 'curve' && showControlHandles && points.length >= 2) {
+    // 1. Comprobar tiradores Bézier CP1 y CP2 (activos en edición cuando showControlHandles está activado)
+    if (!audio.isPlaying && showControlHandles && points.length >= 2) {
       const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
       for (let i = 0; i < sorted.length - 1; i++) {
         const p0 = sorted[i];
         const p1 = sorted[i + 1];
+
+        // Si hay un nodo seleccionado, focalizamos en los tiradores del tramo activo
+        const isSegmentSelected = !selectedPointId || selectedPointId === p0.id || selectedPointId === p1.id;
+        if (!isSegmentSelected) continue;
 
         const { cp1: cp1M, cp2: cp2M } = RinkMath.getSegmentControlPoints(p0, p1);
         const cp1Px = RinkMath.metersToPixels(cp1M.x, cp1M.y, metrics);
@@ -383,7 +426,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       }
     }
 
-    // 2. Comprobar puntos de anclaje (nodos)
+    // 2. Comprobar puntos de anclaje (nodos de posición y de tiempo)
     if (!hitFound) {
       for (const p of points) {
         const { px, py } = RinkMath.metersToPixels(p.x, p.y, metrics);
@@ -397,7 +440,25 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       }
     }
 
-    // Notificar al motor de cámara (si tocó un nodo, no activa paneo de 1 dedo)
+    // 3. Comprobar toque directo en el trayecto para seleccionar el tramo y revelar sus tiradores
+    if (!hitFound && !audio.isPlaying && points.length >= 2 && !isAddingFreeTimeNodes) {
+      const { mX, mY } = RinkMath.pixelsToMeters(worldPx, worldPy, metrics, DEFAULT_RINK_DIMENSIONS);
+      const nearest = RinkMath.findNearestPointOnPath(points, mX, mY);
+      const maxTapDistMeters = 1.4 / (camera.zoom || 1);
+      if (nearest && nearest.distanceMeters <= maxTapDistMeters) {
+        const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
+        const segStartPoint = sorted[nearest.segmentIndex];
+        if (segStartPoint) {
+          const target: DragState = { targetId: segStartPoint.id, type: 'curve' };
+          dragTargetRef.current = target;
+          setSelectedPointId(segStartPoint.id);
+          onNodeSelect?.(segStartPoint.id);
+          hitFound = true;
+        }
+      }
+    }
+
+    // Notificar al motor de cámara (si tocó un nodo o control, no activa paneo de 1 dedo)
     camPointerDown(e, hitFound);
   };
 
@@ -417,8 +478,8 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       return;
     }
 
-    // 2. DETECCIÓN DE ARRASTRE DE NODO (Umbral de 5px en pantalla)
-    if (dragTargetRef.current && pointerDownPosRef.current) {
+    // 2. DETECCIÓN DE ARRASTRE DE NODO O TIRADOR (Umbral de 5px en pantalla)
+    if (dragTargetRef.current && pointerDownPosRef.current && dragTargetRef.current.type !== 'curve') {
       const dist = Math.hypot(
         e.clientX - pointerDownPosRef.current.x,
         e.clientY - pointerDownPosRef.current.y
@@ -445,6 +506,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       } else if (currentTarget.type === 'cp2') {
         updateControlPoint2(currentTarget.targetId, mX, mY);
       }
+      renderFrame();
       return;
     }
 
@@ -458,9 +520,12 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     let isHovering = false;
     const hitRadius = 30 / camera.zoom;
 
-    if (phase === 'curve' && showControlHandles && points.length >= 2) {
+    if (!audio.isPlaying && showControlHandles && points.length >= 2) {
       const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
       for (let i = 0; i < sorted.length - 1; i++) {
+        const isSegmentSelected = !selectedPointId || selectedPointId === sorted[i].id || selectedPointId === sorted[i + 1].id;
+        if (!isSegmentSelected) continue;
+
         const { cp1: cp1M, cp2: cp2M } = RinkMath.getSegmentControlPoints(sorted[i], sorted[i + 1]);
         const cp1Px = RinkMath.metersToPixels(cp1M.x, cp1M.y, metrics);
         const cp2Px = RinkMath.metersToPixels(cp2M.x, cp2M.y, metrics);
@@ -483,7 +548,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       }
     }
 
-    setCursorStyle(isHovering ? 'grab' : (phase === 'plot' ? 'crosshair' : 'default'));
+    setCursorStyle(isHovering ? 'grab' : 'crosshair');
   };
 
   // POINTER UP: Discriminación estricta entre Tap y Drag
@@ -501,8 +566,8 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
 
     const currentTarget = dragTargetRef.current;
 
-    if (isDragging || movedDistance >= 5) {
-      // ── CASO ARRASTRE: El nodo se suelta en la nueva posición. NO se abre ninguna ventana.
+    if (isDragging || (movedDistance >= 5 && currentTarget && currentTarget.type !== 'curve')) {
+      // ── CASO ARRASTRE: El nodo o tirador se suelta en la nueva posición
       if (pointsBeforeDragRef.current) {
         pushHistory();
         pointsBeforeDragRef.current = null;
@@ -515,10 +580,18 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
         });
       }
       onDragChange?.(false);
+      renderFrame();
+    } else if (currentTarget && currentTarget.type === 'curve') {
+      // ── CASO SELECCIÓN DE TRAYECTO: Revela los tiradores Bézier del tramo
+      setSelectedPointId(currentTarget.targetId);
+      onNodeSelect?.(currentTarget.targetId);
     } else if (currentTarget && currentTarget.type === 'anchor' && movedDistance < 5) {
       // ── CASO TOQUE RÁPIDO (TAP): Movimiento menor a 5px en un nodo existente.
       setSelectedPointId(currentTarget.targetId);
       onNodeSelect?.(currentTarget.targetId);
+    } else if (currentTarget && (currentTarget.type === 'cp1' || currentTarget.type === 'cp2') && movedDistance < 5) {
+      // ── CASO TOQUE RÁPIDO EN UN TIRADOR: Mantiene la selección del nodo padre
+      setSelectedPointId(currentTarget.targetId);
     } else if (!currentTarget && movedDistance < 5 && canvas) {
       // ── MODO TIEMPO LIBRE ACTIVO: Tocar la pista para proyectar e insertar un Nodo de Tiempo
       if (isAddingFreeTimeNodes) {
@@ -554,7 +627,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     setIsDragging(false);
     dragTargetRef.current = null;
     pointerDownPosRef.current = null;
-    setCursorStyle(phase === 'plot' ? 'crosshair' : 'default');
+    setCursorStyle('crosshair');
   };
 
 

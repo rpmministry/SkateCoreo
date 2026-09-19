@@ -134,7 +134,6 @@ export class RinkRenderer {
     points: ChoreographyPathPoint[],
     options: RenderOptions
   ) {
-    if (options.phase === 'plot' || options.isPathGenerated === false) return;
     if (points.length < 2) return;
     const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
 
@@ -685,22 +684,28 @@ export class RinkRenderer {
     options: RenderOptions
   ) {
     if (!options.showControlHandles || points.length < 2) return;
-    // En FASE 1 (Ploteo Libre) NO se muestran tiradores ni brazos
-    if (options.phase === 'plot' || options.isPathGenerated === false) return;
+    // Capa 1: UI y Controles (Tiradores y Nodos). Visible solo en isEditing = true (!isPlaying).
+    if (options.isPlaying) return;
 
     const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
+    const hasSelection = Boolean(options.selectedPointId);
 
     for (let i = 0; i < sorted.length - 1; i++) {
       const p0 = sorted[i];
       const p1 = sorted[i + 1];
+
+      const isSegmentSelected = options.selectedPointId === p0.id || options.selectedPointId === p1.id;
+
+      // Si el usuario tiene un nodo seleccionado, focalizamos los tiradores en el segmento activo
+      if (hasSelection && !isSegmentSelected) {
+        continue;
+      }
 
       const pt0 = RinkMath.metersToPixels(p0.x, p0.y, metrics);
       const pt1 = RinkMath.metersToPixels(p1.x, p1.y, metrics);
       const { cp1: cp1M, cp2: cp2M } = RinkMath.getSegmentControlPoints(p0, p1);
       const cp1 = RinkMath.metersToPixels(cp1M.x, cp1M.y, metrics);
       const cp2 = RinkMath.metersToPixels(cp2M.x, cp2M.y, metrics);
-
-      const isSegmentSelected = options.selectedPointId === p0.id || options.selectedPointId === p1.id;
 
       ctx.save();
 

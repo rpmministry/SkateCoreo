@@ -10,7 +10,8 @@ import {
   PenTool,
   Route,
   Undo2,
-  Timer
+  Timer,
+  SlidersHorizontal
 } from 'lucide-react';
 
 import { useChoreographyStore } from '../store/useChoreographyStore';
@@ -51,10 +52,11 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
   const setPoints = useChoreographyStore((s) => s.setPoints);
   const pushHistory = useChoreographyStore((s) => s.pushHistory);
   const straightenSegment = useChoreographyStore((s) => s.straightenSegment);
-  const phase = useChoreographyStore((s) => s.phase);
   const history = useChoreographyStore((s) => s.history);
   const undo = useChoreographyStore((s) => s.undo);
-  const setPhase = useChoreographyStore((s) => s.setPhase);
+
+  const showControlHandles = useChoreographyStore((s) => s.showControlHandles);
+  const setShowControlHandles = useChoreographyStore((s) => s.setShowControlHandles);
 
   // Sistema de Nodos de Tiempo (Time Nodes)
   const isAddingFreeTimeNodes = useChoreographyStore((s) => s.isAddingFreeTimeNodes);
@@ -121,47 +123,49 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
       {/* ── Body ── */}
       <div className="flex-1 overflow-y-auto overscroll-contain">
 
-        {/* ── Action Dock: Dibujar Coreografía & Acciones Clave ─── */}
+        {/* ── Action Dock: Controles Coreográficos & Tiradores ─── */}
         <div className="px-4 py-3.5 space-y-3 border-b border-white/5">
 
-          {/* Botón Maestro: Coral Neón Vibrante (CTA Primario) */}
-          {phase === 'plot' ? (
-            <button
-              type="button"
-              onClick={() => { if (points.length >= 2) setPhase('curve'); }}
-              disabled={points.length < 2}
-              title={points.length < 2 ? 'Coloca al menos 2 nodos para trazar la ruta' : 'Trazar ruta coreográfica completa'}
+          {/* Botón Maestro: Estado del Trazado & Tiradores Bézier */}
+          <button
+            type="button"
+            onClick={() => setShowControlHandles(!showControlHandles)}
+            className={[
+              'w-full flex items-center justify-between px-4 py-3 rounded-2xl text-xs font-bold transition-all interactive-tap shadow-soft-elevation',
+              showControlHandles
+                ? 'bg-cyan/15 text-cyan border border-cyan/40 shadow-glow-cyan'
+                : 'bg-neon-card hover:bg-neon-hover text-slate-400 hover:text-white',
+            ].join(' ')}
+            title="Alterna la visibilidad de los tiradores de control Bézier (CP1 y CP2)"
+          >
+            <div className="flex items-center gap-2">
+              <SlidersHorizontal className="w-4 h-4 stroke-[2]" />
+              <span>Tiradores Bézier</span>
+            </div>
+            <span
               className={[
-                'w-full flex items-center justify-center gap-2.5 py-3.5 rounded-2xl text-xs font-black uppercase tracking-wider interactive-tap transition-all',
-                points.length >= 2
-                  ? 'bg-coral hover:bg-coral-hover text-white shadow-glow-coral'
-                  : 'bg-neon-card text-slate-500 opacity-40 cursor-not-allowed shadow-none',
+                'text-[10px] font-mono px-2 py-0.5 rounded-full font-black',
+                showControlHandles ? 'bg-cyan text-black' : 'bg-neon-surface text-slate-500',
               ].join(' ')}
             >
-              <Route className="w-4 h-4 stroke-[2.5]" />
-              Dibujar Coreografía
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setPhase('plot')}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-xs font-bold bg-neon-card hover:bg-neon-hover text-cyan shadow-soft-elevation interactive-tap"
-            >
-              <PenTool className="w-4 h-4 text-cyan stroke-[2]" />
-              Volver a Editar Nodos
-            </button>
-          )}
+              {showControlHandles ? 'ACTIVOS' : 'OCULTOS'}
+            </span>
+          </button>
 
-          {/* Feedback explicativo */}
-          <p className="text-[11px] text-slate-500 text-center leading-relaxed">
-            {phase === 'plot'
-              ? points.length === 0
-                ? 'Toca en la pista para situar nodos'
-                : points.length === 1
-                ? 'Agrega 1 nodo más para habilitar trazado'
-                : `${points.length} nodos listos · Pulsa "Dibujar"`
-              : `Ruta activa en Cyan · ${points.length} nodos conectados`}
-          </p>
+          {/* Feedback de la coreografía */}
+          <div className="flex items-center justify-between px-1 text-[11px] text-slate-400">
+            <span className="flex items-center gap-1.5">
+              <Route className="w-3.5 h-3.5 text-cyan" />
+              {points.length < 2
+                ? 'Coloca 2 nodos para trazar la ruta'
+                : `${points.length} nodos conectados`}
+            </span>
+            {points.length >= 2 && (
+              <span className="font-mono text-cyan font-bold">
+                {formatTime(points[points.length - 1].time_ms)}
+              </span>
+            )}
+          </div>
 
           {/* Row secundario: Añadir Nodo + Deshacer */}
           <div className="flex gap-2">
