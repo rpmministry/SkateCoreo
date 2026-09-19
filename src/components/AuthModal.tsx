@@ -10,7 +10,6 @@ import React, { useState } from 'react';
 import { 
   Check, 
   Mail, 
-  ArrowRight, 
   Users, 
   Ticket, 
   MessageCircle, 
@@ -20,6 +19,7 @@ import {
   LogOut
 } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
+import { PayPalButton } from './PayPalButton';
 
 export const AuthModal: React.FC = () => {
   const { 
@@ -30,7 +30,6 @@ export const AuthModal: React.FC = () => {
     loginWithGoogle, 
     loginWithEmail, 
     verifyEmailOtp,
-    subscribePlan, 
     redeemPromoCode,
     logout,
     isLoading 
@@ -41,6 +40,7 @@ export const AuthModal: React.FC = () => {
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [authFeedback, setAuthFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [paymentFeedback, setPaymentFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Estado del Input Desplegable de Códigos
   const [showPromoInput, setShowPromoInput] = useState(false);
@@ -316,16 +316,28 @@ export const AuthModal: React.FC = () => {
                 </li>
               </ul>
 
-              {/* Botón CTA Coral Neón */}
-              <button
-                type="button"
-                onClick={() => subscribePlan('individual')}
-                disabled={isLoading}
-                className="w-full min-h-[46px] py-3 px-4 rounded-xl bg-coral hover:bg-coral/90 text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-coral/30 hover:shadow-coral/50 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-              >
-                <span>{isLoading ? 'Procesando...' : 'Suscribirse por $20 / año'}</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
+              {/* Pasarela Oficial PayPal Business */}
+              <div className="pt-1">
+                <PayPalButton 
+                  amount="20.00"
+                  onSuccess={(msg) => {
+                    setPaymentFeedback({ type: 'success', message: msg });
+                  }}
+                  onError={(errMsg) => {
+                    setPaymentFeedback({ type: 'error', message: errMsg });
+                  }}
+                />
+              </div>
+
+              {paymentFeedback && (
+                <div className={`p-2.5 rounded-xl text-[11px] text-center font-bold ${
+                  paymentFeedback.type === 'success' 
+                    ? 'bg-mint/15 text-mint border border-mint/30' 
+                    : 'bg-coral/15 text-coral border border-coral/30'
+                }`}>
+                  {paymentFeedback.message}
+                </div>
+              )}
             </div>
 
             {/* Tarjeta Licencia Club: Múltiples Licencias (Sin Precio Fijo) */}
