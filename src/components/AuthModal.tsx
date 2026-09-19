@@ -1,390 +1,300 @@
 /**
- * AuthModal.tsx — Soft Paywall & Modal de Autenticación con Glassmorphism
+ * AuthModal.tsx — Pantalla de Inicio Dual (Landing & Auth) de Alto Impacto Visual en SkateArt
  *
- * Muestra el lienzo de fondo con desenfoque (`backdrop-blur-md bg-slate-950/75`)
- * pero bloquea la interacción hasta que el usuario inicie sesión y active su suscripción
- * o canjee un código secreto de Beta Tester (RBAC).
+ * Inspirada en Carbon Design System (minimalista, alto contraste, estructurada).
+ * Tarjeta 1: Adquirir Acceso (Nuevos Usuarios / PayPal con email obligatorio previo).
+ * Tarjeta 2: Acceder a tu Cuenta (Login Email+Password, Anti-Sharing por dispositivo, Canje de Código).
+ * Modal Post-Pago: Registro condicionado seguro y prevención de pagos huérfanos con "Recuperar Pago".
  */
 
 import React, { useState } from 'react';
 import { 
   Check, 
   Mail, 
-  Users, 
+  Lock, 
+  Smartphone, 
+  Tablet, 
+  Laptop, 
+  ShieldCheck, 
   Ticket, 
-  MessageCircle, 
+  AlertCircle, 
   CheckCircle2, 
-  AlertCircle,
-  ExternalLink,
-  LogOut
+  ExternalLink, 
+  Users, 
+  ArrowRight,
+  Search,
+  Sparkles,
+  X
 } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import { PayPalButton } from './PayPalButton';
+import { getDeviceType, getDeviceTypeLabel } from '../utils/deviceDetector';
 
 export const AuthModal: React.FC = () => {
   const { 
-    user, 
-    access_expires_at,
-    hasActiveAccess,
-    getFormattedExpiration,
-    loginWithGoogle, 
-    loginWithEmail, 
-    verifyEmailOtp,
-    redeemPromoCode,
-    logout,
+    hasActiveAccess, 
+    loginWithCredentials, 
+    registerWithPayment, 
+    registerWithCode, 
+    recoverPaymentLookup,
     isLoading 
   } = useAuthStore();
 
-  const [emailInput, setEmailInput] = useState('');
-  const [otpInput, setOtpInput] = useState('');
-  const [showEmailForm, setShowEmailForm] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
-  const [authFeedback, setAuthFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  // ── Tarjeta 1: Email Pre-Pago PayPal ────────────────────────────────
+  const [buyerEmail, setBuyerEmail] = useState('');
   const [paymentFeedback, setPaymentFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  // Estado del Input Desplegable de Códigos
-  const [showPromoInput, setShowPromoInput] = useState(false);
-  const [promoCode, setPromoCode] = useState('');
-  const [promoLoading, setPromoLoading] = useState(false);
-  const [promoFeedback, setPromoFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  // ── Tarjeta 2: Login con Correo y Contraseña ───────────────────────
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginFeedback, setLoginFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  // Verificación estricta en la nube: access_expires_at > NOW
-  const hasAccess = hasActiveAccess();
+  // ── Canje de Código (Collapsible en Tarjeta 2) ──────────────────────
+  const [showCodeRegister, setShowCodeRegister] = useState(false);
+  const [codeEmail, setCodeEmail] = useState('');
+  const [codeName, setCodeName] = useState('');
+  const [codePassword, setCodePassword] = useState('');
+  const [codeConfirmPassword, setCodeConfirmPassword] = useState('');
+  const [activationCode, setActivationCode] = useState('');
+  const [codeFeedback, setCodeFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [codeLoading, setCodeLoading] = useState(false);
 
-  if (hasAccess) return null;
+  // ── Modal Post-Pago (Completar Registro tras PayPal) ───────────────
+  const [postPaymentData, setPostPaymentData] = useState<{
+    orderID: string;
+    payerEmail: string;
+    payerName?: string;
+  } | null>(null);
+  const [postRegName, setPostRegName] = useState('');
+  const [postRegPassword, setPostRegPassword] = useState('');
+  const [postRegConfirmPassword, setPostRegConfirmPassword] = useState('');
+  const [postRegFeedback, setPostRegFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [postRegLoading, setPostRegLoading] = useState(false);
 
-  const handleSendEmail = async (e: React.FormEvent) => {
+  // ── Modal Recuperar Pago (Pagos Huérfanos) ──────────────────────────
+  const [showRecoverModal, setShowRecoverModal] = useState(false);
+  const [recoverQuery, setRecoverQuery] = useState('');
+  const [recoverLoading, setRecoverLoading] = useState(false);
+  const [recoverFeedback, setRecoverFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Detección de dispositivo actual para mostrar en Card 2
+  const detectedType = getDeviceType();
+  const detectedLabel = getDeviceTypeLabel(detectedType);
+
+  // Si el usuario ya tiene acceso activo verificado, no mostrar paywall
+  if (hasActiveAccess()) return null;
+
+  // ── Handler Login ──────────────────────────────────────────────────
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!emailInput.trim()) return;
-    setAuthFeedback(null);
-    const res = await loginWithEmail(emailInput);
-    if (res.success) {
-      setEmailSent(true);
-      setAuthFeedback({ type: 'success', message: res.message });
-    } else {
-      setAuthFeedback({ type: 'error', message: res.message });
-    }
-  };
+    setLoginFeedback(null);
 
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!otpInput.trim()) return;
-    setAuthFeedback(null);
-    const res = await verifyEmailOtp(emailInput, otpInput);
+    const res = await loginWithCredentials(loginEmail, loginPassword);
     if (!res.success) {
-      setAuthFeedback({ type: 'error', message: res.message });
+      setLoginFeedback({ type: 'error', message: res.message });
     }
   };
 
-  // Manejo del Canje de Código mediante Supabase RPC
-  const handleRedeemCode = async (e: React.FormEvent) => {
+  // ── Handler Registro con Código ───────────────────────────────────
+  const handleCodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!promoCode.trim()) return;
+    setCodeFeedback(null);
 
-    setPromoLoading(true);
-    setPromoFeedback(null);
-
-    const result = await redeemPromoCode(promoCode);
-    setPromoLoading(false);
-
-    if (result.success) {
-      setPromoCode('');
-      setShowPromoInput(false);
-      // El estado hasActiveAccess() se vuelve true inmediatamente y el modal se cierra
+    if (codePassword.length < 6) {
+      setCodeFeedback({ type: 'error', message: 'La contraseña debe tener al menos 6 caracteres.' });
       return;
     }
 
-    setPromoFeedback({
-      type: 'error',
-      message: result.message,
-    });
+    if (codePassword !== codeConfirmPassword) {
+      setCodeFeedback({ type: 'error', message: 'Las contraseñas no coinciden.' });
+      return;
+    }
+
+    setCodeLoading(true);
+    const res = await registerWithCode(codeEmail, codePassword, codeName, activationCode);
+    setCodeLoading(false);
+
+    if (!res.success) {
+      setCodeFeedback({ type: 'error', message: res.message });
+    }
+  };
+
+  // ── Handler Post-Pago (Completar Registro) ─────────────────────────
+  const handlePostPaymentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!postPaymentData) return;
+    setPostRegFeedback(null);
+
+    if (postRegPassword.length < 6) {
+      setPostRegFeedback({ type: 'error', message: 'La contraseña debe tener al menos 6 caracteres.' });
+      return;
+    }
+
+    if (postRegPassword !== postRegConfirmPassword) {
+      setPostRegFeedback({ type: 'error', message: 'Las contraseñas no coinciden.' });
+      return;
+    }
+
+    setPostRegLoading(true);
+    const res = await registerWithPayment(
+      postPaymentData.payerEmail,
+      postRegPassword,
+      postRegName || postPaymentData.payerName || '',
+      postPaymentData.orderID
+    );
+    setPostRegLoading(false);
+
+    if (!res.success) {
+      setPostRegFeedback({ type: 'error', message: res.message });
+    } else {
+      setPostPaymentData(null);
+    }
+  };
+
+  // ── Handler Recuperar Pago ─────────────────────────────────────────
+  const handleRecoverLookup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!recoverQuery.trim()) return;
+
+    setRecoverLoading(true);
+    setRecoverFeedback(null);
+
+    const res = await recoverPaymentLookup(recoverQuery);
+    setRecoverLoading(false);
+
+    if (res.found && res.paypal_order_id && res.payer_email) {
+      setShowRecoverModal(false);
+      setPostPaymentData({
+        orderID: res.paypal_order_id,
+        payerEmail: res.payer_email,
+        payerName: res.payer_name || '',
+      });
+      setPostRegName(res.payer_name || '');
+    } else {
+      setRecoverFeedback({
+        type: 'error',
+        message: res.error || 'No se encontró un pago pendiente con ese dato.',
+      });
+    }
   };
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-md select-none transition-all duration-500 overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/85 backdrop-blur-xl select-none transition-all duration-500 overflow-y-auto"
       role="dialog"
       aria-modal="true"
     >
-      <div className="relative w-full max-w-lg bg-slate-900/95 border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-black/90 backdrop-blur-xl text-white my-auto animate-in fade-in zoom-in-95 duration-200">
+      {/* Contenedor Dual-Card Principal */}
+      <div className="relative w-full max-w-5xl my-auto animate-in fade-in zoom-in-95 duration-200">
         
-        {/* Halos Neón Decorativos */}
-        <div className="absolute -top-12 -right-12 w-40 h-40 bg-cyan/15 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-12 -left-12 w-40 h-40 bg-coral/15 rounded-full blur-3xl pointer-events-none" />
+        {/* Halos Neón de Fondo */}
+        <div className="absolute -top-16 -left-16 w-72 h-72 bg-cyan/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-16 -right-16 w-72 h-72 bg-coral/15 rounded-full blur-3xl pointer-events-none" />
 
-        {/* ── Brand Header con Logo AlsizTech ── */}
+        {/* ── Brand Header ── */}
         <div className="text-center mb-6">
-          <div className="flex items-center justify-center gap-2 mb-2">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900 border border-white/10 mb-2 shadow-inner">
             <img 
               src="/alsiztech_app_icon_dark.svg" 
               alt="AlsizTech Logo" 
-              className="w-7 h-7 object-contain drop-shadow-[0_0_8px_rgba(0,210,255,0.4)]"
-              onError={(e) => {
-                // Fallback si la imagen no carga
-                (e.target as HTMLElement).style.display = 'none';
-              }}
+              className="w-4 h-4 object-contain"
+              onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
             />
-            <span className="text-[11px] font-mono font-bold tracking-widest text-cyan uppercase">
-              ALSIZTECH · SAAS
+            <span className="text-[10px] font-mono font-bold tracking-widest text-cyan uppercase">
+              ALSIZTECH · SKATEART SAAS
             </span>
           </div>
-          <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-            SkateArt <span className="text-coral">Pro</span>
-          </h2>
-          <p className="text-xs text-slate-400 mt-1">
-            Plataforma Profesional de Coreografías y RollArt 2026
+          <h1 className="text-2xl sm:text-4xl font-black tracking-tight text-white">
+            SkateArt <span className="text-coral">Pro 2026</span>
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-xl mx-auto">
+            Plataforma Profesional de Trazado Coreográfico y Catálogo Oficial RollArt
           </p>
         </div>
 
-        {/* ══════════════════════════════════════════════════════
-            ESTADO 1: Usuario No Autenticado (Login Gateway)
-            ══════════════════════════════════════════════════════ */}
-        {!user ? (
-          <div className="space-y-4">
-            <p className="text-xs text-slate-300 text-center leading-relaxed">
-              Inicia sesión con tu cuenta de Google o Email para guardar tus rutinas, trazar figuras reglamentarias y entrenar 100% sin conexión en la pista.
-            </p>
-
-            {/* Botón 1: Continuar con Google (min 48px touch target) */}
-            <button
-              type="button"
-              onClick={() => loginWithGoogle()}
-              disabled={isLoading}
-              className="w-full min-h-[48px] px-4 py-3 rounded-2xl bg-white hover:bg-slate-100 active:scale-[0.98] text-slate-950 font-bold text-xs flex items-center justify-center gap-3 shadow-lg transition-all disabled:opacity-50"
-            >
-              <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-              </svg>
-              <span>{isLoading ? 'Conectando con Google...' : 'Continuar con Google'}</span>
-            </button>
-
-            {/* Botón 2: Acceder con Email (Passwordless / OTP / Magic Link) */}
-            {!showEmailForm ? (
-              <button
-                type="button"
-                onClick={() => { setShowEmailForm(true); setEmailSent(false); setAuthFeedback(null); }}
-                className="w-full min-h-[48px] px-4 py-3 rounded-2xl bg-slate-800/90 hover:bg-slate-800 text-slate-200 hover:text-white font-bold text-xs flex items-center justify-center gap-2 border border-white/10 active:scale-[0.98] transition-all"
-              >
-                <Mail className="w-4 h-4 text-cyan" />
-                <span>Acceder con Email (Magic Link / OTP)</span>
-              </button>
-            ) : !emailSent ? (
-              <form onSubmit={handleSendEmail} className="space-y-2 pt-1">
-                <input
-                  type="email"
-                  required
-                  value={emailInput}
-                  onChange={(e) => setEmailInput(e.target.value)}
-                  placeholder="nombre@tucorreo.com"
-                  className="w-full min-h-[44px] px-4 py-2.5 rounded-xl bg-slate-950 border border-white/15 text-white text-xs placeholder:text-slate-500 focus:border-cyan focus:outline-none"
-                />
-                {authFeedback && (
-                  <p className={`text-[11px] ${authFeedback.type === 'success' ? 'text-mint' : 'text-coral'}`}>
-                    {authFeedback.message}
-                  </p>
-                )}
-                <div className="flex gap-2">
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="flex-1 min-h-[42px] py-2 rounded-xl bg-cyan text-slate-950 font-bold text-xs hover:bg-cyan/90 transition-all disabled:opacity-50"
-                  >
-                    {isLoading ? 'Enviando...' : 'Enviar Código y Enlace'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setShowEmailForm(false); setAuthFeedback(null); }}
-                    className="px-4 py-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white text-xs"
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <form onSubmit={handleVerifyOtp} className="space-y-2 pt-1">
-                <div className="p-3 rounded-xl bg-slate-950/80 border border-cyan/30 text-[11px] text-slate-300">
-                  <p className="text-cyan font-bold mb-1">¡Código de acceso enviado!</p>
-                  <p>Revisa tu correo <strong>{emailInput}</strong> e introduce el código de 6 dígitos o haz clic en el enlace mágico.</p>
-                </div>
-                <input
-                  type="text"
-                  required
-                  maxLength={8}
-                  value={otpInput}
-                  onChange={(e) => setOtpInput(e.target.value.trim())}
-                  placeholder="Código de 6 dígitos (ej. 123456)"
-                  className="w-full min-h-[44px] px-4 py-2.5 rounded-xl bg-slate-950 border border-white/15 text-center font-mono font-bold tracking-widest text-sm text-cyan placeholder:text-slate-600 focus:border-cyan focus:outline-none"
-                />
-                {authFeedback && (
-                  <p className={`text-[11px] ${authFeedback.type === 'success' ? 'text-mint' : 'text-coral'}`}>
-                    {authFeedback.message}
-                  </p>
-                )}
-                <div className="flex gap-2">
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="flex-1 min-h-[42px] py-2 rounded-xl bg-mint text-slate-950 font-bold text-xs hover:bg-mint/90 transition-all disabled:opacity-50"
-                  >
-                    {isLoading ? 'Verificando...' : 'Validar Código'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setEmailSent(false); setAuthFeedback(null); }}
-                    className="px-4 py-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white text-xs"
-                  >
-                    Volver
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {/* Canjear Código de Invitación / Beta Tester directamente desde la pantalla de bienvenida */}
-            <div className="pt-2 text-center border-t border-white/5">
-              {!showPromoInput ? (
-                <button
-                  type="button"
-                  onClick={() => setShowPromoInput(true)}
-                  className="text-xs text-cyan hover:text-cyan/80 font-bold transition-colors inline-flex items-center gap-1.5 py-1.5"
-                >
-                  <Ticket className="w-4 h-4 text-mint" />
-                  <span>¿Tienes un código de activación? Canjéalo aquí</span>
-                </button>
-              ) : (
-                <form 
-                  onSubmit={handleRedeemCode}
-                  className="mt-2 p-3.5 rounded-2xl bg-slate-950/90 border border-cyan/30 space-y-2.5 animate-in fade-in slide-in-from-top-2 duration-300 text-left"
-                >
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-white font-bold flex items-center gap-1.5">
-                      <Ticket className="w-4 h-4 text-mint" />
-                      Canjear Código de Activación
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => { setShowPromoInput(false); setPromoFeedback(null); }}
-                      className="text-slate-400 hover:text-white text-xs px-2 py-0.5 rounded-lg bg-white/5"
-                    >
-                      ✕ Cerrar
-                    </button>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={promoCode}
-                      onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                      placeholder="Ej: SKATE-XXXX-XXXX"
-                      disabled={promoLoading}
-                      autoFocus
-                      className="flex-1 min-h-[44px] px-3.5 rounded-xl bg-slate-900 border border-white/15 text-white font-mono text-sm tracking-wider uppercase placeholder:text-slate-500 focus:border-cyan focus:outline-none focus:ring-1 focus:ring-cyan transition-all"
-                    />
-                    <button
-                      type="submit"
-                      disabled={promoLoading || !promoCode.trim()}
-                      className="min-h-[44px] px-5 rounded-xl bg-mint text-slate-950 font-black text-xs tracking-wide hover:shadow-[0_0_15px_rgba(16,244,156,0.4)] active:scale-95 transition-all disabled:opacity-40 flex items-center justify-center gap-1"
-                    >
-                      {promoLoading ? 'Validando...' : 'Entrar'}
-                    </button>
-                  </div>
-
-                  {/* Feedback de éxito o error */}
-                  {promoFeedback && (
-                    <div className={`flex items-center gap-1.5 text-xs font-medium pt-1 ${
-                      promoFeedback.type === 'success' ? 'text-mint' : 'text-coral'
-                    }`}>
-                      {promoFeedback.type === 'success' ? (
-                        <CheckCircle2 className="w-4 h-4 shrink-0" />
-                      ) : (
-                        <AlertCircle className="w-4 h-4 shrink-0" />
-                      )}
-                      <span>{promoFeedback.message}</span>
-                    </div>
-                  )}
-                </form>
-              )}
-            </div>
-          </div>
-        ) : (
-          /* ══════════════════════════════════════════════════════
-             ESTADO 2: Usuario Autenticado (Pasarela de Planes)
-             ══════════════════════════════════════════════════════ */
-          <div className="space-y-4">
-            {/* Header de Sesión Activa */}
-            <div className="flex items-center justify-between px-3.5 py-2 rounded-2xl bg-slate-950/60 border border-white/5 text-xs">
-              <div className="flex items-center gap-2 truncate max-w-[220px]">
-                <div className="w-6 h-6 rounded-full bg-cyan/20 border border-cyan/40 flex items-center justify-center text-[10px] font-bold text-cyan shrink-0">
-                  {user.email.charAt(0).toUpperCase()}
-                </div>
-                <div className="truncate">
-                  <span className="truncate text-slate-300 text-[11px] block" title={user.email}>
-                    {user.email}
-                  </span>
-                  {access_expires_at ? (
-                    <span className="text-[10px] text-coral block font-medium">
-                      Expiró el {getFormattedExpiration()}
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-amber-400 block font-medium">
-                      Sin suscripción anual
-                    </span>
-                  )}
-                </div>
+        {/* ── Grid Dual-Card (50/50 Desktop, Apilado Móvil) ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
+          
+          {/* ══════════════════════════════════════════════════════
+              CARD 1: ADQUIRIR ACCESO (Nuevos Usuarios / PayPal)
+              ══════════════════════════════════════════════════════ */}
+          <div className="relative flex flex-col justify-between p-6 sm:p-7 rounded-3xl bg-slate-900/90 border border-cyan/20 shadow-xl shadow-black/60 backdrop-blur-md">
+            <div>
+              <div className="flex items-center justify-between pb-3 border-b border-white/5">
+                <span className="text-[10px] font-mono font-black uppercase tracking-wider text-cyan">
+                  Paso 1 · Adquirir Licencia
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-cyan/15 text-cyan border border-cyan/30">
+                  1 Año Completo
+                </span>
               </div>
-              <button
-                type="button"
-                onClick={logout}
-                className="flex items-center gap-1 text-[11px] text-coral hover:underline"
-              >
-                <LogOut className="w-3 h-3" />
-                Salir
-              </button>
-            </div>
 
-            {/* Tarjeta Plan Individual: $20 / año */}
-            <div className="p-4 rounded-2xl bg-gradient-to-b from-slate-800/60 to-slate-900/60 border border-cyan/30 space-y-3 shadow-lg">
-              <div className="flex items-start justify-between">
+              {/* Título & Precio */}
+              <div className="mt-4 flex items-baseline justify-between">
                 <div>
-                  <h4 className="font-bold text-sm text-white flex items-center gap-1.5">
+                  <h2 className="text-lg sm:text-xl font-black text-white">
                     Patinadora Individual
-                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-cyan/20 text-cyan border border-cyan/30">
-                      Popular
-                    </span>
-                  </h4>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    Licencia personal completa para 1 atleta o entrenador
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Acceso profesional para 1 atleta o entrenador
                   </p>
                 </div>
                 <div className="text-right">
-                  <div className="text-xl font-black text-white">$20 <span className="text-xs text-slate-400 font-normal">/ año</span></div>
-                  <div className="text-[10px] text-mint font-semibold">Todo un año de acceso</div>
+                  <span className="text-2xl sm:text-3xl font-black text-white">$20</span>
+                  <span className="text-xs text-slate-400 ml-1">USD / año</span>
                 </div>
               </div>
 
-              <ul className="text-[11px] text-slate-300 space-y-1.5">
+              {/* Beneficios Clave */}
+              <ul className="mt-4 space-y-2 text-xs text-slate-300">
                 <li className="flex items-center gap-2">
-                  <Check className="w-3.5 h-3.5 text-mint shrink-0" />
-                  Cálculo automático y catálogo oficial RollArt 2026
+                  <Check className="w-4 h-4 text-mint shrink-0" />
+                  <span>Catálogo reglamentario RollArt 2026 y cálculo de BV</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <Check className="w-3.5 h-3.5 text-mint shrink-0" />
-                  Cámara Virtual 2D con zoom gestual de alta precisión
+                  <Check className="w-4 h-4 text-mint shrink-0" />
+                  <span>Trazado cinemático 2D y zoom gestual de precisión</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <Check className="w-3.5 h-3.5 text-mint shrink-0" />
-                  Modo Entrenamiento 100% Offline (Zero-Network)
+                  <Check className="w-4 h-4 text-mint shrink-0" />
+                  <span>Modo Entrenamiento 100% Offline (Sin red en la pista)</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-cyan shrink-0" />
+                  <span>Hasta 3 dispositivos: <strong>1 PC + 1 Tablet + 1 Celular</strong></span>
                 </li>
               </ul>
 
-              {/* Pasarela Oficial PayPal Business */}
-              <div className="pt-1">
-                <PayPalButton 
+              {/* ── Entrada Obligatoria de Correo Pre-Pago ── */}
+              <div className="mt-5 pt-4 border-t border-white/10 space-y-2">
+                <label className="block text-xs font-bold text-slate-200">
+                  <span className="text-cyan">*</span> Ingresa tu correo para vincular tu licencia:
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
+                  <input
+                    type="email"
+                    required
+                    value={buyerEmail}
+                    onChange={(e) => setBuyerEmail(e.target.value)}
+                    placeholder="tu.correo@ejemplo.com"
+                    className="w-full min-h-[46px] pl-10 pr-4 py-2.5 rounded-xl bg-slate-950 border border-white/15 text-white text-xs placeholder:text-slate-500 focus:border-cyan focus:outline-none focus:ring-1 focus:ring-cyan transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* ── Botón Oficial PayPal Business ── */}
+              <div className="mt-3">
+                <PayPalButton
                   amount="20.00"
-                  onSuccess={(msg) => {
-                    setPaymentFeedback({ type: 'success', message: msg });
+                  buyerEmail={buyerEmail}
+                  onSuccess={(data) => {
+                    setPostPaymentData({
+                      orderID: data.orderID,
+                      payerEmail: data.payerEmail,
+                      payerName: data.payerName,
+                    });
+                    setPostRegName(data.payerName || '');
                   }}
                   onError={(errMsg) => {
                     setPaymentFeedback({ type: 'error', message: errMsg });
@@ -393,129 +303,404 @@ export const AuthModal: React.FC = () => {
               </div>
 
               {paymentFeedback && (
-                <div className={`p-2.5 rounded-xl text-[11px] text-center font-bold ${
-                  paymentFeedback.type === 'success' 
-                    ? 'bg-mint/15 text-mint border border-mint/30' 
-                    : 'bg-coral/15 text-coral border border-coral/30'
-                }`}>
+                <div className="mt-2.5 p-2.5 rounded-xl text-xs font-bold bg-coral/15 text-coral border border-coral/30 text-center">
                   {paymentFeedback.message}
                 </div>
               )}
             </div>
 
-            {/* Tarjeta Licencia Club: Múltiples Licencias (Sin Precio Fijo) */}
-            <div className="p-4 rounded-2xl bg-slate-950/70 border border-white/10 space-y-2.5">
-              <div className="flex items-center gap-2 text-white font-bold text-xs">
-                <Users className="w-4 h-4 text-cyan" />
-                <span>Licencia Club / Escuelas (Múltiples Licencias)</span>
-              </div>
-              <p className="text-[11px] text-slate-400 leading-relaxed">
-                ¿Manejas una academia, club o asociación de patinaje? Te ofrecemos paquetes para múltiples patinadores con asesoría personalizada.
-              </p>
-              
-              {/* Enlaces Directos con Iconos */}
-              <div className="flex flex-col sm:flex-row gap-2 pt-1">
+            {/* Enlace Recuperar Pago & Licencia Club */}
+            <div className="mt-6 pt-3 border-t border-white/5 space-y-2 text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRecoverModal(true);
+                  setRecoverFeedback(null);
+                }}
+                className="text-xs text-slate-400 hover:text-cyan font-medium transition-colors inline-flex items-center gap-1.5"
+              >
+                <Search className="w-3.5 h-3.5 text-cyan" />
+                <span>¿Ya pagaste en PayPal y no completaste tu registro? <strong>Recuperar Pago</strong></span>
+              </button>
+
+              <div className="pt-2 flex items-center justify-between text-[11px] text-slate-400">
+                <span className="flex items-center gap-1">
+                  <Users className="w-3 h-3 text-cyan" />
+                  ¿Clubes o múltiples licencias?
+                </span>
                 <a
                   href="https://wa.me/593979376810?text=Hola%20AlsizTech,%20deseo%20información%20sobre%20la%20Licencia%20Club%20de%20SkateArt"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex-1 min-h-[40px] px-3.5 py-2 rounded-xl bg-[#25D366]/15 hover:bg-[#25D366]/25 border border-[#25D366]/30 text-[#25D366] text-[11px] font-bold flex items-center justify-center gap-2 transition-all"
+                  className="text-mint hover:underline font-bold"
                 >
-                  <MessageCircle className="w-4 h-4 shrink-0" />
-                  <span>WhatsApp: 0979376810</span>
-                </a>
-                <a
-                  href="mailto:contacto@alsiztech.com?subject=Consulta%20Licencia%20Club%20SkateArt"
-                  className="flex-1 min-h-[40px] px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white border border-white/10 text-[11px] font-bold flex items-center justify-center gap-2 transition-all"
-                >
-                  <Mail className="w-4 h-4 text-cyan shrink-0" />
-                  <span>contacto@alsiztech.com</span>
+                  WhatsApp: 0979376810 &gt;
                 </a>
               </div>
             </div>
+          </div>
 
-            {/* ══════════════════════════════════════════════════════
-                CANJE DE CÓDIGO DE INVITACIÓN (REVELABLE)
-                ══════════════════════════════════════════════════════ */}
-            <div className="pt-1 text-center border-t border-white/5">
-              {!showPromoInput ? (
+
+          {/* ══════════════════════════════════════════════════════
+              CARD 2: ACCEDER A TU CUENTA (Usuarios Registrados)
+              ══════════════════════════════════════════════════════ */}
+          <div className="relative flex flex-col justify-between p-6 sm:p-7 rounded-3xl bg-slate-900/90 border border-white/10 shadow-xl shadow-black/60 backdrop-blur-md">
+            <div>
+              <div className="flex items-center justify-between pb-3 border-b border-white/5">
+                <span className="text-[10px] font-mono font-black uppercase tracking-wider text-mint">
+                  Paso 2 · Iniciar Sesión
+                </span>
+                
+                {/* Badge de Detección de Dispositivo */}
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-300 border border-white/10">
+                  {detectedType === 'mobile' && <Smartphone className="w-3 h-3 text-cyan" />}
+                  {detectedType === 'tablet' && <Tablet className="w-3 h-3 text-cyan" />}
+                  {detectedType === 'desktop' && <Laptop className="w-3 h-3 text-cyan" />}
+                  <span>{detectedLabel}</span>
+                </span>
+              </div>
+
+              <div className="mt-4">
+                <h2 className="text-lg sm:text-xl font-black text-white">
+                  Acceder a SkateArt
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Ingresa con tu correo y contraseña registrados
+                </p>
+              </div>
+
+              {/* ── Formulario de Inicio de Sesión Propio ── */}
+              <form onSubmit={handleLoginSubmit} className="mt-5 space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Correo Electrónico
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
+                    <input
+                      type="email"
+                      required
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      placeholder="tu.correo@ejemplo.com"
+                      className="w-full min-h-[46px] pl-10 pr-4 py-2.5 rounded-xl bg-slate-950 border border-white/15 text-white text-xs placeholder:text-slate-500 focus:border-cyan focus:outline-none focus:ring-1 focus:ring-cyan transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Contraseña
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
+                    <input
+                      type="password"
+                      required
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full min-h-[46px] pl-10 pr-4 py-2.5 rounded-xl bg-slate-950 border border-white/15 text-white text-xs placeholder:text-slate-500 focus:border-cyan focus:outline-none focus:ring-1 focus:ring-cyan transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* Feedback Login */}
+                {loginFeedback && (
+                  <div className="p-3 rounded-xl bg-coral/15 border border-coral/30 text-coral text-xs font-medium flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span className="leading-relaxed">{loginFeedback.message}</span>
+                  </div>
+                )}
+
                 <button
-                  type="button"
-                  onClick={() => setShowPromoInput(true)}
-                  className="text-[11px] text-slate-400 hover:text-cyan font-medium transition-colors inline-flex items-center gap-1.5 py-1.5"
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full min-h-[48px] px-4 py-3 rounded-2xl bg-cyan hover:bg-cyan/90 text-slate-950 font-black text-xs tracking-wide shadow-lg shadow-cyan/20 active:scale-[0.99] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  <Ticket className="w-3.5 h-3.5 text-slate-400" />
-                  <span>¿Tienes un código de invitación?</span>
+                  <span>{isLoading ? 'Comprobando dispositivo...' : 'Entrar a SkateArt'}</span>
+                  <ArrowRight className="w-4 h-4" />
                 </button>
+              </form>
+            </div>
+
+            {/* ── Sección Desplegable: Canje de Código de Invitación / Regalo ── */}
+            <div className="mt-6 pt-3 border-t border-white/5">
+              {!showCodeRegister ? (
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCodeRegister(true);
+                      setCodeFeedback(null);
+                    }}
+                    className="text-xs text-mint hover:underline font-bold transition-colors inline-flex items-center gap-1.5 py-1"
+                  >
+                    <Ticket className="w-3.5 h-3.5 text-mint" />
+                    <span>¿Tienes un código de regalo / tester? Actívalo aquí</span>
+                  </button>
+                </div>
               ) : (
                 <form 
-                  onSubmit={handleRedeemCode}
-                  className="mt-2 p-3.5 rounded-2xl bg-slate-950/90 border border-white/10 space-y-2.5 animate-in fade-in slide-in-from-top-2 duration-300"
+                  onSubmit={handleCodeSubmit} 
+                  className="p-4 rounded-2xl bg-slate-950 border border-mint/30 space-y-2.5 animate-in fade-in duration-200"
                 >
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-slate-300 font-semibold flex items-center gap-1.5">
+                  <div className="flex items-center justify-between pb-1 border-b border-white/5 text-xs">
+                    <span className="font-bold text-white flex items-center gap-1.5">
                       <Ticket className="w-3.5 h-3.5 text-mint" />
-                      Canjear Invitación / Beta Tester
+                      Canjear Código &amp; Crear Cuenta
                     </span>
                     <button
                       type="button"
-                      onClick={() => { setShowPromoInput(false); setPromoFeedback(null); }}
-                      className="text-slate-500 hover:text-slate-300 text-xs"
+                      onClick={() => setShowCodeRegister(false)}
+                      className="text-slate-400 hover:text-white text-xs"
                     >
                       ✕ Cerrar
                     </button>
                   </div>
 
-                  <div className="flex gap-2">
+                  <input
+                    type="email"
+                    required
+                    value={codeEmail}
+                    onChange={(e) => setCodeEmail(e.target.value)}
+                    placeholder="Correo Electrónico"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-white/10 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-mint"
+                  />
+
+                  <input
+                    type="text"
+                    value={codeName}
+                    onChange={(e) => setCodeName(e.target.value)}
+                    placeholder="Nombre Completo / Atleta"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-white/10 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-mint"
+                  />
+
+                  <div className="grid grid-cols-2 gap-2">
                     <input
-                      type="text"
-                      value={promoCode}
-                      onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                      placeholder="Ej: SKATE-XXXX-XXXX"
-                      disabled={promoLoading}
-                      className="flex-1 min-h-[42px] px-3.5 rounded-xl bg-slate-900 border border-white/10 text-white font-mono text-xs tracking-wider uppercase placeholder:text-slate-600 focus:border-cyan focus:outline-none focus:ring-1 focus:ring-cyan transition-all"
+                      type="password"
+                      required
+                      value={codePassword}
+                      onChange={(e) => setCodePassword(e.target.value)}
+                      placeholder="Contraseña (mín 6)"
+                      className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-white/10 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-mint"
                     />
-                    <button
-                      type="submit"
-                      disabled={promoLoading || !promoCode.trim()}
-                      className="min-h-[42px] px-4 rounded-xl bg-mint text-slate-950 font-black text-xs tracking-wide hover:shadow-[0_0_15px_rgba(16,244,156,0.4)] active:scale-95 transition-all disabled:opacity-40"
-                    >
-                      {promoLoading ? 'Validando...' : 'Canjear'}
-                    </button>
+                    <input
+                      type="password"
+                      required
+                      value={codeConfirmPassword}
+                      onChange={(e) => setCodeConfirmPassword(e.target.value)}
+                      placeholder="Confirmar clave"
+                      className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-white/10 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-mint"
+                    />
                   </div>
 
-                  {/* Feedback de éxito o error */}
-                  {promoFeedback && (
-                    <div className={`flex items-center gap-1.5 text-[11px] font-medium pt-1 ${
-                      promoFeedback.type === 'success' ? 'text-mint' : 'text-coral'
-                    }`}>
-                      {promoFeedback.type === 'success' ? (
-                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                      ) : (
-                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                      )}
-                      <span>{promoFeedback.message}</span>
+                  <input
+                    type="text"
+                    required
+                    value={activationCode}
+                    onChange={(e) => setActivationCode(e.target.value.toUpperCase())}
+                    placeholder="CÓDIGO (Ej: SKATE-2026-XXXX)"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-mint/40 text-xs font-mono font-bold tracking-wider uppercase text-mint placeholder:text-slate-600 focus:outline-none focus:border-mint"
+                  />
+
+                  {codeFeedback && (
+                    <div className="p-2 rounded-lg text-[11px] font-medium bg-coral/15 text-coral border border-coral/30">
+                      {codeFeedback.message}
                     </div>
                   )}
+
+                  <button
+                    type="submit"
+                    disabled={codeLoading}
+                    className="w-full py-2.5 rounded-xl bg-mint text-slate-950 font-black text-xs hover:bg-mint/90 transition-all disabled:opacity-50"
+                  >
+                    {codeLoading ? 'Activando...' : 'Activar Código y Entrar'}
+                  </button>
                 </form>
               )}
             </div>
-
-            {/* Footer con Atribución AlsizTech */}
-            <div className="text-center pt-1">
-              <a
-                href="https://alsiztech.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[10px] text-slate-500 hover:text-slate-300 transition-colors inline-flex items-center gap-1"
-              >
-                <span>Desarrollado por AlsizTech · Agencia Digital</span>
-                <ExternalLink className="w-2.5 h-2.5" />
-              </a>
-            </div>
           </div>
-        )}
+        </div>
+
+        {/* ── Footer ── */}
+        <div className="text-center mt-5 text-[11px] text-slate-500 space-x-3">
+          <span>SkateArt Pro v2.6 · RollArt Compliant</span>
+          <span>•</span>
+          <a
+            href="https://alsiztech.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-slate-300 transition-colors inline-flex items-center gap-1"
+          >
+            <span>Desarrollado por AlsizTech</span>
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
       </div>
+
+
+      {/* ══════════════════════════════════════════════════════
+          MODAL POST-PAGO: COMPLETAR REGISTRO DE CUENTA
+          ══════════════════════════════════════════════════════ */}
+      {postPaymentData && (
+        <div 
+          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-200"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="relative w-full max-w-md p-6 sm:p-7 rounded-3xl bg-slate-900 border border-mint/40 shadow-2xl text-white my-auto">
+            <div className="text-center mb-5">
+              <div className="w-12 h-12 rounded-full bg-mint/20 border border-mint/40 text-mint flex items-center justify-center mx-auto mb-2">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <h3 className="text-xl font-black text-white">
+                ¡Pago Verificado con Éxito!
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">
+                Completa tus datos para activar tu año de acceso y vincular este dispositivo ({detectedLabel}).
+              </p>
+            </div>
+
+            <form onSubmit={handlePostPaymentSubmit} className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                  Correo Asociado (PayPal)
+                </label>
+                <input
+                  type="email"
+                  disabled
+                  value={postPaymentData.payerEmail}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/70 border border-white/10 text-white font-mono text-xs opacity-80 cursor-not-allowed"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                  Nombre Completo / Atleta
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={postRegName}
+                  onChange={(e) => setPostRegName(e.target.value)}
+                  placeholder="Tu Nombre"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/15 text-white text-xs placeholder:text-slate-500 focus:border-cyan focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                  Crear Contraseña (Mínimo 6 caracteres)
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={postRegPassword}
+                  onChange={(e) => setPostRegPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/15 text-white text-xs placeholder:text-slate-500 focus:border-cyan focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                  Confirmar Contraseña
+                </label>
+                <input
+                  type="password"
+                  required
+                  value={postRegConfirmPassword}
+                  onChange={(e) => setPostRegConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/15 text-white text-xs placeholder:text-slate-500 focus:border-cyan focus:outline-none"
+                />
+              </div>
+
+              {postRegFeedback && (
+                <div className="p-2.5 rounded-xl bg-coral/15 border border-coral/30 text-coral text-xs font-medium">
+                  {postRegFeedback.message}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={postRegLoading}
+                className="w-full min-h-[46px] mt-2 rounded-2xl bg-mint text-slate-950 font-black text-xs hover:bg-mint/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                <span>{postRegLoading ? 'Creando cuenta...' : 'Finalizar Registro y Entrar a SkateArt'}</span>
+                <Sparkles className="w-4 h-4" />
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+
+      {/* ══════════════════════════════════════════════════════
+          MODAL RECUPERAR PAGO (PREVENCIÓN DE PAGOS HUÉRFANOS)
+          ══════════════════════════════════════════════════════ */}
+      {showRecoverModal && (
+        <div 
+          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-200"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="relative w-full max-w-md p-6 rounded-3xl bg-slate-900 border border-white/15 shadow-2xl text-white my-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <Search className="w-4 h-4 text-cyan" />
+                <h3 className="font-bold text-sm text-white">Recuperar Pago de PayPal</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRecoverModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="mt-3 text-xs text-slate-300 leading-relaxed">
+              Si pagaste en PayPal y accidentalmente se cerró tu ventana antes de asignar tu contraseña, ingresa aquí tu correo de PayPal o el código de transacción para continuar sin volver a pagar:
+            </p>
+
+            <form onSubmit={handleRecoverLookup} className="mt-4 space-y-3">
+              <input
+                type="text"
+                required
+                value={recoverQuery}
+                onChange={(e) => setRecoverQuery(e.target.value)}
+                placeholder="Correo de PayPal o ID de orden (ej: 4XX...)"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-white/15 text-white text-xs placeholder:text-slate-500 focus:border-cyan focus:outline-none"
+              />
+
+              {recoverFeedback && (
+                <div className="p-2.5 rounded-xl bg-coral/15 border border-coral/30 text-coral text-xs font-medium">
+                  {recoverFeedback.message}
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  disabled={recoverLoading || !recoverQuery.trim()}
+                  className="flex-1 py-2.5 rounded-xl bg-cyan text-slate-950 font-bold text-xs hover:bg-cyan/90 transition-all disabled:opacity-50"
+                >
+                  {recoverLoading ? 'Buscando recibo...' : 'Localizar Recibo'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowRecoverModal(false)}
+                  className="px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white text-xs font-semibold"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

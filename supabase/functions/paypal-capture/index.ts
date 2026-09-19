@@ -1,5 +1,6 @@
 // supabase/functions/paypal-capture/index.ts
 // Edge Function de Captura y Verificación Segura de PayPal Business
+// Soporta tanto registro condicionado post-pago como renovaciones
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -16,14 +17,6 @@ serve(async (req) => {
   }
 
   try {
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Cabecera de autorización faltante' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
     const paypalClientId = Deno.env.get('PAYPAL_CLIENT_ID') || '';
@@ -36,15 +29,15 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
-    // 1. Validar el token del usuario solicitante
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-
-    if (userError || !user) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Usuario no autenticado o sesión expirada' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // 1. Verificar si hay usuario autenticado opcional (para renovaciones)
+    const authHeader = req.headers.get('Authorization');
+    let currentUser: any = null;
+    if (authHeader && authHeader.includes('Bearer ')) {
+      const token = authHeader.replace('Bearer ', '');
+      if (token && token !== 'undefined' && token !== 'null') {
+        const { data } = await supabase.auth.getUser(token);
+        currentUser = data?.user || null;
+      }
     }
 
     const { orderID } = await req.json();
@@ -106,12 +99,27 @@ serve(async (req) => {
     const amountPaid = parseFloat(capture?.amount?.value || '20.00');
     const currencyPaid = capture?.amount?.currency_code || 'USD';
     const captureId = capture?.id || captureData.id;
-    const payerEmail = captureData.payer?.email_address || null;
+    const payerEmail = captureData.payer?.email_address || '';
+    const payerName = `${captureData.payer?.name?.given_name || ''} ${captureData.payer?.name?.surname || ''}`.trim();
     const payerId = captureData.payer?.payer_id || null;
 
-    // 5. Registrar en tabla payments (idempotencia garantizada por UNIQUE paypal_order_id)
-    const { error: paymentError } = await supabase.from('payments').insert({
-      user_id: user.id,
+    // 5. Registrar en pending_payments para habilitar la creación o recuperación de cuenta
+    await supabase.from('pending_payments').upsert({
+      paypal_order_id: orderID,
+      paypal_capture_id: captureId,
+      payer_email: payerEmail,
+      payer_name: payerName,
+      amount: amountPaid,
+      currency: currencyPaid,
+      status: currentUser ? 'claimed' : 'pending_registration',
+      claimed_by_user_id: currentUser?.id || null,
+      claimed_at: currentUser ? new Date().toISOString() : null,
+      created_at: new Date().toISOString(),
+    }, { onConflict: 'paypal_order_id' });
+
+    // 6. Registrar en payments para auditoría histórica
+    await supabase.from('payments').upsert({
+      user_id: currentUser?.id || null,
       paypal_order_id: orderID,
       paypal_capture_id: captureId,
       paypal_payer_id: payerId,
@@ -121,55 +129,51 @@ serve(async (req) => {
       status: 'COMPLETED',
       access_extended_days: 365,
       raw_response: captureData,
-    });
+    }, { onConflict: 'paypal_order_id' }).catch((e: any) => console.warn('Audit insert notice:', e));
 
-    if (paymentError) {
-      if (paymentError.code === '23505') {
-        // Replay Attack: la orden ya había sido capturada previamente
-        return new Response(
-          JSON.stringify({ success: false, error: 'Esta orden de PayPal ya fue procesada anteriormente.' }),
-          { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      console.warn('Advertencia al auditar pago:', paymentError);
-    }
+    // 7. Si ya existía un usuario registrado y autenticado, extender su suscripción de inmediato
+    let newExpiryDate: string | null = null;
+    if (currentUser?.id) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('access_expires_at')
+        .eq('id', currentUser.id)
+        .maybeSingle();
 
-    // 6. Calcular expiración acumulativa: MAX(NOW(), actual) + 365 días
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('access_expires_at')
-      .eq('id', user.id)
-      .single();
+      const now = Date.now();
+      const currentExpiryMs = profile?.access_expires_at 
+        ? new Date(profile.access_expires_at).getTime() 
+        : 0;
 
-    const now = Date.now();
-    const currentExpiryMs = profile?.access_expires_at 
-      ? new Date(profile.access_expires_at).getTime() 
-      : 0;
+      const baseTimeMs = Math.max(now, currentExpiryMs);
+      newExpiryDate = new Date(baseTimeMs + (365 * 24 * 60 * 60 * 1000)).toISOString();
 
-    const baseTimeMs = Math.max(now, currentExpiryMs);
-    const newExpiryDate = new Date(baseTimeMs + (365 * 24 * 60 * 60 * 1000)).toISOString();
+      await supabase.from('profiles').update({
+        access_expires_at: newExpiryDate,
+        subscription_status: 'active',
+        subscription_plan: 'individual',
+        updated_at: new Date().toISOString(),
+      }).eq('id', currentUser.id);
 
-    // 7. Actualizar el perfil del usuario con acceso anual
-    const { error: updateError } = await supabase.from('profiles').update({
-      access_expires_at: newExpiryDate,
-      subscription_status: 'active',
-      subscription_plan: 'individual',
-      updated_at: new Date().toISOString(),
-    }).eq('id', user.id);
-
-    if (updateError) {
-      console.error('Error al actualizar fecha en profiles:', updateError);
-      return new Response(
-        JSON.stringify({ success: false, error: 'Error al actualizar período de acceso del usuario' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      await supabase.from('users').update({
+        access_expires_at: newExpiryDate,
+        subscription_status: 'active',
+        updated_at: new Date().toISOString(),
+      }).eq('id', currentUser.id).catch(() => {});
     }
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: '¡Pago verificado con éxito! Tienes 1 año de acceso ilimitado a SkateArt Pro.',
+        message: '¡Pago verificado con éxito! Tu recibo ha sido guardado.',
+        orderID,
+        captureId,
+        payer_email: payerEmail,
+        payer_name: payerName,
+        amount: amountPaid,
+        currency: currencyPaid,
         access_expires_at: newExpiryDate,
+        is_existing_user: !!currentUser,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -182,4 +186,3 @@ serve(async (req) => {
     );
   }
 });
-

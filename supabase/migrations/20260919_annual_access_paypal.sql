@@ -80,17 +80,10 @@ CREATE TABLE IF NOT EXISTS public.activation_codes (
 CREATE INDEX IF NOT EXISTS idx_activation_codes_unused 
   ON public.activation_codes (code) WHERE is_used = FALSE;
 
--- Insertar códigos de prueba para testers de tu equipo
-INSERT INTO public.activation_codes (code, duration_days, notes)
-VALUES 
-  ('TESTER-2026', 365, 'Código oficial Beta Tester SkateArt'),
-  ('ALSIZTECH-VIP', 365, 'Licencia VIP AlsizTech')
-ON CONFLICT (code) DO NOTHING;
-
 -- 4. TABLA DE AUDITORÍA DE PAGOS (PAYPAL BUSINESS)
 CREATE TABLE IF NOT EXISTS public.payments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
   paypal_order_id VARCHAR(128) UNIQUE NOT NULL,      -- Protección contra Replay Attack
   paypal_capture_id VARCHAR(128) UNIQUE,
   paypal_payer_id VARCHAR(128),

@@ -1,12 +1,14 @@
 /**
- * useAuthStore.ts — Gestor de Estado de Autenticación, Sesión, RBAC y Suscripción SaaS
+ * useAuthStore.ts — Gestor de Estado de Autenticación, Anti-Piratería y Control de Dispositivos
  *
- * Integra Supabase Auth con Google OAuth, validación de roles en la tabla `profiles`,
- * canje de códigos promocionales vía RPC (`redeem_promo_code`) y persistencia offline.
+ * Exclusivo Correo + Contraseña propio respaldado por Bcrypt en PostgreSQL / Supabase.
+ * Control estricto de hardware: Máx. 1 Celular, 1 Tablet, 1 Computadora (Total: 3).
+ * Acceso Superadmin permanente para el equipo de Mauricio Andrade / AlsizTech.
  */
 
 import { create } from 'zustand';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
+import { getDeviceId, getDeviceType, getDeviceName, DeviceType } from '../utils/deviceDetector';
 
 export type UserRole = 'user' | 'tester' | 'club_admin' | 'superadmin';
 export type SubscriptionStatus = 'active' | 'inactive' | 'trial';
@@ -17,6 +19,15 @@ export interface AuthUser {
   email: string;
   nombre?: string;
   avatar_url?: string;
+}
+
+export interface DeviceItem {
+  id: string;
+  device_id: string;
+  device_type: DeviceType;
+  device_name: string;
+  last_login: string;
+  is_active: boolean;
 }
 
 export interface AuthStoreState {
@@ -30,22 +41,26 @@ export interface AuthStoreState {
   subscription_status: SubscriptionStatus;
   subscription_plan: SubscriptionPlan;
 
-  // Acciones de Autenticación
-  loginWithGoogle: () => Promise<void>;
-  loginWithEmail: (email: string) => Promise<{ success: boolean; message: string }>;
-  verifyEmailOtp: (email: string, token: string) => Promise<{ success: boolean; message: string }>;
-  simulateLogin: (email?: string, name?: string, role?: UserRole, days?: number) => void;
-  logout: () => Promise<void>;
+  // Hardware Fingerprinting y Dispositivos Conectados
+  currentDeviceId: string;
+  currentDeviceType: DeviceType;
+  devices: DeviceItem[];
+
+  // Acciones de Autenticación y Registro Condicionado
+  loginWithCredentials: (email: string, password: string) => Promise<{ success: boolean; message: string; expired?: boolean }>;
+  registerWithPayment: (email: string, password: string, fullName: string, paypalOrderId: string) => Promise<{ success: boolean; message: string }>;
+  registerWithCode: (email: string, password: string, fullName: string, code: string) => Promise<{ success: boolean; message: string }>;
+  recoverPaymentLookup: (query: string) => Promise<{ found: boolean; error?: string; paypal_order_id?: string; payer_email?: string; payer_name?: string; amount?: number; currency?: string; created_at?: string }>;
+
+  // Gestión de Dispositivos y Seguridad
+  fetchDevices: () => Promise<void>;
+  unlinkDevice: (deviceIdOrRowId: string) => Promise<{ success: boolean; message: string }>;
+  changePassword: (oldPassword: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
+
+  logout: () => void;
   refreshProfile: () => Promise<void>;
 
-  // Canje de Códigos de Invitación (Tester / Regalo Anual)
-  redeemPromoCode: (code: string) => Promise<{ success: boolean; message: string }>;
-
-  // Acciones de Suscripción (PayPal / Stripe)
-  subscribePlan: (plan: SubscriptionPlan) => Promise<void>;
-  cancelSubscription: () => void;
-
-  // Verificación de acceso para el Soft Paywall (access_expires_at > NOW)
+  // Verificación de acceso para el Soft Paywall
   hasActiveAccess: () => boolean;
   getDaysRemaining: () => number;
   getFormattedExpiration: () => string | null;
@@ -53,7 +68,27 @@ export interface AuthStoreState {
 
 const STORAGE_KEY = 'skateart_saas_auth_session';
 
-// Cargar sesión previa desde almacenamiento local (Offline-first / Modo Avión)
+const SUPERUSER_EMAILS = [
+  'recursosparaministerios@gmail.com',
+  'andradesanchezavril@gmail.com',
+  'karenprofet@gmail.com',
+  'contacto@alsiztech.com',
+  'contactoalsiztech.com',
+  'mauriandrade2@gmail.com',
+];
+
+export const isOwnerOrAdmin = (email?: string): boolean => {
+  if (!email) return false;
+  const clean = email.toLowerCase().trim();
+  if (SUPERUSER_EMAILS.includes(clean)) return true;
+  return (
+    clean.includes('alsiztech') ||
+    clean.includes('admin@skateart') ||
+    clean.includes('mauricio')
+  );
+};
+
+// Cargar sesión previa desde almacenamiento local (Offline-first)
 const loadSavedSession = (): {
   user: AuthUser | null;
   role: UserRole;
@@ -86,486 +121,461 @@ const loadSavedSession = (): {
   return { user: null, role: 'user', status: 'inactive', plan: null, access_expires_at: null };
 };
 
-const SUPERUSER_EMAILS = [
-  'recursosparaministerios@gmail.com',
-  'andradesanchezavril@gmail.com',
-  'karenprofet@gmail.com',
-  'contacto@alsiztech.com',
-  'contactoalsiztech.com',
-  'mauriandrade2@gmail.com',
-];
-
-export const isOwnerOrAdmin = (email?: string): boolean => {
-  if (!email) return false;
-  const clean = email.toLowerCase().trim();
-  if (SUPERUSER_EMAILS.includes(clean)) return true;
-  return (
-    clean.includes('alsiztech') ||
-    clean.includes('admin@skateart') ||
-    clean.includes('mauricio')
-  );
-};
-
 const initialSession = loadSavedSession();
+const initialDeviceId = getDeviceId();
+const initialDeviceType = getDeviceType();
 
-export const useAuthStore = create<AuthStoreState>((set, get) => {
-  // Función interna para sincronizar el perfil desde Supabase (RBAC + Expiración Anual)
-  const syncProfileFromDatabase = async (userId: string) => {
-    if (!supabase || !isSupabaseConfigured) return;
+export const useAuthStore = create<AuthStoreState>((set, get) => ({
+  user: initialSession.user,
+  role: initialSession.role,
+  isLoading: false,
+
+  access_expires_at: initialSession.access_expires_at,
+  subscription_status: initialSession.status,
+  subscription_plan: initialSession.plan,
+
+  currentDeviceId: initialDeviceId,
+  currentDeviceType: initialDeviceType,
+  devices: [],
+
+  /**
+   * Inicio de Sesión Propio con Verificación Estricta Anti-Piratería (Máx 1 Celular, 1 Tablet, 1 PC)
+   */
+  loginWithCredentials: async (email: string, password: string) => {
+    const cleanEmail = email.toLowerCase().trim();
+    if (!cleanEmail || !password) {
+      return { success: false, message: 'Por favor ingresa tu correo y contraseña.' };
+    }
+
+    set({ isLoading: true });
+
     try {
-      const currentUser = get().user;
-      const isOwner = isOwnerOrAdmin(currentUser?.email);
+      const deviceId = getDeviceId();
+      const deviceType = getDeviceType();
+      const deviceName = getDeviceName();
 
-      if (isOwner) {
-        const permanentExpiry = new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000).toISOString();
+      if (isSupabaseConfigured && supabase) {
+        const { data, error } = await supabase.rpc('login_custom_user', {
+          p_email: cleanEmail,
+          p_password: password,
+          p_device_id: deviceId,
+          p_device_type: deviceType,
+          p_device_name: deviceName,
+        });
+
+        if (error) {
+          set({ isLoading: false });
+          return { success: false, message: error.message || 'Error al conectar con el servidor de autenticación.' };
+        }
+
+        if (!data || !data.success) {
+          set({ isLoading: false });
+          return {
+            success: false,
+            message: data?.error || 'Credenciales incorrectas.',
+            expired: data?.expired || false,
+          };
+        }
+
+        const authenticatedUser: AuthUser = {
+          id: data.user.id,
+          email: data.user.email,
+          nombre: data.user.full_name || cleanEmail.split('@')[0],
+        };
+
+        const isOwner = isOwnerOrAdmin(authenticatedUser.email);
+        const role: UserRole = isOwner ? 'superadmin' : (data.user.role as UserRole) || 'user';
+        const accessExpiry = isOwner
+          ? new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000).toISOString()
+          : data.user.access_expires_at;
+
         set({
-          role: 'superadmin',
+          user: authenticatedUser,
+          role,
           subscription_status: 'active',
           subscription_plan: 'individual',
-          access_expires_at: permanentExpiry,
+          access_expires_at: accessExpiry,
+          isLoading: false,
         });
-        if (currentUser) {
-          localStorage.setItem(
-            STORAGE_KEY,
-            JSON.stringify({
-              user: currentUser,
-              role: 'superadmin',
-              subscription_status: 'active',
-              subscription_plan: 'individual',
-              access_expires_at: permanentExpiry,
-            })
-          );
-        }
-        return;
-      }
 
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('role, subscription_status, subscription_plan, access_expires_at')
-        .eq('id', userId)
-        .maybeSingle();
-
-      if (!error && profile) {
-        let role = (profile.role as UserRole) || 'user';
-        let access_expires_at = (profile.access_expires_at as string | null) || null;
-        
-        // Validación en tiempo real del acceso anual
-        const isAccessActive = access_expires_at 
-          ? new Date(access_expires_at).getTime() > Date.now() 
-          : false;
-
-        const subscription_status: SubscriptionStatus = isAccessActive ? 'active' : 'inactive';
-        const subscription_plan = (profile.subscription_plan as SubscriptionPlan) || 'individual';
-
-        set({ role, subscription_status, subscription_plan, access_expires_at });
-
-        // Actualizar almacenamiento offline
-        if (currentUser) {
-          localStorage.setItem(
-            STORAGE_KEY,
-            JSON.stringify({
-              user: currentUser,
-              role,
-              subscription_status,
-              subscription_plan,
-              access_expires_at,
-            })
-          );
-        }
-      }
-    } catch (err) {
-      console.warn('No se pudo sincronizar perfil remoto (modo offline):', err);
-    }
-  };
-
-  // Escuchar cambios de autenticación de Supabase (OAuth Google y Email)
-  if (typeof window !== 'undefined' && isSupabaseConfigured && supabase) {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        const email = session.user.email || '';
-        const isOwner = isOwnerOrAdmin(email);
-        const authUser: AuthUser = {
-          id: session.user.id,
-          email,
-          nombre: session.user.user_metadata?.full_name || email.split('@')[0],
-          avatar_url: session.user.user_metadata?.avatar_url,
-        };
-
-        if (isOwner) {
-          const tenYears = new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000).toISOString();
-          set({
-            user: authUser,
-            role: 'superadmin',
-            subscription_status: 'active',
-            subscription_plan: 'individual',
-            access_expires_at: tenYears,
-          });
-          localStorage.setItem(
-            STORAGE_KEY,
-            JSON.stringify({
-              user: authUser,
-              role: 'superadmin',
-              subscription_status: 'active',
-              subscription_plan: 'individual',
-              access_expires_at: tenYears,
-            })
-          );
-        } else {
-          set({ user: authUser });
-          syncProfileFromDatabase(session.user.id);
-        }
-      }
-    });
-
-    supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session?.user) {
-        const email = session.user.email || '';
-        const isOwner = isOwnerOrAdmin(email);
-        const authUser: AuthUser = {
-          id: session.user.id,
-          email,
-          nombre: session.user.user_metadata?.full_name || email.split('@')[0],
-          avatar_url: session.user.user_metadata?.avatar_url,
-        };
-
-        if (isOwner) {
-          const tenYears = new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000).toISOString();
-          set({
-            user: authUser,
-            role: 'superadmin',
-            subscription_status: 'active',
-            subscription_plan: 'individual',
-            access_expires_at: tenYears,
-          });
-          localStorage.setItem(
-            STORAGE_KEY,
-            JSON.stringify({
-              user: authUser,
-              role: 'superadmin',
-              subscription_status: 'active',
-              subscription_plan: 'individual',
-              access_expires_at: tenYears,
-            })
-          );
-        } else {
-          set({ user: authUser });
-          await syncProfileFromDatabase(session.user.id);
-        }
-
-        // Limpieza de parámetros en la barra de direcciones tras redirección de Google OAuth
-        if (window.location.hash || window.location.search.includes('code=')) {
-          window.history.replaceState({}, document.title, window.location.pathname);
-        }
-      } else {
-        set({ user: null, role: 'user', subscription_status: 'inactive', subscription_plan: null, access_expires_at: null });
-        localStorage.removeItem(STORAGE_KEY);
-      }
-    });
-  }
-
-  return {
-    user: initialSession.user,
-    role: isOwnerOrAdmin(initialSession.user?.email) ? 'superadmin' : initialSession.role,
-    isLoading: false,
-    access_expires_at: isOwnerOrAdmin(initialSession.user?.email) 
-      ? new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000).toISOString()
-      : initialSession.access_expires_at,
-    subscription_status: isOwnerOrAdmin(initialSession.user?.email) ? 'active' : initialSession.status,
-    subscription_plan: initialSession.plan,
-
-    hasActiveAccess: () => {
-      const { user, role, subscription_status, access_expires_at } = get();
-      if (!user) return false;
-      // Propietario / Superadmin bypass de seguridad inmediato
-      if (role === 'superadmin' || isOwnerOrAdmin(user.email)) return true;
-      // Usuarios que han pagado con PayPal o han canjeado un código de activación
-      if (role === 'tester' && access_expires_at && new Date(access_expires_at).getTime() > Date.now()) {
-        return true;
-      }
-      if (subscription_status === 'active' && access_expires_at && new Date(access_expires_at).getTime() > Date.now()) {
-        return true;
-      }
-      // Usuario registrado pero sin pago activo -> Mostrar pantalla de pago de PayPal
-      return false;
-    },
-
-    getDaysRemaining: () => {
-      const { access_expires_at } = get();
-      if (!access_expires_at) return 0;
-      const diffMs = new Date(access_expires_at).getTime() - Date.now();
-      return Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
-    },
-
-    getFormattedExpiration: () => {
-      const { access_expires_at } = get();
-      if (!access_expires_at) return null;
-      return new Date(access_expires_at).toLocaleDateString('es-ES', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-      });
-    },
-
-    refreshProfile: async () => {
-      const user = get().user;
-      if (user?.id) {
-        await syncProfileFromDatabase(user.id);
-      }
-    },
-
-    simulateLogin: (email = 'atleta@rollart.com', name = 'Patinadora Demo', role: UserRole = 'user', days = 365) => {
-      const mockUser: AuthUser = {
-        id: `usr_${Date.now()}`,
-        email,
-        nombre: name,
-      };
-      const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
-      const status: SubscriptionStatus = 'active';
-
-      set({ user: mockUser, role, subscription_status: status, access_expires_at: expiresAt });
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          user: mockUser,
-          role,
-          subscription_status: status,
-          subscription_plan: get().subscription_plan,
-          access_expires_at: expiresAt,
-        })
-      );
-    },
-
-    loginWithGoogle: async () => {
-      set({ isLoading: true });
-      try {
-        if (isSupabaseConfigured && supabase) {
-          const redirectUrl = window.location.origin;
-          const { error } = await supabase.auth.signInWithOAuth({
-            provider: 'google',
-            options: {
-              redirectTo: redirectUrl,
-              queryParams: {
-                access_type: 'offline',
-                prompt: 'select_account',
-              },
-            },
-          });
-          if (error) throw error;
-        } else {
-          throw new Error('Servicio de Google OAuth no disponible.');
-        }
-      } catch (err: any) {
-        console.error('Error al iniciar con Google:', err);
-        throw err;
-      } finally {
-        set({ isLoading: false });
-      }
-    },
-
-    loginWithEmail: async (email: string) => {
-      const cleanEmail = email.trim().toLowerCase();
-      if (!cleanEmail) {
-        return { success: false, message: 'Por favor escribe un correo válido.' };
-      }
-
-      // Bypass Inmediato para los Superusuarios Autorizados con Acceso Total
-      if (isOwnerOrAdmin(cleanEmail)) {
-        get().simulateLogin(
-          cleanEmail,
-          cleanEmail.split('@')[0],
-          'superadmin',
-          3650
-        );
-        return { 
-          success: true, 
-          message: '¡Superusuario verificado! Acceso total concedido.' 
-        };
-      }
-
-      set({ isLoading: true });
-      try {
-        if (isSupabaseConfigured && supabase) {
-          const { error } = await supabase.auth.signInWithOtp({
-            email: cleanEmail,
-            options: {
-              emailRedirectTo: window.location.origin,
-            },
-          });
-          if (error) {
-            console.warn('Supabase auth signInWithOtp error:', error.message);
-            if (error.message.toLowerCase().includes('rate limit') || (error as any).status === 429) {
-              return {
-                success: false,
-                message: 'Límite temporal de correos excedido por seguridad. Inténtalo más tarde o ingresa con tu código de activación.',
-              };
-            }
-            throw error;
-          }
-          return { success: true, message: '¡Código y enlace de acceso enviados! Revisa tu bandeja de entrada.' };
-        } else {
-          return { success: false, message: 'El servicio de autenticación no está disponible en este momento.' };
-        }
-      } catch (err: any) {
-        console.error('Error al autenticar con Email:', err);
-        return { success: false, message: err?.message || 'Error al enviar código de acceso.' };
-      } finally {
-        set({ isLoading: false });
-      }
-    },
-
-    verifyEmailOtp: async (email: string, token: string) => {
-      set({ isLoading: true });
-      try {
-        if (isSupabaseConfigured && supabase) {
-          const { data, error } = await supabase.auth.verifyOtp({
-            email: email.trim(),
-            token: token.trim(),
-            type: 'email',
-          });
-          if (error) throw error;
-          if (data.user) {
-            const authUser: AuthUser = {
-              id: data.user.id,
-              email: data.user.email || '',
-              nombre: data.user.user_metadata?.full_name || data.user.email?.split('@')[0],
-              avatar_url: data.user.user_metadata?.avatar_url,
-            };
-            set({ user: authUser });
-            await syncProfileFromDatabase(data.user.id);
-            return { success: true, message: '¡Sesión validada exitosamente!' };
-          }
-        } else {
-          return { success: false, message: 'Servicio de validación no disponible.' };
-        }
-        return { success: false, message: 'No se pudo verificar el código.' };
-      } catch (err: any) {
-        console.error('Error al verificar OTP:', err);
-        return { success: false, message: err?.message || 'Código OTP inválido o expirado.' };
-      } finally {
-        set({ isLoading: false });
-      }
-    },
-
-    redeemPromoCode: async (code: string) => {
-      const cleanCode = code.trim().toUpperCase();
-      if (!cleanCode) {
-        return { success: false, message: 'Por favor escribe un código.' };
-      }
-
-      set({ isLoading: true });
-      try {
-        if (isSupabaseConfigured && supabase) {
-          // 1. Intentar con la función atómica RPC de la Fase 1
-          let { data, error } = await supabase.rpc('redeem_activation_code', {
-            code_input: cleanCode,
-          });
-
-          // Fallback de retrocompatibilidad
-          if (error) {
-            const fallback = await supabase.rpc('redeem_promo_code', {
-              code_input: cleanCode,
-            });
-            if (!fallback.error) {
-              data = fallback.data;
-              error = null;
-            }
-          }
-
-          const oneYearFromNow = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
-
-          // Asegurar objeto de usuario para acceso inmediato sin importar si inició sesión antes
-          const establishUserSession = (expiry: string) => {
-            let currentUser = get().user;
-            if (!currentUser) {
-              currentUser = {
-                id: `tester_${Date.now()}`,
-                email: 'tester.vip@skateart.app',
-                nombre: 'Beta Tester VIP',
-              };
-            }
-            set({
-              user: currentUser,
-              role: 'tester',
-              subscription_status: 'active',
-              subscription_plan: 'individual',
-              access_expires_at: expiry,
-            });
-            localStorage.setItem(
-              STORAGE_KEY,
-              JSON.stringify({
-                user: currentUser,
-                role: 'tester',
-                subscription_status: 'active',
-                subscription_plan: 'individual',
-                access_expires_at: expiry,
-              })
-            );
-          };
-
-          if (error) {
-            console.error('Error al ejecutar RPC redeem_activation_code:', error);
-            return { success: false, message: error.message || 'Error al validar el código en el servidor.' };
-          }
-
-          if (data?.success) {
-            const newExpiry = data.access_expires_at || oneYearFromNow;
-            establishUserSession(newExpiry);
-            return { success: true, message: data.message || '¡Código canjeado con éxito! Tienes 1 año de acceso.' };
-          } else {
-            return { success: false, message: data?.message || 'Código inválido, expirado o ya utilizado.' };
-          }
-        } else {
-          return { success: false, message: 'La base de datos de códigos no está disponible en este momento.' };
-        }
-      } catch (err: any) {
-        return { success: false, message: err?.message || 'Error al validar el código.' };
-      } finally {
-        set({ isLoading: false });
-      }
-    },
-
-    subscribePlan: async (plan: SubscriptionPlan) => {
-      set({ isLoading: true });
-      try {
-        await new Promise((res) => setTimeout(res, 600));
-        const user = get().user;
-        const oneYearFromNow = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
-        set({ subscription_status: 'active', subscription_plan: plan, access_expires_at: oneYearFromNow });
         localStorage.setItem(
           STORAGE_KEY,
           JSON.stringify({
-            user,
-            role: get().role,
+            user: authenticatedUser,
+            role,
             subscription_status: 'active',
-            subscription_plan: plan,
-            access_expires_at: oneYearFromNow,
+            subscription_plan: 'individual',
+            access_expires_at: accessExpiry,
           })
         );
-      } finally {
-        set({ isLoading: false });
+
+        // Cargar lista de dispositivos
+        get().fetchDevices().catch(() => {});
+
+        return { success: true, message: '¡Sesión iniciada correctamente!' };
+      } else {
+        // Fallback local para desarrollo sin red
+        const isOwner = isOwnerOrAdmin(cleanEmail);
+        const expiry = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+        const mockUser: AuthUser = {
+          id: 'local_user_' + Date.now(),
+          email: cleanEmail,
+          nombre: cleanEmail.split('@')[0],
+        };
+
+        set({
+          user: mockUser,
+          role: isOwner ? 'superadmin' : 'user',
+          subscription_status: 'active',
+          subscription_plan: 'individual',
+          access_expires_at: expiry,
+          isLoading: false,
+        });
+
+        return { success: true, message: 'Sesión local iniciada (Modo Desarrollo).' };
       }
-    },
+    } catch (err: any) {
+      set({ isLoading: false });
+      return { success: false, message: err?.message || 'Error inesperado durante el inicio de sesión.' };
+    }
+  },
 
-    cancelSubscription: () => {
-      const user = get().user;
-      set({ subscription_status: 'inactive', subscription_plan: null });
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          user,
-          role: get().role,
-          subscription_status: 'inactive',
-          subscription_plan: null,
-        })
-      );
-    },
+  /**
+   * Registro Condicionado Post-Pago PayPal (Crea cuenta e inmediatamente activa acceso por 1 año)
+   */
+  registerWithPayment: async (email: string, password: string, fullName: string, paypalOrderId: string) => {
+    const cleanEmail = email.toLowerCase().trim();
+    if (!cleanEmail || !password || !paypalOrderId) {
+      return { success: false, message: 'Todos los campos son obligatorios.' };
+    }
 
-    logout: async () => {
+    if (password.length < 6) {
+      return { success: false, message: 'La contraseña debe tener al menos 6 caracteres.' };
+    }
+
+    set({ isLoading: true });
+
+    try {
+      const deviceId = getDeviceId();
+      const deviceType = getDeviceType();
+      const deviceName = getDeviceName();
+
       if (isSupabaseConfigured && supabase) {
-        await supabase.auth.signOut();
+        const { data, error } = await supabase.rpc('register_with_paypal_payment', {
+          p_email: cleanEmail,
+          p_password: password,
+          p_full_name: fullName.trim(),
+          p_paypal_order_id: paypalOrderId.trim(),
+          p_device_id: deviceId,
+          p_device_type: deviceType,
+          p_device_name: deviceName,
+        });
+
+        if (error) {
+          set({ isLoading: false });
+          return { success: false, message: error.message || 'Error al crear la cuenta con el pago.' };
+        }
+
+        if (!data || !data.success) {
+          set({ isLoading: false });
+          return { success: false, message: data?.error || 'No se pudo validar el pago para crear la cuenta.' };
+        }
+
+        const newUser: AuthUser = {
+          id: data.user.id,
+          email: data.user.email,
+          nombre: data.user.full_name,
+        };
+
+        set({
+          user: newUser,
+          role: 'user',
+          subscription_status: 'active',
+          subscription_plan: 'individual',
+          access_expires_at: data.user.access_expires_at,
+          isLoading: false,
+        });
+
+        localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({
+            user: newUser,
+            role: 'user',
+            subscription_status: 'active',
+            subscription_plan: 'individual',
+            access_expires_at: data.user.access_expires_at,
+          })
+        );
+
+        get().fetchDevices().catch(() => {});
+
+        return { success: true, message: '¡Cuenta creada y activada por 1 año con éxito!' };
+      } else {
+        set({ isLoading: false });
+        return { success: true, message: 'Cuenta creada localmente.' };
       }
-      set({ user: null, role: 'user', subscription_status: 'inactive', subscription_plan: null });
-      localStorage.removeItem(STORAGE_KEY);
-    },
-  };
-});
+    } catch (err: any) {
+      set({ isLoading: false });
+      return { success: false, message: err?.message || 'Error de conexión al registrar cuenta.' };
+    }
+  },
+
+  /**
+   * Registro con Código de Activación / Regalo Anual
+   */
+  registerWithCode: async (email: string, password: string, fullName: string, code: string) => {
+    const cleanEmail = email.toLowerCase().trim();
+    const cleanCode = code.toUpperCase().trim();
+
+    if (!cleanEmail || !password || !cleanCode) {
+      return { success: false, message: 'Por favor completa todos los campos requeridos.' };
+    }
+
+    if (password.length < 6) {
+      return { success: false, message: 'La contraseña debe tener al menos 6 caracteres.' };
+    }
+
+    set({ isLoading: true });
+
+    try {
+      const deviceId = getDeviceId();
+      const deviceType = getDeviceType();
+      const deviceName = getDeviceName();
+
+      if (isSupabaseConfigured && supabase) {
+        const { data, error } = await supabase.rpc('register_with_code', {
+          p_email: cleanEmail,
+          p_password: password,
+          p_full_name: fullName.trim(),
+          p_code: cleanCode,
+          p_device_id: deviceId,
+          p_device_type: deviceType,
+          p_device_name: deviceName,
+        });
+
+        if (error) {
+          set({ isLoading: false });
+          return { success: false, message: error.message || 'Error al procesar el código de activación.' };
+        }
+
+        if (!data || !data.success) {
+          set({ isLoading: false });
+          return { success: false, message: data?.error || 'Código inválido o ya utilizado.' };
+        }
+
+        const newUser: AuthUser = {
+          id: data.user.id,
+          email: data.user.email,
+          nombre: data.user.full_name,
+        };
+
+        set({
+          user: newUser,
+          role: 'user',
+          subscription_status: 'active',
+          subscription_plan: 'individual',
+          access_expires_at: data.user.access_expires_at,
+          isLoading: false,
+        });
+
+        localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({
+            user: newUser,
+            role: 'user',
+            subscription_status: 'active',
+            subscription_plan: 'individual',
+            access_expires_at: data.user.access_expires_at,
+          })
+        );
+
+        get().fetchDevices().catch(() => {});
+
+        return { success: true, message: '¡Código de regalo canjeado con éxito! Tienes 1 año de acceso.' };
+      } else {
+        set({ isLoading: false });
+        return { success: true, message: 'Código canjeado localmente.' };
+      }
+    } catch (err: any) {
+      set({ isLoading: false });
+      return { success: false, message: err?.message || 'Error inesperado al canjear código.' };
+    }
+  },
+
+  /**
+   * Búsqueda de Pago Huérfano para Recuperación
+   */
+  recoverPaymentLookup: async (query: string) => {
+    if (!query.trim()) {
+      return { found: false, error: 'Ingresa un correo o código de transacción.' };
+    }
+
+    try {
+      if (isSupabaseConfigured && supabase) {
+        const { data, error } = await supabase.rpc('recover_payment_lookup', {
+          p_query: query.trim(),
+        });
+
+        if (error || !data || !data.found) {
+          return { found: false, error: data?.error || 'No se encontró un pago pendiente con ese dato.' };
+        }
+
+        return data;
+      }
+      return { found: false, error: 'Servicio no disponible en modo offline.' };
+    } catch (err: any) {
+      return { found: false, error: err?.message || 'Error de conexión al buscar pago.' };
+    }
+  },
+
+  /**
+   * Cargar Lista de Dispositivos Conectados
+   */
+  fetchDevices: async () => {
+    const user = get().user;
+    if (!user || !isSupabaseConfigured || !supabase) return;
+
+    try {
+      const { data, error } = await supabase.rpc('get_user_connected_devices', {
+        p_user_id: user.id,
+      });
+
+      if (!error && Array.isArray(data)) {
+        set({ devices: data as DeviceItem[] });
+      }
+    } catch (e) {
+      console.warn('Error al cargar dispositivos:', e);
+    }
+  },
+
+  /**
+   * Desvincular Dispositivo Activo
+   */
+  unlinkDevice: async (deviceIdOrRowId: string) => {
+    const user = get().user;
+    if (!user || !isSupabaseConfigured || !supabase) {
+      return { success: false, message: 'Debes iniciar sesión para realizar esta acción.' };
+    }
+
+    try {
+      const { data, error } = await supabase.rpc('unlink_user_device', {
+        p_user_id: user.id,
+        p_device_id_to_unlink: deviceIdOrRowId,
+      });
+
+      if (error || !data?.success) {
+        return { success: false, message: data?.error || error?.message || 'No se pudo desvincular el dispositivo.' };
+      }
+
+      await get().fetchDevices();
+      return { success: true, message: 'Dispositivo desvinculado con éxito.' };
+    } catch (e: any) {
+      return { success: false, message: e?.message || 'Error de conexión al desvincular.' };
+    }
+  },
+
+  /**
+   * Cambio de Contraseña Propio
+   */
+  changePassword: async (oldPassword: string, newPassword: string) => {
+    const user = get().user;
+    if (!user || !isSupabaseConfigured || !supabase) {
+      return { success: false, message: 'Debes iniciar sesión para cambiar tu contraseña.' };
+    }
+
+    try {
+      const { data, error } = await supabase.rpc('change_user_password', {
+        p_user_id: user.id,
+        p_old_password: oldPassword,
+        p_new_password: newPassword,
+      });
+
+      if (error || !data?.success) {
+        return { success: false, message: data?.error || error?.message || 'Error al cambiar contraseña.' };
+      }
+
+      return { success: true, message: '¡Contraseña actualizada con éxito!' };
+    } catch (e: any) {
+      return { success: false, message: e?.message || 'Error de conexión.' };
+    }
+  },
+
+  logout: () => {
+    localStorage.removeItem(STORAGE_KEY);
+    set({
+      user: null,
+      role: 'user',
+      access_expires_at: null,
+      subscription_status: 'inactive',
+      subscription_plan: null,
+      devices: [],
+    });
+  },
+
+  refreshProfile: async () => {
+    const user = get().user;
+    if (!user || !isSupabaseConfigured || !supabase) return;
+
+    if (isOwnerOrAdmin(user.email)) {
+      set({
+        role: 'superadmin',
+        subscription_status: 'active',
+        subscription_plan: 'individual',
+        access_expires_at: new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000).toISOString(),
+      });
+      return;
+    }
+
+    try {
+      const { data: dbUser } = await supabase
+        .from('users')
+        .select('role, subscription_status, access_expires_at')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (dbUser) {
+        const expiresAt = dbUser.access_expires_at;
+        const isActive = expiresAt && new Date(expiresAt).getTime() > Date.now();
+        set({
+          role: (dbUser.role as UserRole) || 'user',
+          subscription_status: isActive ? 'active' : 'inactive',
+          access_expires_at: expiresAt,
+        });
+      }
+    } catch (e) {
+      console.warn('Error al refrescar perfil:', e);
+    }
+  },
+
+  hasActiveAccess: () => {
+    const { user, access_expires_at, subscription_status, role } = get();
+    if (!user) return false;
+    if (isOwnerOrAdmin(user.email) || role === 'superadmin') return true;
+    if (subscription_status !== 'active') return false;
+    if (!access_expires_at) return false;
+    return new Date(access_expires_at).getTime() > Date.now();
+  },
+
+  getDaysRemaining: () => {
+    const { access_expires_at, user } = get();
+    if (isOwnerOrAdmin(user?.email)) return 3650;
+    if (!access_expires_at) return 0;
+    const diffMs = new Date(access_expires_at).getTime() - Date.now();
+    return Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+  },
+
+  getFormattedExpiration: () => {
+    const { access_expires_at, user } = get();
+    if (isOwnerOrAdmin(user?.email)) return 'Acceso Vitalicio Superadmin';
+    if (!access_expires_at) return null;
+    try {
+      return new Intl.DateTimeFormat('es-ES', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      }).format(new Date(access_expires_at));
+    } catch {
+      return access_expires_at;
+    }
+  },
+}));

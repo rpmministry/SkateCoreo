@@ -1,21 +1,31 @@
 /**
  * PayPalButton.tsx — Componente Oficial de Botón de Pago PayPal Business
  *
- * Renderiza los botones de PayPal usando el SDK oficial en modo 'capture',
- * delega la verificación al backend y actualiza el acceso anual del usuario.
+ * Exige el correo del comprador antes de activar el pago, vinculando el recibo
+ * con 'custom_id' en PayPal para evitar pagos huérfanos y permitir registro condicionado.
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { paypalService } from '../services/paypalService';
+import { paypalService, PayPalCaptureResult } from '../services/paypalService';
+import { Mail, ShieldCheck } from 'lucide-react';
+
+interface PayPalSuccessData {
+  orderID: string;
+  payerEmail: string;
+  payerName?: string;
+  message?: string;
+}
 
 interface PayPalButtonProps {
   amount?: string; // '20.00'
-  onSuccess: (message: string) => void;
+  buyerEmail: string;
+  onSuccess: (data: PayPalSuccessData) => void;
   onError: (errorMsg: string) => void;
 }
 
 export const PayPalButton: React.FC<PayPalButtonProps> = ({
   amount = '20.00',
+  buyerEmail,
   onSuccess,
   onError,
 }) => {
@@ -23,7 +33,16 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
   const [isLoadingSdk, setIsLoadingSdk] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
 
+  const isEmailValid = Boolean(
+    buyerEmail &&
+    buyerEmail.trim().length > 4 &&
+    buyerEmail.includes('@') &&
+    buyerEmail.includes('.')
+  );
+
   useEffect(() => {
+    if (!isEmailValid) return;
+
     const clientId = import.meta.env.VITE_PAYPAL_CLIENT_ID || 'sb';
     const currency = 'USD';
     const scriptId = 'paypal-sdk-official';
@@ -41,14 +60,16 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
             color: 'gold',
             shape: 'rect',
             label: 'pay',
-            height: 46,
+            height: 48,
           },
 
           createOrder: (_data: any, actions: any) => {
+            const cleanEmail = buyerEmail.trim().toLowerCase();
             return actions.order.create({
               purchase_units: [
                 {
-                  description: 'SkateArt Pro - Suscripción Anual (1 Año / 365 días)',
+                  custom_id: cleanEmail,
+                  description: 'SkateArt Pro - Licencia Anual 2026 (1 Año / 365 días)',
                   amount: {
                     currency_code: currency,
                     value: amount,
@@ -61,10 +82,15 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
           onApprove: async (data: any) => {
             setIsProcessing(true);
             try {
-              const result = await paypalService.captureOrder(data.orderID);
+              const result: PayPalCaptureResult = await paypalService.captureOrder(data.orderID);
 
               if (result.success) {
-                onSuccess(result.message || '¡Pago completado con éxito! 1 año de acceso otorgado.');
+                onSuccess({
+                  orderID: data.orderID,
+                  payerEmail: result.payer_email || buyerEmail.trim().toLowerCase(),
+                  payerName: result.payer_name || '',
+                  message: result.message,
+                });
               } else {
                 onError(result.error || 'No se pudo verificar el pago en el servidor.');
               }
@@ -76,7 +102,7 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
           },
 
           onCancel: () => {
-            onError('Transacción cancelada por el usuario en PayPal.');
+            onError('Transacción cancelada en PayPal. Puedes intentar de nuevo cuando gustes.');
           },
 
           onError: (err: any) => {
@@ -102,7 +128,7 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
       script.onload = () => renderButtons();
       script.onerror = () => {
         setIsLoadingSdk(false);
-        onError('No se pudo cargar el SDK de PayPal. Revisa tu conexión.');
+        onError('No se pudo conectar con los servidores de PayPal.');
       };
       document.body.appendChild(script);
     } else {
@@ -112,7 +138,21 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
         script.onload = () => renderButtons();
       }
     }
-  }, [amount, onSuccess, onError]);
+  }, [buyerEmail, isEmailValid, amount, onSuccess, onError]);
+
+  if (!isEmailValid) {
+    return (
+      <div className="w-full p-4 rounded-2xl bg-slate-900/60 border border-dashed border-white/15 text-center space-y-1.5 transition-all">
+        <div className="flex items-center justify-center gap-1.5 text-xs text-amber-400 font-semibold">
+          <Mail className="w-4 h-4" />
+          <span>Ingresa tu correo arriba</span>
+        </div>
+        <p className="text-[11px] text-slate-400 max-w-xs mx-auto">
+          El botón de pago oficial de PayPal se habilitará automáticamente al ingresar un correo válido para asociar tu licencia.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full space-y-2">
@@ -120,14 +160,15 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
         <div className="w-full h-12 rounded-xl bg-slate-800/80 border border-white/5 animate-pulse flex items-center justify-center text-xs text-slate-400 font-medium">
           <span className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-cyan animate-ping" />
-            Cargando pasarela segura PayPal Business...
+            Cargando pasarela de pago segura...
           </span>
         </div>
       )}
 
       {isProcessing && (
-        <div className="w-full p-3 rounded-xl bg-cyan/10 border border-cyan/30 text-cyan text-xs text-center font-bold animate-pulse">
-          Validando y acreditando tu año de acceso en el servidor seguro...
+        <div className="w-full p-3 rounded-xl bg-cyan/15 border border-cyan/30 text-cyan text-xs text-center font-bold animate-pulse flex items-center justify-center gap-2">
+          <ShieldCheck className="w-4 h-4 text-cyan shrink-0" />
+          <span>Confirmando pago y generando recibo seguro...</span>
         </div>
       )}
 
@@ -138,4 +179,3 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
     </div>
   );
 };
-

@@ -14,10 +14,12 @@ import {
   BookOpen,
   LogOut,
   ShieldCheck,
+  Smartphone,
 } from 'lucide-react';
 import { useAudioEngine } from '../hooks/useAudioEngine';
 import { useChoreographyStore } from '../store/useChoreographyStore';
 import { useAuthStore } from '../store/useAuthStore';
+import { DeviceSecurityModal } from './DeviceSecurityModal';
 import { 
   EFICIENCIAS_DISPONIBLES, 
   getDescripcionCategoria 
@@ -60,6 +62,7 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
 
   // SaaS Auth state
   const { user, role, subscription_plan, logout } = useAuthStore();
+  const [showDeviceModal, setShowDeviceModal] = React.useState(false);
 
   return (
     <div className="flex flex-col h-full w-full bg-neon-surface text-white select-none">
@@ -430,6 +433,21 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
             </span>
           </div>
 
+          {/* Botón Mis Dispositivos (Anti-Sharing) */}
+          {user && (
+            <button
+              type="button"
+              onClick={() => setShowDeviceModal(true)}
+              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-white/5 text-[11px] font-medium text-slate-300 hover:text-white transition-all interactive-tap"
+            >
+              <span className="flex items-center gap-1.5">
+                <Smartphone className="w-3.5 h-3.5 text-cyan" />
+                <span>Mis Dispositivos &amp; Clave</span>
+              </span>
+              <span className="text-[10px] text-cyan font-bold">Ver &gt;</span>
+            </button>
+          )}
+
           <div className="flex items-center justify-between text-xs text-slate-300">
             <span className="truncate max-w-[170px] text-slate-400 text-[11px]" title={user?.email || 'Usuario'}>
               {user?.email || 'Sesión Activa'}
@@ -446,6 +464,11 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
           </div>
         </section>
       </div>
+
+      <DeviceSecurityModal
+        isOpen={showDeviceModal}
+        onClose={() => setShowDeviceModal(false)}
+      />
     </div>
   );
 };
