@@ -24,8 +24,8 @@ export const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) =>
         {children}
       </div>
 
-      {/* Overlay Soft Paywall Glassmorphism */}
-      <AuthModal />
+      {/* Overlay Soft Paywall Glassmorphism (solo visible si no tiene acceso activo) */}
+      {!hasAccess && <AuthModal />}
     </div>
   );
 };

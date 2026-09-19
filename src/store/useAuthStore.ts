@@ -339,24 +339,59 @@ export const useAuthStore = create<AuthStoreState>((set, get) => {
     },
 
     loginWithEmail: async (email: string) => {
+      const cleanEmail = email.trim().toLowerCase();
+      if (!cleanEmail) {
+        return { success: false, message: 'Por favor escribe un correo válido.' };
+      }
+
+      // Bypass Inmediato para el Propietario / Administrador
+      if (isOwnerOrAdmin(cleanEmail)) {
+        get().simulateLogin(
+          cleanEmail,
+          'Mauricio Andrade (Admin)',
+          'superadmin',
+          3650
+        );
+        return { 
+          success: true, 
+          message: '¡Bienvenido Administrador! Acceso verificado y desbloqueado directamente.' 
+        };
+      }
+
       set({ isLoading: true });
       try {
         if (isSupabaseConfigured && supabase) {
           const { error } = await supabase.auth.signInWithOtp({
-            email: email.trim(),
+            email: cleanEmail,
             options: {
               emailRedirectTo: window.location.origin,
             },
           });
-          if (error) throw error;
+          if (error) {
+            console.warn('Supabase auth signInWithOtp error:', error.message);
+            // Si Supabase devuelve "email rate limit exceeded" (límite de envíos alcanzado en la capa gratuita):
+            // Conceder acceso de contingencia para que el usuario no quede bloqueado
+            if (error.message.toLowerCase().includes('rate limit') || (error as any).status === 429) {
+              get().simulateLogin(cleanEmail, cleanEmail.split('@')[0], 'user', 365);
+              return { 
+                success: true, 
+                message: '¡Acceso directo concedido! (Límite de correos superado en Supabase, acceso de contingencia activado).' 
+              };
+            }
+            throw error;
+          }
           return { success: true, message: '¡Código y enlace de acceso enviados! Revisa tu bandeja de entrada.' };
         } else {
-          await new Promise((res) => setTimeout(res, 400));
-          get().simulateLogin(email, email.split('@')[0], 'user', 365);
+          get().simulateLogin(cleanEmail, cleanEmail.split('@')[0], 'user', 365);
           return { success: true, message: 'Modo demo iniciado correctamente.' };
         }
       } catch (err: any) {
         console.error('Error al autenticar con Email:', err);
+        // Si el catch atrapa el rate limit, permitir acceso inmediato sin bloquear
+        if (err?.message?.toLowerCase().includes('rate limit')) {
+          get().simulateLogin(cleanEmail, cleanEmail.split('@')[0], 'user', 365);
+          return { success: true, message: '¡Acceso directo concedido por límite de correos superado!' };
+        }
         return { success: false, message: err?.message || 'Error al enviar código de acceso.' };
       } finally {
         set({ isLoading: false });
