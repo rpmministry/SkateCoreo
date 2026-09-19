@@ -82,6 +82,12 @@ export class VoiceCueEngine {
   private googleAudioCache: Map<string, AudioBuffer> = new Map();
   private activeBufferSource: AudioBufferSourceNode | null = null;
 
+  // Lookahead Web Audio Hardware Timeline Scheduler (Zero-Drift)
+  private schedulerTimerId: any = null;
+  private audioZeroCtxTime: number = 0;
+  private playbackRate: number = 1.0;
+  private scheduledCueIds: Set<string> = new Set();
+
   // Pre-roll countdown timer
   private preRollTimer: any = null;
   private isPreRollActive = false;
@@ -401,15 +407,99 @@ export class VoiceCueEngine {
   }
 
   /**
-   * Comprueba en cada frame si corresponde disparar un aviso o conteo
+   * Inicia el planificador Web Audio de hardware (Lookahead Scheduler) para sincronización zero-drift.
+   * Encola la reproducción de voces y beeps directamente en el reloj de hardware de AudioContext.
+   */
+  public startSync(audioZeroCtxTime: number, playbackRate: number = 1.0) {
+    this.stopSync();
+    this.audioZeroCtxTime = audioZeroCtxTime;
+    this.playbackRate = Math.max(0.1, playbackRate);
+    this.scheduledCueIds.clear();
+
+    if (!this.ctx || !this.config.enabled) return;
+
+    // Frecuencia de chequeo del scheduler: 20ms con anticipación de 0.20s
+    this.schedulerTimerId = setInterval(() => {
+      if (!this.ctx || !this.config.enabled || this.isPreRollActive) return;
+      const now = this.ctx.currentTime;
+      const scheduleAheadSec = 0.20;
+
+      for (const cue of this.cues) {
+        if (!this.scheduledCueIds.has(cue.id) && !this.triggeredCueIds.has(cue.id)) {
+          const cueCtxTime = this.audioZeroCtxTime + (cue.timeMs / 1000) / this.playbackRate;
+          if (cueCtxTime >= now - 0.05 && cueCtxTime <= now + scheduleAheadSec) {
+            this.scheduledCueIds.add(cue.id);
+            this.triggeredCueIds.add(cue.id);
+            this.scheduleHardwareCue(cue, Math.max(now, cueCtxTime));
+          }
+        }
+      }
+    }, 20);
+  }
+
+  public stopSync() {
+    if (this.schedulerTimerId !== null) {
+      clearInterval(this.schedulerTimerId);
+      this.schedulerTimerId = null;
+    }
+  }
+
+  /**
+   * Encola un aviso en la línea de tiempo exacta de hardware
+   */
+  private scheduleHardwareCue(cue: VoiceCueEvent, targetCtxTime: number) {
+    if (!this.ctx || !this.outputNode) return;
+
+    // 1. Emitir tono percusivo exacto en el momento del evento
+    try {
+      const osc = this.ctx.createOscillator();
+      const oscGain = this.ctx.createGain();
+      const freq = cue.type === 'figure-arrival' ? 1000 : 650;
+      const vol = (this.config.volume || 0.8) * 0.35;
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, targetCtxTime);
+      oscGain.gain.setValueAtTime(vol, targetCtxTime);
+      oscGain.gain.exponentialRampToValueAtTime(0.0001, targetCtxTime + 0.04);
+
+      osc.connect(oscGain);
+      oscGain.connect(this.outputNode);
+      osc.start(targetCtxTime);
+      osc.stop(targetCtxTime + 0.04);
+    } catch (e) {}
+
+    // 2. Intentar reproducir buffer de voz TTS precargado si está disponible
+    void (async () => {
+      try {
+        const buffer = await ttsService.getAudioBufferForText(cue.text, { speed: this.config.voiceSpeed });
+        if (buffer && this.ctx && this.outputNode) {
+          const source = this.ctx.createBufferSource();
+          source.buffer = buffer;
+          source.connect(this.outputNode);
+          source.start(targetCtxTime);
+          return;
+        }
+      } catch (err) {}
+
+      // Fallback a síntesis reactiva si no había buffer
+      const delayMs = Math.max(0, Math.round((targetCtxTime - (this.ctx?.currentTime || 0)) * 1000));
+      setTimeout(() => {
+        this.speak(cue.text);
+      }, delayMs);
+    })();
+  }
+
+  /**
+   * Comprueba en cada frame si corresponde disparar un aviso (usado como respaldo)
    */
   public checkPlaybackTime(currentTimeMs: number) {
     if (!this.config.enabled || this.isPreRollActive) return;
 
     for (const cue of this.cues) {
-      if (!this.triggeredCueIds.has(cue.id)) {
+      if (!this.triggeredCueIds.has(cue.id) && !this.scheduledCueIds.has(cue.id)) {
         if (currentTimeMs >= cue.timeMs && currentTimeMs <= cue.timeMs + 400) {
           this.triggeredCueIds.add(cue.id);
+          this.scheduledCueIds.add(cue.id);
           this.speak(cue.text);
           if (cue.type === 'figure-arrival') {
             this.playTickTone(1000);
@@ -424,10 +514,12 @@ export class VoiceCueEngine {
   public resetTriggeredCues(fromTimeMs: number = 0) {
     if (fromTimeMs === 0) {
       this.triggeredCueIds.clear();
+      this.scheduledCueIds.clear();
     } else {
       for (const cue of this.cues) {
         if (cue.timeMs >= fromTimeMs) {
           this.triggeredCueIds.delete(cue.id);
+          this.scheduledCueIds.delete(cue.id);
         }
       }
     }
@@ -510,6 +602,7 @@ export class VoiceCueEngine {
    * Detiene de inmediato cualquier reproducción vocal activa y cancela el pre-roll
    */
   public stop() {
+    this.stopSync();
     this.cancelPreRoll();
     ttsService.stop();
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {

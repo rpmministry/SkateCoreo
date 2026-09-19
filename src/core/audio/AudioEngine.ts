@@ -8,6 +8,8 @@ import { ElementLog, ChoreographyPathPoint } from '../../types/choreography';
 import { Metronome } from './Metronome';
 import { VoiceCueEngine } from './VoiceCueEngine';
 import { MediaSessionManager } from './MediaSession';
+import { BpmDetector, BpmDetectionResult } from './BpmDetector';
+import { renderChoreographyMixdown } from './audioMixdown';
 
 export class AudioEngine {
   private ctx: AudioContext | null = null;
@@ -332,60 +334,47 @@ export class AudioEngine {
   }
 
   /**
-   * Estimador de BPM en memoria de baja latencia (<25ms) por flujo espectral/energía
+   * Estimador de BPM y fase rítmica por DSP (Filtro Pasa-Bajos + Flujo de Energía + Autocorrelación)
    */
   public detectAndApplyBpm(buffer: AudioBuffer): number {
     try {
-      const sampleRate = buffer.sampleRate;
-      const channelData = buffer.getChannelData(0);
-      const hopSize = 256;
-      const fps = sampleRate / hopSize;
-      const testSec = Math.min(30, buffer.duration);
-      const numHops = Math.floor((testSec * sampleRate) / hopSize);
-
-      const env = new Float32Array(numHops);
-      for (let h = 0; h < numHops; h++) {
-        let s = 0;
-        const base = h * hopSize;
-        for (let i = 0; i < hopSize; i++) {
-          const v = channelData[base + i];
-          s += v * v;
+      const result = BpmDetector.detect(buffer);
+      if (result.confidence >= 0.25 && result.bpm >= 60 && result.bpm <= 220) {
+        this.metronome.setBpm(result.bpm);
+        if (result.phaseOffsetSec > 0) {
+          this.metronome.setPhaseOffset(result.phaseOffsetSec);
         }
-        env[h] = Math.sqrt(s / hopSize);
-      }
-
-      const odf = new Float32Array(numHops);
-      for (let h = 1; h < numHops; h++) {
-        const diff = env[h] - env[h - 1];
-        odf[h] = diff > 0 ? diff : 0;
-      }
-
-      let bestBpm = 140;
-      let maxScore = -1;
-
-      for (let b = 70; b <= 180; b += 1) {
-        const beatHops = (60 / b) * fps;
-        let score = 0;
-        for (let h = 0; h < numHops - beatHops * 4; h++) {
-          if (odf[h] > 0.02) {
-            score += odf[h] * odf[Math.round(h + beatHops)];
-            score += 0.5 * odf[h] * odf[Math.round(h + 2 * beatHops)];
-          }
-        }
-        if (score > maxScore) {
-          maxScore = score;
-          bestBpm = b;
-        }
-      }
-
-      if (maxScore > 1.5 && bestBpm >= 60 && bestBpm <= 220) {
-        this.metronome.setBpm(bestBpm);
-        return bestBpm;
+        return result.bpm;
       }
     } catch (e) {
-      console.warn('[AudioEngine] No se pudo estimar el BPM automáticamente:', e);
+      console.warn('[AudioEngine] No se pudo estimar el BPM automáticamente con BpmDetector:', e);
     }
     return this.metronome.getConfig().bpm;
+  }
+
+  /**
+   * Ejecuta el análisis DSP detallado del buffer cargado
+   */
+  public detectBpm(): BpmDetectionResult {
+    if (!this.audioBuffer) {
+      return { bpm: this.metronome.getConfig().bpm, confidence: 0, phaseOffsetSec: 0 };
+    }
+    return BpmDetector.detect(this.audioBuffer);
+  }
+
+  /**
+   * Sincroniza la pista de música para que encaje exactamente con el tempo objetivo del metrónomo
+   * mediante ajuste dinámico de playbackRate (Time-Stretching)
+   */
+  public syncTrackToBpm(targetBpm: number): number {
+    if (!this.audioBuffer) return 1.0;
+    const detected = this.detectBpm();
+    if (detected.bpm > 0) {
+      const rate = Math.max(0.5, Math.min(2.0, targetBpm / detected.bpm));
+      this.setPlaybackRate(Math.round(rate * 1000) / 1000);
+      return rate;
+    }
+    return 1.0;
   }
 
   public async generateDemoTrack(): Promise<AudioBuffer> {
@@ -673,6 +662,30 @@ export class AudioEngine {
     return new Blob([view], { type: 'audio/wav' });
   }
 
+  /**
+   * Exporta la mezcla estéreo completa con aislamiento L/R por hardware (OfflineAudioContext):
+   * Canal Derecho (R): Pista de música limpia (0% metrónomo, 0% voz de coach).
+   * Canal Izquierdo (L): Pista del entrenador (100% metrónomo + 100% guías vocales TTS, 0% música).
+   */
+  public async exportStereoMixdown(points?: ChoreographyPathPoint[]): Promise<Blob> {
+    if (!this.audioBuffer) {
+      throw new Error('No hay pista de audio cargada para exportar la mezcla');
+    }
+
+    return renderChoreographyMixdown({
+      musicBuffer: this.audioBuffer,
+      bpm: this.metronome.getConfig().bpm,
+      beatsPerMeasure: this.metronome.getConfig().beatsPerMeasure,
+      metronomeEnabled: this.metronome.getConfig().enabled,
+      voiceCuesEnabled: this.voiceCueEngine.getConfig().enabled,
+      warningLeadTimeSec: this.voiceCueEngine.getConfig().warningLeadTimeSec,
+      musicVolume: this.musicVolume,
+      coachVolume: this.coachVolume,
+      points: points || [],
+      playbackRate: this.playbackRate
+    });
+  }
+
   public async checkBluetoothAndLatency(): Promise<boolean> {
     this.isBluetoothDetected = false;
     this.bluetoothWarning = null;
@@ -791,9 +804,10 @@ export class AudioEngine {
     this.sourceNode.start(0, clampedOffsetSec);
     this.isPlaying = true;
 
-    // Arrancar metrónomo sincronizado al reloj absoluto de la música
+    // Arrancar metrónomo y secuenciador vocal sincronizados al reloj absoluto de la música
     this.metronome.start(clampedOffsetSec, this.playbackRate);
     this.voiceCueEngine.resetTriggeredCues(offsetMs);
+    this.voiceCueEngine.startSync(this.startTime, this.playbackRate);
 
     this.mediaSession.updatePlaybackState(true);
     this.mediaSession.updatePositionState(this.durationMs / 1000, clampedOffsetSec, this.playbackRate);
@@ -871,6 +885,9 @@ export class AudioEngine {
       const currentPosSec = this.getCurrentTimeMs() / 1000;
       this.startTime = this.ctx.currentTime - currentPosSec / this.playbackRate;
       this.metronome.sync(currentPosSec, this.playbackRate);
+      if (this.isPlaying) {
+        this.voiceCueEngine.startSync(this.startTime, this.playbackRate);
+      }
     }
     this.emitStateChange();
   }

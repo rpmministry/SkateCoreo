@@ -46,6 +46,9 @@ export class TTSService {
   private audioBufferCache: Map<string, AudioBuffer> = new Map();
   private pendingFetchMap: Map<string, Promise<AudioBuffer | null>> = new Map();
 
+  // IndexedDB para persistencia offline permanente y ahorro de cuota de Google Cloud
+  private dbPromise: Promise<IDBDatabase | null> | null = null;
+
   private constructor() {
     this.resolveApiKey();
 
@@ -59,6 +62,124 @@ export class TTSService {
         this.language = savedLang;
       }
     }
+  }
+
+  /**
+   * Abre o devuelve la base de datos IndexedDB para caché permanente de audio TTS
+   */
+  private getDB(): Promise<IDBDatabase | null> {
+    if (this.dbPromise) return this.dbPromise;
+    if (typeof window === 'undefined' || !window.indexedDB) {
+      return Promise.resolve(null);
+    }
+
+    this.dbPromise = new Promise((resolve) => {
+      try {
+        const req = window.indexedDB.open('skateart_tts_cache_db', 1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains('tts_cache')) {
+            db.createObjectStore('tts_cache', { keyPath: 'key' });
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => {
+          console.warn('[TTSService] No se pudo abrir IndexedDB para caché TTS:', req.error);
+          resolve(null);
+        };
+      } catch (err) {
+        console.warn('[TTSService] Excepción al inicializar IndexedDB:', err);
+        resolve(null);
+      }
+    });
+
+    return this.dbPromise;
+  }
+
+  /**
+   * Obtiene bytes crudos almacenados en IndexedDB
+   */
+  public async getFromIDB(key: string): Promise<ArrayBuffer | null> {
+    const db = await this.getDB();
+    if (!db) return null;
+
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction('tts_cache', 'readonly');
+        const store = tx.objectStore('tts_cache');
+        const req = store.get(key);
+        req.onsuccess = () => {
+          if (req.result && req.result.bytes) {
+            resolve(req.result.bytes);
+          } else {
+            resolve(null);
+          }
+        };
+        req.onerror = () => resolve(null);
+      } catch (e) {
+        resolve(null);
+      }
+    });
+  }
+
+  /**
+   * Guarda audio binario en IndexedDB para disponibilidad offline permanente
+   */
+  public async saveToIDB(
+    key: string,
+    bytes: ArrayBuffer,
+    meta?: { text?: string; voiceName?: string; speed?: number }
+  ): Promise<void> {
+    const db = await this.getDB();
+    if (!db) return;
+
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction('tts_cache', 'readwrite');
+        const store = tx.objectStore('tts_cache');
+        store.put({
+          key,
+          bytes,
+          text: meta?.text || '',
+          voiceName: meta?.voiceName || '',
+          speed: meta?.speed || 1.05,
+          timestamp: Date.now()
+        });
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => resolve();
+      } catch (e) {
+        resolve();
+      }
+    });
+  }
+
+  /**
+   * Guarda bytes de audio importados (ej. desde un paquete .coreo)
+   */
+  public async saveAudioBytes(key: string, bytes: ArrayBuffer): Promise<void> {
+    await this.saveToIDB(key, bytes);
+  }
+
+  /**
+   * Retorna todas las entradas cacheadas (usado para empaquetar en proyectos .coreo)
+   */
+  public async getAllCachedEntries(): Promise<Array<{ key: string; text?: string; voiceName?: string; bytes: ArrayBuffer }>> {
+    const db = await this.getDB();
+    if (!db) return [];
+
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction('tts_cache', 'readonly');
+        const store = tx.objectStore('tts_cache');
+        const req = store.getAll();
+        req.onsuccess = () => {
+          resolve(req.result || []);
+        };
+        req.onerror = () => resolve([]);
+      } catch (e) {
+        resolve([]);
+      }
+    });
   }
 
   private resolveApiKey() {
@@ -218,9 +339,56 @@ export class TTSService {
   }
 
   /**
-   * Síntesis con Google Cloud Text-to-Speech API decodificando a Web Audio Buffer
+   * Pre-sintetiza automáticamente todas las figuras técnicas detectadas en una lista de nodos
    */
-  private async synthesizeWithGoogleTTS(
+  public async preWarmPoints(
+    points: Array<{ label?: string | null; type?: string | null }>,
+    options?: TTSOptions
+  ): Promise<void> {
+    const speakableLabels = points
+      .filter((p) => p.label && p.label.trim().length > 0)
+      .map((p) => p.label!.trim());
+
+    if (speakableLabels.length > 0) {
+      await this.preWarm(Array.from(new Set(speakableLabels)), options);
+    }
+  }
+
+  /**
+   * Obtiene o sintetiza el AudioBuffer para un texto específico utilizando la configuración actual
+   */
+  public async getAudioBufferForText(
+    text: string,
+    options?: TTSOptions
+  ): Promise<AudioBuffer | null> {
+    const cleanText = text.trim();
+    if (!cleanText) return null;
+
+    const gender = options?.gender || this.voiceGender;
+    const lang = options?.language || this.language;
+    const speed = options?.speed || 1.05;
+
+    return this.synthesizeWithGoogleTTS(cleanText, gender, lang, speed);
+  }
+
+  /**
+   * Obtiene los bytes crudos (MP3) del audio cacheado para un texto, si existen en IndexedDB
+   */
+  public async getCachedAudioArrayBuffer(
+    text: string,
+    voiceName?: string,
+    speed: number = 1.05
+  ): Promise<ArrayBuffer | null> {
+    const lang = this.language;
+    const vName = voiceName || GOOGLE_VOICES_CONFIG[lang]?.[this.voiceGender] || GOOGLE_VOICES_CONFIG['es']['female'];
+    const cacheKey = `${vName}_${speed.toFixed(2)}_${text.toLowerCase().trim()}`;
+    return this.getFromIDB(cacheKey);
+  }
+
+  /**
+   * Síntesis con Google Cloud Text-to-Speech API con caching multinivel (Memoria + IndexedDB)
+   */
+  public async synthesizeWithGoogleTTS(
     text: string,
     gender: VoiceGender,
     lang: 'es' | 'en',
@@ -228,20 +396,46 @@ export class TTSService {
   ): Promise<AudioBuffer | null> {
     const voiceName = GOOGLE_VOICES_CONFIG[lang]?.[gender] || GOOGLE_VOICES_CONFIG['es']['female'];
     const languageCode = lang === 'es' ? 'es-ES' : 'en-US';
-    const cacheKey = `${voiceName}_${speed.toFixed(2)}_${text.toLowerCase()}`;
+    const cleanKey = text.toLowerCase().trim();
+    const cacheKey = `${voiceName}_${speed.toFixed(2)}_${cleanKey}`;
 
-    // Revisar caché en memoria
+    // 1. Revisar caché en memoria (0ms latencia)
     if (this.audioBufferCache.has(cacheKey)) {
       return this.audioBufferCache.get(cacheKey)!;
     }
 
-    // Evitar llamadas duplicadas simultáneas
+    // 2. Evitar llamadas duplicadas simultáneas
     if (this.pendingFetchMap.has(cacheKey)) {
       return this.pendingFetchMap.get(cacheKey)!;
     }
 
     const fetchPromise = (async () => {
       try {
+        let ctx = this.audioContext;
+        if (!ctx && typeof window !== 'undefined') {
+          const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+          if (AudioContextClass) {
+            ctx = new AudioContextClass();
+          }
+        }
+
+        // 3. Revisar caché persistente IndexedDB antes de consumir cuota de Google Cloud
+        const cachedBytes = await this.getFromIDB(cacheKey);
+        if (cachedBytes && ctx) {
+          try {
+            const decoded = await ctx.decodeAudioData(cachedBytes.slice(0));
+            this.audioBufferCache.set(cacheKey, decoded);
+            return decoded;
+          } catch (decodeErr) {
+            console.warn('[TTSService] Falló decodificación de audio cacheado en IndexedDB:', decodeErr);
+          }
+        }
+
+        // Si no hay API Key y no estaba en IndexedDB, no podemos llamar a la API
+        if (!this.hasGoogleApiKey()) {
+          return null;
+        }
+
         const payload = {
           input: { text },
           voice: {
@@ -283,24 +477,20 @@ export class TTSService {
           bytes[i] = binaryString.charCodeAt(i);
         }
 
-        // Decodificar a AudioBuffer usando AudioContext si está disponible
-        let ctx = this.audioContext;
-        if (!ctx && typeof window !== 'undefined') {
-          const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-          if (AudioContextClass) {
-            ctx = new AudioContextClass();
-          }
-        }
+        const rawArrayBuffer = bytes.buffer.slice(0);
+
+        // Guardar en IndexedDB para disponibilidad offline permanente y zero-cost en el futuro
+        void this.saveToIDB(cacheKey, rawArrayBuffer, { text, voiceName, speed });
 
         if (ctx) {
-          const decoded = await ctx.decodeAudioData(bytes.buffer.slice(0));
+          const decoded = await ctx.decodeAudioData(rawArrayBuffer.slice(0));
           this.audioBufferCache.set(cacheKey, decoded);
           return decoded;
         }
 
         return null;
       } catch (err) {
-        console.warn('[TTSService] Error en fetch de Google TTS:', err);
+        console.warn('[TTSService] Error en síntesis de Google TTS:', err);
         return null;
       } finally {
         this.pendingFetchMap.delete(cacheKey);

@@ -24,13 +24,18 @@ import {
   Mic,
   Timer,
   Volume1,
-  Cloud
+  Cloud,
+  Package,
+  Activity
 } from 'lucide-react';
 import { audioEngine } from '../core/audio/AudioEngine';
 import { Program, ElementLog, AudioEngineState } from '../types';
 import { GOOGLE_TTS_VOICES } from '../core/audio/VoiceCueEngine';
 import { TTSEngineType } from '../types/audio';
 import { InteractiveWaveform } from './InteractiveWaveform';
+import { useChoreographyStore } from '../store/useChoreographyStore';
+import { exportCoreoProject, importCoreoProject } from '../services/coreoPackage';
+import { BpmDetectionResult } from '../core/audio/BpmDetector';
 
 interface AudioStudioProps {
   currentProgram: Program | null;
@@ -98,6 +103,13 @@ export const AudioStudio: React.FC<AudioStudioProps> = ({
 
   const fileInputId = useId();
   const multiFileInputId = useId();
+  const coreoFileInputId = useId();
+
+  // Export & Packaging State
+  const [isExportingMixdown, setIsExportingMixdown] = useState(false);
+  const [isExportingCoreo, setIsExportingCoreo] = useState(false);
+  const [dspBpmResult, setDspBpmResult] = useState<BpmDetectionResult | null>(null);
+  const [isDetectingBpm, setIsDetectingBpm] = useState(false);
 
   // Keep program elements synced to voice cue engine for automated announcements
   useEffect(() => {
@@ -337,6 +349,139 @@ export const AudioStudio: React.FC<AudioStudioProps> = ({
     }
   };
 
+  // Exportar mezcla estéreo L/R (L: Coach y Metrónomo | R: Música)
+  const handleExportStereoMixdown = async () => {
+    if (!audioState.hasAudioLoaded) return;
+    setIsExportingMixdown(true);
+    setErrorMessage(null);
+    try {
+      const points = useChoreographyStore.getState().points;
+      const blob = await audioEngine.exportStereoMixdown(points);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = (audioState.fileName?.replace(/\.[^/.]+$/, '') || 'programa_skateart') + '_mezcla_LR_coach.wav';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setSuccessMessage('Mezcla Estéreo L/R (L: Coach y Metrónomo | R: Música) exportada y descargada exitosamente.');
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Error al exportar la mezcla estéreo');
+    } finally {
+      setIsExportingMixdown(false);
+    }
+  };
+
+  // Exportar paquete completo .coreo (Offline)
+  const handleExportCoreo = async () => {
+    setIsExportingCoreo(true);
+    setErrorMessage(null);
+    try {
+      const store = useChoreographyStore.getState();
+      const rawBlob = audioEngine.getRawAudioBlob() || (audioState.hasAudioLoaded ? audioEngine.exportBufferToWav() : null);
+      const blob = await exportCoreoProject(
+        currentProgram?.title || 'Programa Coreográfico SkateArt',
+        'RollArt Standard',
+        store.skaterGender,
+        store.points,
+        rawBlob,
+        audioState.fileName,
+        bpm,
+        beatsPerMeasure,
+        audioState.playbackRate
+      );
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = (currentProgram?.title || audioState.fileName?.replace(/\.[^/.]+$/, '') || 'programa_skateart') + '.coreo';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setSuccessMessage('Paquete .coreo exportado exitosamente con pistas, figuras y voces offline.');
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Error al empaquetar archivo .coreo');
+    } finally {
+      setIsExportingCoreo(false);
+    }
+  };
+
+  // Importar paquete completo .coreo (Offline)
+  const handleImportCoreo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsLoadingAudio(true);
+    setErrorMessage(null);
+    try {
+      const imported = await importCoreoProject(file);
+      const store = useChoreographyStore.getState();
+
+      // Cargar nodos coreográficos
+      store.loadProgramPoints(imported.points);
+      if (imported.manifest.program.skaterGender === 'male' || imported.manifest.program.skaterGender === 'female') {
+        store.setSkaterGender(imported.manifest.program.skaterGender);
+      }
+
+      // Cargar audio
+      if (imported.audioBlob) {
+        await audioEngine.loadAudioFile(imported.audioBlob, imported.manifest.audioMeta.fileName);
+      }
+
+      // Restaurar metrónomo y tempo
+      if (imported.manifest.audioMeta.bpm) {
+        handleUpdateMetronome({
+          bpm: imported.manifest.audioMeta.bpm,
+          beatsPerMeasure: (imported.manifest.audioMeta.beatsPerMeasure as any) || 4
+        });
+      }
+
+      if (imported.manifest.audioMeta.playbackRate) {
+        audioEngine.setPlaybackRate(imported.manifest.audioMeta.playbackRate);
+      }
+
+      setSuccessMessage(`Proyecto .coreo "${imported.manifest.program.title}" cargado con éxito (${imported.points.length} figuras, ${imported.ttsCachedCount} voces offline sincronizadas).`);
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Error al importar paquete .coreo');
+    } finally {
+      setIsLoadingAudio(false);
+      e.target.value = '';
+    }
+  };
+
+  // Detección de BPM por DSP
+  const handleDetectDspBpm = () => {
+    if (!audioState.hasAudioLoaded) return;
+    setIsDetectingBpm(true);
+    try {
+      const result = audioEngine.detectBpm();
+      setDspBpmResult(result);
+      if (result.confidence >= 0.25) {
+        handleUpdateMetronome({ bpm: result.bpm });
+        setSuccessMessage(`Tempo detectado por DSP: ${result.bpm} BPM (Confianza: ${Math.round(result.confidence * 100)}%)`);
+      } else {
+        setErrorMessage(`Tempo estimado: ${result.bpm} BPM con baja confianza (${Math.round(result.confidence * 100)}%). Verifique manualmente.`);
+      }
+    } catch (e: any) {
+      setErrorMessage('No se pudo analizar el BPM del audio.');
+    } finally {
+      setIsDetectingBpm(false);
+    }
+  };
+
+  // Sincronizar velocidad de la música al BPM del metrónomo (Time-Stretching)
+  const handleSyncMusicToMetronome = () => {
+    if (!audioState.hasAudioLoaded) return;
+    try {
+      const appliedRate = audioEngine.syncTrackToBpm(bpm);
+      setSuccessMessage(`Pista sincronizada a ${bpm} BPM (playbackRate: ${appliedRate.toFixed(3)}x)`);
+    } catch (e: any) {
+      setErrorMessage('Error al sincronizar velocidad de la pista.');
+    }
+  };
+
   // Update Metronome Configuration
   const handleUpdateMetronome = (updates: Partial<{ enabled: boolean; bpm: number; beatsPerMeasure: 1 | 2 | 3 | 4 | 6; accentFirstBeat: boolean; volume: number }>) => {
     if (updates.enabled !== undefined) {
@@ -504,18 +649,66 @@ export const AudioStudio: React.FC<AudioStudioProps> = ({
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-sky-950/70 hover:bg-amber-400 hover:text-zinc-950 border border-sky-800 text-sky-300 text-xs font-bold transition-all touch-target shadow-sm"
             >
               <Sparkles className="w-4 h-4 text-amber-400" />
-              <span>{t('audio.load_demo', 'Pista Demo RollArt')}</span>
+              <span>{t('audio.load_demo', 'Pista Demo')}</span>
+            </button>
+
+            {/* Importar Proyecto .coreo */}
+            <input
+              type="file"
+              id={coreoFileInputId}
+              accept=".coreo"
+              className="hidden"
+              onChange={handleImportCoreo}
+              disabled={isLoadingAudio}
+            />
+            <label
+              htmlFor={coreoFileInputId}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl bg-sky-950/70 hover:bg-amber-400 hover:text-zinc-950 border border-sky-800 text-sky-300 text-xs font-bold cursor-pointer transition-all touch-target shadow-sm ${
+                isLoadingAudio ? 'opacity-50 pointer-events-none' : ''
+              }`}
+              title="Abrir un paquete .coreo con figuras, música y voces sincronizadas offline"
+            >
+              <Package className="w-4 h-4 text-amber-400" />
+              <span>Abrir .coreo</span>
+            </label>
+
+            {/* Exportar Proyecto .coreo */}
+            <button
+              onClick={handleExportCoreo}
+              disabled={isExportingCoreo}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl bg-sky-950/70 hover:bg-amber-400 hover:text-zinc-950 border border-sky-800 text-sky-300 text-xs font-bold transition-all touch-target shadow-sm ${
+                isExportingCoreo ? 'opacity-50 pointer-events-none' : ''
+              }`}
+              title="Empaquetar proyecto .coreo completo con voces offline para compartir"
+            >
+              <Package className="w-4 h-4 text-emerald-400" />
+              <span>{isExportingCoreo ? 'Empaquetando...' : 'Exportar .coreo'}</span>
             </button>
 
             {audioState.hasAudioLoaded && (
-              <button
-                onClick={handleExportWav}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-sky-950/70 hover:bg-amber-400 hover:text-zinc-950 border border-sky-800 text-sky-300 text-xs font-bold transition-all touch-target shadow-sm"
-                title="Descargar audio resultante en formato WAV 16-bit"
-              >
-                <Download className="w-4 h-4 text-amber-400" />
-                <span>WAV</span>
-              </button>
+              <>
+                {/* Mezcla Estéreo L/R para entrenamiento */}
+                <button
+                  onClick={handleExportStereoMixdown}
+                  disabled={isExportingMixdown}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl bg-sky-950/70 hover:bg-amber-400 hover:text-zinc-950 border border-sky-800 text-sky-300 text-xs font-bold transition-all touch-target shadow-sm ${
+                    isExportingMixdown ? 'opacity-50 pointer-events-none' : ''
+                  }`}
+                  title="Exportar archivo WAV estéreo con aislamiento estricto: L = Coach (Metrónomo y Voz) | R = Música limpia"
+                >
+                  <Headphones className="w-4 h-4 text-amber-400" />
+                  <span>{isExportingMixdown ? 'Renderizando...' : 'Mezcla L/R Coach'}</span>
+                </button>
+
+                <button
+                  onClick={handleExportWav}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-sky-950/70 hover:bg-amber-400 hover:text-zinc-950 border border-sky-800 text-sky-300 text-xs font-bold transition-all touch-target shadow-sm"
+                  title="Descargar audio resultante en formato WAV 16-bit"
+                >
+                  <Download className="w-4 h-4 text-sky-400" />
+                  <span>WAV</span>
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -825,8 +1018,36 @@ export const AudioStudio: React.FC<AudioStudioProps> = ({
                     >
                       +5
                     </button>
+                    {audioState.hasAudioLoaded && (
+                      <button
+                        type="button"
+                        onClick={handleDetectDspBpm}
+                        disabled={isDetectingBpm}
+                        title="Analizar audio mediante autocorrelación de energía para detectar el tempo exacto (DSP)"
+                        className="flex items-center gap-1 px-2.5 py-1 bg-sky-900/60 hover:bg-amber-400 hover:text-zinc-950 text-amber-300 border border-amber-500/50 rounded text-xs font-bold transition-all"
+                      >
+                        <Activity className="w-3.5 h-3.5" />
+                        <span>{isDetectingBpm ? 'Analizando...' : 'Detectar BPM'}</span>
+                      </button>
+                    )}
+                    {audioState.hasAudioLoaded && (
+                      <button
+                        type="button"
+                        onClick={handleSyncMusicToMetronome}
+                        title="Ajustar la velocidad de reproducción de la música para coincidir con los beats del metrónomo"
+                        className="flex items-center gap-1 px-2.5 py-1 bg-emerald-950/70 hover:bg-emerald-400 hover:text-zinc-950 text-emerald-300 border border-emerald-500/50 rounded text-xs font-bold transition-all"
+                      >
+                        <Gauge className="w-3.5 h-3.5" />
+                        <span>Ajustar Pista</span>
+                      </button>
+                    )}
                   </div>
                 </div>
+                {dspBpmResult && (
+                  <p className="text-[10px] text-amber-300/80 mt-1 font-mono">
+                    DSP: {dspBpmResult.bpm} BPM (Confianza: {Math.round(dspBpmResult.confidence * 100)}% | Desfase: {dspBpmResult.phaseOffsetSec}s)
+                  </p>
+                )}
               </div>
 
               <div>

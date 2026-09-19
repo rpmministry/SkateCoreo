@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "tsx src/services/rollartEngine.test.ts && tsx src/core/audio/audioEngine.test.ts && tsx src/core/canvas/rinkMath.test.ts && tsx src/store/choreographyStore.test.ts"
+    "test": "tsx src/services/rollartEngine.test.ts && tsx src/core/audio/audioEngine.test.ts && tsx src/core/canvas/rinkMath.test.ts && tsx src/store/choreographyStore.test.ts && tsx src/core/audio/bpmDetector.test.ts && tsx src/services/coreoPackage.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",

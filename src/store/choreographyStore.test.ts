@@ -1,4 +1,4 @@
-import { useChoreographyStore, DEFAULT_CHOREOGRAPHY_POINTS } from './useChoreographyStore';
+import { useChoreographyStore } from './useChoreographyStore';
 
 function assert(condition: boolean, msg: string) {
   if (!condition) {
@@ -12,9 +12,9 @@ console.log('\n--- EJECUTANDO PRUEBAS DEL GESTOR DE ESTADO AUDIO-FIRST (ZUSTAND)
 
 // 1. Inicialización
 const state0 = useChoreographyStore.getState();
-assert(state0.points.length === DEFAULT_CHOREOGRAPHY_POINTS.length, 'Inicializa con puntos por defecto');
+assert(state0.points.length === 0, 'Inicializa con pista limpia sin puntos residuales');
 assert(state0.skaterGender === 'female', 'Inicializa con género femenino por defecto');
-assert(state0.phase === 'curve', 'Inicializa en fase curve con ruta conectada');
+assert(state0.phase === 'plot', 'Inicializa en fase plot para dibujo libre');
 
 // 2. Dinámica Audio-First: Generación de nodo desde la onda sonora
 const newPt = state0.addPointFromAudio(5500);
