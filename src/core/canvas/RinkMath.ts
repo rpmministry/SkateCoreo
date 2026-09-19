@@ -195,5 +195,84 @@ export class RinkMath {
       activePointIndex: 0
     };
   }
+
+  /**
+   * Subdivide un segmento Bézier entre p0 y p1 en 'count' tiempos musicales (2 a 15)
+   * Genera los Nodos de Tiempo correspondientes a lo largo de la curva física y temporal.
+   */
+  public static subdivideBezierSegment(
+    p0: ChoreographyPathPoint,
+    p1: ChoreographyPathPoint,
+    count: number
+  ): Array<{ x: number; y: number; time_ms: number; timeBeat: number }> {
+    const safeCount = Math.max(2, Math.min(15, Math.round(count)));
+    const { cp1, cp2 } = this.getSegmentControlPoints(p0, p1);
+    const totalTimeMs = p1.time_ms - p0.time_ms;
+    const result: Array<{ x: number; y: number; time_ms: number; timeBeat: number }> = [];
+
+    // Subdivisión en 'safeCount' partes proporcionales (safeCount - 1 nodos interiores)
+    for (let i = 1; i < safeCount; i++) {
+      const t = i / safeCount;
+      const { x, y } = this.evaluateCubicBezier(p0, cp1, cp2, p1, t);
+      const time_ms = Math.round(p0.time_ms + t * totalTimeMs);
+
+      result.push({
+        x: Math.round(x * 10) / 10,
+        y: Math.round(y * 10) / 10,
+        time_ms,
+        timeBeat: i + 1,
+      });
+    }
+
+    return result;
+  }
+
+  /**
+   * Encuentra el punto más cercano sobre la trayectoria Bézier para inserción en Modo Libre
+   */
+  public static findNearestPointOnPath(
+    points: ChoreographyPathPoint[],
+    targetMetersX: number,
+    targetMetersY: number
+  ): { x: number; y: number; time_ms: number; segmentIndex: number; distanceMeters: number } | null {
+    if (points.length < 2) return null;
+    const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
+
+    let bestDist = Infinity;
+    let bestPoint = {
+      x: sorted[0].x,
+      y: sorted[0].y,
+      time_ms: sorted[0].time_ms,
+      segmentIndex: 0,
+      distanceMeters: Infinity
+    };
+
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const p0 = sorted[i];
+      const p1 = sorted[i + 1];
+      const { cp1, cp2 } = this.getSegmentControlPoints(p0, p1);
+      const totalTimeMs = p1.time_ms - p0.time_ms;
+
+      // Muestrear 24 puntos a lo largo de la curva Bézier
+      const SAMPLES = 24;
+      for (let s = 0; s <= SAMPLES; s++) {
+        const t = s / SAMPLES;
+        const { x, y } = this.evaluateCubicBezier(p0, cp1, cp2, p1, t);
+        const dist = Math.hypot(x - targetMetersX, y - targetMetersY);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestPoint = {
+            x: Math.round(x * 10) / 10,
+            y: Math.round(y * 10) / 10,
+            time_ms: Math.round(p0.time_ms + t * totalTimeMs),
+            segmentIndex: i,
+            distanceMeters: dist
+          };
+        }
+      }
+    }
+
+    return bestPoint;
+  }
 }
 

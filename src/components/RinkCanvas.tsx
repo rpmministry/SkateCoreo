@@ -147,6 +147,13 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
   const pushHistory = useChoreographyStore((state) => state.pushHistory);
   const loadProgramPoints = useChoreographyStore((state) => state.loadProgramPoints);
 
+  // Trazado Dinámico y Nodos de Tiempo
+  const showFullTrailOverride = useChoreographyStore((state) => state.showFullTrailOverride);
+  const setShowFullTrailOverride = useChoreographyStore((state) => state.setShowFullTrailOverride);
+  const isAddingFreeTimeNodes = useChoreographyStore((state) => state.isAddingFreeTimeNodes);
+  const setIsAddingFreeTimeNodes = useChoreographyStore((state) => state.setIsAddingFreeTimeNodes);
+  const insertFreeTimeNode = useChoreographyStore((state) => state.insertFreeTimeNode);
+
   // Estado de Arrastre (Zero-Friction Drag & Drop)
   const [isDragging, setIsDragging] = useState(false);
   const dragTargetRef = useRef<DragState | null>(null);
@@ -278,25 +285,34 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       selectedPointId,
       activeSegmentIndex: skaterState?.activePointIndex ?? null,
       isPathGenerated,
-      phase
+      phase,
+      isPlaying: audio.isPlaying,
+      showFullTrailOverride,
+      currentTimeMs: audio.currentTimeMs,
+      avatar: skaterState
     };
 
     // 1. Pista reglamentaria y marcas World Skate
     RinkRenderer.drawRinkFloor(ctx, metrics, DEFAULT_RINK_DIMENSIONS, renderOpts);
 
-    // 2. Curvas de trayectoria continuas Bézier (SOLO en Fase 2/3, NUNCA en Fase 1)
+    // 2. Curvas de trayectoria (Línea guía en pausa, o Trazado Dinámico durante reproducción)
     RinkRenderer.drawTrajectories(ctx, metrics, points, renderOpts);
 
-    // 3. Tiradores Bézier CP1 (Salida) y CP2 (Llegada) (SOLO en Fase 3)
-    RinkRenderer.drawBezierControlOverlay(ctx, metrics, points, renderOpts);
+    // 3. Tiradores Bézier CP1 y CP2 (SOLO en Fase 3 y cuando no está en reproducción activa)
+    if (!audio.isPlaying) {
+      RinkRenderer.drawBezierControlOverlay(ctx, metrics, points, renderOpts);
+    }
 
-    // 4. Puntos de anclaje (nodos ploteados de alto contraste)
+    // 4. Nodos de Tiempo (Time Nodes)
+    RinkRenderer.drawTimeNodes(ctx, metrics, points, selectedPointId);
+
+    // 5. Puntos de anclaje de posición estándar
     RinkRenderer.drawAnchorPoints(ctx, metrics, points, selectedPointId);
 
-    // 5. Elementos técnicos RollArt
+    // 6. Elementos técnicos RollArt
     RinkRenderer.drawTechnicalElements(ctx, metrics, points, elements);
 
-    // 6. AVATAR CINEMÁTICO DEL PATINADOR/A (AL FINAL DE TODO - CAPA SUPERIOR DEFINITIVA)
+    // 7. AVATAR CINEMÁTICO DEL PATINADOR/A (CAPA SUPERIOR)
     if (isPathGenerated && skaterState) {
       RinkRenderer.drawSkaterAvatar(ctx, metrics, skaterState, skaterGender);
     }
@@ -305,6 +321,8 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
   }, [
     points,
     audio.currentTimeMs,
+    audio.isPlaying,
+    showFullTrailOverride,
     selectedPointId,
     showControlHandles,
     showRinkGrid,
@@ -502,6 +520,18 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       setSelectedPointId(currentTarget.targetId);
       onNodeSelect?.(currentTarget.targetId);
     } else if (!currentTarget && movedDistance < 5 && canvas) {
+      // ── MODO TIEMPO LIBRE ACTIVO: Tocar la pista para proyectar e insertar un Nodo de Tiempo
+      if (isAddingFreeTimeNodes) {
+        const metrics = getMetrics();
+        const { x: worldPx, y: worldPy } = screenToWorld(e.clientX, e.clientY, canvas);
+        const { mX, mY } = RinkMath.pixelsToMeters(worldPx, worldPy, metrics, DEFAULT_RINK_DIMENSIONS);
+        insertFreeTimeNode(mX, mY, audio.currentTimeMs > 0 ? audio.currentTimeMs : undefined);
+        setIsDragging(false);
+        dragTargetRef.current = null;
+        pointerDownPosRef.current = null;
+        return;
+      }
+
       // ── CASO TOQUE RÁPIDO EN FONDO VACÍO:
       if (selectedPointId) {
         // Deselección limpia
@@ -659,8 +689,43 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
             </span>
           </div>
         )}
-        {/* Floating Camera Control HUD (Pinch / Pan Indicator & Zoom Buttons) */}
-        <div className="absolute bottom-3 right-3 z-30 flex items-center gap-1 bg-slate-950/85 backdrop-blur-md border border-white/10 px-2 py-1.5 rounded-xl shadow-soft-elevation select-none">
+
+        {/* Banner flotante de Modo Tiempo Libre activo */}
+        {isAddingFreeTimeNodes && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 bg-amber-500/90 text-slate-950 px-3.5 py-1.5 rounded-full shadow-lg text-xs font-black select-none animate-in fade-in zoom-in duration-200">
+            <span>⏱ Toca la pista para añadir Nodos de Tiempo</span>
+            <button
+              type="button"
+              onClick={() => setIsAddingFreeTimeNodes(false)}
+              className="w-4 h-4 rounded-full bg-slate-950/20 hover:bg-slate-950/40 flex items-center justify-center text-slate-950 font-bold ml-1"
+              title="Salir de modo tiempo libre"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {/* Floating Camera & Trail Control HUD */}
+        <div className="absolute bottom-3 right-3 z-30 flex items-center gap-1.5 bg-slate-950/85 backdrop-blur-md border border-white/10 px-2 py-1.5 rounded-xl shadow-soft-elevation select-none">
+          {/* Botón Didáctico: Ver Trazo Completo */}
+          <button
+            type="button"
+            onPointerDown={() => setShowFullTrailOverride(true)}
+            onPointerUp={() => setShowFullTrailOverride(false)}
+            onClick={() => setShowFullTrailOverride(!showFullTrailOverride)}
+            className={`px-2.5 h-7 flex items-center gap-1 rounded-lg text-[11px] font-bold transition-all border ${
+              showFullTrailOverride 
+                ? 'bg-cyan text-slate-950 border-cyan shadow-glow-cyan' 
+                : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-white/5'
+            }`}
+            title="Mantén presionado o haz clic para ver la trayectoria completa en vivo"
+          >
+            <Route className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Trazo Completo</span>
+          </button>
+
+          <div className="h-4 w-[1px] bg-white/10 mx-0.5" />
+
           <button
             type="button"
             onClick={() => zoomOut(canvasRef.current)}

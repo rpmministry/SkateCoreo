@@ -10,6 +10,10 @@ export interface RenderOptions {
   activeSegmentIndex: number | null;
   isPathGenerated?: boolean;
   phase?: ChoreographyPhase;
+  isPlaying?: boolean;
+  showFullTrailOverride?: boolean;
+  currentTimeMs?: number;
+  avatar?: SkaterAvatarState | null;
 }
 
 // Pre-carga de imágenes de los patinadores artísticos (SVG de alta resolución)
@@ -134,6 +138,18 @@ export class RinkRenderer {
     if (points.length < 2) return;
     const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
 
+    const isPlaying = options.isPlaying ?? false;
+    const showFullTrailOverride = options.showFullTrailOverride ?? false;
+
+    // FASE DE REPRODUCCIÓN (PLAY): Líneas estáticas desaparecen por completo.
+    // Solo se renderiza el Trazado Dinámico (Dynamic Trail) siguiendo al avatar.
+    if (isPlaying && !showFullTrailOverride) {
+      this.drawDynamicTrail(ctx, metrics, sorted, options);
+      return;
+    }
+
+    // FASE DE EDICIÓN / PREVIEW (o botón Ver Trazo Completo):
+    // Se dibuja la guía visual de las trayectorias
     const { offsetX, offsetY, renderedW, renderedH, scale } = metrics;
     const cornerRadiusPx = 3.5 * scale;
 
@@ -155,22 +171,34 @@ export class RinkRenderer {
 
       const isSegmentSelected = options.selectedPointId === p0.id || options.selectedPointId === p1.id;
 
-      // Resplandor exterior de la curva: Electric Cyan Neón (#00D2FF)
       ctx.save();
-      ctx.strokeStyle = isSegmentSelected ? 'rgba(0, 210, 255, 0.55)' : 'rgba(0, 210, 255, 0.28)';
-      ctx.lineWidth = isSegmentSelected ? 10 : 6;
-      ctx.beginPath();
-      ctx.moveTo(pt0.px, pt0.py);
-      ctx.bezierCurveTo(cp1.px, cp1.py, cp2.px, cp2.py, pt1.px, pt1.py);
-      ctx.stroke();
 
-      // Línea principal de la curva: Electric Cyan Neón
-      ctx.strokeStyle = isSegmentSelected ? '#67E8F9' : '#00D2FF';
-      ctx.lineWidth = isSegmentSelected ? 3.5 : 2.5;
-      ctx.beginPath();
-      ctx.moveTo(pt0.px, pt0.py);
-      ctx.bezierCurveTo(cp1.px, cp1.py, cp2.px, cp2.py, pt1.px, pt1.py);
-      ctx.stroke();
+      if (showFullTrailOverride) {
+        // Modo Didáctico Iluminado: Alto contraste
+        ctx.strokeStyle = isSegmentSelected ? 'rgba(0, 210, 255, 0.6)' : 'rgba(0, 210, 255, 0.35)';
+        ctx.lineWidth = isSegmentSelected ? 8 : 5;
+        ctx.beginPath();
+        ctx.moveTo(pt0.px, pt0.py);
+        ctx.bezierCurveTo(cp1.px, cp1.py, cp2.px, cp2.py, pt1.px, pt1.py);
+        ctx.stroke();
+
+        ctx.strokeStyle = isSegmentSelected ? '#67E8F9' : '#00D2FF';
+        ctx.lineWidth = isSegmentSelected ? 3 : 2;
+        ctx.beginPath();
+        ctx.moveTo(pt0.px, pt0.py);
+        ctx.bezierCurveTo(cp1.px, cp1.py, cp2.px, cp2.py, pt1.px, pt1.py);
+        ctx.stroke();
+      } else {
+        // Guía inicial visual suave (no invasiva)
+        ctx.setLineDash([5, 5]);
+        ctx.strokeStyle = isSegmentSelected ? 'rgba(0, 210, 255, 0.7)' : 'rgba(56, 189, 248, 0.35)';
+        ctx.lineWidth = isSegmentSelected ? 2.5 : 1.5;
+        ctx.beginPath();
+        ctx.moveTo(pt0.px, pt0.py);
+        ctx.bezierCurveTo(cp1.px, cp1.py, cp2.px, cp2.py, pt1.px, pt1.py);
+        ctx.stroke();
+      }
+
       ctx.restore();
     }
 
@@ -178,7 +206,177 @@ export class RinkRenderer {
   }
 
   /**
-   * Dibuja los puntos de anclaje de la coreografía con estilo Impeccable (alto contraste y nitidez)
+   * Trazado Dinámico (Dynamic Trail Rendering):
+   * Dibuja la estela activa desde el último checkpoint alcanzado hasta el avatar,
+   * y aplica un desvanecimiento suave (Fade-Out) al tramo anterior para evitar saturación y flickering.
+   */
+  public static drawDynamicTrail(
+    ctx: CanvasRenderingContext2D,
+    metrics: CanvasViewportMetrics,
+    sortedPoints: ChoreographyPathPoint[],
+    options: RenderOptions
+  ) {
+    if (sortedPoints.length < 2) return;
+    const currentTimeMs = options.currentTimeMs ?? 0;
+    const avatar = options.avatar;
+    if (!avatar) return;
+
+    const { offsetX, offsetY, renderedW, renderedH, scale } = metrics;
+    const cornerRadiusPx = 3.5 * scale;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(offsetX, offsetY, renderedW, renderedH, cornerRadiusPx);
+    ctx.clip();
+
+    // 1. Encontrar el tramo actual del avatar
+    let activeSegIdx = -1;
+    for (let i = 0; i < sortedPoints.length - 1; i++) {
+      if (currentTimeMs >= sortedPoints[i].time_ms && currentTimeMs <= sortedPoints[i + 1].time_ms) {
+        activeSegIdx = i;
+        break;
+      }
+    }
+
+    if (activeSegIdx < 0) {
+      if (currentTimeMs > sortedPoints[sortedPoints.length - 1].time_ms) {
+        activeSegIdx = sortedPoints.length - 2;
+      } else {
+        ctx.restore();
+        return;
+      }
+    }
+
+    const p0 = sortedPoints[activeSegIdx];
+    const p1 = sortedPoints[activeSegIdx + 1];
+    const totalTimeMs = p1.time_ms - p0.time_ms;
+    const t = totalTimeMs > 0 ? Math.min(1, Math.max(0, (currentTimeMs - p0.time_ms) / totalTimeMs)) : 1;
+
+    const { cp1: cp1M, cp2: cp2M } = RinkMath.getSegmentControlPoints(p0, p1);
+
+    // 2. Efecto Estela / Fade-Out del Segmento Anterior (evita corte seco visual)
+    if (activeSegIdx > 0) {
+      const prevP0 = sortedPoints[activeSegIdx - 1];
+      const prevP1 = sortedPoints[activeSegIdx];
+      const { cp1: pCp1M, cp2: pCp2M } = RinkMath.getSegmentControlPoints(prevP0, prevP1);
+
+      const ptPrev0 = RinkMath.metersToPixels(prevP0.x, prevP0.y, metrics);
+      const ptPrev1 = RinkMath.metersToPixels(prevP1.x, prevP1.y, metrics);
+      const cpPrev1 = RinkMath.metersToPixels(pCp1M.x, pCp1M.y, metrics);
+      const cpPrev2 = RinkMath.metersToPixels(pCp2M.x, pCp2M.y, metrics);
+
+      // Desvanecimiento suave en función de cuánto ha avanzado el avatar en el tramo actual
+      const fadeAlpha = Math.max(0, 0.45 * (1 - t));
+      if (fadeAlpha > 0.02) {
+        ctx.save();
+        ctx.strokeStyle = `rgba(0, 210, 255, ${fadeAlpha})`;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(ptPrev0.px, ptPrev0.py);
+        ctx.bezierCurveTo(cpPrev1.px, cpPrev1.py, cpPrev2.px, cpPrev2.py, ptPrev1.px, ptPrev1.py);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    // 3. Trazado Dinámico Activo: desde p0 hasta la posición actual del avatar (t)
+    const pt0 = RinkMath.metersToPixels(p0.x, p0.y, metrics);
+    const avatarPx = RinkMath.metersToPixels(avatar.x, avatar.y, metrics);
+
+    // Subdividir curva de Bezier hasta t mediante algoritmo de de Casteljau
+    const q1x = (1 - t) * p0.x + t * cp1M.x;
+    const q1y = (1 - t) * p0.y + t * cp1M.y;
+    const q2x = (1 - t) * cp1M.x + t * cp2M.x;
+    const q2y = (1 - t) * cp1M.y + t * cp2M.y;
+    const r1x = (1 - t) * q1x + t * q2x;
+    const r1y = (1 - t) * q1y + t * q2y;
+
+    const subCp1 = RinkMath.metersToPixels(q1x, q1y, metrics);
+    const subCp2 = RinkMath.metersToPixels(r1x, r1y, metrics);
+
+    ctx.save();
+    // Resplandor Neón exterior de la cuchilla
+    ctx.strokeStyle = 'rgba(0, 210, 255, 0.65)';
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.moveTo(pt0.px, pt0.py);
+    ctx.bezierCurveTo(subCp1.px, subCp1.py, subCp2.px, subCp2.py, avatarPx.px, avatarPx.py);
+    ctx.stroke();
+
+    // Línea sólida de trazado dinámico
+    ctx.strokeStyle = '#00D2FF';
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.moveTo(pt0.px, pt0.py);
+    ctx.bezierCurveTo(subCp1.px, subCp1.py, subCp2.px, subCp2.py, avatarPx.px, avatarPx.py);
+    ctx.stroke();
+
+    // Chispazo luminoso sutil en la cuchilla de la patinadora
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath();
+    ctx.arc(avatarPx.px, avatarPx.py, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+    ctx.restore();
+  }
+
+  /**
+   * Dibuja los Nodos de Tiempo (Time Nodes) con diseño compacto y numeración de compás
+   */
+  public static drawTimeNodes(
+    ctx: CanvasRenderingContext2D,
+    metrics: CanvasViewportMetrics,
+    points: ChoreographyPathPoint[],
+    selectedPointId: string | null
+  ) {
+    const timeNodes = points.filter(p => p.kind === 'time');
+    if (timeNodes.length === 0) return;
+
+    timeNodes.forEach((p) => {
+      const { px, py } = RinkMath.metersToPixels(p.x, p.y, metrics);
+      const isSelected = selectedPointId === p.id;
+
+      ctx.save();
+
+      // Halo táctil exterior si está seleccionado
+      if (isSelected) {
+        ctx.fillStyle = 'rgba(245, 158, 11, 0.35)';
+        ctx.beginPath();
+        ctx.arc(px, py, 15, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = '#F59E0B';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+
+      // Disco del Nodo de Tiempo (Compacto, Ámbar Neón #F59E0B)
+      ctx.beginPath();
+      ctx.arc(px, py, isSelected ? 6.5 : 4.5, 0, Math.PI * 2);
+      ctx.fillStyle = isSelected ? '#F59E0B' : '#1E293B';
+      ctx.fill();
+
+      ctx.lineWidth = isSelected ? 2 : 1.5;
+      ctx.strokeStyle = isSelected ? '#FFFFFF' : '#F59E0B';
+      ctx.stroke();
+
+      // Número de tiempo musical (1, 2, 3...)
+      const beatNum = p.timeBeat ?? p.label?.replace('T', '') ?? '';
+      if (beatNum) {
+        ctx.font = 'bold 8px JetBrains Mono, monospace';
+        ctx.fillStyle = isSelected ? '#F59E0B' : '#CBD5E1';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(`${beatNum}`, px, py - 5);
+      }
+
+      ctx.restore();
+    });
+  }
+
+  /**
+   * Dibuja los puntos de anclaje de posición estándar de la coreografía
    */
   public static drawAnchorPoints(
     ctx: CanvasRenderingContext2D,
@@ -186,7 +384,10 @@ export class RinkRenderer {
     points: ChoreographyPathPoint[],
     selectedPointId: string | null
   ) {
-    points.forEach((p, idx) => {
+    // Filtrar solo nodos de posición principales
+    const positionPoints = points.filter(p => p.kind !== 'time');
+
+    positionPoints.forEach((p, idx) => {
       const { px, py } = RinkMath.metersToPixels(p.x, p.y, metrics);
       const isSelected = selectedPointId === p.id;
 
