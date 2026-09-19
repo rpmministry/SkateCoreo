@@ -8,7 +8,6 @@ import {
   PenTool,
   Route,
   Undo2,
-  Timer,
   SlidersHorizontal
 } from 'lucide-react';
 
@@ -50,14 +49,6 @@ export const RightInspectorPanel: React.FC = () => {
   const phase = useChoreographyStore((s) => s.phase);
   const setPhase = useChoreographyStore((s) => s.setPhase);
 
-  // Sistema de Nodos de Tiempo (Time Nodes)
-  const isAddingFreeTimeNodes = useChoreographyStore((s) => s.isAddingFreeTimeNodes);
-  const setIsAddingFreeTimeNodes = useChoreographyStore((s) => s.setIsAddingFreeTimeNodes);
-  const insertPredefinedTimeNodes = useChoreographyStore((s) => s.insertPredefinedTimeNodes);
-  const clearTimeNodesForSegment = useChoreographyStore((s) => s.clearTimeNodesForSegment);
-
-  const [presetTimeCount, setPresetTimeCount] = React.useState<number>(4);
-
   // Reglamento 2026
   const categoria = useChoreographyStore((s) => s.categoria);
   const eficiencia = useChoreographyStore((s) => s.eficiencia);
@@ -67,13 +58,6 @@ export const RightInspectorPanel: React.FC = () => {
   const selectedPointIndex = selectedPoint
     ? points.findIndex((p) => p.id === selectedPoint.id)
     : -1;
-
-  const timeNodesInSegment = selectedPoint
-    ? points.filter(
-        (p) => p.kind === 'time' && p.parentSegmentStartId === selectedPoint.id
-      )
-    : [];
-  const hasTimeNodesInSegment = timeNodesInSegment.length > 0;
 
   const updateControlPoint1 = useChoreographyStore((s) => s.updateControlPoint1);
   const updateControlPoint2 = useChoreographyStore((s) => s.updateControlPoint2);
@@ -166,17 +150,21 @@ export const RightInspectorPanel: React.FC = () => {
                     ? 'bg-amber-500 text-black shadow-glow-amber ring-2 ring-amber-400'
                     : 'bg-neon-card hover:bg-neon-hover text-slate-300 hover:text-white',
                 ].join(' ')}
-                title="Activa el modo para insertar nodos de posición o tiempo tocando libremente la pista"
+                title="Modo Nodos: Un clic en el lienzo coloca nodos. Las líneas están ocultas."
               >
                 <PenTool className="w-4 h-4 stroke-[2.5]" />
                 <span>Colocar Nodos</span>
               </button>
 
-              {/* Botón 2: Conectar Ruta (Siempre visible) */}
+              {/* Botón 2: Trazar Líneas (Toggle mutuamente excluyente) */}
               <button
                 type="button"
                 onClick={() => {
-                  if (points.length >= 2) setPhase('curve');
+                  if (phase === 'curve') {
+                    setPhase('plot');
+                  } else if (points.length >= 2) {
+                    setPhase('curve');
+                  }
                 }}
                 disabled={points.length < 2}
                 className={[
@@ -185,10 +173,10 @@ export const RightInspectorPanel: React.FC = () => {
                     ? 'bg-cyan text-black shadow-glow-cyan ring-2 ring-cyan-400'
                     : 'bg-neon-card hover:bg-neon-hover text-slate-300 hover:text-white disabled:opacity-30 disabled:pointer-events-none',
                 ].join(' ')}
-                title={points.length >= 2 ? 'Conecta los nodos con curvas Spline continuas' : 'Mínimo 2 nodos requeridos'}
+                title={points.length >= 2 ? 'Modo Trazado: Líneas visibles. Arrastra los puntos sobre el trazo para esculpir curvas.' : 'Mínimo 2 nodos requeridos'}
               >
                 <Route className="w-4 h-4 stroke-[2.5]" />
-                <span>Conectar Ruta</span>
+                <span>Trazar Líneas</span>
               </button>
             </div>
           </div>
@@ -198,44 +186,27 @@ export const RightInspectorPanel: React.FC = () => {
             {phase === 'plot' ? (
               <p className="text-amber-300 flex items-center gap-1.5 font-medium">
                 <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
-                Haz doble clic en la pista para añadir nodos. Las líneas no se trazarán hasta conectar.
+                Modo Nodos: Haz un clic en la pista para colocar nodos. Líneas ocultas.
               </p>
             ) : (
               <p className="text-cyan flex items-center gap-1.5 font-medium">
                 <span className="w-2 h-2 rounded-full bg-cyan shrink-0" />
-                Ruta conectada. Arrastra los puntos sobre la línea para esculpir la curva.
+                Modo Trazado: Líneas visibles. Arrastra los puntos sobre la línea para esculpir la curva.
               </p>
             )}
           </div>
 
-          {/* Row de Deshacer (Ctrl+Z) y Modo Tiempos Libres */}
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setIsAddingFreeTimeNodes(!isAddingFreeTimeNodes)}
-              className={[
-                'flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold transition-all interactive-tap shadow-soft-elevation',
-                isAddingFreeTimeNodes
-                  ? 'bg-amber-500 text-black shadow-glow-amber ring-2 ring-amber-400 font-extrabold'
-                  : 'bg-neon-card hover:bg-neon-hover text-amber-400 hover:text-amber-300 border border-amber-500/20',
-              ].join(' ')}
-              title="Activa el modo para insertar nodos de tiempo tocando la pista"
-            >
-              <Timer className="w-4 h-4 stroke-[2.5]" />
-              <span>{isAddingFreeTimeNodes ? 'Tiempos ACTIVO' : '+ Nodos de Tiempo'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={undo}
-              disabled={history.length === 0}
-              title="Deshacer último cambio (Ctrl+Z)"
-              className="flex items-center justify-center gap-1 px-3.5 py-2.5 rounded-xl text-xs font-bold bg-neon-card hover:bg-neon-hover text-slate-300 hover:text-coral shadow-soft-elevation interactive-tap disabled:opacity-25 disabled:pointer-events-none"
-            >
-              <Undo2 className="w-3.5 h-3.5" />
-              <span>Ctrl+Z</span>
-            </button>
-          </div>
+          {/* Deshacer (Ctrl+Z) */}
+          <button
+            type="button"
+            onClick={undo}
+            disabled={history.length === 0}
+            title="Deshacer último cambio (Ctrl+Z)"
+            className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold bg-neon-card hover:bg-neon-hover text-slate-300 hover:text-white shadow-soft-elevation interactive-tap disabled:opacity-25 disabled:pointer-events-none"
+          >
+            <Undo2 className="w-3.5 h-3.5 text-mint" />
+            <span>Deshacer último cambio (Ctrl+Z)</span>
+          </button>
         </div>
 
         {/* ── Telemetría de nodos registrados ─── */}
@@ -245,45 +216,26 @@ export const RightInspectorPanel: React.FC = () => {
               Nodos en Pista ({points.length})
             </p>
             <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
-              {points.map((p, i) => {
-                const isTime = p.kind === 'time';
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => setSelectedPointId(p.id)}
-                    className={[
-                      'w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left shadow-soft-elevation interactive-tap group',
-                      isTime
-                        ? 'bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20'
-                        : 'bg-neon-card hover:bg-neon-hover',
-                    ].join(' ')}
-                  >
-                    {isTime ? (
-                      <span className="w-5 h-5 rounded-lg bg-amber-500 text-black flex items-center justify-center text-[10px] font-mono font-black shrink-0 shadow-sm">
-                        T{p.timeBeat ?? '⏱'}
-                      </span>
-                    ) : (
-                      <span className="w-5 h-5 rounded-lg bg-neon-surface group-hover:bg-mint group-hover:text-neon-canvas flex items-center justify-center text-[10px] font-mono font-bold text-mint shrink-0 transition-colors">
-                        {i + 1}
-                      </span>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <p
-                        className={[
-                          'text-xs font-semibold truncate',
-                          isTime ? 'text-amber-300 font-mono' : 'text-slate-200',
-                        ].join(' ')}
-                      >
-                        {isTime ? `Nodo de Tiempo (T${p.timeBeat || ''})` : p.label || 'Sin etiqueta'}
-                      </p>
-                      <p className="text-[10px] font-mono text-slate-500">
-                        {formatTime(p.time_ms)}
-                      </p>
-                    </div>
-                  </button>
-                );
-              })}
+              {points.map((p, i) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setSelectedPointId(p.id)}
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left shadow-soft-elevation interactive-tap group bg-neon-card hover:bg-neon-hover"
+                >
+                  <span className="w-5 h-5 rounded-lg bg-neon-surface group-hover:bg-mint group-hover:text-neon-canvas flex items-center justify-center text-[10px] font-mono font-bold text-mint shrink-0 transition-colors">
+                    {i + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold truncate text-slate-200">
+                      {p.label || 'Sin etiqueta'}
+                    </p>
+                    <p className="text-[10px] font-mono text-slate-500">
+                      {formatTime(p.time_ms)}
+                    </p>
+                  </div>
+                </button>
+              ))}
             </div>
           </div>
         )}
@@ -297,142 +249,14 @@ export const RightInspectorPanel: React.FC = () => {
             <div>
               <p className="text-xs font-bold text-slate-400">Pista sin nodos</p>
               <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                Haz doble clic en cualquier zona de la pista 2D<br />para crear un nuevo nodo.
+                Haz un clic en cualquier zona de la pista 2D<br />para crear un nuevo nodo.
               </p>
             </div>
           </div>
         )}
 
-        {/* ── Inspector Contextual Activo ─── */}
-        {selectedPoint && selectedPoint.kind === 'time' && (
-          <div className="px-4 py-3.5 space-y-4">
-            {/* Identidad del nodo de tiempo con halo Ámbar */}
-            <div className="flex items-center gap-3 bg-neon-card p-3 rounded-2xl shadow-soft-elevation border border-amber-500/30">
-              <span className="w-9 h-9 rounded-xl bg-amber-500 text-black shadow-glow-amber flex items-center justify-center text-xs font-mono font-black shrink-0">
-                T{selectedPoint.timeBeat ?? '⏱'}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-bold text-amber-300 truncate">
-                  Nodo de Tiempo Musical
-                </p>
-                <p className="text-[10px] font-mono text-slate-400">
-                  X: {selectedPoint.x.toFixed(1)}m · Y: {selectedPoint.y.toFixed(1)}m
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-3 space-y-1">
-              <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-400 uppercase tracking-wide">
-                <Timer className="w-3.5 h-3.5" />
-                Checkpoint Rítmico
-              </div>
-              <p className="text-[11px] text-slate-300 leading-relaxed">
-                Este nodo guía la velocidad rítmica de la patinadora. Durante la reproducción, el trazo anterior se desvanece suavemente al alcanzarlo.
-              </p>
-            </div>
-
-            {/* Momento en Audio */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                <span className="flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-amber-400" />
-                  Sincronización Rítmica
-                </span>
-                <span className="font-mono text-amber-400 font-bold normal-case">
-                  {formatTime(selectedPoint.time_ms)}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  step={0.1}
-                  min={0}
-                  value={Math.round(selectedPoint.time_ms / 100) / 10}
-                  onChange={(e) => {
-                    const sec = parseFloat(e.target.value) || 0;
-                    handleUpdateTime(selectedPoint.id, Math.round(sec * 1000));
-                  }}
-                  className="w-20 bg-neon-card rounded-xl px-2 py-2 text-center font-mono text-amber-400 font-black text-xs outline-none shadow-soft-elevation border border-amber-500/20"
-                />
-                <span className="font-mono text-slate-500 text-xs">seg</span>
-                <button
-                  type="button"
-                  onClick={() => audio.seek(selectedPoint.time_ms)}
-                  className="flex-1 px-3 py-2 rounded-xl bg-neon-card hover:bg-neon-hover text-slate-200 hover:text-white text-xs font-bold shadow-soft-elevation interactive-tap"
-                >
-                  Escuchar
-                </button>
-              </div>
-            </div>
-
-            {/* ── Refinamiento de Curva Bézier desde este Nodo de Tiempo ─── */}
-            <div className="bg-neon-card shadow-soft-elevation rounded-2xl p-3.5 space-y-2.5 border border-cyan/25">
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1.5 text-[10px] font-bold text-cyan uppercase tracking-wider">
-                  <SlidersHorizontal className="w-3.5 h-3.5" />
-                  Curvatura del Trazo
-                </span>
-                <span className="text-[9px] font-mono text-cyan bg-cyan/15 px-2 py-0.5 rounded-full font-bold">
-                  Spline en Línea
-                </span>
-              </div>
-
-              <p className="text-[11px] text-slate-300 leading-snug">
-                Arrastra los puntos sobre la línea o la propia curva para esculpirla con suavidad continua sin crear nodos de posición.
-              </p>
-
-              <div className="grid grid-cols-3 gap-1.5 pt-1">
-                <button
-                  type="button"
-                  onClick={() => handleApplyCurve('out')}
-                  className="py-2 rounded-xl bg-neon-surface hover:bg-cyan/20 text-slate-200 hover:text-cyan text-[11px] font-bold transition-all interactive-tap flex items-center justify-center gap-1"
-                  title="Curvar el trazo hacia afuera"
-                >
-                  ⤴ Ext.
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleApplyCurve('in')}
-                  className="py-2 rounded-xl bg-neon-surface hover:bg-cyan/20 text-slate-200 hover:text-cyan text-[11px] font-bold transition-all interactive-tap flex items-center justify-center gap-1"
-                  title="Curvar el trazo hacia adentro"
-                >
-                  ⤵ Int.
-                </button>
-                <button
-                  type="button"
-                  onClick={handleStraighten}
-                  className="py-2 rounded-xl bg-neon-surface hover:bg-coral/20 text-slate-200 hover:text-coral text-[11px] font-bold transition-all interactive-tap flex items-center justify-center gap-1"
-                  title="Hacer el trazo recto"
-                >
-                  — Recta
-                </button>
-              </div>
-            </div>
-
-            {/* Acciones del Nodo de Tiempo */}
-            <div className="space-y-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setSelectedPointId(null)}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-neon-card hover:bg-neon-hover text-slate-400 hover:text-white text-xs font-semibold shadow-soft-elevation interactive-tap"
-              >
-                <Move className="w-4 h-4" />
-                Deseleccionar
-              </button>
-              <button
-                type="button"
-                onClick={handleDeleteSelected}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-coral/15 hover:bg-coral text-coral hover:text-white text-xs font-bold shadow-soft-elevation interactive-tap transition-colors"
-              >
-                <Trash2 className="w-4 h-4" />
-                Eliminar Nodo de Tiempo
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ── Inspector para Nodos de Posición Estándar: Acento Menta Neón ─── */}
-        {selectedPoint && selectedPoint.kind !== 'time' && (
+        {/* ── Inspector para Nodos Coreográficos: Acento Menta Neón ─── */}
+        {selectedPoint && (
           <div className="px-4 py-3.5 space-y-4">
 
             {/* Identidad del nodo con halo Menta */}
@@ -565,71 +389,6 @@ export const RightInspectorPanel: React.FC = () => {
                   </p>
                 </div>
               )}
-
-            {/* ── Subdivisión por Nodos de Tiempo (Opcional) ─── */}
-            <div className="bg-neon-card shadow-soft-elevation rounded-2xl p-3.5 space-y-3 border border-amber-500/20">
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1.5 text-[10px] font-bold text-amber-400 uppercase tracking-wider">
-                  <Timer className="w-3.5 h-3.5" />
-                  Nodos de Tiempo (Opcional)
-                </span>
-                {hasTimeNodesInSegment && (
-                  <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold">
-                    {timeNodesInSegment.length} tiempos
-                  </span>
-                )}
-              </div>
-
-              <p className="text-[11px] text-slate-400 leading-snug">
-                Divide el trayecto hacia el siguiente nodo en tiempos musicales armónicos (2 a 15 tiempos) o actívalo en modo libre tocando la pista.
-              </p>
-
-              {/* Selector de cantidad fija de tiempos (2 a 15) */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-[10px] text-slate-400">
-                  <span>Tiempos a insertar:</span>
-                  <span className="font-mono font-bold text-amber-400">{presetTimeCount} tiempos</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  {[2, 3, 4, 6, 8, 12, 15].map((cnt) => (
-                    <button
-                      key={cnt}
-                      type="button"
-                      onClick={() => setPresetTimeCount(cnt)}
-                      className={[
-                        'flex-1 py-1 rounded-lg text-xs font-mono font-bold transition-all',
-                        presetTimeCount === cnt
-                          ? 'bg-amber-500 text-black shadow-sm'
-                          : 'bg-neon-surface text-slate-400 hover:text-white',
-                      ].join(' ')}
-                    >
-                      {cnt}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => insertPredefinedTimeNodes(selectedPoint.id, presetTimeCount)}
-                  className="flex-1 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-black font-bold text-xs transition-colors interactive-tap shadow-soft-elevation flex items-center justify-center gap-1.5"
-                >
-                  <Timer className="w-3.5 h-3.5" />
-                  Insertar {presetTimeCount} Tiempos
-                </button>
-                {hasTimeNodesInSegment && (
-                  <button
-                    type="button"
-                    onClick={() => clearTimeNodesForSegment(selectedPoint.id)}
-                    className="px-3 py-2 rounded-xl bg-coral/15 hover:bg-coral text-coral hover:text-white font-bold text-xs transition-colors interactive-tap"
-                    title="Quitar nodos de tiempo de este segmento"
-                  >
-                    Limpiar
-                  </button>
-                )}
-              </div>
-            </div>
 
             {/* Curvatura del Trazo y Tiradores Bézier */}
             <div className="p-3 bg-neon-card/70 rounded-2xl border border-cyan/20 space-y-2.5">

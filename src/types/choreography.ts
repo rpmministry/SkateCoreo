@@ -23,7 +23,6 @@ export interface ControlPoint {
   y: number;
 }
 
-export type PointKind = 'position' | 'time';
 export type TrailRenderMode = 'dynamic' | 'full' | 'guide';
 
 export interface ChoreographyPathPoint {
@@ -32,9 +31,6 @@ export interface ChoreographyPathPoint {
   y: number;         // 0 to 25 meters (width)
   time_ms: number;
   timestamp?: number;
-  kind?: PointKind;  // 'position' (defecto) o 'time' (nodo de tiempo musical)
-  timeBeat?: number; // Contador musical dentro del segmento (1, 2, 3...)
-  parentSegmentStartId?: string; // ID del nodo de posición previo
   cp1x?: number;     // Flattened control point for canvas math
   cp1y?: number;
   cp2x?: number;

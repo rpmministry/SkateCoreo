@@ -717,7 +717,7 @@ export function App() {
           <span>Config</span>
         </button>
 
-        {/* Herramienta 1: Colocar Nodos (Siempre visible, estado toggled) */}
+        {/* Herramienta 1: Colocar Nodos (Modo Nodos) */}
         <button
           type="button"
           onClick={() => { setPhase('plot'); setSheetOpen(false); }}
@@ -728,17 +728,21 @@ export function App() {
               ? 'bg-amber-500 text-black shadow-glow-amber font-black'
               : 'text-slate-400 hover:text-white',
           ].join(' ')}
-          title="Activa el modo para colocar nodos con doble clic o toque en la pista"
+          title="Modo Nodos: Un clic en el lienzo vacío coloca nodos. Las líneas están ocultas."
         >
           <PenTool className="w-4 h-4 stroke-[2.5]" />
-          <span>Colocar</span>
+          <span>Colocar Nodos</span>
         </button>
 
-        {/* Herramienta 2: Conectar Ruta (Siempre visible, estado toggled) */}
+        {/* Herramienta 2: Trazar Líneas (Modo Trazado, Toggle) */}
         <button
           type="button"
           onClick={() => {
-            if (canDraw) setPhase('curve');
+            if (phase === 'curve') {
+              setPhase('plot');
+            } else if (canDraw) {
+              setPhase('curve');
+            }
           }}
           disabled={!canDraw}
           className={[
@@ -748,10 +752,10 @@ export function App() {
               ? 'bg-cyan text-black shadow-glow-cyan font-black'
               : 'text-slate-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none',
           ].join(' ')}
-          title={canDraw ? 'Conectar ruta y editar curvas' : 'Mínimo 2 nodos'}
+          title={canDraw ? 'Modo Trazado: Ver líneas conectadas y esculpir curvas' : 'Mínimo 2 nodos'}
         >
           <Route className="w-4 h-4 stroke-[2.5]" />
-          <span>Conectar</span>
+          <span>Trazar Líneas</span>
         </button>
 
         {/* Limpiar Pista en un toque (Mobile) */}

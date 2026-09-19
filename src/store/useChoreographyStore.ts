@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { ChoreographyPoint, ChoreographyPathPoint, ControlPoint, SkaterGender } from '../types/choreography';
 import { ChoreographyPhase } from '../core/canvas/RinkRenderer';
-import { RinkMath } from '../core/canvas/RinkMath';
 import { CategoriaReglamento, EficienciaReglamento, getCategoriaByEdad } from '../constants/reglamento';
 
 export interface ChoreographyStoreState {
@@ -45,13 +44,6 @@ export interface ChoreographyStoreState {
   // Visualización y Trazado Dinámico
   showFullTrailOverride: boolean;
   setShowFullTrailOverride: (show: boolean) => void;
-
-  // Sistema de Nodos de Tiempo (Time Nodes)
-  isAddingFreeTimeNodes: boolean;
-  setIsAddingFreeTimeNodes: (active: boolean) => void;
-  insertPredefinedTimeNodes: (fromPointId: string, count: number) => void;
-  insertFreeTimeNode: (x: number, y: number, timestampMs?: number) => ChoreographyPoint | null;
-  clearTimeNodesForSegment: (fromPointId: string) => void;
 
   // Historial
   pushHistory: () => void;
@@ -171,9 +163,6 @@ function normalizePoint(pt: Partial<ChoreographyPoint> & { id: string; x: number
     id: pt.id,
     timestamp,
     time_ms,
-    kind: pt.kind || 'position',
-    timeBeat: pt.timeBeat,
-    parentSegmentStartId: pt.parentSegmentStartId,
     x: Math.round(pt.x * 10) / 10,
     y: Math.round(pt.y * 10) / 10,
     controlPoint1: cp1,
@@ -182,7 +171,7 @@ function normalizePoint(pt: Partial<ChoreographyPoint> & { id: string; x: number
     cp1y: cp1.y,
     cp2x: cp2.x,
     cp2y: cp2.y,
-    type: pt.type || (pt.kind === 'time' ? 'Time' : 'Marker'),
+    type: pt.type || 'Marker',
     label: pt.label || '',
     element_id: pt.element_id
   };
@@ -594,114 +583,6 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
 
   // ── Visualización y Trazado Dinámico ───────────────────────
   showFullTrailOverride: false,
-  setShowFullTrailOverride: (show: boolean) => set({ showFullTrailOverride: show }),
-
-  // ── Sistema de Nodos de Tiempo (Time Nodes) ─────────────────
-  isAddingFreeTimeNodes: false,
-  setIsAddingFreeTimeNodes: (active: boolean) => set({ isAddingFreeTimeNodes: active }),
-
-  insertPredefinedTimeNodes: (fromPointId: string, count: number) => {
-    const { points, pushHistory } = get();
-    const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
-    const fromIdx = sorted.findIndex(p => p.id === fromPointId);
-    if (fromIdx < 0 || fromIdx >= sorted.length - 1) return;
-
-    const fromPoint = sorted[fromIdx];
-    // Encontrar el siguiente nodo de posición en la trayectoria
-    const toPoint = sorted.slice(fromIdx + 1).find(p => p.kind !== 'time') || sorted[fromIdx + 1];
-    if (!toPoint) return;
-
-    pushHistory();
-
-    // 1. Limpiar nodos de tiempo preexistentes en este tramo
-    const filteredPoints = points.filter(p => 
-      !(p.kind === 'time' && (
-        p.parentSegmentStartId === fromPoint.id || 
-        (p.time_ms > fromPoint.time_ms && p.time_ms < toPoint.time_ms)
-      ))
-    );
-
-    // 2. Subdividir la curva Bézier existente entre ambos nodos
-    const subdivisions = RinkMath.subdivideBezierSegment(fromPoint, toPoint, count);
-    const newTimeNodes: ChoreographyPoint[] = subdivisions.map((sub, idx) => ({
-      id: `tn_${Date.now()}_${idx}`,
-      timestamp: sub.time_ms,
-      time_ms: sub.time_ms,
-      x: sub.x,
-      y: sub.y,
-      kind: 'time',
-      timeBeat: sub.timeBeat,
-      parentSegmentStartId: fromPoint.id,
-      label: `T${sub.timeBeat}`,
-      type: 'Time'
-    }));
-
-    const combined = [...filteredPoints, ...newTimeNodes].map(p => normalizePoint(p)).sort((a, b) => a.time_ms - b.time_ms);
-    set({ points: combined });
-  },
-
-  insertFreeTimeNode: (x: number, y: number, timestampMs?: number) => {
-    const { points, pushHistory } = get();
-    if (points.length < 2) return null;
-
-    pushHistory();
-    let targetX = x;
-    let targetY = y;
-    let time_ms = timestampMs;
-
-    // Si no tiene timestamp explícito, proyectar sobre la trayectoria Bézier más cercana
-    const projection = RinkMath.findNearestPointOnPath(points, x, y);
-    if (projection) {
-      targetX = projection.x;
-      targetY = projection.y;
-      if (time_ms === undefined) {
-        time_ms = projection.time_ms;
-      }
-    } else if (time_ms === undefined) {
-      time_ms = 0;
-    }
-
-    const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
-    const parent = [...sorted].reverse().find(p => p.time_ms <= (time_ms || 0) && p.kind !== 'time') || sorted[0];
-
-    const existingInSegment = points.filter(p => p.kind === 'time' && p.parentSegmentStartId === parent.id);
-    const timeBeat = existingInSegment.length + 2;
-
-    const newTimeNode: ChoreographyPoint = normalizePoint({
-      id: `tn_free_${Date.now()}`,
-      timestamp: time_ms,
-      time_ms,
-      x: targetX,
-      y: targetY,
-      kind: 'time',
-      timeBeat,
-      parentSegmentStartId: parent.id,
-      label: `T${timeBeat}`,
-      type: 'Time'
-    });
-
-    const updated = [...points, newTimeNode].sort((a, b) => a.time_ms - b.time_ms);
-    set({ points: updated, selectedPointId: newTimeNode.id });
-    return newTimeNode;
-  },
-
-  clearTimeNodesForSegment: (fromPointId: string) => {
-    const { points, pushHistory } = get();
-    const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
-    const fromIdx = sorted.findIndex(p => p.id === fromPointId);
-    if (fromIdx < 0) return;
-
-    const fromPoint = sorted[fromIdx];
-    const toPoint = sorted.slice(fromIdx + 1).find(p => p.kind !== 'time') || sorted[fromIdx + 1];
-
-    pushHistory();
-    const filtered = points.filter(p => 
-      !(p.kind === 'time' && (
-        p.parentSegmentStartId === fromPoint.id || 
-        (toPoint && p.time_ms > fromPoint.time_ms && p.time_ms < toPoint.time_ms)
-      ))
-    );
-
-    set({ points: filtered });
-  }
+  setShowFullTrailOverride: (show: boolean) => set({ showFullTrailOverride: show })
 }));
+

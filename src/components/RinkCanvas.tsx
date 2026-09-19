@@ -21,7 +21,9 @@ import {
   Tag,
   SlidersHorizontal,
   Music,
-  Mic
+  Mic,
+  PenTool,
+  Route
 } from 'lucide-react';
 
 import { ChoreographyPathPoint, ChoreographyPoint, Program, ElementLog } from '../types';
@@ -85,6 +87,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     zoomOut,
     resetCamera,
     screenToWorld,
+    worldToScreen,
     onPointerDown: camPointerDown,
     onPointerMove: camPointerMove,
     onPointerUp: camPointerUp,
@@ -94,6 +97,9 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     width: 1000,
     height: 540,
   });
+
+  // Estado del Tooltip Contextual de Borrado (Contextual Delete Tooltip)
+  const [deleteTooltip, setDeleteTooltip] = useState<{ pointId: string } | null>(null);
 
   // Observador de Redimensionamiento Responsivo (100% Ancho y Altura)
   useEffect(() => {
@@ -147,11 +153,8 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
   const pushHistory = useChoreographyStore((state) => state.pushHistory);
   const loadProgramPoints = useChoreographyStore((state) => state.loadProgramPoints);
 
-  // Trazado Dinámico y Nodos de Tiempo
+  // Trazado Dinámico
   const showFullTrailOverride = useChoreographyStore((state) => state.showFullTrailOverride);
-  const isAddingFreeTimeNodes = useChoreographyStore((state) => state.isAddingFreeTimeNodes);
-  const setIsAddingFreeTimeNodes = useChoreographyStore((state) => state.setIsAddingFreeTimeNodes);
-  const insertFreeTimeNode = useChoreographyStore((state) => state.insertFreeTimeNode);
 
   // Estado de Arrastre (Zero-Friction Drag & Drop)
   const [isDragging, setIsDragging] = useState(false);
@@ -318,10 +321,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       RinkRenderer.drawSplineGripPoints(ctx, metrics, currentPoints, renderOpts);
     }
 
-    // Capa 3: Nodos de Tiempo (Time Nodes en Ámbar Neón)
-    RinkRenderer.drawTimeNodes(ctx, metrics, currentPoints, currentSelectedId);
-
-    // Capa 4: Puntos de anclaje de posición estándar (Menta Neón)
+    // Capa 3: Puntos de anclaje de posición estándar (Menta Neón)
     RinkRenderer.drawAnchorPoints(ctx, metrics, currentPoints, currentSelectedId);
 
     // Capa 5: Elementos técnicos RollArt
@@ -432,7 +432,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     }
 
     // 3. Comprobar toque directo en el trayecto para esculpir la curva o seleccionar el tramo (solo cuando la ruta está conectada)
-    if (!hitFound && !audio.isPlaying && points.length >= 2 && !isAddingFreeTimeNodes && phase !== 'plot') {
+    if (!hitFound && !audio.isPlaying && points.length >= 2 && phase !== 'plot') {
       const { mX, mY } = RinkMath.pixelsToMeters(worldPx, worldPy, metrics, DEFAULT_RINK_DIMENSIONS);
       const nearest = RinkMath.findNearestPointOnPath(points, mX, mY);
       const maxTapDistMeters = 1.8 / (camera.zoom || 1);
@@ -584,11 +584,17 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       // ── CASO SELECCIÓN DE TRAYECTO O PUNTO DE AGARRE: Selecciona el nodo del tramo
       setSelectedPointId(currentTarget.targetId);
       onNodeSelect?.(currentTarget.targetId);
+      setDeleteTooltip(null);
     } else if (currentTarget && currentTarget.type === 'anchor' && movedDistance < 5) {
-      // ── CASO TOQUE RÁPIDO (TAP): Movimiento menor a 5px en un nodo existente.
+      // ── CASO TOQUE RÁPIDO (TAP) EN NODO EXISTENTE:
+      // Selecciona el nodo y muestra el Tooltip Contextual de Borrado (Contextual Delete)
       setSelectedPointId(currentTarget.targetId);
       onNodeSelect?.(currentTarget.targetId);
+      setDeleteTooltip({ pointId: currentTarget.targetId });
     } else if (!currentTarget && movedDistance < 5 && canvas) {
+      // Clic en fondo vacío: descartar menú contextual
+      setDeleteTooltip(null);
+
       // ── DETECCIÓN DE DOBLE TAP TÁCTIL EN LA LÍNEA PARA DIVIDIR SEGMENTO ──
       const now = Date.now();
       const isDoubleTap =
@@ -610,24 +616,27 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       }
       lastTapRef.current = { time: now, x: e.clientX, y: e.clientY };
 
-      // ── MODO TIEMPO LIBRE ACTIVO: Tocar la pista para proyectar e insertar un Nodo de Tiempo
-      if (isAddingFreeTimeNodes) {
+      if (phase === 'plot') {
+        // ── MODO 1: "COLOCAR NODOS" (Modo Nodos):
+        // Un solo clic sobre lienzo vacío coloca inmediatamente un nuevo nodo en esa posición
         const metrics = getMetrics();
         const { x: worldPx, y: worldPy } = screenToWorld(e.clientX, e.clientY, canvas);
         const { mX, mY } = RinkMath.pixelsToMeters(worldPx, worldPy, metrics, DEFAULT_RINK_DIMENSIONS);
-        insertFreeTimeNode(mX, mY, audio.currentTimeMs > 0 ? audio.currentTimeMs : undefined);
-        setIsDragging(false);
-        dragTargetRef.current = null;
-        pointerDownPosRef.current = null;
-        curveDragStartPosRef.current = null;
-        curveInitialCpsRef.current = null;
-        return;
+        if (mX >= 0.5 && mX <= 49.5 && mY >= 0.5 && mY <= 24.5) {
+          const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
+          const lastTime = sorted.length > 0 ? sorted[sorted.length - 1].time_ms : 0;
+          const newTime = audio.currentTimeMs > 0 ? audio.currentTimeMs : lastTime + 3000;
+          const newPt = addPointAtCanvas(mX, mY, newTime);
+          setSelectedPointId(newPt.id);
+          onNodeSelect?.(newPt.id);
+          renderFrame();
+        }
+      } else {
+        // ── MODO 2: "TRAZAR LÍNEAS" (Modo Trazado):
+        // Clic en lienzo vacío NO coloca nuevos nodos (evita puntos accidentales al esculpir)
+        setSelectedPointId(null);
+        onNodeSelect?.(null);
       }
-
-      // ── CASO TOQUE RÁPIDO EN FONDO VACÍO (Single Click / Tap):
-      // Deselecciona el nodo activo sin crear puntos accidentales (los nodos se colocan con DOBLE CLIC)
-      setSelectedPointId(null);
-      onNodeSelect?.(null);
     }
 
     setIsDragging(false);
@@ -669,13 +678,14 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
               y: split.midPoint.y,
               time_ms: newTimeMs,
               timestamp: newTimeMs,
-              kind: 'position',
-              type: 'standard',
+              type: 'Step',
               label: '',
               cp1x: split.rightCp1.x,
               cp1y: split.rightCp1.y,
               cp2x: split.rightCp2.x,
               cp2y: split.rightCp2.y,
+              controlPoint1: { x: split.rightCp1.x, y: split.rightCp1.y },
+              controlPoint2: { x: split.rightCp2.x, y: split.rightCp2.y },
             };
 
             pushHistory();
@@ -688,12 +698,8 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
                   cp1y: split.leftCp1.y,
                   cp2x: split.leftCp2.x,
                   cp2y: split.leftCp2.y,
-                };
-              }
-              if (p.kind === 'time' && p.parentSegmentStartId === p0.id && p.time_ms > newTimeMs) {
-                return {
-                  ...p,
-                  parentSegmentStartId: newPointId,
+                  controlPoint1: { x: split.leftCp1.x, y: split.leftCp1.y },
+                  controlPoint2: { x: split.leftCp2.x, y: split.leftCp2.y },
                 };
               }
               return p;
@@ -862,20 +868,91 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
           </div>
         )}
 
-        {/* Banner flotante de Modo Tiempo Libre activo */}
-        {isAddingFreeTimeNodes && (
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 bg-amber-500/90 text-slate-950 px-3.5 py-1.5 rounded-full shadow-lg text-xs font-black select-none animate-in fade-in zoom-in duration-200">
-            <span>⏱ Toca la pista para añadir Nodos de Tiempo</span>
-            <button
-              type="button"
-              onClick={() => setIsAddingFreeTimeNodes(false)}
-              className="w-4 h-4 rounded-full bg-slate-950/20 hover:bg-slate-950/40 flex items-center justify-center text-slate-950 font-bold ml-1"
-              title="Salir de modo tiempo libre"
+        {/* Mode Toggles: Colocar Nodos / Trazar Líneas (Mutually Exclusive) */}
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center bg-zinc-950/90 backdrop-blur-md p-1 rounded-2xl border border-white/10 shadow-2xl gap-1 select-none">
+          <button
+            type="button"
+            onClick={() => {
+              setPhase('plot');
+              setDeleteTooltip(null);
+            }}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
+              phase === 'plot'
+                ? 'bg-amber-500 text-black shadow-glow-amber font-black'
+                : 'text-slate-300 hover:text-white hover:bg-zinc-800'
+            }`}
+            title="Modo Nodos: Un clic en el lienzo vacío coloca nodos. Las líneas están ocultas."
+          >
+            <PenTool className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span>Colocar Nodos</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (phase === 'curve') {
+                setPhase('plot');
+              } else {
+                setPhase('curve');
+              }
+              setDeleteTooltip(null);
+            }}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
+              phase === 'curve'
+                ? 'bg-cyan text-black shadow-glow-cyan font-black'
+                : 'text-slate-300 hover:text-white hover:bg-zinc-800'
+            }`}
+            title="Modo Trazado: Muestra las líneas conectadas y puntos para esculpir la ruta."
+          >
+            <Route className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span>Trazar Líneas</span>
+          </button>
+        </div>
+
+        {/* Tooltip / Menú contextual flotante de Borrado de Nodo */}
+        {deleteTooltip && (() => {
+          const node = points.find(p => p.id === deleteTooltip.pointId);
+          if (!node) return null;
+          const metrics = getMetrics();
+          const { px, py } = RinkMath.metersToPixels(node.x, node.y, metrics);
+          const screenPos = worldToScreen(px, py);
+
+          return (
+            <div
+              style={{
+                position: 'absolute',
+                left: `${screenPos.x}px`,
+                top: `${screenPos.y - 44}px`,
+                transform: 'translateX(-50%)',
+              }}
+              className="z-40 flex items-center gap-1.5 bg-zinc-950/95 border border-red-500/50 px-2.5 py-1.5 rounded-xl shadow-2xl backdrop-blur-md animate-in fade-in zoom-in-95 duration-150 select-none pointer-events-auto"
             >
-              ✕
-            </button>
-          </div>
-        )}
+              <button
+                type="button"
+                onClick={(ev) => {
+                  ev.stopPropagation();
+                  deletePoint(node.id);
+                  setDeleteTooltip(null);
+                }}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-600 hover:bg-red-500 active:scale-95 text-white text-xs font-black transition-all shadow-md shadow-red-600/40"
+                title="Eliminar este nodo"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Borrar</span>
+              </button>
+              <button
+                type="button"
+                onClick={(ev) => {
+                  ev.stopPropagation();
+                  setDeleteTooltip(null);
+                }}
+                className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+                title="Cerrar"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          );
+        })()}
 
         {/* Floating Camera & Trail Control HUD */}
         <div className="absolute bottom-3 right-3 z-30 flex items-center gap-1.5 bg-slate-950/85 backdrop-blur-md border border-white/10 px-2 py-1.5 rounded-xl shadow-soft-elevation select-none">
@@ -1236,6 +1313,92 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
               +
             </button>
           </div>
+
+          {/* Mode Toggles: Colocar Nodos / Trazar Líneas (Mutually Exclusive) */}
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center bg-zinc-950/90 backdrop-blur-md p-1 rounded-2xl border border-white/10 shadow-2xl gap-1 select-none">
+            <button
+              type="button"
+              onClick={() => {
+                setPhase('plot');
+                setDeleteTooltip(null);
+              }}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
+                phase === 'plot'
+                  ? 'bg-amber-500 text-black shadow-glow-amber font-black'
+                  : 'text-slate-300 hover:text-white hover:bg-zinc-800'
+              }`}
+              title="Modo Nodos: Un clic en el lienzo vacío coloca nodos. Las líneas están ocultas."
+            >
+              <PenTool className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>Colocar Nodos</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (phase === 'curve') {
+                  setPhase('plot');
+                } else {
+                  setPhase('curve');
+                }
+                setDeleteTooltip(null);
+              }}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
+                phase === 'curve'
+                  ? 'bg-cyan text-black shadow-glow-cyan font-black'
+                  : 'text-slate-300 hover:text-white hover:bg-zinc-800'
+              }`}
+              title="Modo Trazado: Muestra las líneas conectadas y puntos para esculpir la ruta."
+            >
+              <Route className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>Trazar Líneas</span>
+            </button>
+          </div>
+
+          {/* Tooltip / Menú contextual flotante de Borrado de Nodo */}
+          {deleteTooltip && (() => {
+            const node = points.find(p => p.id === deleteTooltip.pointId);
+            if (!node) return null;
+            const metrics = getMetrics();
+            const { px, py } = RinkMath.metersToPixels(node.x, node.y, metrics);
+            const screenPos = worldToScreen(px, py);
+
+            return (
+              <div
+                style={{
+                  position: 'absolute',
+                  left: `${screenPos.x}px`,
+                  top: `${screenPos.y - 44}px`,
+                  transform: 'translateX(-50%)',
+                }}
+                className="z-40 flex items-center gap-1.5 bg-zinc-950/95 border border-red-500/50 px-2.5 py-1.5 rounded-xl shadow-2xl backdrop-blur-md animate-in fade-in zoom-in-95 duration-150 select-none pointer-events-auto"
+              >
+                <button
+                  type="button"
+                  onClick={(ev) => {
+                    ev.stopPropagation();
+                    deletePoint(node.id);
+                    setDeleteTooltip(null);
+                  }}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-600 hover:bg-red-500 active:scale-95 text-white text-xs font-black transition-all shadow-md shadow-red-600/40"
+                  title="Eliminar este nodo"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Borrar</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={(ev) => {
+                    ev.stopPropagation();
+                    setDeleteTooltip(null);
+                  }}
+                  className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+                  title="Cerrar"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            );
+          })()}
 
           <canvas
             ref={canvasRef}

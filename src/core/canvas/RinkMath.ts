@@ -334,36 +334,6 @@ export class RinkMath {
     };
   }
 
-  /**
-   * Subdivide un segmento Bézier entre p0 y p1 en 'count' tiempos musicales (2 a 15)
-   * Genera los Nodos de Tiempo correspondientes a lo largo de la curva física y temporal.
-   */
-  public static subdivideBezierSegment(
-    p0: ChoreographyPathPoint,
-    p1: ChoreographyPathPoint,
-    count: number
-  ): Array<{ x: number; y: number; time_ms: number; timeBeat: number }> {
-    const safeCount = Math.max(2, Math.min(15, Math.round(count)));
-    const { cp1, cp2 } = this.getSegmentControlPoints(p0, p1);
-    const totalTimeMs = p1.time_ms - p0.time_ms;
-    const result: Array<{ x: number; y: number; time_ms: number; timeBeat: number }> = [];
-
-    // Subdivisión en 'safeCount' partes proporcionales (safeCount - 1 nodos interiores)
-    for (let i = 1; i < safeCount; i++) {
-      const t = i / safeCount;
-      const { x, y } = this.evaluateCubicBezier(p0, cp1, cp2, p1, t);
-      const time_ms = Math.round(p0.time_ms + t * totalTimeMs);
-
-      result.push({
-        x: Math.round(x * 10) / 10,
-        y: Math.round(y * 10) / 10,
-        time_ms,
-        timeBeat: i + 1,
-      });
-    }
-
-    return result;
-  }
 
   /**
    * Encuentra el punto más cercano sobre la trayectoria Bézier para inserción en Modo Libre

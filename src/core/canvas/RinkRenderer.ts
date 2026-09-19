@@ -328,60 +328,6 @@ export class RinkRenderer {
   }
 
   /**
-   * Dibuja los Nodos de Tiempo (Time Nodes) con diseño compacto y numeración de compás
-   */
-  public static drawTimeNodes(
-    ctx: CanvasRenderingContext2D,
-    metrics: CanvasViewportMetrics,
-    points: ChoreographyPathPoint[],
-    selectedPointId: string | null
-  ) {
-    const timeNodes = points.filter(p => p.kind === 'time');
-    if (timeNodes.length === 0) return;
-
-    timeNodes.forEach((p) => {
-      const { px, py } = RinkMath.metersToPixels(p.x, p.y, metrics);
-      const isSelected = selectedPointId === p.id;
-
-      ctx.save();
-
-      // Halo táctil exterior si está seleccionado
-      if (isSelected) {
-        ctx.fillStyle = 'rgba(245, 158, 11, 0.35)';
-        ctx.beginPath();
-        ctx.arc(px, py, 15, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.strokeStyle = '#F59E0B';
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-      }
-
-      // Disco del Nodo de Tiempo (Compacto, Ámbar Neón #F59E0B)
-      ctx.beginPath();
-      ctx.arc(px, py, isSelected ? 6.5 : 4.5, 0, Math.PI * 2);
-      ctx.fillStyle = isSelected ? '#F59E0B' : '#1E293B';
-      ctx.fill();
-
-      ctx.lineWidth = isSelected ? 2 : 1.5;
-      ctx.strokeStyle = isSelected ? '#FFFFFF' : '#F59E0B';
-      ctx.stroke();
-
-      // Número de tiempo musical (1, 2, 3...)
-      const beatNum = p.timeBeat ?? p.label?.replace('T', '') ?? '';
-      if (beatNum) {
-        ctx.font = 'bold 8px JetBrains Mono, monospace';
-        ctx.fillStyle = isSelected ? '#F59E0B' : '#CBD5E1';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        ctx.fillText(`${beatNum}`, px, py - 5);
-      }
-
-      ctx.restore();
-    });
-  }
-
-  /**
    * Dibuja los puntos de anclaje de posición estándar de la coreografía
    */
   public static drawAnchorPoints(
@@ -390,10 +336,7 @@ export class RinkRenderer {
     points: ChoreographyPathPoint[],
     selectedPointId: string | null
   ) {
-    // Filtrar solo nodos de posición principales
-    const positionPoints = points.filter(p => p.kind !== 'time');
-
-    positionPoints.forEach((p, idx) => {
+    points.forEach((p, idx) => {
       const { px, py } = RinkMath.metersToPixels(p.x, p.y, metrics);
       const isSelected = selectedPointId === p.id;
 
