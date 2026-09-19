@@ -57,7 +57,8 @@ interface RinkCanvasProps {
 
 interface DragState {
   targetId: string;
-  type: 'anchor' | 'cp1' | 'cp2' | 'curve';
+  type: 'anchor' | 'grip' | 'curve';
+  t?: number;
 }
 
 import { STANDARD_FIGURES, ROLLART_STANDARD_FIGURES } from '../constants/figures';
@@ -315,9 +316,9 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     // Capa 1: Curvas de trayectoria (Línea guía permanente en pausa, o Trazado Dinámico durante reproducción)
     RinkRenderer.drawTrajectories(ctx, metrics, currentPoints, renderOpts);
 
-    // Capa 2: Tiradores Bézier CP1 y CP2 (SOLO en modo edición / !isPlaying)
-    if (!audio.isPlaying && currentShowHandles && currentPoints.length >= 2) {
-      RinkRenderer.drawBezierControlOverlay(ctx, metrics, currentPoints, renderOpts);
+    // Capa 2: Puntos de Arrastre Integrados en la Línea (Splines sobre el trazo, solo en edición)
+    if (!audio.isPlaying && currentPoints.length >= 2 && phase !== 'plot') {
+      RinkRenderer.drawSplineGripPoints(ctx, metrics, currentPoints, renderOpts);
     }
 
     // Capa 3: Nodos de Tiempo (Time Nodes en Ámbar Neón)
@@ -396,34 +397,26 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     const hitRadius = 30 / camera.zoom;
     let hitFound = false;
 
-    // 1. Comprobar tiradores Bézier CP1 y CP2 en TODOS los tramos (activos únicamente fuera de fase 'plot')
-    if (!audio.isPlaying && showControlHandles && points.length >= 2 && phase !== 'plot') {
+    // 1. Comprobar Puntos de Arrastre Integrados en la Línea (Splines) en fase conectada
+    if (!audio.isPlaying && points.length >= 2 && phase !== 'plot') {
       const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
       for (let i = 0; i < sorted.length - 1; i++) {
         const p0 = sorted[i];
         const p1 = sorted[i + 1];
 
-        const { cp1: cp1M, cp2: cp2M } = RinkMath.getSegmentControlPoints(p0, p1);
-        const cp1Px = RinkMath.metersToPixels(cp1M.x, cp1M.y, metrics);
-        const cp2Px = RinkMath.metersToPixels(cp2M.x, cp2M.y, metrics);
-
-        if (Math.hypot(worldPx - cp1Px.px, worldPy - cp1Px.py) < hitRadius) {
-          setSelectedPointId(p0.id);
-          const target: DragState = { targetId: p0.id, type: 'cp1' };
-          dragTargetRef.current = target;
-          setCursorStyle('grabbing');
-          hitFound = true;
-          break;
+        const grips = RinkMath.getSegmentGripPoints(p0, p1);
+        for (const grip of grips) {
+          const gripPx = RinkMath.metersToPixels(grip.x, grip.y, metrics);
+          if (Math.hypot(worldPx - gripPx.px, worldPy - gripPx.py) < hitRadius) {
+            setSelectedPointId(p0.id);
+            const target: DragState = { targetId: p0.id, type: 'grip', t: grip.t };
+            dragTargetRef.current = target;
+            setCursorStyle('grabbing');
+            hitFound = true;
+            break;
+          }
         }
-
-        if (Math.hypot(worldPx - cp2Px.px, worldPy - cp2Px.py) < hitRadius) {
-          setSelectedPointId(p0.id);
-          const target: DragState = { targetId: p0.id, type: 'cp2' };
-          dragTargetRef.current = target;
-          setCursorStyle('grabbing');
-          hitFound = true;
-          break;
-        }
+        if (hitFound) break;
       }
     }
 
@@ -506,23 +499,17 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
 
       if (currentTarget.type === 'anchor') {
         updatePointPosition(currentTarget.targetId, mX, mY);
-      } else if (currentTarget.type === 'cp1') {
-        updateControlPoint1(currentTarget.targetId, mX, mY);
-      } else if (currentTarget.type === 'cp2') {
-        updateControlPoint2(currentTarget.targetId, mX, mY);
-      } else if (currentTarget.type === 'curve') {
-        // Esculpir la curva directamente al arrastrar cualquier punto del trazado
-        if (curveDragStartPosRef.current && curveInitialCpsRef.current) {
-          const dx = mX - curveDragStartPosRef.current.mX;
-          const dy = mY - curveDragStartPosRef.current.mY;
-
-          const newCp1X = Math.max(0.4, Math.min(49.6, curveInitialCpsRef.current.cp1.x + dx));
-          const newCp1Y = Math.max(0.4, Math.min(24.6, curveInitialCpsRef.current.cp1.y + dy));
-          const newCp2X = Math.max(0.4, Math.min(49.6, curveInitialCpsRef.current.cp2.x + dx));
-          const newCp2Y = Math.max(0.4, Math.min(24.6, curveInitialCpsRef.current.cp2.y + dy));
-
-          updateControlPoint1(currentTarget.targetId, newCp1X, newCp1Y);
-          updateControlPoint2(currentTarget.targetId, newCp2X, newCp2Y);
+      } else if (currentTarget.type === 'grip' || currentTarget.type === 'curve') {
+        // Deformación directa e intuitiva de la curva pasando exactamente a través del punto arrastrado
+        const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
+        const idx = sorted.findIndex(p => p.id === currentTarget.targetId);
+        if (idx >= 0 && idx < sorted.length - 1) {
+          const p0 = sorted[idx];
+          const p1 = sorted[idx + 1];
+          const tParam = currentTarget.t !== undefined ? currentTarget.t : 0.5;
+          const { cp1, cp2 } = RinkMath.computeControlPointsFromThroughPoint(p0, p1, mX, mY, tParam);
+          updateControlPoint1(p0.id, cp1.x, cp1.y);
+          updateControlPoint2(p0.id, cp2.x, cp2.y);
         }
       }
       renderFrame();
@@ -539,18 +526,18 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     let isHovering = false;
     const hitRadius = 30 / camera.zoom;
 
-    if (!audio.isPlaying && showControlHandles && points.length >= 2) {
+    if (!audio.isPlaying && points.length >= 2 && phase !== 'plot') {
       const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
       for (let i = 0; i < sorted.length - 1; i++) {
-        const { cp1: cp1M, cp2: cp2M } = RinkMath.getSegmentControlPoints(sorted[i], sorted[i + 1]);
-        const cp1Px = RinkMath.metersToPixels(cp1M.x, cp1M.y, metrics);
-        const cp2Px = RinkMath.metersToPixels(cp2M.x, cp2M.y, metrics);
-
-        if (Math.hypot(worldPx - cp1Px.px, worldPy - cp1Px.py) < hitRadius ||
-            Math.hypot(worldPx - cp2Px.px, worldPy - cp2Px.py) < hitRadius) {
-          isHovering = true;
-          break;
+        const grips = RinkMath.getSegmentGripPoints(sorted[i], sorted[i + 1]);
+        for (const grip of grips) {
+          const gripPx = RinkMath.metersToPixels(grip.x, grip.y, metrics);
+          if (Math.hypot(worldPx - gripPx.px, worldPy - gripPx.py) < hitRadius) {
+            isHovering = true;
+            break;
+          }
         }
+        if (isHovering) break;
       }
     }
 
@@ -597,17 +584,14 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       }
       onDragChange?.(false);
       renderFrame();
-    } else if (currentTarget && currentTarget.type === 'curve') {
-      // ── CASO SELECCIÓN DE TRAYECTO: Revela los tiradores Bézier del tramo
+    } else if (currentTarget && (currentTarget.type === 'curve' || currentTarget.type === 'grip')) {
+      // ── CASO SELECCIÓN DE TRAYECTO O PUNTO DE AGARRE: Selecciona el nodo del tramo
       setSelectedPointId(currentTarget.targetId);
       onNodeSelect?.(currentTarget.targetId);
     } else if (currentTarget && currentTarget.type === 'anchor' && movedDistance < 5) {
       // ── CASO TOQUE RÁPIDO (TAP): Movimiento menor a 5px en un nodo existente.
       setSelectedPointId(currentTarget.targetId);
       onNodeSelect?.(currentTarget.targetId);
-    } else if (currentTarget && (currentTarget.type === 'cp1' || currentTarget.type === 'cp2') && movedDistance < 5) {
-      // ── CASO TOQUE RÁPIDO EN UN TIRADOR: Mantiene la selección del nodo padre
-      setSelectedPointId(currentTarget.targetId);
     } else if (!currentTarget && movedDistance < 5 && canvas) {
       // ── MODO TIEMPO LIBRE ACTIVO: Tocar la pista para proyectar e insertar un Nodo de Tiempo
       if (isAddingFreeTimeNodes) {

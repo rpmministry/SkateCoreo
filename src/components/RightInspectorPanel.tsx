@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  Plus,
   Trash2,
   Tag,
   Clock,
@@ -22,10 +21,6 @@ import {
 import { isSpeakableFigure } from '../core/audio/VoiceCueEngine';
 import { useAudioEngine } from '../hooks/useAudioEngine';
 
-interface RightInspectorPanelProps {
-  onAddNode: () => void;
-}
-
 const formatTime = (ms: number): string => {
   const totalSeconds = Math.floor(ms / 1000);
   const m = Math.floor(totalSeconds / 60);
@@ -37,9 +32,7 @@ const formatTime = (ms: number): string => {
  * Right inspector panel — Dark Mode Neon aesthetic.
  * Primary Master CTA in Coral Neon, Selected items highlighted in Mint Neon.
  */
-export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
-  onAddNode,
-}) => {
+export const RightInspectorPanel: React.FC = () => {
   const audio = useAudioEngine();
 
   // ── Zustand store ──────────────────────────────────────────
@@ -54,8 +47,6 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
   const history = useChoreographyStore((s) => s.history);
   const undo = useChoreographyStore((s) => s.undo);
 
-  const showControlHandles = useChoreographyStore((s) => s.showControlHandles);
-  const setShowControlHandles = useChoreographyStore((s) => s.setShowControlHandles);
   const phase = useChoreographyStore((s) => s.phase);
   const setPhase = useChoreographyStore((s) => s.setPhase);
 
@@ -156,116 +147,82 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
       {/* ── Body ── */}
       <div className="flex-1 overflow-y-auto overscroll-contain">
 
-        {/* ── Action Dock: Controles Coreográficos & Tiradores ─── */}
+        {/* ── BARRA DE HERRAMIENTAS EXCLUSIVAS: Colocar Nodos vs Conectar Ruta ─── */}
         <div className="px-4 py-3.5 space-y-3 border-b border-white/5">
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              <span>Herramienta Activa</span>
+              <span className="font-mono text-cyan">{points.length} {points.length === 1 ? 'nodo' : 'nodos'}</span>
+            </div>
 
-          {/* ── BOTÓN MAESTRO DE FASE: Colocación de Nodos vs Trazado de Ruta ── */}
-          {phase === 'plot' ? (
-            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-2.5 shadow-soft-elevation">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-amber-400 flex items-center gap-1.5">
-                  <PenTool className="w-3.5 h-3.5" />
-                  Modo Colocar Nodos
-                </span>
-                <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold">
-                  {points.length} {points.length === 1 ? 'nodo' : 'nodos'}
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-300 leading-snug">
-                Toca la pista libremente para colocar tus nodos y tiempos. Las líneas no se trazarán hasta que termines.
-              </p>
+            <div className="grid grid-cols-2 gap-2">
+              {/* Botón 1: Colocar Nodos (Siempre visible) */}
               <button
                 type="button"
-                onClick={() => setPhase('curve')}
+                onClick={() => setPhase('plot')}
+                className={[
+                  'flex items-center justify-center gap-1.5 py-3 px-2 rounded-xl text-xs font-black transition-all interactive-tap shadow-soft-elevation',
+                  phase === 'plot'
+                    ? 'bg-amber-500 text-black shadow-glow-amber ring-2 ring-amber-400'
+                    : 'bg-neon-card hover:bg-neon-hover text-slate-300 hover:text-white',
+                ].join(' ')}
+                title="Activa el modo para insertar nodos de posición o tiempo tocando libremente la pista"
+              >
+                <PenTool className="w-4 h-4 stroke-[2.5]" />
+                <span>Colocar Nodos</span>
+              </button>
+
+              {/* Botón 2: Conectar Ruta (Siempre visible) */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (points.length >= 2) setPhase('curve');
+                }}
                 disabled={points.length < 2}
                 className={[
-                  'w-full py-2.5 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-2 interactive-tap shadow-soft-elevation',
-                  points.length >= 2
-                    ? 'bg-coral text-white shadow-glow-coral hover:bg-coral-hover'
-                    : 'bg-white/5 text-slate-500 cursor-not-allowed'
+                  'flex items-center justify-center gap-1.5 py-3 px-2 rounded-xl text-xs font-black transition-all interactive-tap shadow-soft-elevation',
+                  phase === 'curve'
+                    ? 'bg-cyan text-black shadow-glow-cyan ring-2 ring-cyan-400'
+                    : 'bg-neon-card hover:bg-neon-hover text-slate-300 hover:text-white disabled:opacity-30 disabled:pointer-events-none',
                 ].join(' ')}
-                title={points.length >= 2 ? 'Conectar todos los nodos y trazar líneas de trayectoria' : 'Coloca al menos 2 nodos para trazar'}
+                title={points.length >= 2 ? 'Conecta los nodos con curvas Spline continuas' : 'Mínimo 2 nodos requeridos'}
               >
                 <Route className="w-4 h-4 stroke-[2.5]" />
-                {points.length >= 2 ? '⚡ Conectar y Trazar Ruta' : 'Coloca mínimo 2 nodos'}
+                <span>Conectar Ruta</span>
               </button>
             </div>
-          ) : (
-            <div className="p-3 rounded-2xl bg-cyan/10 border border-cyan/30 space-y-2 shadow-soft-elevation">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-cyan flex items-center gap-1.5">
-                  <Route className="w-3.5 h-3.5" />
-                  Ruta Trazada y Conectada
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setPhase('plot')}
-                  className="text-[10px] font-bold px-2 py-1 rounded-lg bg-neon-card hover:bg-neon-hover text-slate-300 hover:text-white border border-white/10 transition-all flex items-center gap-1"
-                  title="Volver a colocar nodos libremente tocando la pista"
-                >
-                  <Plus className="w-3 h-3 text-amber-400" />
-                  + Colocar Nodos
-                </button>
-              </div>
-              <p className="text-[10px] text-slate-400 leading-tight">
-                Trayecto continuo activo. Arrastra las curvas directamente o usa los tiradores CP1/CP2 para esculpirlas.
+          </div>
+
+          {/* Feedback interactivo de la herramienta seleccionada */}
+          <div className="p-2.5 rounded-xl bg-neon-card text-[11px] leading-snug">
+            {phase === 'plot' ? (
+              <p className="text-amber-300 flex items-center gap-1.5 font-medium">
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
+                Toca la pista para añadir nodos. Las líneas no se trazarán hasta conectar.
               </p>
-            </div>
-          )}
-
-          {/* Botón Maestro: Estado del Trazado & Tiradores Bézier (visible en fase 'curve') */}
-          {phase === 'curve' && (
-            <button
-              type="button"
-              onClick={() => setShowControlHandles(!showControlHandles)}
-              className={[
-                'w-full flex items-center justify-between px-4 py-3 rounded-2xl text-xs font-bold transition-all interactive-tap shadow-soft-elevation',
-                showControlHandles
-                  ? 'bg-cyan/15 text-cyan border border-cyan/40 shadow-glow-cyan'
-                  : 'bg-neon-card hover:bg-neon-hover text-slate-400 hover:text-white',
-              ].join(' ')}
-              title="Alterna la visibilidad de los tiradores de control Bézier (CP1 y CP2)"
-            >
-              <div className="flex items-center gap-2">
-                <SlidersHorizontal className="w-4 h-4 stroke-[2]" />
-                <span>Tiradores Bézier</span>
-              </div>
-              <span
-                className={[
-                  'text-[10px] font-mono px-2 py-0.5 rounded-full font-black',
-                  showControlHandles ? 'bg-cyan text-black' : 'bg-neon-surface text-slate-500',
-                ].join(' ')}
-              >
-                {showControlHandles ? 'ACTIVOS' : 'OCULTOS'}
-              </span>
-            </button>
-          )}
-
-          {/* Feedback de la coreografía */}
-          <div className="flex items-center justify-between px-1 text-[11px] text-slate-400">
-            <span className="flex items-center gap-1.5">
-              <Route className="w-3.5 h-3.5 text-cyan" />
-              {points.length < 2
-                ? 'Coloca 2 nodos para trazar la ruta'
-                : `${points.length} nodos conectados`}
-            </span>
-            {points.length >= 2 && (
-              <span className="font-mono text-cyan font-bold">
-                {formatTime(points[points.length - 1].time_ms)}
-              </span>
+            ) : (
+              <p className="text-cyan flex items-center gap-1.5 font-medium">
+                <span className="w-2 h-2 rounded-full bg-cyan shrink-0" />
+                Ruta conectada. Arrastra los puntos sobre la línea para esculpir la curva.
+              </p>
             )}
           </div>
 
-          {/* Row secundario: Añadir Nodo + Deshacer */}
+          {/* Row de Deshacer (Ctrl+Z) y Modo Tiempos Libres */}
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={onAddNode}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold bg-neon-card hover:bg-neon-hover text-slate-200 hover:text-white shadow-soft-elevation interactive-tap"
-              title="Añadir nodo en el tiempo actual del audio"
+              onClick={() => setIsAddingFreeTimeNodes(!isAddingFreeTimeNodes)}
+              className={[
+                'flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold transition-all interactive-tap shadow-soft-elevation',
+                isAddingFreeTimeNodes
+                  ? 'bg-amber-500 text-black shadow-glow-amber ring-2 ring-amber-400 font-extrabold'
+                  : 'bg-neon-card hover:bg-neon-hover text-amber-400 hover:text-amber-300 border border-amber-500/20',
+              ].join(' ')}
+              title="Activa el modo para insertar nodos de tiempo tocando la pista"
             >
-              <Plus className="w-4 h-4 text-cyan stroke-[2.5]" />
-              Añadir Nodo
+              <Timer className="w-4 h-4 stroke-[2.5]" />
+              <span>{isAddingFreeTimeNodes ? 'Tiempos ACTIVO' : '+ Nodos de Tiempo'}</span>
             </button>
 
             <button
@@ -279,24 +236,6 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
               <span>Ctrl+Z</span>
             </button>
           </div>
-
-          {/* Botón Modo Tiempo Libre */}
-          <button
-            type="button"
-            onClick={() => setIsAddingFreeTimeNodes(!isAddingFreeTimeNodes)}
-            className={[
-              'w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all interactive-tap shadow-soft-elevation',
-              isAddingFreeTimeNodes
-                ? 'bg-amber-500 text-black shadow-glow-amber ring-2 ring-amber-400 font-extrabold'
-                : 'bg-neon-card hover:bg-neon-hover text-amber-400 hover:text-amber-300 border border-amber-500/20',
-            ].join(' ')}
-            title="Activa el modo para insertar nodos de tiempo libres tocando la pista"
-          >
-            <Timer className="w-4 h-4 stroke-[2.5]" />
-            {isAddingFreeTimeNodes
-              ? '⏱ Modo Tiempo Libre ACTIVO (Toca la pista)'
-              : '+ Nodos de Tiempo Libres'}
-          </button>
         </div>
 
         {/* ── Telemetría de nodos registrados ─── */}
@@ -434,12 +373,12 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                   Curvatura del Trazo
                 </span>
                 <span className="text-[9px] font-mono text-cyan bg-cyan/15 px-2 py-0.5 rounded-full font-bold">
-                  Bézier Libre
+                  Spline en Línea
                 </span>
               </div>
 
               <p className="text-[11px] text-slate-300 leading-snug">
-                Arrastra la línea en la pista o usa los tiradores CP1/CP2 para esculpir la curva sin crear nodos ni líneas nuevas.
+                Arrastra los puntos sobre la línea o la propia curva para esculpirla con suavidad continua sin crear nodos de posición.
               </p>
 
               <div className="grid grid-cols-3 gap-1.5 pt-1">
@@ -700,12 +639,12 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                   Curvatura del Trazo
                 </span>
                 <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-cyan/15 text-cyan font-bold">
-                  Bézier Libre
+                  Spline en Línea
                 </span>
               </div>
 
               <p className="text-[11px] text-slate-300 leading-snug">
-                Arrastra la línea en la pista o usa los tiradores CP1/CP2 para esculpir la curva sin crear nodos ni líneas nuevas.
+                Arrastra los puntos sobre la línea o la propia curva para esculpirla con suavidad continua sin crear nodos de posición.
               </p>
 
               <div className="grid grid-cols-3 gap-1.5 pt-1">

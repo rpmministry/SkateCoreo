@@ -684,14 +684,18 @@ export class RinkRenderer {
    * Se dibuja por ENCIMA de todo para que CP1 y CP2 NUNCA queden tapados.
    * Proporciona alto contraste, brazos conectores dorados y cianes, y badges prominentes.
    */
-  public static drawBezierControlOverlay(
+  /**
+   * Dibuja los Puntos de Arrastre Integrados en la Línea (Splines)
+   * Elimina por completo los tiradores flotantes externos (CPs) y sus brazos discontinuos.
+   * Dibuja puntos pequeños, discretos y luminosos directamente sobre el trazo para esculpir la curva.
+   */
+  public static drawSplineGripPoints(
     ctx: CanvasRenderingContext2D,
     metrics: CanvasViewportMetrics,
     points: ChoreographyPathPoint[],
     options: RenderOptions
   ) {
-    if (!options.showControlHandles || points.length < 2 || options.phase === 'plot') return;
-    // Capa 1: UI y Controles (Tiradores y Nodos). Visible solo en isEditing = true (!isPlaying).
+    if (points.length < 2 || options.phase === 'plot') return;
     if (options.isPlaying) return;
 
     const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
@@ -699,128 +703,49 @@ export class RinkRenderer {
     for (let i = 0; i < sorted.length - 1; i++) {
       const p0 = sorted[i];
       const p1 = sorted[i + 1];
-
       const isSegmentSelected = options.selectedPointId === p0.id || options.selectedPointId === p1.id;
 
-      const pt0 = RinkMath.metersToPixels(p0.x, p0.y, metrics);
-      const pt1 = RinkMath.metersToPixels(p1.x, p1.y, metrics);
-      const { cp1: cp1M, cp2: cp2M } = RinkMath.getSegmentControlPoints(p0, p1);
-      const cp1 = RinkMath.metersToPixels(cp1M.x, cp1M.y, metrics);
-      const cp2 = RinkMath.metersToPixels(cp2M.x, cp2M.y, metrics);
+      const gripPoints = RinkMath.getSegmentGripPoints(p0, p1);
 
-      ctx.save();
+      for (const grip of gripPoints) {
+        const { px, py } = RinkMath.metersToPixels(grip.x, grip.y, metrics);
 
-      // --- 1. BRAZO CONECTOR CP1: p0 -> cp1 (Dorado/Ámbar de Salida) ---
-      ctx.strokeStyle = isSegmentSelected ? '#F59E0B' : 'rgba(245, 158, 11, 0.7)';
-      ctx.lineWidth = isSegmentSelected ? 2.5 : 1.5;
-      if (!isSegmentSelected) {
-        ctx.setLineDash([5, 4]);
-      } else {
-        ctx.setLineDash([]);
+        ctx.save();
+
+        // 1. Halo sutil interactivo
+        const haloR = isSegmentSelected ? 12 : 8;
+        ctx.fillStyle = isSegmentSelected ? 'rgba(0, 210, 255, 0.35)' : 'rgba(0, 210, 255, 0.15)';
+        ctx.beginPath();
+        ctx.arc(px, py, haloR, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 2. Anillo exterior cian neón integrado en el trazo
+        ctx.strokeStyle = '#00D2FF';
+        ctx.lineWidth = isSegmentSelected ? 2 : 1.5;
+        ctx.beginPath();
+        ctx.arc(px, py, isSegmentSelected ? 5.5 : 4.5, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // 3. Núcleo blanco de precisión sobre la línea
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath();
+        ctx.arc(px, py, isSegmentSelected ? 2.5 : 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
       }
-      ctx.beginPath();
-      ctx.moveTo(pt0.px, pt0.py);
-      ctx.lineTo(cp1.px, cp1.py);
-      ctx.stroke();
-
-      // --- 2. BRAZO CONECTOR CP2: p1 -> cp2 (Cian/Azul de Llegada) ---
-      ctx.strokeStyle = isSegmentSelected ? '#38BDF8' : 'rgba(56, 189, 248, 0.7)';
-      ctx.lineWidth = isSegmentSelected ? 2.5 : 1.5;
-      if (!isSegmentSelected) {
-        ctx.setLineDash([5, 4]);
-      } else {
-        ctx.setLineDash([]);
-      }
-      ctx.beginPath();
-      ctx.moveTo(pt1.px, pt1.py);
-      ctx.lineTo(cp2.px, cp2.py);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      ctx.restore();
-
-      // --- 3. TIRADOR CP1 (Salida de Curva) ---
-      this.drawProminentHandle(ctx, cp1.px, cp1.py, 'CP1 Salida', '#F59E0B', '#FCD34D', isSegmentSelected);
-
-      // --- 4. TIRADOR CP2 (Llegada de Curva) ---
-      this.drawProminentHandle(ctx, cp2.px, cp2.py, 'CP2 Llegada', '#0284C7', '#38BDF8', isSegmentSelected);
     }
   }
 
-  private static drawProminentHandle(
+  /**
+   * Alias de compatibilidad: redirige al nuevo sistema de puntos integrados
+   */
+  public static drawBezierControlOverlay(
     ctx: CanvasRenderingContext2D,
-    px: number,
-    py: number,
-    label: string,
-    colorHex: string,
-    textHex: string,
-    isActive: boolean
+    metrics: CanvasViewportMetrics,
+    points: ChoreographyPathPoint[],
+    options: RenderOptions
   ) {
-    const haloRadius = isActive ? 26 : 18;
-    const coreRadius = isActive ? 11 : 9;
-
-    ctx.save();
-
-    // Halo táctil exterior luminoso
-    ctx.fillStyle = isActive ? `${colorHex}66` : `${colorHex}35`;
-    ctx.beginPath();
-    ctx.arc(px, py, haloRadius, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Anillo exterior de contraste
-    ctx.strokeStyle = `${colorHex}AA`;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(px, py, haloRadius, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Núcleo del tirador
-    ctx.fillStyle = colorHex;
-    ctx.beginPath();
-    ctx.arc(px, py, coreRadius, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Borde blanco grueso de alto contraste
-    ctx.strokeStyle = '#FFFFFF';
-    ctx.lineWidth = isActive ? 3 : 2.5;
-    ctx.stroke();
-
-    // Punto blanco central de precisión
-    ctx.fillStyle = '#FFFFFF';
-    ctx.beginPath();
-    ctx.arc(px, py, 3, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Etiqueta en formato píldora oscura de alta visibilidad
-    const badgeText = label;
-    ctx.font = 'bold 10px JetBrains Mono, monospace';
-    const textWidth = ctx.measureText(badgeText).width;
-    const pillW = textWidth + 12;
-    const pillH = 17;
-    const pillX = px - pillW / 2;
-    const pillY = py - (isActive ? 32 : 28);
-
-    // Fondo píldora
-    ctx.fillStyle = '#090D16';
-    ctx.beginPath();
-    if (typeof (ctx as any).roundRect === 'function') {
-      (ctx as any).roundRect(pillX, pillY, pillW, pillH, 5);
-    } else {
-      ctx.rect(pillX, pillY, pillW, pillH);
-    }
-    ctx.fill();
-
-    // Borde de la píldora
-    ctx.strokeStyle = colorHex;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    // Texto de la píldora
-    ctx.fillStyle = textHex;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(badgeText, px, pillY + pillH / 2);
-
-    ctx.restore();
+    this.drawSplineGripPoints(ctx, metrics, points, options);
   }
 }

@@ -14,7 +14,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Play, Pause, Square, Music,
   Menu, X, ChevronDown,
-  Plus, Undo2, Route, PenTool, Users,
+  Undo2, Route, PenTool, Users,
   Upload, Download, Save, Trash2, HardDrive, Check
 } from 'lucide-react';
 import { Skater, Program, ElementLog, AudioEngineState } from './types';
@@ -67,8 +67,6 @@ export function App() {
   const coreoInputRef = useRef<HTMLInputElement | null>(null);
 
   // ── Zustand ────────────────────────────────────────────
-  const addPointFromAudio = useChoreographyStore((s) => s.addPointFromAudio);
-  const pushHistory       = useChoreographyStore((s) => s.pushHistory);
   const undo              = useChoreographyStore((s) => s.undo);
   const history           = useChoreographyStore((s) => s.history);
   const phase             = useChoreographyStore((s) => s.phase);
@@ -140,11 +138,6 @@ export function App() {
     setSelectedProgram(updated);
     await dbService.saveProgram(updated);
     setPrograms((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-  };
-
-  const handleAddNode = () => {
-    pushHistory();
-    addPointFromAudio(currentTimeMs);
   };
 
   const handleUndo = useCallback(() => undo(), [undo]);
@@ -531,34 +524,39 @@ export function App() {
             <Square className="w-3.5 h-3.5 fill-current stroke-none" />
           </button>
 
-          {/* Botón Maestro Fase (Header Desktop): Conectar Ruta vs Colocar Nodos */}
-          {phase === 'plot' ? (
+          {/* Grupo de Herramientas Exclusivas (Header Desktop): Colocar Nodos / Conectar Ruta */}
+          <div className="hidden sm:flex items-center bg-neon-card p-1 rounded-2xl shadow-soft-elevation border border-white/5 gap-1">
+            <button
+              type="button"
+              onClick={() => setPhase('plot')}
+              className={[
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black interactive-tap transition-all',
+                phase === 'plot'
+                  ? 'bg-amber-500 text-black shadow-glow-amber'
+                  : 'text-slate-400 hover:text-white hover:bg-white/5',
+              ].join(' ')}
+              title="Activa la herramienta para colocar nodos tocando la pista"
+            >
+              <PenTool className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span className="hidden xl:inline">Colocar Nodos</span>
+            </button>
+
             <button
               type="button"
               onClick={() => { if (canDraw) setPhase('curve'); }}
               disabled={!canDraw}
               className={[
-                'hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black interactive-tap transition-all shadow-soft-elevation',
-                canDraw
-                  ? 'bg-coral text-white shadow-glow-coral hover:bg-coral-hover'
-                  : 'bg-neon-card text-slate-500 opacity-50 cursor-not-allowed',
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black interactive-tap transition-all',
+                phase === 'curve'
+                  ? 'bg-cyan text-black shadow-glow-cyan'
+                  : 'text-slate-400 hover:text-white hover:bg-white/5 disabled:opacity-30 disabled:pointer-events-none',
               ].join(' ')}
-              title={canDraw ? 'Terminar colocación y conectar ruta' : 'Coloca al menos 2 nodos'}
+              title={canDraw ? 'Activa la ruta conectada y el esculpido de curvas' : 'Coloca al menos 2 nodos'}
             >
               <Route className="w-3.5 h-3.5 stroke-[2.5]" />
               <span className="hidden xl:inline">Conectar Ruta</span>
             </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setPhase('plot')}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-neon-card hover:bg-neon-hover text-slate-300 hover:text-white shadow-soft-elevation interactive-tap transition-all"
-              title="Volver a colocar nodos libremente tocando la pista sin que las líneas estorben"
-            >
-              <PenTool className="w-3.5 h-3.5 text-amber-400 stroke-[2]" />
-              <span className="hidden xl:inline">+ Colocar Nodos</span>
-            </button>
-          )}
+          </div>
 
           {/* Botón Rápido Limpiar Pista 2D (Header Desktop) */}
           <button
@@ -643,7 +641,7 @@ export function App() {
 
         {/* ── DESKTOP RIGHT ASIDE (Inspector de Nodo) ── */}
         <aside className="hidden lg:flex lg:w-[272px] xl:w-[288px] shrink-0 flex-col bg-neon-surface border-l border-white/5 overflow-hidden shadow-soft-elevation">
-          <RightInspectorPanel onAddNode={handleAddNode} />
+          <RightInspectorPanel />
         </aside>
 
         {/* ── MOBILE LEFT DRAWER (Configuración Global) ── */}
@@ -725,7 +723,7 @@ export function App() {
 
           {/* Sheet Content Body */}
           <div className="flex-1 overflow-y-auto overscroll-contain">
-            <RightInspectorPanel onAddNode={handleAddNode} />
+            <RightInspectorPanel />
           </div>
         </div>
 
@@ -753,39 +751,41 @@ export function App() {
           <span>Config</span>
         </button>
 
-        {/* Add Node Trigger */}
+        {/* Herramienta 1: Colocar Nodos (Siempre visible, estado toggled) */}
         <button
           type="button"
-          onClick={handleAddNode}
-          className="flex-1 min-h-touch flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold text-slate-400 hover:text-white border-r border-white/5 interactive-tap"
+          onClick={() => { setPhase('plot'); setSheetOpen(false); }}
+          className={[
+            'flex-[1.2] min-h-touch flex flex-col items-center justify-center gap-0.5',
+            'text-[10px] font-black uppercase tracking-wider border-r border-white/5 interactive-tap transition-all',
+            phase === 'plot'
+              ? 'bg-amber-500 text-black shadow-glow-amber font-black'
+              : 'text-slate-400 hover:text-white',
+          ].join(' ')}
+          title="Activa el modo para colocar nodos tocando la pista"
         >
-          <Plus className="w-4 h-4 text-cyan stroke-[2.5]" />
-          <span>+ Nodo</span>
+          <PenTool className="w-4 h-4 stroke-[2.5]" />
+          <span>Colocar</span>
         </button>
 
-        {/* Master CTA: Coral Neón Vibrante */}
+        {/* Herramienta 2: Conectar Ruta (Siempre visible, estado toggled) */}
         <button
           type="button"
           onClick={() => {
-            if (phase === 'plot' && canDraw) setPhase('curve');
-            else if (phase === 'curve') setPhase('plot');
+            if (canDraw) setPhase('curve');
           }}
-          disabled={phase === 'plot' && !canDraw}
-          title={phase === 'curve' ? 'Volver a editar' : canDraw ? 'Trazar ruta' : 'Mínimo 2 nodos'}
+          disabled={!canDraw}
           className={[
-            'flex-[1.4] min-h-touch flex flex-col items-center justify-center gap-0.5',
+            'flex-[1.2] min-h-touch flex flex-col items-center justify-center gap-0.5',
             'text-[10px] font-black uppercase tracking-wider border-r border-white/5 interactive-tap transition-all',
             phase === 'curve'
-              ? 'text-cyan bg-cyan/15'
-              : canDraw
-              ? 'text-white bg-coral shadow-glow-coral'
-              : 'text-slate-600 opacity-40 disabled:pointer-events-none',
+              ? 'bg-cyan text-black shadow-glow-cyan font-black'
+              : 'text-slate-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none',
           ].join(' ')}
+          title={canDraw ? 'Conectar ruta y editar curvas' : 'Mínimo 2 nodos'}
         >
-          {phase === 'curve' 
-            ? <PenTool className="w-4 h-4 stroke-[2.5]" /> 
-            : <Route className="w-4 h-4 stroke-[2.5]" />}
-          <span>{phase === 'curve' ? 'Editar' : 'Dibujar'}</span>
+          <Route className="w-4 h-4 stroke-[2.5]" />
+          <span>Conectar</span>
         </button>
 
         {/* Limpiar Pista en un toque (Mobile) */}

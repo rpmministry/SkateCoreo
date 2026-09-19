@@ -129,6 +129,101 @@ export class RinkMath {
   }
 
   /**
+   * Convierte un segmento Catmull-Rom Spline entre p0 y p1 a puntos de control Bézier para Canvas 2D.
+   * Garantiza que la curva pase obligatoriamente por los puntos con continuidad C1 suave.
+   */
+  public static catmullRomToBezier(
+    pPrev: { x: number; y: number },
+    p0: { x: number; y: number },
+    p1: { x: number; y: number },
+    pNext: { x: number; y: number },
+    tension: number = 0.5
+  ): { cp1: { x: number; y: number }; cp2: { x: number; y: number } } {
+    const factor = tension / 3;
+    const cp1x = p0.x + (p1.x - pPrev.x) * factor;
+    const cp1y = p0.y + (p1.y - pPrev.y) * factor;
+    const cp2x = p1.x - (pNext.x - p0.x) * factor;
+    const cp2y = p1.y - (pNext.y - p0.y) * factor;
+
+    return {
+      cp1: {
+        x: Math.round(Math.max(0.4, Math.min(49.6, cp1x)) * 10) / 10,
+        y: Math.round(Math.max(0.4, Math.min(24.6, cp1y)) * 10) / 10
+      },
+      cp2: {
+        x: Math.round(Math.max(0.4, Math.min(49.6, cp2x)) * 10) / 10,
+        y: Math.round(Math.max(0.4, Math.min(24.6, cp2y)) * 10) / 10
+      }
+    };
+  }
+
+  /**
+   * Obtiene los puntos de agarre integrados directamente sobre la curva (Spline en línea)
+   * para un tramo entre p0 y p1.
+   */
+  public static getSegmentGripPoints(
+    p0: ChoreographyPathPoint,
+    p1: ChoreographyPathPoint
+  ): Array<{ id: string; t: number; x: number; y: number }> {
+    const { cp1, cp2 } = this.getSegmentControlPoints(p0, p1);
+    const dist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+
+    // Para tramos largos (> 12m) distribuimos 2-3 puntos de agarre; para tramos estándar, el punto central (t=0.5)
+    const tValues = dist > 14 ? [0.33, 0.5, 0.67] : (dist > 8 ? [0.35, 0.65] : [0.5]);
+
+    return tValues.map((t) => {
+      const pt = this.evaluateCubicBezier(p0, cp1, cp2, p1, t);
+      return {
+        id: `${p0.id}_grip_${Math.round(t * 100)}`,
+        t,
+        x: Math.round(pt.x * 10) / 10,
+        y: Math.round(pt.y * 10) / 10
+      };
+    });
+  }
+
+  /**
+   * Calcula los puntos de control Bézier para que la curva pase exactamente
+   * a través de la posición de agarre deseada (targetX, targetY), simulando un Spline directo.
+   */
+  public static computeControlPointsFromThroughPoint(
+    p0: ChoreographyPathPoint,
+    p1: ChoreographyPathPoint,
+    targetX: number,
+    targetY: number,
+    t: number = 0.5
+  ): { cp1: { x: number; y: number }; cp2: { x: number; y: number } } {
+    // Para t = 0.5 (punto medio exacto):
+    // B(0.5) = (P0 + 3*CP1 + 3*CP2 + P1) / 8 = G
+    // => CP1 = (4*G - P0) / 3, CP2 = (4*G - P1) / 3
+    const clampedGx = Math.max(0.4, Math.min(49.6, targetX));
+    const clampedGy = Math.max(0.4, Math.min(24.6, targetY));
+
+    // Deformación proporcional exacta según el parámetro t para que B(t) = G
+    const clampedT = Math.max(0.08, Math.min(0.92, t));
+    const denom = 3 * clampedT * (1 - clampedT);
+    const baselineX = (1 - clampedT) * p0.x + clampedT * p1.x;
+    const baselineY = (1 - clampedT) * p0.y + clampedT * p1.y;
+    const deltaX = (clampedGx - baselineX) / denom;
+    const deltaY = (clampedGy - baselineY) / denom;
+
+    const rawCp1x = (p0.x + (p1.x - p0.x) / 3) + deltaX;
+    const rawCp1y = (p0.y + (p1.y - p0.y) / 3) + deltaY;
+    const rawCp2x = (p1.x - (p1.x - p0.x) / 3) + deltaX;
+    const rawCp2y = (p1.y - (p1.y - p0.y) / 3) + deltaY;
+
+    const cp1x = Math.max(0.4, Math.min(49.6, rawCp1x));
+    const cp1y = Math.max(0.4, Math.min(24.6, rawCp1y));
+    const cp2x = Math.max(0.4, Math.min(49.6, rawCp2x));
+    const cp2y = Math.max(0.4, Math.min(24.6, rawCp2y));
+
+    return {
+      cp1: { x: Math.round(cp1x * 10) / 10, y: Math.round(cp1y * 10) / 10 },
+      cp2: { x: Math.round(cp2x * 10) / 10, y: Math.round(cp2y * 10) / 10 }
+    };
+  }
+
+  /**
    * Calcula la posición e inclinación cinemática del patinador en un instante de tiempo
    */
   public static interpolateSkaterPosition(
