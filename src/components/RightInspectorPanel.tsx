@@ -115,7 +115,13 @@ export const RightInspectorPanel: React.FC = () => {
 
   // ── Render ─────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-full w-full bg-neon-surface text-white select-none">
+    <div
+      className="flex flex-col h-full w-full bg-neon-surface text-white select-none"
+      style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+      onTouchStart={(e) => e.stopPropagation()}
+      onTouchMove={(e) => e.stopPropagation()}
+      onTouchEnd={(e) => e.stopPropagation()}
+    >
       {/* ── Panel header ── */}
       <div className="flex-none flex items-center justify-between px-4 py-3 border-b border-white/5">
         <p
@@ -129,7 +135,13 @@ export const RightInspectorPanel: React.FC = () => {
       </div>
 
       {/* ── Body ── */}
-      <div className="flex-1 overflow-y-auto overscroll-contain">
+      <div
+        className="flex-1 overflow-y-auto overscroll-contain pb-12"
+        style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
+      >
 
         {/* ── BARRA DE HERRAMIENTAS EXCLUSIVAS: Colocar Nodos vs Conectar Ruta ─── */}
         <div className="px-4 py-3.5 space-y-3 border-b border-white/5">

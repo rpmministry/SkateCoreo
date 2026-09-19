@@ -662,7 +662,14 @@ export function App() {
             'transition-transform duration-ui ease-spring',
             sheetOpen ? 'translate-y-0' : 'translate-y-full',
           ].join(' ')}
-          style={{ maxHeight: '56vh' }}
+          style={{
+            maxHeight: '80vh',
+            WebkitOverflowScrolling: 'touch',
+            touchAction: 'pan-y',
+          }}
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+          onTouchEnd={(e) => e.stopPropagation()}
         >
           {/* Pull Grip Affordance */}
           <div
@@ -687,8 +694,17 @@ export function App() {
             </button>
           </div>
 
-          {/* Sheet Content Body */}
-          <div className="flex-1 overflow-y-auto overscroll-contain">
+          {/* Sheet Content Body - Scrollable */}
+          <div
+            className="flex-1 overflow-y-auto overscroll-contain pb-8"
+            style={{
+              WebkitOverflowScrolling: 'touch',
+              touchAction: 'pan-y',
+            }}
+            onTouchStart={(e) => e.stopPropagation()}
+            onTouchMove={(e) => e.stopPropagation()}
+            onTouchEnd={(e) => e.stopPropagation()}
+          >
             <RightInspectorPanel />
           </div>
         </div>

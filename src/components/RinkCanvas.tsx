@@ -35,6 +35,7 @@ import { useChoreographyStore, DEFAULT_CHOREOGRAPHY_POINTS } from '../store/useC
 import { isSpeakableFigure } from '../core/audio/VoiceCueEngine';
 import { InteractiveWaveform } from './InteractiveWaveform';
 import { useCanvasCamera } from '../hooks/useCanvasCamera';
+import { FreehandPathEngine, Point2D } from '../core/math/FreehandPathEngine';
 
 interface RinkCanvasProps {
   currentProgram: Program | null;
@@ -143,7 +144,6 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
   const setShowControlHandles = useChoreographyStore((state) => state.setShowControlHandles);
   const setShowRinkGrid = useChoreographyStore((state) => state.setShowRinkGrid);
   const addPointAtCanvas = useChoreographyStore((state) => state.addPointAtCanvas);
-  const updatePointPosition = useChoreographyStore((state) => state.updatePointPosition);
   const updateSegmentControlPoints = useChoreographyStore((state) => state.updateSegmentControlPoints);
   const updatePointMetadata = useChoreographyStore((state) => state.updatePointMetadata);
   const deletePoint = useChoreographyStore((state) => state.deletePoint);
@@ -168,6 +168,21 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
   const pointsBeforeDragRef = useRef<ChoreographyPathPoint[] | null>(null);
   const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
   const [cursorStyle, setCursorStyle] = useState<'default' | 'crosshair' | 'grab' | 'grabbing'>('crosshair');
+
+  // Motor de Trazado a Mano Alzada (Freehand Pathing) y Long Press (~600ms)
+  const rawStrokeRef = useRef<Point2D[]>([]);
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isLongPressActiveRef = useRef<boolean>(false);
+  const strokeStartNodeRef = useRef<ChoreographyPoint | null>(null);
+
+  // Limpieza del temporizador de Long Press al desmontar
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+      }
+    };
+  }, []);
 
 
   // Función Deshacer (Undo / Ctrl+Z)
@@ -332,6 +347,47 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       RinkRenderer.drawSkaterAvatar(ctx, metrics, currentAvatar, skaterGender);
     }
 
+    // Capa 7: Trazado a Mano Alzada en Tiempo Real (Active Freehand Glowing Trail)
+    const activeStroke = rawStrokeRef.current;
+    if (activeStroke && activeStroke.length >= 2) {
+      ctx.save();
+      // Resplandor exterior difuso (Cyan Outer Glow)
+      ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)';
+      ctx.lineWidth = 10;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      for (let i = 0; i < activeStroke.length; i++) {
+        const ptPx = RinkMath.metersToPixels(activeStroke[i].x, activeStroke[i].y, metrics);
+        if (i === 0) ctx.moveTo(ptPx.px, ptPx.py);
+        else ctx.lineTo(ptPx.px, ptPx.py);
+      }
+      ctx.stroke();
+
+      // Trazo central nítido (Cyan Core Line)
+      ctx.strokeStyle = '#00F0FF';
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      for (let i = 0; i < activeStroke.length; i++) {
+        const ptPx = RinkMath.metersToPixels(activeStroke[i].x, activeStroke[i].y, metrics);
+        if (i === 0) ctx.moveTo(ptPx.px, ptPx.py);
+        else ctx.lineTo(ptPx.px, ptPx.py);
+      }
+      ctx.stroke();
+
+      // Punta luminosa en la coordenada exacta del dedo / puntero
+      const tip = activeStroke[activeStroke.length - 1];
+      const tipPx = RinkMath.metersToPixels(tip.x, tip.y, metrics);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.shadowColor = '#00F0FF';
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.arc(tipPx.px, tipPx.py, 5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+
     ctx.restore();
   }, [
     containerSize,
@@ -378,19 +434,29 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     renderFrame
   ]);
 
-  // POINTER DOWN: Hit Testing en espacio del mundo con radio táctil dinámico
+  // POINTER DOWN: Hit Testing con soporte para Freehand Pathing y Long Press (~600ms)
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return;
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    // Cancelar cualquier temporizador de Long Press previo
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    isLongPressActiveRef.current = false;
+    rawStrokeRef.current = [];
+    strokeStartNodeRef.current = null;
+
     // Transformación Inversa Screen-to-World: obtener coordenada real del mundo
     const { x: worldPx, y: worldPy } = screenToWorld(e.clientX, e.clientY, canvas);
     const metrics = getMetrics();
+    const { mX, mY } = RinkMath.pixelsToMeters(worldPx, worldPy, metrics, DEFAULT_RINK_DIMENSIONS);
     pointsBeforeDragRef.current = points;
     pointerDownPosRef.current = { x: e.clientX, y: e.clientY };
 
-    // Radio de hit-test dinámico: 30px en pantalla siempre (60px diámetro), sin importar el zoom
+    // Radio de hit-test dinámico: 30px en pantalla siempre
     const hitRadius = 30 / camera.zoom;
     let hitFound = false;
 
@@ -417,53 +483,68 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       }
     }
 
-    // 2. Comprobar puntos de anclaje (nodos de posición y nodos de tiempo)
+    // 2. Comprobar si tocó un Nodo Maestro existente
     if (!hitFound) {
+      let hitNode: ChoreographyPoint | null = null;
       for (const p of points) {
         const { px, py } = RinkMath.metersToPixels(p.x, p.y, metrics);
         if (Math.hypot(worldPx - px, worldPy - py) < hitRadius) {
-          const target: DragState = { targetId: p.id, type: 'anchor' };
-          dragTargetRef.current = target;
-          setCursorStyle('grabbing');
-          hitFound = true;
+          hitNode = p;
           break;
         }
       }
+
+      if (hitNode) {
+        hitFound = true;
+        strokeStartNodeRef.current = hitNode;
+        // Iniciar trazo libre desde la posición exacta del nodo
+        rawStrokeRef.current = [{ x: hitNode.x, y: hitNode.y }];
+
+        // Configurar temporizador de Long Press (~600ms) para abrir inspector de propiedades
+        const targetNode = hitNode;
+        longPressTimerRef.current = setTimeout(() => {
+          isLongPressActiveRef.current = true;
+          // Feedback háptico
+          try {
+            if (typeof navigator !== 'undefined' && navigator.vibrate) {
+              navigator.vibrate(50);
+            }
+          } catch (err) {}
+          // Seleccionar nodo y abrir el modal / Bottom Sheet de propiedades
+          setSelectedPointId(targetNode.id);
+          onNodeSelect?.(targetNode.id);
+          setDeleteTooltip({ pointId: targetNode.id });
+          // Cancelar el trazo en curso para evitar dibujar mientras se abre el menú
+          rawStrokeRef.current = [];
+          strokeStartNodeRef.current = null;
+          renderFrame();
+        }, 600);
+      }
     }
 
-    // 3. Comprobar toque directo en el trayecto para esculpir la curva o seleccionar el tramo (solo cuando la ruta está conectada)
-    if (!hitFound && !audio.isPlaying && points.length >= 2 && phase !== 'plot') {
-      const { mX, mY } = RinkMath.pixelsToMeters(worldPx, worldPy, metrics, DEFAULT_RINK_DIMENSIONS);
-      const nearest = RinkMath.findNearestPointOnPath(points, mX, mY);
-      const maxTapDistMeters = 1.8 / (camera.zoom || 1);
-      if (nearest && nearest.distanceMeters <= maxTapDistMeters) {
-        const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
-        const segStartPoint = sorted[nearest.segmentIndex];
-        const segEndPoint = sorted[nearest.segmentIndex + 1];
-        if (segStartPoint && segEndPoint) {
-          const target: DragState = { targetId: segStartPoint.id, type: 'curve' };
-          dragTargetRef.current = target;
-          setSelectedPointId(segStartPoint.id);
-          onNodeSelect?.(segStartPoint.id);
-          curveDragStartPosRef.current = { mX, mY };
-          const { cp1, cp2 } = RinkMath.getSegmentControlPoints(segStartPoint, segEndPoint);
-          curveInitialCpsRef.current = { cp1, cp2 };
-          hitFound = true;
-        }
-      }
+    // 3. Si no tocó ningún elemento y está dentro de la pista, preparar trazo a mano alzada nuevo
+    if (!hitFound && mX >= 0.2 && mX <= 49.8 && mY >= 0.2 && mY <= 24.8) {
+      strokeStartNodeRef.current = null;
+      rawStrokeRef.current = [{ x: mX, y: mY }];
     }
 
     // Notificar al motor de cámara (si tocó un nodo o control, no activa paneo de 1 dedo)
     camPointerDown(e, hitFound);
   };
 
-  // POINTER MOVE: Arrastre a 60fps con umbral de 5px, cámara virtual y supresión de UI
+  // POINTER MOVE: Trazado libre en tiempo real a 60fps con cancelación de Long Press (>8px)
   const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // 1. GESTOS MULTI-TOUCH: Si hay 2 dedos (Pinch-to-Zoom / Pan), delegar a la cámara y suspender arrastres
+    // 1. GESTOS MULTI-TOUCH: Si hay 2+ dedos (Pinch-to-Zoom / Pan), delegar a la cámara y suspender trazos
     if (cameraEngine.getActivePointerCount() >= 2) {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+      rawStrokeRef.current = [];
+      strokeStartNodeRef.current = null;
       camPointerMove(e);
       if (dragTargetRef.current) {
         dragTargetRef.current = null;
@@ -473,55 +554,75 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       return;
     }
 
-    // 2. DETECCIÓN DE ARRASTRE DE NODO, TIRADOR O CURVA (Umbral de 5px en pantalla)
-    if (dragTargetRef.current && pointerDownPosRef.current) {
-      const dist = Math.hypot(
-        e.clientX - pointerDownPosRef.current.x,
-        e.clientY - pointerDownPosRef.current.y
-      );
-      if (dist >= 5 && !isDragging) {
-        setIsDragging(true);
-        // Supresión absoluta de UI: forzar el cierre inmediato de cualquier Bottom Sheet o panel
-        onDragChange?.(true);
-        onNodeSelect?.(null);
-      }
+    // 2. Cancelar Long Press si el dedo se mueve más de 8px
+    const movedDistance = pointerDownPosRef.current
+      ? Math.hypot(e.clientX - pointerDownPosRef.current.x, e.clientY - pointerDownPosRef.current.y)
+      : 0;
+
+    if (movedDistance > 8 && longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+
+    // Si el Long Press ya se disparó, no permitir dibujar
+    if (isLongPressActiveRef.current) {
+      return;
     }
 
     const metrics = getMetrics();
     const { x: worldPx, y: worldPy } = screenToWorld(e.clientX, e.clientY, canvas);
+    const { mX, mY } = RinkMath.pixelsToMeters(worldPx, worldPy, metrics, DEFAULT_RINK_DIMENSIONS);
 
-    if (dragTargetRef.current && isDragging) {
+    // 3. Arrastre de Spline Grip Point (curvas Catmull-Rom sobre el tramo)
+    if (dragTargetRef.current && (dragTargetRef.current.type === 'grip' || dragTargetRef.current.type === 'curve')) {
+      if (movedDistance >= 5 && !isDragging) {
+        setIsDragging(true);
+        onDragChange?.(true);
+        onNodeSelect?.(null);
+      }
       const currentTarget = dragTargetRef.current;
-      const { mX, mY } = RinkMath.pixelsToMeters(worldPx, worldPy, metrics, DEFAULT_RINK_DIMENSIONS);
-
-      if (currentTarget.type === 'anchor') {
-        updatePointPosition(currentTarget.targetId, mX, mY);
-      } else if (currentTarget.type === 'grip' || currentTarget.type === 'curve') {
-        // Deformación directa e intuitiva de la curva pasando exactamente a través del punto arrastrado
-        const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
-        const idx = sorted.findIndex(p => p.id === currentTarget.targetId);
-        if (idx >= 0 && idx < sorted.length - 1) {
-          const p0 = sorted[idx];
-          const p1 = sorted[idx + 1];
-          const tParam = currentTarget.t !== undefined ? currentTarget.t : 0.5;
-          const { cp1, cp2 } = RinkMath.computeControlPointsFromThroughPoint(p0, p1, mX, mY, tParam);
-          updateSegmentControlPoints(p0.id, cp1, cp2);
-        }
+      const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
+      const idx = sorted.findIndex(p => p.id === currentTarget.targetId);
+      if (idx >= 0 && idx < sorted.length - 1) {
+        const p0 = sorted[idx];
+        const p1 = sorted[idx + 1];
+        const tParam = currentTarget.t !== undefined ? currentTarget.t : 0.5;
+        const { cp1, cp2 } = RinkMath.computeControlPointsFromThroughPoint(p0, p1, mX, mY, tParam);
+        updateSegmentControlPoints(p0.id, cp1, cp2);
       }
       renderFrame();
       return;
     }
 
-    // 3. PANEO DE FONDO CON 1 DEDO (cuando no se arrastra ningún nodo)
-    if (!dragTargetRef.current) {
+    // 4. TRAZADO A MANO ALZADA (FREEHAND DRAWING) EN TIEMPO REAL
+    if (rawStrokeRef.current.length > 0 && movedDistance >= 8) {
+      if (!isDragging) {
+        setIsDragging(true);
+        onDragChange?.(true);
+      }
+
+      // Restringir dentro de los límites de la pista con margen de 0.3m
+      const clampedX = Math.max(0.3, Math.min(DEFAULT_RINK_DIMENSIONS.lengthMeters - 0.3, mX));
+      const clampedY = Math.max(0.3, Math.min(DEFAULT_RINK_DIMENSIONS.widthMeters - 0.3, mY));
+
+      const lastPt = rawStrokeRef.current[rawStrokeRef.current.length - 1];
+      // Muestreo inteligente: agregar punto solo si se desplazó al menos 0.15 metros
+      if (!lastPt || Math.hypot(clampedX - lastPt.x, clampedY - lastPt.y) >= 0.15) {
+        rawStrokeRef.current.push({ x: clampedX, y: clampedY });
+        renderFrame();
+      }
+      return;
+    }
+
+    // 5. Paneo de fondo con 1 dedo (cuando no se está dibujando ni arrastrando)
+    if (rawStrokeRef.current.length === 0 && !dragTargetRef.current) {
       const { isInteractingWithCamera } = camPointerMove(e);
       if (isInteractingWithCamera) return;
     }
 
-    // Cursor Hover Feedback
+    // Feedback del Cursor
     let isHovering = false;
     const hitRadius = 30 / camera.zoom;
-
     if (!audio.isPlaying && points.length >= 2 && phase !== 'plot') {
       const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
       for (let i = 0; i < sorted.length - 1; i++) {
@@ -536,7 +637,6 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
         if (isHovering) break;
       }
     }
-
     if (!isHovering) {
       for (const p of points) {
         const { px, py } = RinkMath.metersToPixels(p.x, p.y, metrics);
@@ -546,11 +646,10 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
         }
       }
     }
-
     setCursorStyle(isHovering ? 'grab' : 'crosshair');
   };
 
-  // POINTER UP: Discriminación estricta entre Tap y Drag
+  // POINTER UP: Finalización de trazo a mano alzada, creación de Nodos Maestros o Tap contextual
   const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (canvas && e.pointerId !== undefined) {
@@ -559,14 +658,31 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
 
     camPointerUp(e);
 
+    // Cancelar temporizador de Long Press
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+
+    // Si el Long Press ya se ejecutó con éxito, reiniciar flags y salir
+    if (isLongPressActiveRef.current) {
+      isLongPressActiveRef.current = false;
+      rawStrokeRef.current = [];
+      strokeStartNodeRef.current = null;
+      setIsDragging(false);
+      onDragChange?.(false);
+      renderFrame();
+      return;
+    }
+
     const movedDistance = pointerDownPosRef.current
       ? Math.hypot(e.clientX - pointerDownPosRef.current.x, e.clientY - pointerDownPosRef.current.y)
       : 0;
 
     const currentTarget = dragTargetRef.current;
 
-    if (isDragging || (movedDistance >= 5 && currentTarget)) {
-      // ── CASO ARRASTRE: El nodo, tirador o curva se suelta en la nueva posición
+    // 1. Finalización de arrastre de Spline Grip Point
+    if (currentTarget && (currentTarget.type === 'grip' || currentTarget.type === 'curve') && isDragging) {
       if (pointsBeforeDragRef.current) {
         pushHistory();
         pointsBeforeDragRef.current = null;
@@ -575,67 +691,158 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       if (currentProgram) {
         onProgramUpdated({
           ...currentProgram,
-          choreography_path: points
+          choreography_path: points,
         });
       }
+      setIsDragging(false);
+      dragTargetRef.current = null;
       onDragChange?.(false);
       renderFrame();
-    } else if (currentTarget && (currentTarget.type === 'curve' || currentTarget.type === 'grip')) {
-      // ── CASO SELECCIÓN DE TRAYECTO O PUNTO DE AGARRE: Selecciona el nodo del tramo
-      setSelectedPointId(currentTarget.targetId);
-      onNodeSelect?.(currentTarget.targetId);
-      setDeleteTooltip(null);
-    } else if (currentTarget && currentTarget.type === 'anchor' && movedDistance < 5) {
-      // ── CASO TOQUE RÁPIDO (TAP) EN NODO EXISTENTE:
-      // Selecciona el nodo y muestra el Tooltip Contextual de Borrado (Contextual Delete)
-      setSelectedPointId(currentTarget.targetId);
-      onNodeSelect?.(currentTarget.targetId);
-      setDeleteTooltip({ pointId: currentTarget.targetId });
-    } else if (!currentTarget && movedDistance < 5 && canvas) {
-      // Clic en fondo vacío: descartar menú contextual
-      setDeleteTooltip(null);
+      return;
+    }
 
-      // ── DETECCIÓN DE DOBLE TAP TÁCTIL EN LA LÍNEA PARA DIVIDIR SEGMENTO ──
-      const now = Date.now();
-      const isDoubleTap =
-        lastTapRef.current &&
-        now - lastTapRef.current.time < 350 &&
-        Math.hypot(e.clientX - lastTapRef.current.x, e.clientY - lastTapRef.current.y) < 25;
+    // 2. FINALIZACIÓN DE TRAZO A MANO ALZADA (FREEHAND PATH COMPLETION)
+    const rawStroke = rawStrokeRef.current;
+    rawStrokeRef.current = [];
+    const startNode = strokeStartNodeRef.current;
+    strokeStartNodeRef.current = null;
 
-      if (isDoubleTap) {
-        const handled = handleCanvasDoubleClick(e.clientX, e.clientY);
-        if (handled) {
-          lastTapRef.current = null;
-          setIsDragging(false);
-          dragTargetRef.current = null;
-          pointerDownPosRef.current = null;
-          curveDragStartPosRef.current = null;
-          curveInitialCpsRef.current = null;
-          return;
+    let totalStrokeLength = 0;
+    for (let i = 1; i < rawStroke.length; i++) {
+      totalStrokeLength += Math.hypot(rawStroke[i].x - rawStroke[i - 1].x, rawStroke[i].y - rawStroke[i - 1].y);
+    }
+
+    // Si el trazo fue significativo (al menos 0.8 metros de longitud total o 2 puntos bien separados)
+    if (rawStroke.length >= 2 && totalStrokeLength >= 0.8) {
+      const sortedPts = [...points].sort((a, b) => a.time_ms - b.time_ms);
+      let baseTime = 0;
+      if (startNode) {
+        baseTime = startNode.time_ms;
+      } else if (sortedPts.length > 0) {
+        baseTime = sortedPts[sortedPts.length - 1].time_ms + 1000;
+      } else {
+        baseTime = audio.currentTimeMs > 0 ? audio.currentTimeMs : 0;
+      }
+
+      // Convertir el gesto libre en Béziers matemáticamente fluidos y Nodos Maestros
+      const generated = FreehandPathEngine.convertStrokeToChoreographyPoints(rawStroke, baseTime);
+
+      if (generated.length >= 2) {
+        pushHistory();
+        let finalPoints: ChoreographyPoint[] = [];
+
+        if (startNode) {
+          // Conectar al Nodo Maestro existente
+          const updatedExisting: ChoreographyPoint[] = points.map((p) => {
+            if (p.id === startNode.id) {
+              const cp1 = generated[0].controlPoint1 || { x: generated[0].x, y: generated[0].y };
+              const cp2 = generated[0].controlPoint2 || { x: generated[0].x, y: generated[0].y };
+              return {
+                ...p,
+                cp1x: cp1.x,
+                cp1y: cp1.y,
+                cp2x: cp2.x,
+                cp2y: cp2.y,
+                controlPoint1: cp1,
+                controlPoint2: cp2,
+              };
+            }
+            return p;
+          });
+
+          const newExtensionPoints = generated.slice(1).map((pt, idx) => ({
+            ...pt,
+            id: `pt-freehand-${Date.now()}-${idx}`,
+            type: idx === generated.length - 2 ? ('Step' as const) : ('Curve' as const),
+            label: idx === generated.length - 2 ? 'Fin Trazo' : '',
+          }));
+
+          finalPoints = [...updatedExisting, ...newExtensionPoints].sort((a, b) => a.time_ms - b.time_ms);
+        } else {
+          // Trazo nuevo independiente (con Nodo Maestro al inicio y al final)
+          const stamped = generated.map((pt, idx) => ({
+            ...pt,
+            id: `pt-freehand-${Date.now()}-${idx}`,
+            type: (idx === 0 || idx === generated.length - 1) ? ('Step' as const) : ('Curve' as const),
+            label: idx === 0 ? 'Inicio Trazo' : (idx === generated.length - 1 ? 'Fin Trazo' : ''),
+          }));
+
+          finalPoints = [...points, ...stamped].sort((a, b) => a.time_ms - b.time_ms);
+        }
+
+        setPoints(finalPoints);
+        const lastCreated = finalPoints[finalPoints.length - 1];
+        if (lastCreated) {
+          setSelectedPointId(lastCreated.id);
+        }
+        if (finalPoints.length >= 2) {
+          setPhase('curve');
+        }
+        audio.setNodes(finalPoints);
+        if (currentProgram) {
+          onProgramUpdated({
+            ...currentProgram,
+            choreography_path: finalPoints,
+          });
         }
       }
-      lastTapRef.current = { time: now, x: e.clientX, y: e.clientY };
 
-      if (phase === 'plot') {
-        // ── MODO 1: "COLOCAR NODOS" (Modo Nodos):
-        // Un solo clic sobre lienzo vacío coloca inmediatamente un nuevo nodo en esa posición
-        const metrics = getMetrics();
-        const { x: worldPx, y: worldPy } = screenToWorld(e.clientX, e.clientY, canvas);
-        const { mX, mY } = RinkMath.pixelsToMeters(worldPx, worldPy, metrics, DEFAULT_RINK_DIMENSIONS);
-        if (mX >= 0.5 && mX <= 49.5 && mY >= 0.5 && mY <= 24.5) {
-          const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
-          const lastTime = sorted.length > 0 ? sorted[sorted.length - 1].time_ms : 0;
-          const newTime = audio.currentTimeMs > 0 ? audio.currentTimeMs : lastTime + 3000;
-          const newPt = addPointAtCanvas(mX, mY, newTime);
-          setSelectedPointId(newPt.id);
-          onNodeSelect?.(newPt.id);
-          renderFrame();
+      setIsDragging(false);
+      onDragChange?.(false);
+      renderFrame();
+      return;
+    }
+
+    // 3. CASO TOQUE RÁPIDO (TAP < 8px):
+    if (movedDistance < 8) {
+      if (startNode) {
+        // Tap rápido en nodo existente: Seleccionar nodo y mostrar icono contextual de borrado
+        // (El menú de propiedades solo se abre con Long Press ~600ms)
+        setSelectedPointId(startNode.id);
+        setDeleteTooltip({ pointId: startNode.id });
+      } else if (currentTarget && (currentTarget.type === 'curve' || currentTarget.type === 'grip')) {
+        setSelectedPointId(currentTarget.targetId);
+        setDeleteTooltip(null);
+      } else if (canvas) {
+        // Clic en fondo vacío
+        setDeleteTooltip(null);
+
+        // Comprobar doble tap para dividir segmento
+        const now = Date.now();
+        const isDoubleTap =
+          lastTapRef.current &&
+          now - lastTapRef.current.time < 350 &&
+          Math.hypot(e.clientX - lastTapRef.current.x, e.clientY - lastTapRef.current.y) < 25;
+
+        if (isDoubleTap) {
+          const handled = handleCanvasDoubleClick(e.clientX, e.clientY);
+          if (handled) {
+            lastTapRef.current = null;
+            setIsDragging(false);
+            dragTargetRef.current = null;
+            pointerDownPosRef.current = null;
+            return;
+          }
         }
-      } else {
-        // ── MODO 2: "TRAZAR LÍNEAS" (Modo Trazado):
-        // Clic en lienzo vacío NO coloca nuevos nodos (evita puntos accidentales al esculpir)
-        setSelectedPointId(null);
-        onNodeSelect?.(null);
+        lastTapRef.current = { time: now, x: e.clientX, y: e.clientY };
+
+        if (phase === 'plot') {
+          // En modo nodos, un tap en vacío coloca un nodo
+          const metrics = getMetrics();
+          const { x: worldPx, y: worldPy } = screenToWorld(e.clientX, e.clientY, canvas);
+          const { mX, mY } = RinkMath.pixelsToMeters(worldPx, worldPy, metrics, DEFAULT_RINK_DIMENSIONS);
+          if (mX >= 0.5 && mX <= 49.5 && mY >= 0.5 && mY <= 24.5) {
+            const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
+            const lastTime = sorted.length > 0 ? sorted[sorted.length - 1].time_ms : 0;
+            const newTime = audio.currentTimeMs > 0 ? audio.currentTimeMs : lastTime + 3000;
+            const newPt = addPointAtCanvas(mX, mY, newTime);
+            setSelectedPointId(newPt.id);
+            renderFrame();
+          }
+        } else {
+          // En modo trazado, tap en vacío deselecciona
+          setSelectedPointId(null);
+        }
       }
     }
 
@@ -645,6 +852,8 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     curveDragStartPosRef.current = null;
     curveInitialCpsRef.current = null;
     setCursorStyle('crosshair');
+    onDragChange?.(false);
+    renderFrame();
   };
 
   // ── INSERCIÓN POR DOBLE CLIC: Coloca nuevos nodos en la pista o divide líneas existentes ──
