@@ -166,8 +166,8 @@ export class RinkMath {
     p1: ChoreographyPathPoint
   ): Array<{ id: string; t: number; x: number; y: number }> {
     const { cp1, cp2 } = this.getSegmentControlPoints(p0, p1);
-    // 3 puntos de control fijos y bien distribuidos a lo largo del segmento
-    const tValues = [0.25, 0.5, 0.75];
+    // 1 único punto conector de agarre central por tramo (t = 0.5), eliminando saturación visual
+    const tValues = [0.5];
 
     return tValues.map((t) => {
       const pt = this.evaluateCubicBezier(p0, cp1, cp2, p1, t);

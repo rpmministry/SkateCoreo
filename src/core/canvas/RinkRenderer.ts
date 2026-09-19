@@ -376,21 +376,21 @@ export class RinkRenderer {
         ctx.stroke();
       }
 
-      // 2. Círculo del ancla de alto contraste:
-      // Inactivo: Slate-800 (#192234) con borde Slate-500 (#64748B)
-      // Seleccionado: Menta Neón (#10F49C) con borde blanco puro (#FFFFFF)
+      // 2. Círculo del ancla de alto contraste y tamaño ampliado (Nodo Maestro destacado):
+      // Inactivo: Radio 11px (diámetro 22px) con borde Cian Neón (#38BDF8)
+      // Seleccionado: Radio 14px (diámetro 28px) con fondo Menta Neón (#10F49C) y borde blanco puro (#FFFFFF)
       ctx.beginPath();
-      ctx.arc(px, py, isSelected ? 10 : 7.5, 0, Math.PI * 2);
-      ctx.fillStyle = isSelected ? '#10F49C' : '#192234';
+      ctx.arc(px, py, isSelected ? 14 : 11, 0, Math.PI * 2);
+      ctx.fillStyle = isSelected ? '#10F49C' : '#0F172A';
       ctx.fill();
 
-      ctx.lineWidth = isSelected ? 2.5 : 1.8;
-      ctx.strokeStyle = isSelected ? '#FFFFFF' : '#64748B';
+      ctx.lineWidth = isSelected ? 3 : 2.2;
+      ctx.strokeStyle = isSelected ? '#FFFFFF' : '#38BDF8';
       ctx.stroke();
 
-      // 3. Número de orden del nodo centrado en el interior (secuencia de Nodos Principales)
-      ctx.fillStyle = isSelected ? '#0B0F19' : '#CBD5E1';
-      ctx.font = 'bold 9.5px JetBrains Mono, monospace';
+      // 3. Número de orden del nodo centrado en el interior - RESALTADO Y MÁS GRANDE
+      ctx.fillStyle = isSelected ? '#000000' : '#FFFFFF';
+      ctx.font = `900 ${isSelected ? '12px' : '11px'} JetBrains Mono, system-ui, monospace`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(`${visibleIndex}`, px, py);
@@ -406,7 +406,7 @@ export class RinkRenderer {
         const badgeW = textMetrics.width + 10;
         const badgeH = 15;
         const badgeX = px - badgeW / 2;
-        const badgeY = py + 12;
+        const badgeY = py + (isSelected ? 18 : 15);
 
         ctx.fillStyle = isSelected ? 'rgba(16, 244, 156, 0.2)' : 'rgba(18, 24, 38, 0.85)';
         ctx.beginPath();
@@ -678,23 +678,23 @@ export class RinkRenderer {
         ctx.save();
 
         // 1. Halo sutil interactivo
-        const haloR = isSegmentSelected ? 12 : 8;
-        ctx.fillStyle = isSegmentSelected ? 'rgba(0, 210, 255, 0.35)' : 'rgba(0, 210, 255, 0.15)';
+        const haloR = isSegmentSelected ? 8 : 5;
+        ctx.fillStyle = isSegmentSelected ? 'rgba(0, 210, 255, 0.35)' : 'rgba(0, 210, 255, 0.12)';
         ctx.beginPath();
         ctx.arc(px, py, haloR, 0, Math.PI * 2);
         ctx.fill();
 
         // 2. Anillo exterior cian neón integrado en el trazo
         ctx.strokeStyle = '#00D2FF';
-        ctx.lineWidth = isSegmentSelected ? 2 : 1.5;
+        ctx.lineWidth = isSegmentSelected ? 1.8 : 1.2;
         ctx.beginPath();
-        ctx.arc(px, py, isSegmentSelected ? 5.5 : 4.5, 0, Math.PI * 2);
+        ctx.arc(px, py, isSegmentSelected ? 4 : 3, 0, Math.PI * 2);
         ctx.stroke();
 
         // 3. Núcleo blanco de precisión sobre la línea
         ctx.fillStyle = '#FFFFFF';
         ctx.beginPath();
-        ctx.arc(px, py, isSegmentSelected ? 2.5 : 2, 0, Math.PI * 2);
+        ctx.arc(px, py, isSegmentSelected ? 2 : 1.4, 0, Math.PI * 2);
         ctx.fill();
 
         ctx.restore();
