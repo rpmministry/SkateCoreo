@@ -67,14 +67,16 @@ const loadSavedSession = (): {
       const parsed = JSON.parse(raw);
       if (parsed.user) {
         const isOwner = isOwnerOrAdmin(parsed.user.email);
+        const expiresAt = parsed.access_expires_at || null;
+        const isActive = isOwner || (expiresAt && new Date(expiresAt).getTime() > Date.now());
         return {
           user: parsed.user,
           role: isOwner ? 'superadmin' : (parsed.role as UserRole) || 'user',
-          status: 'active',
+          status: isActive ? 'active' : 'inactive',
           plan: parsed.subscription_plan || 'individual',
           access_expires_at: isOwner
             ? new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000).toISOString()
-            : (parsed.access_expires_at || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()),
+            : expiresAt,
         };
       }
     }
@@ -138,12 +140,12 @@ export const useAuthStore = create<AuthStoreState>((set, get) => {
         let role = (profile.role as UserRole) || 'user';
         let access_expires_at = (profile.access_expires_at as string | null) || null;
         
-        // Garantizar acceso directo al iniciar sesión
-        if (!access_expires_at) {
-          access_expires_at = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
-        }
+        // Validación en tiempo real del acceso anual
+        const isAccessActive = access_expires_at 
+          ? new Date(access_expires_at).getTime() > Date.now() 
+          : false;
 
-        const subscription_status: SubscriptionStatus = 'active';
+        const subscription_status: SubscriptionStatus = isAccessActive ? 'active' : 'inactive';
         const subscription_plan = (profile.subscription_plan as SubscriptionPlan) || 'individual';
 
         set({ role, subscription_status, subscription_plan, access_expires_at });
@@ -161,10 +163,6 @@ export const useAuthStore = create<AuthStoreState>((set, get) => {
             })
           );
         }
-      } else {
-        // Si no hay perfil en la BD aún, garantizar sesión activa
-        const defaultExpiry = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
-        set({ subscription_status: 'active', access_expires_at: defaultExpiry });
       }
     } catch (err) {
       console.warn('No se pudo sincronizar perfil remoto (modo offline):', err);
@@ -193,6 +191,16 @@ export const useAuthStore = create<AuthStoreState>((set, get) => {
             subscription_plan: 'individual',
             access_expires_at: tenYears,
           });
+          localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify({
+              user: authUser,
+              role: 'superadmin',
+              subscription_status: 'active',
+              subscription_plan: 'individual',
+              access_expires_at: tenYears,
+            })
+          );
         } else {
           set({ user: authUser });
           syncProfileFromDatabase(session.user.id);
@@ -257,9 +265,18 @@ export const useAuthStore = create<AuthStoreState>((set, get) => {
     subscription_plan: initialSession.plan,
 
     hasActiveAccess: () => {
-      const { user } = get();
-      // Una vez logueado, entra DIRECTAMENTE a la aplicación sin ver pantalla de pago
-      if (user) return true;
+      const { user, role, subscription_status, access_expires_at } = get();
+      if (!user) return false;
+      // Propietario / Superadmin bypass de seguridad inmediato
+      if (role === 'superadmin' || isOwnerOrAdmin(user.email)) return true;
+      // Usuarios que han pagado con PayPal o han canjeado un código de activación
+      if (role === 'tester' && access_expires_at && new Date(access_expires_at).getTime() > Date.now()) {
+        return true;
+      }
+      if (subscription_status === 'active' && access_expires_at && new Date(access_expires_at).getTime() > Date.now()) {
+        return true;
+      }
+      // Usuario registrado pero sin pago activo -> Mostrar pantalla de pago de PayPal
       return false;
     },
 
@@ -489,58 +506,19 @@ export const useAuthStore = create<AuthStoreState>((set, get) => {
           };
 
           if (error) {
-            // Fallback de contingencia
-            if (cleanCode === 'TESTER-2026' || cleanCode === 'ALSIZTECH-VIP' || cleanCode.startsWith('TESTER') || cleanCode.startsWith('SKATE')) {
-              establishUserSession(oneYearFromNow);
-              return { success: true, message: '¡Código verificado! Has obtenido 1 año de acceso directo como Tester.' };
-            }
-            throw error;
+            console.error('Error al ejecutar RPC redeem_activation_code:', error);
+            return { success: false, message: error.message || 'Error al validar el código en el servidor.' };
           }
 
           if (data?.success) {
             const newExpiry = data.access_expires_at || oneYearFromNow;
             establishUserSession(newExpiry);
-            return { success: true, message: data.message };
+            return { success: true, message: data.message || '¡Código canjeado con éxito! Tienes 1 año de acceso.' };
           } else {
-            // Si el código es un tester conocido, otorgar acceso inmediato
-            if (cleanCode === 'TESTER-2026' || cleanCode === 'ALSIZTECH-VIP' || cleanCode.startsWith('TESTER') || cleanCode.startsWith('SKATE')) {
-              establishUserSession(oneYearFromNow);
-              return { success: true, message: '¡Código activado con éxito! Tienes 1 año de acceso directo.' };
-            }
-            return { success: false, message: data?.message || 'Código inválido o ya utilizado.' };
+            return { success: false, message: data?.message || 'Código inválido, expirado o ya utilizado.' };
           }
         } else {
-          // Fallback en desarrollo local
-          const oneYearFromNow = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
-          if (cleanCode === 'TESTER-2026' || cleanCode === 'ALSIZTECH-VIP' || cleanCode.startsWith('TESTER') || cleanCode.startsWith('SKATE')) {
-            let currentUser = get().user;
-            if (!currentUser) {
-              currentUser = {
-                id: `tester_${Date.now()}`,
-                email: 'tester.vip@skateart.app',
-                nombre: 'Beta Tester VIP',
-              };
-            }
-            set({
-              user: currentUser,
-              role: 'tester',
-              subscription_status: 'active',
-              subscription_plan: 'individual',
-              access_expires_at: oneYearFromNow,
-            });
-            localStorage.setItem(
-              STORAGE_KEY,
-              JSON.stringify({
-                user: currentUser,
-                role: 'tester',
-                subscription_status: 'active',
-                subscription_plan: 'individual',
-                access_expires_at: oneYearFromNow,
-              })
-            );
-            return { success: true, message: '¡Código aceptado! 1 año de acceso activado en local.' };
-          }
-          return { success: false, message: 'El código introducido no es válido o ha expirado.' };
+          return { success: false, message: 'La base de datos de códigos no está disponible en este momento.' };
         }
       } catch (err: any) {
         return { success: false, message: err?.message || 'Error al validar el código.' };

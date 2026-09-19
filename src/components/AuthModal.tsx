@@ -292,7 +292,7 @@ export const AuthModal: React.FC = () => {
                       type="text"
                       value={promoCode}
                       onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                      placeholder="Ej: TESTER-2026"
+                      placeholder="Ej: SKATE-XXXX-XXXX"
                       disabled={promoLoading}
                       autoFocus
                       className="flex-1 min-h-[44px] px-3.5 rounded-xl bg-slate-900 border border-white/15 text-white font-mono text-sm tracking-wider uppercase placeholder:text-slate-500 focus:border-cyan focus:outline-none focus:ring-1 focus:ring-cyan transition-all"
@@ -497,7 +497,7 @@ export const AuthModal: React.FC = () => {
                       type="text"
                       value={promoCode}
                       onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-                      placeholder="Ej: TESTER-2026"
+                      placeholder="Ej: SKATE-XXXX-XXXX"
                       disabled={promoLoading}
                       className="flex-1 min-h-[42px] px-3.5 rounded-xl bg-slate-900 border border-white/10 text-white font-mono text-xs tracking-wider uppercase placeholder:text-slate-600 focus:border-cyan focus:outline-none focus:ring-1 focus:ring-cyan transition-all"
                     />
