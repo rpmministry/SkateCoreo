@@ -728,7 +728,7 @@ export function App() {
               ? 'bg-amber-500 text-black shadow-glow-amber font-black'
               : 'text-slate-400 hover:text-white',
           ].join(' ')}
-          title="Activa el modo para colocar nodos tocando la pista"
+          title="Activa el modo para colocar nodos con doble clic o toque en la pista"
         >
           <PenTool className="w-4 h-4 stroke-[2.5]" />
           <span>Colocar</span>

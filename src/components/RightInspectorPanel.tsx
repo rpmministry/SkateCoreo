@@ -198,7 +198,7 @@ export const RightInspectorPanel: React.FC = () => {
             {phase === 'plot' ? (
               <p className="text-amber-300 flex items-center gap-1.5 font-medium">
                 <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
-                Toca la pista para añadir nodos. Las líneas no se trazarán hasta conectar.
+                Haz doble clic en la pista para añadir nodos. Las líneas no se trazarán hasta conectar.
               </p>
             ) : (
               <p className="text-cyan flex items-center gap-1.5 font-medium">
@@ -297,7 +297,7 @@ export const RightInspectorPanel: React.FC = () => {
             <div>
               <p className="text-xs font-bold text-slate-400">Pista sin nodos</p>
               <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                Toca cualquier zona de la pista 2D<br />con la herramienta "Colocar Nodos" activa.
+                Haz doble clic en cualquier zona de la pista 2D<br />para crear un nuevo nodo.
               </p>
             </div>
           </div>

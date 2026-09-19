@@ -21,11 +21,10 @@ import {
   Tag,
   SlidersHorizontal,
   Music,
-  Mic,
-  Route
+  Mic
 } from 'lucide-react';
 
-import { ChoreographyPoint, ChoreographyPathPoint, Program, ElementLog } from '../types';
+import { ChoreographyPathPoint, ChoreographyPoint, Program, ElementLog } from '../types';
 import { useAudioEngine } from '../hooks/useAudioEngine';
 import { audioEngine } from '../core/audio/AudioEngine';
 import { RinkMath, DEFAULT_RINK_DIMENSIONS, CanvasViewportMetrics } from '../core/canvas/RinkMath';
@@ -139,8 +138,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
   const setShowRinkGrid = useChoreographyStore((state) => state.setShowRinkGrid);
   const addPointAtCanvas = useChoreographyStore((state) => state.addPointAtCanvas);
   const updatePointPosition = useChoreographyStore((state) => state.updatePointPosition);
-  const updateControlPoint1 = useChoreographyStore((state) => state.updateControlPoint1);
-  const updateControlPoint2 = useChoreographyStore((state) => state.updateControlPoint2);
+  const updateSegmentControlPoints = useChoreographyStore((state) => state.updateSegmentControlPoints);
   const updatePointMetadata = useChoreographyStore((state) => state.updatePointMetadata);
   const deletePoint = useChoreographyStore((state) => state.deletePoint);
   const clearAllPoints = useChoreographyStore((state) => state.clearAllPoints);
@@ -151,7 +149,6 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
 
   // Trazado Dinámico y Nodos de Tiempo
   const showFullTrailOverride = useChoreographyStore((state) => state.showFullTrailOverride);
-  const setShowFullTrailOverride = useChoreographyStore((state) => state.setShowFullTrailOverride);
   const isAddingFreeTimeNodes = useChoreographyStore((state) => state.isAddingFreeTimeNodes);
   const setIsAddingFreeTimeNodes = useChoreographyStore((state) => state.setIsAddingFreeTimeNodes);
   const insertFreeTimeNode = useChoreographyStore((state) => state.insertFreeTimeNode);
@@ -508,8 +505,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
           const p1 = sorted[idx + 1];
           const tParam = currentTarget.t !== undefined ? currentTarget.t : 0.5;
           const { cp1, cp2 } = RinkMath.computeControlPointsFromThroughPoint(p0, p1, mX, mY, tParam);
-          updateControlPoint1(p0.id, cp1.x, cp1.y);
-          updateControlPoint2(p0.id, cp2.x, cp2.y);
+          updateSegmentControlPoints(p0.id, cp1, cp2);
         }
       }
       renderFrame();
@@ -601,8 +597,8 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
         Math.hypot(e.clientX - lastTapRef.current.x, e.clientY - lastTapRef.current.y) < 25;
 
       if (isDoubleTap) {
-        const splitHandled = handleSplitSegmentAtPoint(e.clientX, e.clientY);
-        if (splitHandled) {
+        const handled = handleCanvasDoubleClick(e.clientX, e.clientY);
+        if (handled) {
           lastTapRef.current = null;
           setIsDragging(false);
           dragTargetRef.current = null;
@@ -628,27 +624,10 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
         return;
       }
 
-      // ── CASO TOQUE RÁPIDO EN FONDO VACÍO:
-      if (phase === 'plot') {
-        // ── MODO COLOCACIÓN DE NODOS (Fase Plot):
-        // Cada toque en la pista añade un nuevo nodo/punto sin trazar líneas aún
-        const metrics = getMetrics();
-        const { x: worldPx, y: worldPy } = screenToWorld(e.clientX, e.clientY, canvas);
-        const { mX, mY } = RinkMath.pixelsToMeters(worldPx, worldPy, metrics, DEFAULT_RINK_DIMENSIONS);
-        if (mX >= 0.5 && mX <= 49.5 && mY >= 0.5 && mY <= 24.5) {
-          const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
-          const lastTime = sorted.length > 0 ? sorted[sorted.length - 1].time_ms : 0;
-          const newTime = audio.currentTimeMs > 0 ? audio.currentTimeMs : lastTime + 10000;
-          const newPt = addPointAtCanvas(mX, mY, newTime);
-          setSelectedPointId(newPt.id);
-          onNodeSelect?.(newPt.id);
-        }
-      } else {
-        // ── MODO CURVAS / RUTA TRAZADA (Fase Curve):
-        // Tocar el suelo vacío únicamente deselecciona, evitando líneas o nodos accidentales
-        setSelectedPointId(null);
-        onNodeSelect?.(null);
-      }
+      // ── CASO TOQUE RÁPIDO EN FONDO VACÍO (Single Click / Tap):
+      // Deselecciona el nodo activo sin crear puntos accidentales (los nodos se colocan con DOBLE CLIC)
+      setSelectedPointId(null);
+      onNodeSelect?.(null);
     }
 
     setIsDragging(false);
@@ -659,90 +638,97 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     setCursorStyle('crosshair');
   };
 
-  // ── INSERCIÓN RÁPIDA DE NODOS: Doble Clic sobre cualquier parte del trazo (Tolerancia 15px) ──
-  const handleSplitSegmentAtPoint = (clientX: number, clientY: number): boolean => {
+  // ── INSERCIÓN POR DOBLE CLIC: Coloca nuevos nodos en la pista o divide líneas existentes ──
+  const handleCanvasDoubleClick = (clientX: number, clientY: number): boolean => {
     const canvas = canvasRef.current;
-    if (!canvas || points.length < 2) return false;
+    if (!canvas) return false;
 
     const metrics = getMetrics();
     const { x: worldPx, y: worldPy } = screenToWorld(clientX, clientY, canvas);
     const { mX, mY } = RinkMath.pixelsToMeters(worldPx, worldPy, metrics, DEFAULT_RINK_DIMENSIONS);
 
-    const nearest = RinkMath.findNearestPointOnPath(points, mX, mY);
-    if (!nearest) return false;
+    // 1. Si la ruta está conectada y hay 2+ nodos, verificar si hizo doble clic sobre una línea (tolerancia 15px)
+    if (points.length >= 2 && phase !== 'plot') {
+      const nearest = RinkMath.findNearestPointOnPath(points, mX, mY);
+      if (nearest) {
+        const distPxOnScreen = nearest.distanceMeters * metrics.scale * (camera.zoom || 1);
+        if (distPxOnScreen <= 15) {
+          const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
+          const p0 = sorted[nearest.segmentIndex];
+          const p1 = sorted[nearest.segmentIndex + 1];
+          if (p0 && p1) {
+            const split = RinkMath.splitBezierSegmentAtT(p0, p1, nearest.t);
+            const newTimeMs = nearest.time_ms > p0.time_ms && nearest.time_ms < p1.time_ms
+              ? nearest.time_ms
+              : Math.round(p0.time_ms + (p1.time_ms - p0.time_ms) * nearest.t);
 
-    // Convertir la distancia en metros al trazo a píxeles de pantalla reales según zoom y escala
-    const distPxOnScreen = nearest.distanceMeters * metrics.scale * (camera.zoom || 1);
+            const newPointId = crypto.randomUUID();
+            const newPoint: ChoreographyPoint = {
+              id: newPointId,
+              x: split.midPoint.x,
+              y: split.midPoint.y,
+              time_ms: newTimeMs,
+              timestamp: newTimeMs,
+              kind: 'position',
+              type: 'standard',
+              label: '',
+              cp1x: split.rightCp1.x,
+              cp1y: split.rightCp1.y,
+              cp2x: split.rightCp2.x,
+              cp2y: split.rightCp2.y,
+            };
 
-    // Hitbox / Área de Tolerancia de 15px en pantalla requerida
-    if (distPxOnScreen <= 15) {
-      const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
-      const p0 = sorted[nearest.segmentIndex];
-      const p1 = sorted[nearest.segmentIndex + 1];
-      if (!p0 || !p1) return false;
+            pushHistory();
 
-      // Algoritmo exacto de de Casteljau para división de curvas Bézier/Spline sin pérdida de forma
-      const split = RinkMath.splitBezierSegmentAtT(p0, p1, nearest.t);
+            const updatedPoints = points.map((p) => {
+              if (p.id === p0.id) {
+                return {
+                  ...p,
+                  cp1x: split.leftCp1.x,
+                  cp1y: split.leftCp1.y,
+                  cp2x: split.leftCp2.x,
+                  cp2y: split.leftCp2.y,
+                };
+              }
+              if (p.kind === 'time' && p.parentSegmentStartId === p0.id && p.time_ms > newTimeMs) {
+                return {
+                  ...p,
+                  parentSegmentStartId: newPointId,
+                };
+              }
+              return p;
+            });
 
-      // Calcular tiempo interpolado suavemente
-      const newTimeMs = nearest.time_ms > p0.time_ms && nearest.time_ms < p1.time_ms
-        ? nearest.time_ms
-        : Math.round(p0.time_ms + (p1.time_ms - p0.time_ms) * nearest.t);
+            updatedPoints.push(newPoint);
+            updatedPoints.sort((a, b) => a.time_ms - b.time_ms);
 
-      const newPointId = crypto.randomUUID();
+            setPoints(updatedPoints);
+            setSelectedPointId(newPointId);
+            onNodeSelect?.(newPointId);
 
-      const newPoint: ChoreographyPoint = {
-        id: newPointId,
-        x: split.midPoint.x,
-        y: split.midPoint.y,
-        time_ms: newTimeMs,
-        timestamp: newTimeMs,
-        kind: 'position',
-        type: 'standard',
-        label: '',
-        cp1x: split.rightCp1.x,
-        cp1y: split.rightCp1.y,
-        cp2x: split.rightCp2.x,
-        cp2y: split.rightCp2.y,
-      };
+            audio.setNodes(updatedPoints);
+            if (currentProgram) {
+              onProgramUpdated({
+                ...currentProgram,
+                choreography_path: updatedPoints,
+              });
+            }
 
-      pushHistory();
-
-      // Actualizar el segmento original (p0 -> newPoint) y reasignar los Nodos de Tiempo correspondientes
-      const updatedPoints = points.map((p) => {
-        if (p.id === p0.id) {
-          return {
-            ...p,
-            cp1x: split.leftCp1.x,
-            cp1y: split.leftCp1.y,
-            cp2x: split.leftCp2.x,
-            cp2y: split.leftCp2.y,
-          };
+            renderFrame();
+            return true;
+          }
         }
-        if (p.kind === 'time' && p.parentSegmentStartId === p0.id && p.time_ms > newTimeMs) {
-          return {
-            ...p,
-            parentSegmentStartId: newPointId,
-          };
-        }
-        return p;
-      });
-
-      updatedPoints.push(newPoint);
-      updatedPoints.sort((a, b) => a.time_ms - b.time_ms);
-
-      setPoints(updatedPoints);
-      setSelectedPointId(newPointId);
-      onNodeSelect?.(newPointId);
-
-      audio.setNodes(updatedPoints);
-      if (currentProgram) {
-        onProgramUpdated({
-          ...currentProgram,
-          choreography_path: updatedPoints,
-        });
       }
+    }
 
+    // 2. Colocar Nuevo Nodo con DOBLE CLIC en cualquier zona de la pista
+    if (mX >= 0.5 && mX <= 49.5 && mY >= 0.5 && mY <= 24.5) {
+      const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
+      const lastTime = sorted.length > 0 ? sorted[sorted.length - 1].time_ms : 0;
+      const newTime = audio.currentTimeMs > 0 ? audio.currentTimeMs : lastTime + 10000;
+      const newPt = addPointAtCanvas(mX, mY, newTime);
+      setSelectedPointId(newPt.id);
+      onNodeSelect?.(newPt.id);
       renderFrame();
       return true;
     }
@@ -751,7 +737,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
   };
 
   const handleDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    handleSplitSegmentAtPoint(e.clientX, e.clientY);
+    handleCanvasDoubleClick(e.clientX, e.clientY);
   };
 
   // Eliminar punto seleccionado (Sincronizado: Canvas y Waveform)
@@ -893,24 +879,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
 
         {/* Floating Camera & Trail Control HUD */}
         <div className="absolute bottom-3 right-3 z-30 flex items-center gap-1.5 bg-slate-950/85 backdrop-blur-md border border-white/10 px-2 py-1.5 rounded-xl shadow-soft-elevation select-none">
-          {/* Botón Didáctico: Ver Trazo Completo */}
-          <button
-            type="button"
-            onPointerDown={() => setShowFullTrailOverride(true)}
-            onPointerUp={() => setShowFullTrailOverride(false)}
-            onClick={() => setShowFullTrailOverride(!showFullTrailOverride)}
-            className={`px-2.5 h-7 flex items-center gap-1 rounded-lg text-[11px] font-bold transition-all border ${
-              showFullTrailOverride 
-                ? 'bg-cyan text-slate-950 border-cyan shadow-glow-cyan' 
-                : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-white/5'
-            }`}
-            title="Mantén presionado o haz clic para ver la trayectoria completa en vivo"
-          >
-            <Route className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Trazo Completo</span>
-          </button>
 
-          <div className="h-4 w-[1px] bg-white/10 mx-0.5" />
 
           <button
             type="button"

@@ -197,35 +197,53 @@ export class RinkMath {
     const clampedGy = Math.max(0.1, Math.min(24.9, targetY));
 
     const currentCps = this.getSegmentControlPoints(p0, p1);
-    const clampedT = Math.max(0.05, Math.min(0.95, t));
 
+    // Calcular la proyección longitudinal a lo largo del segmento p0 -> p1
+    // para permitir que los 3 puntos se desplacen libremente entre y a lo largo de esa línea
+    const dx = p1.x - p0.x;
+    const dy = p1.y - p0.y;
+    const segLenSq = dx * dx + dy * dy || 1;
+    const tProj = ((clampedGx - p0.x) * dx + (clampedGy - p0.y) * dy) / segLenSq;
+
+    let activeT: number;
     let rawCp1x: number;
     let rawCp1y: number;
     let rawCp2x: number;
     let rawCp2y: number;
 
-    const mt = 1 - clampedT;
-    const w1 = 3 * mt * mt * clampedT;
-    const w2 = 3 * mt * clampedT * clampedT;
+    if (t <= 0.35) {
+      // 1. MANIPULACIÓN DEL PUNTO 1 (Cercano a p0):
+      // Puede desplazarse libremente entre p0 y el centro (t de 0.05 a 0.45)
+      activeT = Math.max(0.05, Math.min(0.45, Number.isFinite(tProj) ? tProj : 0.25));
+      const mt = 1 - activeT;
+      const w1 = 3 * mt * mt * activeT;
+      const w2 = 3 * mt * activeT * activeT;
 
-    if (clampedT <= 0.35) {
-      // 1. MANIPULACIÓN DEL PUNTO 1 (Cercano a p0, t ≈ 0.25):
-      // Ajusta principalmente CP1 para esculpir la curva de entrada manteniendo la salida
-      rawCp1x = (clampedGx - Math.pow(mt, 3) * p0.x - w2 * currentCps.cp2.x - Math.pow(clampedT, 3) * p1.x) / w1;
-      rawCp1y = (clampedGy - Math.pow(mt, 3) * p0.y - w2 * currentCps.cp2.y - Math.pow(clampedT, 3) * p1.y) / w1;
+      rawCp1x = (clampedGx - Math.pow(mt, 3) * p0.x - w2 * currentCps.cp2.x - Math.pow(activeT, 3) * p1.x) / w1;
+      rawCp1y = (clampedGy - Math.pow(mt, 3) * p0.y - w2 * currentCps.cp2.y - Math.pow(activeT, 3) * p1.y) / w1;
       rawCp2x = currentCps.cp2.x;
       rawCp2y = currentCps.cp2.y;
-    } else if (clampedT >= 0.65) {
-      // 2. MANIPULACIÓN DEL PUNTO 3 (Cercano a p1, t ≈ 0.75):
-      // Ajusta principalmente CP2 para esculpir la curva de salida manteniendo la entrada
-      rawCp2x = (clampedGx - Math.pow(mt, 3) * p0.x - w1 * currentCps.cp1.x - Math.pow(clampedT, 3) * p1.x) / w2;
-      rawCp2y = (clampedGy - Math.pow(mt, 3) * p0.y - w1 * currentCps.cp1.y - Math.pow(clampedT, 3) * p1.y) / w2;
+    } else if (t >= 0.65) {
+      // 2. MANIPULACIÓN DEL PUNTO 3 (Cercano a p1):
+      // Puede desplazarse libremente entre el centro y p1 (t de 0.55 a 0.95)
+      activeT = Math.max(0.55, Math.min(0.95, Number.isFinite(tProj) ? tProj : 0.75));
+      const mt = 1 - activeT;
+      const w1 = 3 * mt * mt * activeT;
+      const w2 = 3 * mt * activeT * activeT;
+
+      rawCp2x = (clampedGx - Math.pow(mt, 3) * p0.x - w1 * currentCps.cp1.x - Math.pow(activeT, 3) * p1.x) / w2;
+      rawCp2y = (clampedGy - Math.pow(mt, 3) * p0.y - w1 * currentCps.cp1.y - Math.pow(activeT, 3) * p1.y) / w2;
       rawCp1x = currentCps.cp1.x;
       rawCp1y = currentCps.cp1.y;
     } else {
-      // 3. MANIPULACIÓN DEL PUNTO CENTRAL (t ≈ 0.50 o arrastre directo de la comba):
-      // Traslada armónicamente CP1 y CP2 juntos para arquear la curva completa pasando por G
-      const currentBt = this.evaluateCubicBezier(p0, currentCps.cp1, currentCps.cp2, p1, clampedT);
+      // 3. MANIPULACIÓN DEL PUNTO CENTRAL:
+      // Puede desplazarse a lo largo del arco central (t de 0.20 a 0.80)
+      activeT = Math.max(0.20, Math.min(0.80, Number.isFinite(tProj) ? tProj : 0.5));
+      const mt = 1 - activeT;
+      const w1 = 3 * mt * mt * activeT;
+      const w2 = 3 * mt * activeT * activeT;
+
+      const currentBt = this.evaluateCubicBezier(p0, currentCps.cp1, currentCps.cp2, p1, activeT);
       const totalW = w1 + w2 || 0.75;
       const deltaX = (clampedGx - currentBt.x) / totalW;
       const deltaY = (clampedGy - currentBt.y) / totalW;
@@ -237,9 +255,9 @@ export class RinkMath {
     }
 
     // Los tiradores actúan como imanes y tienen margen amplio fuera de la pista para alcanzar los bordes
-    const cp1x = Math.max(-20, Math.min(70, rawCp1x));
+    const cp1x = Math.max(-25, Math.min(75, rawCp1x));
     const cp1y = Math.max(-15, Math.min(40, rawCp1y));
-    const cp2x = Math.max(-20, Math.min(70, rawCp2x));
+    const cp2x = Math.max(-25, Math.min(75, rawCp2x));
     const cp2y = Math.max(-15, Math.min(40, rawCp2y));
 
     return {

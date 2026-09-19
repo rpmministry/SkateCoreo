@@ -36,6 +36,7 @@ export interface ChoreographyStoreState {
   updatePointTimestamp: (id: string, timestampMs: number) => void;
   updateControlPoint1: (id: string, x: number, y: number) => void;
   updateControlPoint2: (id: string, x: number, y: number) => void;
+  updateSegmentControlPoints: (id: string, cp1: { x: number; y: number }, cp2: { x: number; y: number }) => void;
   updatePointMetadata: (id: string, label: string, type?: string, element_id?: string) => void;
   deletePoint: (id: string) => void;
   clearAllPoints: () => void;
@@ -254,7 +255,7 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
     set({
       points: normalized,
       selectedPointId: normalized[0].id,
-      phase: normalized.length >= 2 ? 'curve' : 'plot'
+      phase: 'plot'
     });
   },
 
@@ -430,9 +431,9 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
 
   updateControlPoint1: (id: string, x: number, y: number) => {
     const { points } = get();
-    // Tope estricto perimetral para tirador CP1
-    const clampedX = Math.round(Math.max(0.4, Math.min(49.6, x)) * 10) / 10;
-    const clampedY = Math.round(Math.max(0.4, Math.min(24.6, y)) * 10) / 10;
+    // Margen amplio para que los puntos imán deformen la curva libremente
+    const clampedX = Math.round(Math.max(-25, Math.min(75, x)) * 10) / 10;
+    const clampedY = Math.round(Math.max(-15, Math.min(40, y)) * 10) / 10;
 
     const updated = points.map(p => {
       if (p.id !== id) return p;
@@ -449,9 +450,9 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
 
   updateControlPoint2: (id: string, x: number, y: number) => {
     const { points } = get();
-    // Tope estricto perimetral para tirador CP2
-    const clampedX = Math.round(Math.max(0.4, Math.min(49.6, x)) * 10) / 10;
-    const clampedY = Math.round(Math.max(0.4, Math.min(24.6, y)) * 10) / 10;
+    // Margen amplio para que los puntos imán deformen la curva libremente
+    const clampedX = Math.round(Math.max(-25, Math.min(75, x)) * 10) / 10;
+    const clampedY = Math.round(Math.max(-15, Math.min(40, y)) * 10) / 10;
 
     const updated = points.map(p => {
       if (p.id !== id) return p;
@@ -460,6 +461,29 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
         controlPoint2: { x: clampedX, y: clampedY },
         cp2x: clampedX,
         cp2y: clampedY
+      };
+    });
+
+    set({ points: updated });
+  },
+
+  updateSegmentControlPoints: (id: string, cp1: { x: number; y: number }, cp2: { x: number; y: number }) => {
+    const { points } = get();
+    const cp1x = Math.round(Math.max(-25, Math.min(75, cp1.x)) * 10) / 10;
+    const cp1y = Math.round(Math.max(-15, Math.min(40, cp1.y)) * 10) / 10;
+    const cp2x = Math.round(Math.max(-25, Math.min(75, cp2.x)) * 10) / 10;
+    const cp2y = Math.round(Math.max(-15, Math.min(40, cp2.y)) * 10) / 10;
+
+    const updated = points.map(p => {
+      if (p.id !== id) return p;
+      return {
+        ...p,
+        controlPoint1: { x: cp1x, y: cp1y },
+        controlPoint2: { x: cp2x, y: cp2y },
+        cp1x,
+        cp1y,
+        cp2x,
+        cp2y
       };
     });
 
