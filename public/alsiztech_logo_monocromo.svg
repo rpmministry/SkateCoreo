@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 258" width="100%" height="100%">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;800&amp;family=Inter:wght@700;800;900&amp;display=swap');
+      .title-mono { font-family: 'Montserrat', sans-serif; font-size: 54px; fill: #0F172A; }
+      .bold { font-weight: 700; }
+      .light { font-weight: 400; }
+      .subtitle-mono { font-family: 'Inter', sans-serif; font-size: 23px; font-weight: 800; fill: #0F172A; letter-spacing: 0.14em; }
+    </style>
+  </defs>
+  <!-- Isotipo de cinta gruesa monocromo -->
+  <path d="M 105 138 L 160 42 L 215 138" fill="none" stroke="#0F172A" stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Tipografía centrada debajo con alta legibilidad monocromática -->
+  <text x="160" y="202" text-anchor="middle" class="title-mono"><tspan class="bold">Alsiz</tspan><tspan class="light">Tech</tspan></text>
+  <text x="160" y="238" text-anchor="middle" class="subtitle-mono">AGENCIA DIGITAL</text>
+</svg>

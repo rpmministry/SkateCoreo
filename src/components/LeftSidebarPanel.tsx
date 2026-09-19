@@ -61,7 +61,7 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
   const setEficiencia = useChoreographyStore((s) => s.setEficiencia);
 
   // SaaS Auth state
-  const { user, subscription_plan, logout } = useAuthStore();
+  const { user, role, subscription_plan, logout } = useAuthStore();
 
   return (
     <div className="flex flex-col h-full w-full bg-neon-surface text-white select-none">
@@ -435,7 +435,7 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
             </span>
             <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-mint/15 text-mint border border-mint/20">
               <ShieldCheck className="w-2.5 h-2.5" />
-              {subscription_plan === 'club' ? 'Licencia Club' : 'Individual'}
+              {role === 'tester' ? 'Beta Tester' : role === 'superadmin' ? 'Admin' : subscription_plan === 'club' ? 'Licencia Club' : 'Individual'}
             </span>
           </div>
 
