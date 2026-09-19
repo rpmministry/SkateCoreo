@@ -696,11 +696,6 @@ export class RinkRenderer {
 
       const isSegmentSelected = options.selectedPointId === p0.id || options.selectedPointId === p1.id;
 
-      // Si el usuario tiene un nodo seleccionado, focalizamos los tiradores en el segmento activo
-      if (hasSelection && !isSegmentSelected) {
-        continue;
-      }
-
       const pt0 = RinkMath.metersToPixels(p0.x, p0.y, metrics);
       const pt1 = RinkMath.metersToPixels(p1.x, p1.y, metrics);
       const { cp1: cp1M, cp2: cp2M } = RinkMath.getSegmentControlPoints(p0, p1);

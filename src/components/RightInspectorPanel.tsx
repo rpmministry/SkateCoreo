@@ -5,7 +5,6 @@ import {
   Tag,
   Clock,
   Sparkles,
-  MinusCircle,
   Move,
   PenTool,
   Route,
@@ -83,7 +82,9 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
     : [];
   const hasTimeNodesInSegment = timeNodesInSegment.length > 0;
 
-  // ── Handlers ───────────────────────────────────────────────
+  const updateControlPoint1 = useChoreographyStore((s) => s.updateControlPoint1);
+  const updateControlPoint2 = useChoreographyStore((s) => s.updateControlPoint2);
+
   const handleUpdateLabel = (id: string, label: string) =>
     updatePointMetadata(id, label);
 
@@ -103,6 +104,36 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
   const handleStraighten = () => {
     if (!selectedPointId) return;
     straightenSegment(selectedPointId);
+  };
+
+  const handleApplyCurve = (direction: 'out' | 'in') => {
+    if (!selectedPointId) return;
+    const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
+    const idx = sorted.findIndex((p) => p.id === selectedPointId);
+    if (idx < 0 || idx >= sorted.length - 1) return;
+
+    const p0 = sorted[idx];
+    const p1 = sorted[idx + 1];
+
+    const dx = p1.x - p0.x;
+    const dy = p1.y - p0.y;
+    const dist = Math.hypot(dx, dy) || 1;
+
+    // Vector normal unitario perpendicular
+    const nx = -dy / dist;
+    const ny = dx / dist;
+
+    const sign = direction === 'out' ? 1 : -1;
+    const offset = Math.min(6, Math.max(1.5, dist * 0.3)) * sign;
+
+    pushHistory();
+    const cp1x = Math.max(0.4, Math.min(49.6, p0.x + dx * 0.33 + nx * offset));
+    const cp1y = Math.max(0.4, Math.min(24.6, p0.y + dy * 0.33 + ny * offset));
+    const cp2x = Math.max(0.4, Math.min(49.6, p1.x - dx * 0.33 + nx * offset));
+    const cp2y = Math.max(0.4, Math.min(24.6, p1.y - dy * 0.33 + ny * offset));
+
+    updateControlPoint1(p0.id, cp1x, cp1y);
+    updateControlPoint2(p0.id, cp2x, cp2y);
   };
 
   // ── Render ─────────────────────────────────────────────────
@@ -337,6 +368,50 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
               </div>
             </div>
 
+            {/* ── Refinamiento de Curva Bézier desde este Nodo de Tiempo ─── */}
+            <div className="bg-neon-card shadow-soft-elevation rounded-2xl p-3.5 space-y-2.5 border border-cyan/25">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-[10px] font-bold text-cyan uppercase tracking-wider">
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                  Curvatura del Trazo
+                </span>
+                <span className="text-[9px] font-mono text-cyan bg-cyan/15 px-2 py-0.5 rounded-full font-bold">
+                  Bézier Libre
+                </span>
+              </div>
+
+              <p className="text-[11px] text-slate-300 leading-snug">
+                Arrastra la línea en la pista o usa los tiradores CP1/CP2 para esculpir la curva sin crear nodos ni líneas nuevas.
+              </p>
+
+              <div className="grid grid-cols-3 gap-1.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => handleApplyCurve('out')}
+                  className="py-2 rounded-xl bg-neon-surface hover:bg-cyan/20 text-slate-200 hover:text-cyan text-[11px] font-bold transition-all interactive-tap flex items-center justify-center gap-1"
+                  title="Curvar el trazo hacia afuera"
+                >
+                  ⤴ Ext.
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleApplyCurve('in')}
+                  className="py-2 rounded-xl bg-neon-surface hover:bg-cyan/20 text-slate-200 hover:text-cyan text-[11px] font-bold transition-all interactive-tap flex items-center justify-center gap-1"
+                  title="Curvar el trazo hacia adentro"
+                >
+                  ⤵ Int.
+                </button>
+                <button
+                  type="button"
+                  onClick={handleStraighten}
+                  className="py-2 rounded-xl bg-neon-surface hover:bg-coral/20 text-slate-200 hover:text-coral text-[11px] font-bold transition-all interactive-tap flex items-center justify-center gap-1"
+                  title="Hacer el trazo recto"
+                >
+                  — Recta
+                </button>
+              </div>
+            </div>
+
             {/* Acciones del Nodo de Tiempo */}
             <div className="space-y-2 pt-2">
               <button
@@ -559,16 +634,52 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
               </div>
             </div>
 
+            {/* Curvatura del Trazo y Tiradores Bézier */}
+            <div className="p-3 bg-neon-card/70 rounded-2xl border border-cyan/20 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-cyan flex items-center gap-1.5">
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                  Curvatura del Trazo
+                </span>
+                <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-cyan/15 text-cyan font-bold">
+                  Bézier Libre
+                </span>
+              </div>
+
+              <p className="text-[11px] text-slate-300 leading-snug">
+                Arrastra la línea en la pista o usa los tiradores CP1/CP2 para esculpir la curva sin crear nodos ni líneas nuevas.
+              </p>
+
+              <div className="grid grid-cols-3 gap-1.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => handleApplyCurve('out')}
+                  className="py-2 rounded-xl bg-neon-surface hover:bg-cyan/20 text-slate-200 hover:text-cyan text-[11px] font-bold transition-all interactive-tap flex items-center justify-center gap-1"
+                  title="Curvar el trazo hacia afuera"
+                >
+                  ⤴ Ext.
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleApplyCurve('in')}
+                  className="py-2 rounded-xl bg-neon-surface hover:bg-cyan/20 text-slate-200 hover:text-cyan text-[11px] font-bold transition-all interactive-tap flex items-center justify-center gap-1"
+                  title="Curvar el trazo hacia adentro"
+                >
+                  ⤵ Int.
+                </button>
+                <button
+                  type="button"
+                  onClick={handleStraighten}
+                  className="py-2 rounded-xl bg-neon-surface hover:bg-coral/20 text-slate-200 hover:text-coral text-[11px] font-bold transition-all interactive-tap flex items-center justify-center gap-1"
+                  title="Hacer el trazo recto"
+                >
+                  — Recta
+                </button>
+              </div>
+            </div>
+
             {/* Acciones del Nodo */}
             <div className="space-y-2 pt-2">
-              <button
-                type="button"
-                onClick={handleStraighten}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-neon-card hover:bg-neon-hover text-slate-200 hover:text-white text-xs font-bold shadow-soft-elevation interactive-tap"
-              >
-                <MinusCircle className="w-4 h-4 text-cyan" />
-                Enderezar Curva
-              </button>
               <button
                 type="button"
                 onClick={() => setSelectedPointId(null)}
