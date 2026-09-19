@@ -1,0 +1,372 @@
+ Informe de Investigación UX: Ecosistema Digital para el Patinaje Artístico (Sistema RollArt)
+
+
+
+1. Introducción y Metodología de Triangulación
+
+
+
+La modernización de las herramientas digitales en el patinaje artístico es un imperativo estratégico derivado de la transición global al sistema RollArt. Esta normativa, impulsada por la World Skate Artistic Technical Commission, exige una precisión técnica quirúrgica para distinguir grados de rotación y posiciones corporales en milisegundos. Sin embargo, las soluciones actuales no alcanzan la fidelidad de software requerida, creando una brecha crítica entre la regla y la ejecución.
+
+
+
+Para este diagnóstico, se aplicó una metodología de triangulación de datos que cruzó:
+
+
+
+Análisis Normativo (Fidelity to Source): Revisión de los manuales de 2023/2024 para saltos, trompos y danza, analizando códigos de deducción (<, <<, <<<), créditos de distribución (T) y bonos de borde (e).
+
+
+
+Diagnóstico de Infraestructura: Evaluación de la API WebAudio en Safari/iOS (Bug 221334), enfocada en la latencia sistémica al utilizar periféricos inalámbricos.
+
+
+
+Benchmarking Competitivo: Análisis de herramientas como Smap, My Skate, Loke y Skate Dice. Se identificó que soluciones como Smap o Loke fracasan al requerir hasta cuatro toques para registrar un Triple Salchow Under-rotated, una carga cognitiva inaceptable durante programas de 4 minutos donde el juez no puede apartar la vista del atleta.
+
+
+
+Esta desconexión técnica se traduce en puntos de fricción que comprometen la integridad de la evaluación competitiva.
+
+
+
+2. Análisis de Pain Points: Los 5 Puntos de Fricción Críticos
+
+
+
+El peso cognitivo de un juez o entrenador es masivo: debe identificar el elemento, evaluar el Quality of Element (QOE) y aplicar reglas matemáticas complejas en tiempo real. Las interfaces actuales agravan esta carga en lugar de mitigarla.
+
+
+
+Latencia Crítica en Periféricos Bluetooth/AirPods (Bloqueante)
+
+
+
+Causa Raíz: Defecto en la API WebAudio de Safari/iOS que, al solicitar acceso al micrófono (getUserMedia), genera un retraso de ~1 segundo y micro-cortes.
+
+
+
+Impacto: En el contexto de entrenamiento con AirPods (estándar de la industria), es imposible evaluar el rimo del Carlos Tango. El "Tap Down" del tiempo 3 se percibe desfasado, rompiendo la sincronía necesaria para validar que no hubo desviaciones del borde exterior.
+
+
+
+Respaldo Verbatim: Ian Lovejoy (WebKit Bug 221334, Comment 16): "Tested AirPods... confirmed that the sequence causes severe WebAudio glitching: stuttering, long pauses, and slowed down playback speed."
+
+
+
+Carga Matemática por Deducciones de Rotación Incompleta (Alta)
+
+
+
+Causa Raíz: Las reglas RollArt exigen reducciones porcentuales variables según el nivel del salto y el símbolo aplicado.
+
+
+
+Impacto: El juez debe recordar que un < (Under-rotated) reduce el valor base un 30% en saltos simples/dobles, pero solo un 20% en triples. Para un << (Half-rotated), la escala cambia a 50% (simples/dobles), 40% (triples) y 30% (quads).
+
+
+
+Respaldo Verbatim: Manual World Skate [SOURCE_IMAGE_10]: "Downgraded jump (<<<): The system will give the value of the jump of one rotation less... triple Salchow downgraded will get the value of a double Salchow."
+
+
+
+Gestión Manual del Factor de Tiempo y Créditos "T" (Alta)
+
+
+
+Causa Raíz: La regla de "Time Bonus" otorga un 10% adicional a saltos ejecutados después de la mitad del programa largo (categorías Cadet a Senior).
+
+
+
+Impacto: Las herramientas actuales no automatizan el marcador de tiempo sincronizado con el valor base, obligando al panel técnico a calcular manualmente el factor "T", lo que eleva el riesgo de omisión en el cierre del segmento.
+
+
+
+Invisibilidad de Requisitos Mínimos en Trompos/Spins (Media)
+
+
+
+Causa Raíz: La normativa exige un mínimo de tres (3) rotaciones para validar un trompo de una posición.
+
+
+
+Impacto: Los evaluadores dependen de su conteo mental sin asistencia visual de la interfaz. Si un Heel o Camel Spin no cumple las 3 vueltas sobre tres ruedas, el sistema no debería permitir la asignación de valor base completo.
+
+
+
+Ambigüedad en la Codificación de "No Jumps" (NJ) en Combinaciones (Media)
+
+
+
+Causa Raíz: Saltos de una sola rotación dentro de combinaciones que actúan como conectores.
+
+
+
+Impacto: La falta de un botón dedicado para NJ (No Jump) en secuencias rápidas causa errores de registro que alteran el valor final de la Combo Jump.
+
+
+
+3. Jobs-to-be-Done (JTBD): Análisis de Fallos en la Solución Actual
+
+
+
+El "Job" del usuario es generar una "report card" que sea un reflejo fiel del rendimiento, permitiendo la mejora técnica.
+
+
+
+Situación
+
+
+
+Job (Lo que intenta lograr)
+
+
+
+Resultado Deseado
+
+
+
+Falla de la Solución Actual
+
+
+
+Al evaluar un salto Lutz.
+
+
+
+Identificar si el borde de entrada fue Outside y no Flat.
+
+
+
+Una calificación de QOE precisa y detección de bono/error e.
+
+
+
+Falta de un estado visual "Pre-check/Ready" que enfoque al juez en el tobillo antes del stab (despegue).
+
+
+
+En el "Tap Down" del Carlos Tango.
+
+
+
+Validar el rítmo r3 en el beat exacto del audio.
+
+
+
+Confirmar ejecución técnica sin desviaciones de borde.
+
+
+
+El bug de Safari + AirPods desplaza el sonido, haciendo que el Tap Down parezca fuera de tiempo.
+
+
+
+Evaluación de un Sit Spin.
+
+
+
+Validar que las caderas no superen la altura de la rodilla.
+
+
+
+Llamar el elemento solo si cumple las características básicas.
+
+
+
+La interfaz permite "llamar" el spin sin verificar el cumplimiento de las 3 rotaciones mínimas requeridas.
+
+
+
+Cierre de Programa Largo.
+
+
+
+Aplicar el 10% de bono por distribución de elementos.
+
+
+
+Generar el Total Segment Score de forma instantánea.
+
+
+
+El cálculo manual del crédito "T" tras la fatiga del programa de 4 minutos induce a errores humanos.
+
+
+
+4. Oportunidades Estratégicas y Funcionales para la Solución PWA
+
+
+
+La arquitectura PWA es ideal por su portabilidad, pero requiere estrategias de mitigación específicas para las limitaciones de WebKit en iOS.
+
+
+
+Pilares de Oportunidad
+
+
+
+Automatización Técnica de RollArt (Lógica "One-Tap")
+
+
+
+Acción: Implementar un motor de cálculo que aplique automáticamente la tabla de deducciones para <, <<, y <<<.
+
+
+
+Integración de Créditos: El sistema debe detectar automáticamente el tiempo del programa para aplicar el factor "T" (Time Bonus 10%) y permitir la marcación rápida del bono "e" en saltos y spins de calidad excepcional.
+
+
+
+Validación de Trompos: Bloquear la asignación de nivel en spins que no registren las tres rotaciones mínimas obligatorias [SOURCE_IMAGE_13].
+
+
+
+Arquitectura de Audio Resiliente
+
+
+
+Acción: Implementar estrategias de pre-carga de buffers y, crucialmente, una advertencia de UX cuando se detecten AirPods o periféricos Bluetooth, recomendando el uso de audio cableado o bocinas integradas para evitar el retraso de 1 segundo identificado en el Bug 221334.
+
+
+
+Selector Visual de "Definitions" y Componentes
+
+
+
+Acción: Sustituir la memorización de códigos por un selector táctil para Upright, Sit, Camel, Heel, Broken e Inverted Spins.
+
+
+
+Artistic Impression: Facilitar la entrada de los cuatro componentes (Skating Skills, Transitions, Performance, Choreography) con sliders que traduzcan valores enteros (-3 a +3) a los decimales reales del sistema RollArt.
+
+
+
+5. Conclusiones y Próximos Pasos de Diseño
+
+
+
+El éxito de una herramienta digital para RollArt no reside en ser una simple calculadora, sino en actuar como un asistente cognitivo que libere al juez de la aritmética para que pueda enfocarse en la estética y la técnica. La solución debe ser "consciente" del hardware (AirPods) y de las reglas de tiempo (Créditos T).
+
+
+
+Recomendaciones Accionables
+
+
+
+Prototipado de "Pre-check" para Lutz: Diseñar una interfaz que cambie de estado visual justo antes del salto para alertar al juez sobre la observación crítica del borde exterior y el movimiento del tobillo.
+
+
+
+Motor de Reglas Embebido: Desarrollar la lógica que degrade automáticamente un Triple Loop a Single Loop (con código <<<) y le asigne el crédito "T" si ocurre en la segunda mitad del programa.
+
+
+
+Audit de Audio PWA: Realizar pruebas de estrés en Safari iOS 15+ para validar si la carga de buffers de baja latencia mitiga los silencios y saltos de audio reportados por la comunidad de WebKit.
+
+
+
+Análisis Técnico y UX Comparativo Multiplataforma: iOS vs. Android vs. WebApp/Desktop
+
+
+
+Al ampliar la arquitectura de la PWA de patinaje artístico desde iOS hacia Android y Desktop/WebApp, se identifican marcadas diferencias en las políticas de los motores de navegación (WebKit vs. Chromium), la gestión de procesos en segundo plano, el almacenamiento en disco y la integración con el hardware.
+
+
+
+1. Ecosistema iOS (Safari / WebKit)
+
+
+
+Es el entorno con mayores restricciones técnicas, diseñado por Apple con políticas agresivas de ahorro de energía y limitación de la Web Audio API en segundo plano.
+
+
+
+Reproducción en Segundo Plano y Pantalla Apagada: WebKit congela la ejecución de JavaScript y silencia el contexto de sonido (AudioContext) al apagar la pantalla o cambiar de aplicación. Para superarlo, la app debe canalizar la salida del grafo mediante un nodo MediaStreamAudioDestinationNode conectado (srcObject) a un elemento HTML5 <audio> invisible. Safari interpreta este flujo como un live stream, manteniendo la reproducción activa en segundo plano.
+
+
+
+Anulación del Interruptor Físico de Silencio (Silent Switch): Por defecto, Safari clasifica la Web Audio API como sonido ambiental, enmudeciéndola si el iPhone está en modo vibración. Al llamar a window.navigator.audioSession.type = "playback", el sistema concede prioridad multimedia nativa (tipo Spotify/Apple Music) e ignora la posición del interruptor.
+
+
+
+Prevención de Bloqueos en iOS 18: Al mantener un AudioContext en estado running sin emitir muestras de audio, el reproductor de WebKit o el daemon de sonido (audiod) pueden quedar bloqueados de forma silenciosa. La solución requiere interceptar visibilitychange para ejecutar AudioContext.suspend() al ocultar la app e invocar AudioContext.resume() al regresar.
+
+
+
+Instalación y Notificaciones: iOS no emite el evento beforeinstallprompt. Exige un flujo de instalación manual (Compartir → Agregar a pantalla de inicio). Las notificaciones Push solo están disponibles una vez que la PWA se ha guardado en la pantalla de inicio.
+
+
+
+Evicción de Almacenamiento Offline: Si el almacenamiento libre del iPhone es inferior a 1 GB o el deportista no abre la app durante 7 días consecutivos, Safari puede purgar la base de datos de IndexedDB y el caché del Service Worker. Es imprescindible solicitar almacenamiento permanente con navigator.storage.persist().
+
+
+
+2. Ecosistema Android (Chrome / Chromium)
+
+
+
+Android ofrece el entorno más permisivo y con mejor integración nativa para PWAs de entrenamiento.
+
+
+
+Procesos de Audio y Media Session API: Chromium gestiona de forma estable los hilos de audio en segundo plano sin suspender arbitrariamente el AudioContext. Se sincroniza de forma nativa con la Media Session API (navigator.mediaSession), proyectando los controles de reproducción, carátula y tiempos en la barra de notificaciones, la pantalla de bloqueo y audífonos Bluetooth.
+
+
+
+Instalación Fluida (One-Tap Install): Android captura el evento beforeinstallprompt, permitiendo a la app desplegar un banner de instalación directo con un solo toque e íconos adaptativos (maskables) en el lanzador.
+
+
+
+Almacenamiento Local y Persistencia: Chromium concede hasta un 60% del espacio de almacenamiento en disco disponible para la PWA (permitiendo guardar decenas de pistas de audio pesadas sin compresión en IndexedDB). Además, al instalar la PWA, el navegador concede la persistencia de datos automáticamente mediante sus algoritmos heurísticos.
+
+
+
+Retroalimentación Háptica: Soporta la Vibration API (navigator.vibrate()), lo que permite enviar impulsos táctiles al teléfono del entrenador al marcar un Cue Point o registrar un salto en la pista.
+
+
+
+3. Ecosistema Desktop / WebApp (Laptops / PCs en Pista)
+
+
+
+Es el entorno preferido por entrenadores para la planificación coreográfica detallada y el diseño espacial en computadores portátiles conectados al sistema de amplificación del pabellón.
+
+
+
+Lienzo Gráfico Vectorial de Alta Resolución: La combinación de Canvas 2D y SVG aprovecha la aceleración por hardware de la GPU para renderizar la pista reglamentaria de 25x50 metros. Esto facilita la edición fina de curvas de Bézier dinámicas y la visualización simétrica de múltiples rutinas.
+
+
+
+Edición Táctica y Procesamiento en RAM: Gracias a la mayor memoria RAM disponible en computadores, los archivos .wav o .m4a se decodifican por completo en búferes de memoria estáticos (AudioBufferSourceNode). Esto garantiza operaciones instantáneas de recorte, time-stretching (variación de tempo) y enrutamiento L/R con latencia sub-milisegundo.
+
+
+
+Manipulación de Archivos Locales: Soporta la File System Access API (showOpenFilePicker), permitiendo abrir, editar y exportar directamente las canciones y las rutinas guardadas en formato JSON a carpetas del disco duro local sin depender de descargas.
+
+
+
+Resumen Comparativo de Capacidades
+
+
+
+Característica / APIiOS (Safari / WebKit)Android (Chrome)Desktop / WebAppAudio con Pantalla ApagadaRequiere el truco MediaStreamDestination + HTML5 <audio>.Nativo mediante Service Worker y Media Session.Completo, sin suspensión de hilos.Bypass del Botón SilencioRequiere navigator.audioSession.type = "playback".No aplica (Audio multimedia independiente).Controlado por el mezclador del SO.Instalación PWAManual (Compartir → Agregar a inicio).Automática mediante beforeinstallprompt.Botón directo en la barra de direcciones.Retención Offline de DatosEvicción tras 7 días de inactividad salvo storage.persist().Persistente; asignación de hasta 60% del disco.Persistente y de alta capacidad.Sistema de ArchivosLimitado a <input type="file">.File System Access API soportado.File System Access API completo.
+
+
+
+💡 ¿Te gustaría que prepare un diagrama de flujo de arquitectura que ilustre cómo el Service Worker gestiona el almacenamiento en IndexedDB y el enrutamiento de audio según se detecte un dispositivo iOS, Android o Desktop?
+
+
+
+redacta un Product Requirements Document (PRD) exhaustivo en formato Markdown.
+
+El documento debe estar orientado a la excelencia técnica y optimización de recursos, estructurado de la siguiente manera:
+
+Propuesta de Valor: Un párrafo claro sobre cómo esta herramienta facilitará la misión de sus usuarios.
+
+Alcance del MVP: Lista estricta de funcionalidades esenciales (priorizando rendimiento multiplataforma, incluyendo procesamiento de formatos de audio como m4a/wav si aplica) y una lista de lo que queda fuera del MVP.
+
+User Flows Críticos: Descripción paso a paso de las acciones principales, incluyendo explícitamente cómo manejar los 'empty states' y los mensajes de error de forma clara y progresiva.
+
+Arquitectura Recomendada: Sugiere la estructura de la base de datos." 
+

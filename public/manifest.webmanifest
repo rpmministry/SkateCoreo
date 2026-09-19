@@ -1,0 +1,21 @@
+{
+  "name": "SkateArt - RollArt Digital Ecosystem",
+  "short_name": "SkateArt",
+  "description": "Ecosistema Digital PWA para Patinaje Artístico con Sistema RollArt Oficial",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#090D16",
+  "theme_color": "#0EA5E9",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["sports", "productivity"]
+}
+

@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-50 -50 100 100" width="100" height="100">
+  <defs>
+    <!-- Resplandor áurico de patinaje sobre hielo -->
+    <radialGradient id="skater-glow" cx="40%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FB7185" stop-opacity="0.45"/>
+      <stop offset="60%" stop-color="#F43F5E" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#F43F5E" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Vestido de competición artístico (Rosa Rubí con destellos) -->
+    <linearGradient id="dress-body" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDA4AF"/>
+      <stop offset="35%" stop-color="#F43F5E"/>
+      <stop offset="100%" stop-color="#9F1239"/>
+    </linearGradient>
+
+    <!-- Falda de vuelo en gasa translúcida -->
+    <linearGradient id="dress-skirt" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FECDD3" stop-opacity="0.95"/>
+      <stop offset="50%" stop-color="#F43F5E" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#881337" stop-opacity="0.75"/>
+    </linearGradient>
+
+    <!-- Cuchilla de patín de acero cromado -->
+    <linearGradient id="steel-blade" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#64748B"/>
+      <stop offset="30%" stop-color="#F8FAFC"/>
+      <stop offset="70%" stop-color="#CBD5E1"/>
+      <stop offset="100%" stop-color="#94A3B8"/>
+    </linearGradient>
+
+    <!-- Tono de piel de la patinadora -->
+    <linearGradient id="skin-tone" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFF1F2"/>
+      <stop offset="100%" stop-color="#FECDD3"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 1. Halo cinemático de velocidad sobre el hielo -->
+  <circle cx="0" cy="4" r="42" fill="url(#skater-glow)"/>
+
+  <!-- 2. Surco de hielo tallado por la cuchilla (Hacia atrás -X) -->
+  <path d="M -44 24 Q -20 22 2 20" fill="none" stroke="#38BDF8" stroke-width="2.5" stroke-linecap="round" opacity="0.65"/>
+  <path d="M -36 24.5 Q -14 22.5 4 20" fill="none" stroke="#FFFFFF" stroke-width="1.2" stroke-linecap="round" opacity="0.9"/>
+  <!-- Destello de escarcha en el punto de contacto -->
+  <circle cx="2" cy="20" r="2.5" fill="#FFFFFF" opacity="0.8"/>
+
+  <!-- 3. PIERNA DE APOYO (Deslizándose sobre el hielo hacia +X) -->
+  <!-- Medias de patinaje tono piel -->
+  <path d="M -2 0 L 2 15 L 0 17 L -5 2 Z" fill="url(#skin-tone)"/>
+  <!-- Bota blanca de patinaje artístico -->
+  <path d="M -1 13 L 5 16 L 8 18 L 8 20 L -2 20 L -3 15 Z" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="0.8"/>
+  <!-- Cuchilla de patín cromada en el hielo -->
+  <path d="M -5 21 L 12 21 Q 14 20.5 13 18" fill="none" stroke="url(#steel-blade)" stroke-width="2" stroke-linecap="round"/>
+  <!-- Tacón y soporte de cuchilla -->
+  <rect x="-2" y="19" width="3" height="2" fill="#94A3B8"/>
+  <rect x="5" y="19" width="3" height="2" fill="#94A3B8"/>
+
+  <!-- 4. PIERNA LIBRE EN ELEVACIÓN ARABESQUE (Extendida hacia atrás y arriba: -X, -Y) -->
+  <!-- Pierna extendida en ángulo de 35 grados -->
+  <path d="M -6 -2 L -28 -14 L -30 -12 L -8 2 Z" fill="url(#skin-tone)"/>
+  <!-- Bota blanca de patinaje de la pierna libre en punta -->
+  <path d="M -27 -13 L -36 -17 L -38 -16 L -35 -13 L -29 -11 Z" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="0.7"/>
+  <!-- Cuchilla de la pierna libre en el aire -->
+  <line x1="-30" y1="-15" x2="-40" y2="-19" stroke="url(#steel-blade)" stroke-width="1.4" stroke-linecap="round"/>
+
+  <!-- 5. FALDA DE COMPETICIÓN CON VUELO DINÁMICO -->
+  <path d="M -2 -2 
+           C -10 2, -22 0, -32 -6 
+           C -24 -1, -16 6, -20 12 
+           C -12 10, -5 6, -2 4 Z" 
+        fill="url(#dress-skirt)" stroke="#FDA4AF" stroke-width="0.8"/>
+
+  <!-- 6. TORSO DE LA PATINADORA EN ARQUEO ARTÍSTICO -->
+  <!-- Maillot ceñido con pedrería brillante -->
+  <path d="M -5 -2 C -2 -7, 4 -9, 8 -6 C 7 -1, 3 2, -2 3 Z" fill="url(#dress-body)" stroke="#BE123C" stroke-width="0.6"/>
+  <!-- Detalles de pedrería Swarovski en el pecho -->
+  <circle cx="2" cy="-4" r="0.8" fill="#FFFFFF"/>
+  <circle cx="5" cy="-5" r="0.8" fill="#FFFFFF"/>
+  <circle cx="3" cy="-2" r="0.6" fill="#FDE047"/>
+
+  <!-- 7. BRAZOS EN POSE COREOGRÁFICA (Arabesque) -->
+  <!-- Brazo trasero extendido en contrapeso artístico -->
+  <path d="M -2 -5 C -10 -10, -18 -15, -24 -18" fill="none" stroke="url(#skin-tone)" stroke-width="3" stroke-linecap="round"/>
+  <!-- Mano trasera delicada -->
+  <circle cx="-25" cy="-18.5" r="1.4" fill="#FECDD3"/>
+
+  <!-- Brazo delantero guiando el avance hacia +X -->
+  <path d="M 6 -5 C 14 -7, 22 -6, 28 -2" fill="none" stroke="url(#skin-tone)" stroke-width="3" stroke-linecap="round"/>
+  <!-- Mano delantera grácil -->
+  <circle cx="29" cy="-1.5" r="1.4" fill="#FECDD3"/>
+
+  <!-- 8. CUELLO Y CABEZA ELEVADA EN EXPRESIÓN ARTÍSTICA -->
+  <!-- Cuello estilizado -->
+  <path d="M 6 -7 L 8 -11 L 11 -9 L 9 -6 Z" fill="url(#skin-tone)"/>
+  <!-- Cabeza con perfil mirando al frente (+X) -->
+  <circle cx="11" cy="-13" r="5" fill="url(#skin-tone)"/>
+  <!-- Rostro / perfil refinado -->
+  <path d="M 14 -14 Q 16 -13 15 -11 Q 13 -10 11 -9" fill="none" stroke="#FDA4AF" stroke-width="0.6"/>
+
+  <!-- Cabello recogido en elegante moño de bailarina / patinadora -->
+  <path d="M 7 -15 C 8 -18, 12 -19, 14 -16 C 11 -15, 8 -13, 7 -15 Z" fill="#6B21A8"/>
+  <!-- Moño de patinaje alto -->
+  <circle cx="8" cy="-17" r="3.2" fill="#581C87"/>
+  <!-- Tiara / Cinta dorada del moño -->
+  <ellipse cx="8.5" cy="-17" rx="3.4" ry="1.2" fill="none" stroke="#FDE047" stroke-width="1.2"/>
+
+  <!-- 9. FLECHA INDICADORA DE FILO Y DIRECCIÓN (+X) -->
+  <g transform="translate(36, 0)">
+    <polygon points="0,0 -8,-5 -5,0 -8,5" fill="#F59E0B" stroke="#B45309" stroke-width="0.8"/>
+  </g>
+</svg>

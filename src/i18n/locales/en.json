@@ -1,0 +1,85 @@
+{
+  "app": {
+    "title": "SkateArt Pro",
+    "subtitle": "Choreographic Training & Audio Sync",
+    "offline_ready": "Ready for offline rink training",
+    "pwa_badge": "PWA Offline-First"
+  },
+  "nav": {
+    "choreography": "2D Rink & Choreography",
+    "audio_multitrack": "Audio & Multitrack L/R",
+    "technical_panel": "Technical Panel",
+    "skaters": "Skaters"
+  },
+  "audio": {
+    "title": "Multitrack Studio & Cues",
+    "transport_play": "Play",
+    "transport_pause": "Pause",
+    "transport_stop": "Stop",
+    "transport_seek_back": "Back 10s",
+    "transport_seek_forward": "Forward 10s",
+    "load_track": "Load Official Track",
+    "load_demo": "Official Demo Track",
+    "routing_title": "Strict L/R Channel Routing",
+    "mode_split_coach": "Rink + Coach (L: Music / R: Metronome & Cues)",
+    "mode_stereo": "Full Stereo (Music + Cues in both)",
+    "mode_solo_music": "Music Only (PA / Speakers)",
+    "mode_solo_coach": "Coach Only (Earbud)",
+    "music_volume": "Music Volume (Left Ch)",
+    "coach_volume": "Coach Volume (Right Ch)",
+    "isolation_status": "100% strict channel isolation active",
+    "bluetooth_warning": "Wireless audio latency detected (~1s). Wired headphones recommended for beat accuracy.",
+    "trim_section": "Trim Audio (In / Out)",
+    "trim_btn": "Trim to Selection",
+    "fades_section": "Volume Fades",
+    "fade_in": "Fade In (s)",
+    "fade_out": "Fade Out (s)",
+    "apply_fades": "Apply Fades",
+    "merge_section": "Merge Multiple Tracks",
+    "add_track": "Add Track",
+    "merge_tracks": "Merge into Master Track",
+    "export_wav": "Export WAV"
+  },
+  "metronome": {
+    "title": "Competition Metronome",
+    "toggle": "Enable Metronome",
+    "bpm": "BPM (Beats per minute)",
+    "time_signature": "Time Signature",
+    "accent_first": "Accent Beat 1",
+    "volume": "Metronome Volume"
+  },
+  "voice_cues": {
+    "title": "Voice Cues & Pre-roll",
+    "toggle": "Enable Voice Cues",
+    "intro_delay": "Pre-roll Wait (Rink Entry)",
+    "intro_delay_desc": "Countdown before music starts allowing the skater to reach initial position.",
+    "intro_0s": "No wait (0s)",
+    "intro_3s": "3 seconds",
+    "intro_5s": "5 seconds",
+    "intro_10s": "10 seconds",
+    "element_warning": "Element Warning Cue",
+    "lead_time": "Warning Lead Time",
+    "lead_2s": "2 seconds before",
+    "lead_3s": "3 seconds before",
+    "countdown_active": "In position! Music starting in..."
+  },
+  "rink": {
+    "title": "Regulation Rink 50x25m",
+    "add_point": "Add Point",
+    "delete_selected": "Delete Point",
+    "handles_visible": "Bézier Handles",
+    "handles_hint": "Drag circular anchors and yellow Bézier handles to shape trajectory curves.",
+    "speed": "Speed",
+    "time_sync": "Synced to audioContext.currentTime",
+    "reset_view": "Center Rink",
+    "fullscreen": "Fullscreen Mode"
+  },
+  "rollart": {
+    "title": "Official Technical Calculation",
+    "half_time_bonus": "Factor T bonus (+10% after halfway mark)",
+    "total_score": "Total Segment Score (TSS)",
+    "tes": "Technical Elements (TES)",
+    "pcs": "Program Components (PCS)"
+  }
+}
+

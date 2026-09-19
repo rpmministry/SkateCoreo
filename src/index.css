@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root, body {
+    color-scheme: dark;
+
+    /* ── Cyber-Athletic Dark Mode Neon Theme ── */
+    --neon-canvas: #0B0F19;
+    --neon-surface: #121826;
+    --neon-card: #192234;
+    --neon-hover: #222E46;
+
+    /* Textos WCAG AAA */
+    --text-primary: #FFFFFF;
+    --text-secondary: #94A3B8;
+    --text-tertiary: #64748B;
+
+    /* Acentos Neón */
+    --neon-coral: #FF4C79;
+    --neon-cyan: #00D2FF;
+    --neon-mint: #10F49C;
+  }
+}
+
+html {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background-color: #0B0F19;
+  color: #FFFFFF;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom Sports Console Scrollbar - Ultra Minimal */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #222E46;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #64748B;
+}
+
+/* Ergonomía táctil para móviles */
+.touch-target {
+  min-height: 48px;
+  min-width: 48px;
+}
+
+/* Micro-interacción Apple: feedback físico táctil */
+.interactive-tap {
+  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1), background-color 150ms ease, box-shadow 150ms ease, color 150ms ease;
+  touch-action: manipulation;
+}
+.interactive-tap:active {
+  transform: scale(0.95);
+}

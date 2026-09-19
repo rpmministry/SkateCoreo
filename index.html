@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>SkateArt | Sistema RollArt Oficial</title>
+    
+    <!-- PWA & Mobile Meta Tags -->
+    <meta name="description" content="Ecosistema Digital PWA para Patinaje Artístico - Sistema RollArt Oficial (World Skate)" />
+    <meta name="theme-color" content="#090D16" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="SkateArt" />
+    <link rel="apple-touch-icon" href="./icon.svg" />
+    <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+
+    <!-- Google Fonts Preconnect -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  </head>
+  <body class="bg-[#090D16] text-slate-100 min-h-screen overflow-x-hidden font-sans select-none antialiased">
+    <div id="root"></div>
+
+    <!-- Hidden HTML5 Audio Element for iOS WebKit Background Audio Stream Keep-Alive -->
+    <audio id="ios-background-audio-sink" playsinline style="display: none;"></audio>
+
+    <script type="module" src="./src/main.tsx"></script>
+    <script>
+      // Register Service Worker for Offline-First PWA
+      if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('./sw.js')
+            .then((reg) => console.log('[PWA] Service Worker registrado con éxito:', reg.scope))
+            .catch((err) => console.warn('[PWA] Error al registrar Service Worker:', err));
+        });
+      }
+    </script>
+  </body>
+</html>
+

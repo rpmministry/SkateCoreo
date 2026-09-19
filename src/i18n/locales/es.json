@@ -1,0 +1,85 @@
+{
+  "app": {
+    "title": "SkateArt Pro",
+    "subtitle": "Entrenamiento Coreográfico & Sincronización de Audio",
+    "offline_ready": "Listo para usar sin conexión",
+    "pwa_badge": "PWA Offline-First"
+  },
+  "nav": {
+    "choreography": "Pista 2D & Coreografía",
+    "audio_multitrack": "Audio & Multitrack L/R",
+    "technical_panel": "Panel Técnico",
+    "skaters": "Patinadoras"
+  },
+  "audio": {
+    "title": "Estudio Multitrack & Guías",
+    "transport_play": "Reproducir",
+    "transport_pause": "Pausar",
+    "transport_stop": "Detener",
+    "transport_seek_back": "Retroceder 10s",
+    "transport_seek_forward": "Avanzar 10s",
+    "load_track": "Cargar Pista Oficial",
+    "load_demo": "Pista Demo Oficial",
+    "routing_title": "Enrutamiento L/R Estricto",
+    "mode_split_coach": "Pista + Entrenador (L: Música / R: Metrónomo & Guías)",
+    "mode_stereo": "Todo Estéreo (Música + Guías en ambos)",
+    "mode_solo_music": "Solo Música (PA / Altavoces)",
+    "mode_solo_coach": "Solo Guías (Auricular Coach)",
+    "music_volume": "Volumen Música (Canal L)",
+    "coach_volume": "Volumen Guía (Canal R)",
+    "isolation_status": "Aislamiento 100% absoluto de canales activo",
+    "bluetooth_warning": "Latencia de audio inalámbrico detectada (~1s). Recomendado auriculares cableados para sincronización de compás.",
+    "trim_section": "Recortar Audio (In / Out)",
+    "trim_btn": "Cortar a Selección",
+    "fades_section": "Fundidos de Volumen",
+    "fade_in": "Fade In (s)",
+    "fade_out": "Fade Out (s)",
+    "apply_fades": "Aplicar Fundidos",
+    "merge_section": "Unir Múltiples Pistas",
+    "add_track": "Añadir Pista",
+    "merge_tracks": "Unir en Pista Maestra",
+    "export_wav": "Exportar WAV"
+  },
+  "metronome": {
+    "title": "Metrónomo de Competición",
+    "toggle": "Activar Metrónomo",
+    "bpm": "BPM (Pulsaciones por minuto)",
+    "time_signature": "Compás",
+    "accent_first": "Acentuar tiempo 1",
+    "volume": "Volumen Metrónomo"
+  },
+  "voice_cues": {
+    "title": "Guías de Voz & Pre-roll",
+    "toggle": "Activar Guías de Voz",
+    "intro_delay": "Espera Pre-roll (entrada a pista)",
+    "intro_delay_desc": "Cuenta regresiva antes de que inicie la música para que la patinadora tome su posición inicial.",
+    "intro_0s": "Sin espera (0s)",
+    "intro_3s": "3 segundos",
+    "intro_5s": "5 segundos",
+    "intro_10s": "10 segundos",
+    "element_warning": "Aviso Previo a Elemento",
+    "lead_time": "Anticipación de aviso",
+    "lead_2s": "2 segundos antes",
+    "lead_3s": "3 segundos antes",
+    "countdown_active": "¡En posición! La música inicia en..."
+  },
+  "rink": {
+    "title": "Pista Reglamentaria 50x25m",
+    "add_point": "Añadir Punto",
+    "delete_selected": "Eliminar Punto",
+    "handles_visible": "Tiradores Bézier",
+    "handles_hint": "Arrastra los puntos circulares y los tiradores amarillos de Bézier para moldear la curvatura.",
+    "speed": "Velocidad",
+    "time_sync": "Sincronizado a audioContext.currentTime",
+    "reset_view": "Centrar Pista",
+    "fullscreen": "Modo Pantalla Completa"
+  },
+  "rollart": {
+    "title": "Cálculo Técnico Oficial",
+    "half_time_bonus": "Bonificación factor T (+10% tras mitad de programa)",
+    "total_score": "Puntuación Total (TSS)",
+    "tes": "Elementos Técnicos (TES)",
+    "pcs": "Componentes Artísticos (PCS)"
+  }
+}
+
