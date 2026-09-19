@@ -47,4 +47,18 @@ assert.equal(points[points.length - 1].label, 'Fin Trazo', 'Last node is Master 
 assert.ok(typeof points[0].cp1x === 'number', 'Control points must be calculated');
 console.log('✓ Stroke conversion to Master Nodes passed');
 
+// 4. Test Intelligent Straight Line Correction (wobbly straight stroke -> exactly 2 master nodes)
+const wobblyLine: Point2D[] = [];
+for (let i = 0; i <= 30; i++) {
+  // Line from (5, 5) to (25, 5) with slight micro-wobble (0.1m)
+  const wobble = (i % 2 === 0 ? 0.08 : -0.08);
+  wobblyLine.push({ x: 5 + (20 * i) / 30, y: 5 + wobble });
+}
+const straightPoints = FreehandPathEngine.convertStrokeToChoreographyPoints(wobblyLine, 0, 3.5);
+assert.equal(straightPoints.length, 2, 'Intelligent straight line detection must produce exactly 2 master nodes');
+assert.equal(straightPoints[0].label, 'Inicio Trazo');
+assert.equal(straightPoints[1].label, 'Fin Trazo');
+console.log('✓ Intelligent straight line perfection passed');
+
 console.log('All FreehandPathEngine tests passed successfully!');
+

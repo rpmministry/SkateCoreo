@@ -66,9 +66,9 @@ export class FreehandPathEngine {
   }
 
   /**
-   * Suavizado adicional por promedio ponderado (Laplacian smoothing) para eliminar temblor de dedo
+   * Suavizado de curva por filtrado laplaciano ponderado multi-paso (elimina temblor táctil)
    */
-  public static smoothStrokePoints(points: Point2D[], iterations: number = 1): Point2D[] {
+  public static smoothStrokePoints(points: Point2D[], iterations: number = 3): Point2D[] {
     if (points.length <= 2) return points;
     let smoothed = [...points];
 
@@ -79,8 +79,8 @@ export class FreehandPathEngine {
         const curr = smoothed[i];
         const nxt = smoothed[i + 1];
         next.push({
-          x: 0.25 * prev.x + 0.5 * curr.x + 0.25 * nxt.x,
-          y: 0.25 * prev.y + 0.5 * curr.y + 0.25 * nxt.y,
+          x: 0.15 * prev.x + 0.70 * curr.x + 0.15 * nxt.x,
+          y: 0.15 * prev.y + 0.70 * curr.y + 0.15 * nxt.y,
         });
       }
       next.push(smoothed[smoothed.length - 1]);
@@ -90,8 +90,11 @@ export class FreehandPathEngine {
   }
 
   /**
-   * Convierte un conjunto de puntos simplificados en una secuencia de segmentos Bézier cúbicos
-   * con Nodos Maestros en los extremos y control points tangenciales (Catmull-Rom to Bezier).
+   * Perfeccionamiento Inteligente y Conversión a Nodos Coreográficos:
+   * 1. Detecta si el trazo es una línea recta intencional y la corrige eliminando cualquier oscilación.
+   * 2. Detecta si es un bucle cerrado y lo enlaza perfectamente.
+   * 3. Detecta esquinas y puntos de curvatura para crear Nodos Principales únicamente donde corresponde.
+   * 4. Calcula tiradores Bézier C1 continuos sin saturar la línea con puntos intermedios.
    *
    * @param rawStroke Puntos crudos registrados durante el gesto táctil
    * @param baseStartTimeMs Marca de tiempo inicial para el primer nodo
@@ -104,13 +107,92 @@ export class FreehandPathEngine {
   ): ChoreographyPoint[] {
     if (rawStroke.length < 2) return [];
 
-    // 1. Suavizar levemente para mitigar temblores del sensor táctil
-    const smoothed = this.smoothStrokePoints(rawStroke, 1);
+    // Pre-filtrado: descartar micro-movimientos redundantes (< 0.06m)
+    const cleaned: Point2D[] = [rawStroke[0]];
+    for (let i = 1; i < rawStroke.length; i++) {
+      const p = rawStroke[i];
+      const last = cleaned[cleaned.length - 1];
+      if (Math.hypot(p.x - last.x, p.y - last.y) >= 0.06) {
+        cleaned.push(p);
+      }
+    }
+    if (cleaned.length < 2) {
+      cleaned.push(rawStroke[rawStroke.length - 1]);
+    }
 
-    // 2. Simplificar con RDP (epsilon de 0.30 metros para alta fidelidad de bucles y curvas)
-    let simplified = this.simplifyRDP(smoothed, 0.30);
+    // 1. Suavizado multi-paso para eliminar el temblor táctil del dedo
+    let smoothed = this.smoothStrokePoints(cleaned, 3);
 
-    // Si la simplificación fue demasiado agresiva y dejó menos de 2 puntos, usar extremos
+    const pStart = smoothed[0];
+    let pEnd = smoothed[smoothed.length - 1];
+    const chordDist = Math.hypot(pEnd.x - pStart.x, pEnd.y - pStart.y);
+
+    // Calcular longitud total acumulada del trazo
+    let totalLength = 0;
+    for (let i = 1; i < smoothed.length; i++) {
+      totalLength += Math.hypot(smoothed[i].x - smoothed[i - 1].x, smoothed[i].y - smoothed[i - 1].y);
+    }
+
+    // ── INTELIGENCIA 1: Corrección de Cierre de Bucle / Círculo ──
+    if (chordDist < 1.6 && totalLength > 4.5) {
+      pEnd = { x: pStart.x, y: pStart.y };
+      smoothed[smoothed.length - 1] = pEnd;
+    }
+
+    // ── INTELIGENCIA 2: Detección y Enderezado Inteligente de Línea Recta ──
+    let maxDevFromChord = 0;
+    for (let i = 1; i < smoothed.length - 1; i++) {
+      const dev = this.perpendicularDistance(smoothed[i], pStart, pEnd);
+      if (dev > maxDevFromChord) maxDevFromChord = dev;
+    }
+
+    // Es recta si la desviación máxima es menor a 0.55m o menor al 6.5% de la longitud
+    const isStraightLineIntent = chordDist > 1.5 && (maxDevFromChord < 0.55 || (maxDevFromChord / chordDist) < 0.065);
+
+    if (isStraightLineIntent) {
+      const durationMs = Math.max(800, Math.round((chordDist / estimatedSpeedMps) * 1000));
+      const dx = (pEnd.x - pStart.x) / 3;
+      const dy = (pEnd.y - pStart.y) / 3;
+
+      return [
+        {
+          id: crypto.randomUUID(),
+          x: Math.round(pStart.x * 10) / 10,
+          y: Math.round(pStart.y * 10) / 10,
+          time_ms: baseStartTimeMs,
+          timestamp: baseStartTimeMs,
+          type: 'Step',
+          label: 'Inicio Trazo',
+          cp1x: Math.round((pStart.x + dx) * 10) / 10,
+          cp1y: Math.round((pStart.y + dy) * 10) / 10,
+          cp2x: Math.round((pEnd.x - dx) * 10) / 10,
+          cp2y: Math.round((pEnd.y - dy) * 10) / 10,
+          controlPoint1: { x: Math.round((pStart.x + dx) * 10) / 10, y: Math.round((pStart.y + dy) * 10) / 10 },
+          controlPoint2: { x: Math.round((pEnd.x - dx) * 10) / 10, y: Math.round((pEnd.y - dy) * 10) / 10 },
+        },
+        {
+          id: crypto.randomUUID(),
+          x: Math.round(pEnd.x * 10) / 10,
+          y: Math.round(pEnd.y * 10) / 10,
+          time_ms: baseStartTimeMs + durationMs,
+          timestamp: baseStartTimeMs + durationMs,
+          type: 'Step',
+          label: 'Fin Trazo',
+          cp1x: Math.round(pEnd.x * 10) / 10,
+          cp1y: Math.round(pEnd.y * 10) / 10,
+          cp2x: Math.round(pEnd.x * 10) / 10,
+          cp2y: Math.round(pEnd.y * 10) / 10,
+          controlPoint1: { x: Math.round(pEnd.x * 10) / 10, y: Math.round(pEnd.y * 10) / 10 },
+          controlPoint2: { x: Math.round(pEnd.x * 10) / 10, y: Math.round(pEnd.y * 10) / 10 },
+        },
+      ];
+    }
+
+    // ── INTELIGENCIA 3: Simplificación Adaptativa de Curvas (RDP Dinámico) ──
+    // Tolerancia adaptativa (0.40m - 0.75m) para capturar solo vértices y arcos significativos
+    const dynamicEpsilon = Math.max(0.40, Math.min(0.75, totalLength * 0.055));
+    let simplified = this.simplifyRDP(smoothed, dynamicEpsilon);
+
     if (simplified.length < 2) {
       simplified = [smoothed[0], smoothed[smoothed.length - 1]];
     }
@@ -118,44 +200,56 @@ export class FreehandPathEngine {
     const n = simplified.length;
     const result: ChoreographyPoint[] = [];
 
-    // Calcular distancias acumuladas para distribución temporal proporcional y realista
     const cumulativeDistances: number[] = [0];
     for (let i = 1; i < n; i++) {
       const dist = Math.hypot(simplified[i].x - simplified[i - 1].x, simplified[i].y - simplified[i - 1].y);
       cumulativeDistances.push(cumulativeDistances[i - 1] + dist);
     }
 
-    // 3. Generar tiradores Bézier C1 continuos para cada segmento
     for (let i = 0; i < n; i++) {
       const p = simplified[i];
       const distFromStart = cumulativeDistances[i];
-      
-      // Tiempo proporcional al desplazamiento en metros (mínimo 600ms por tramo, primer nodo en 0ms)
       const durationMs = i === 0 ? 0 : Math.max(600 * i, Math.round((distFromStart / estimatedSpeedMps) * 1000));
       const nodeTimeMs = baseStartTimeMs + durationMs;
 
-      // Calcular tangentes Catmull-Rom para el segmento hacia el siguiente punto
       let cp1x = p.x;
       let cp1y = p.y;
       let cp2x = p.x;
       let cp2y = p.y;
+
+      let isCorner = false;
+      if (i > 0 && i < n - 1) {
+        const v1x = p.x - simplified[i - 1].x;
+        const v1y = p.y - simplified[i - 1].y;
+        const v2x = simplified[i + 1].x - p.x;
+        const v2y = simplified[i + 1].y - p.y;
+        const dot = v1x * v2x + v1y * v2y;
+        const m1 = Math.hypot(v1x, v1y);
+        const m2 = Math.hypot(v2x, v2y);
+        if (m1 > 0 && m2 > 0) {
+          const cosAngle = Math.max(-1, Math.min(1, dot / (m1 * m2)));
+          const angleDeg = (Math.acos(cosAngle) * 180) / Math.PI;
+          if (angleDeg > 45) {
+            isCorner = true;
+          }
+        }
+      }
 
       if (i < n - 1) {
         const pNext = simplified[i + 1];
         const pPrev = i > 0 ? simplified[i - 1] : { x: p.x - (pNext.x - p.x), y: p.y - (pNext.y - p.y) };
         const pNextNext = i < n - 2 ? simplified[i + 2] : { x: pNext.x + (pNext.x - p.x), y: pNext.y + (pNext.y - p.y) };
 
-        // Vector tangente en p y en pNext
-        const t0x = (pNext.x - pPrev.x) / 2;
-        const t0y = (pNext.y - pPrev.y) / 2;
+        // Si es una esquina intencional, quebrar tangencia para ángulo nítido
+        const t0x = isCorner ? (pNext.x - p.x) : (pNext.x - pPrev.x) / 2;
+        const t0y = isCorner ? (pNext.y - p.y) : (pNext.y - pPrev.y) / 2;
         const t1x = (pNextNext.x - p.x) / 2;
         const t1y = (pNextNext.y - p.y) / 2;
 
         const segDist = Math.hypot(pNext.x - p.x, pNext.y - p.y);
-        const factor = 0.33; // 1/3 para Catmull-Rom a Bézier estándar
-
-        // Limitar la magnitud del tirador para evitar auto-intersecciones en giros muy cerrados
+        const factor = 0.33;
         const maxHandleDist = segDist * 0.45;
+
         const h1Len = Math.hypot(t0x * factor, t0y * factor);
         const scale1 = h1Len > maxHandleDist && h1Len > 0 ? maxHandleDist / h1Len : 1;
 
@@ -167,15 +261,19 @@ export class FreehandPathEngine {
         cp2x = pNext.x - (t1x * factor) * scale2;
         cp2y = pNext.y - (t1y * factor) * scale2;
 
-        // Clamping a límites de la pista
         cp1x = Math.max(0.2, Math.min(49.8, Math.round(cp1x * 10) / 10));
         cp1y = Math.max(0.2, Math.min(24.8, Math.round(cp1y * 10) / 10));
         cp2x = Math.max(0.2, Math.min(49.8, Math.round(cp2x * 10) / 10));
         cp2y = Math.max(0.2, Math.min(24.8, Math.round(cp2y * 10) / 10));
       }
 
-      const isMaster = (i === 0 || i === n - 1);
+      // Nodos Principales: solo Inicio, Fin y Vértices/Esquinas
+      const isMaster = (i === 0 || i === n - 1 || isCorner);
       const nodeType = isMaster ? 'Step' : 'Curve';
+      let label = '';
+      if (i === 0) label = 'Inicio Trazo';
+      else if (i === n - 1) label = 'Fin Trazo';
+      else if (isCorner) label = 'Vértice';
 
       result.push({
         id: crypto.randomUUID(),
@@ -184,7 +282,7 @@ export class FreehandPathEngine {
         time_ms: nodeTimeMs,
         timestamp: nodeTimeMs,
         type: nodeType,
-        label: isMaster ? (i === 0 ? 'Inicio Trazo' : 'Fin Trazo') : '',
+        label,
         cp1x,
         cp1y,
         cp2x,

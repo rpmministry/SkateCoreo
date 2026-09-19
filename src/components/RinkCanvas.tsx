@@ -483,10 +483,17 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       }
     }
 
-    // 2. Comprobar si tocó un Nodo Maestro existente
+    // 2. Comprobar si tocó un Nodo Maestro existente (Nodos Principales)
     if (!hitFound) {
       let hitNode: ChoreographyPoint | null = null;
-      for (const p of points) {
+      for (let i = 0; i < points.length; i++) {
+        const p = points[i];
+        const isStartOrEnd = i === 0 || i === points.length - 1;
+        const hasTechnicalLabel = Boolean(p.label && p.label.trim() !== '' && p.label !== 'Curve');
+        const isPrincipalType = p.type ? p.type !== 'Curve' : true;
+        const isPrincipal = isStartOrEnd || isPrincipalType || hasTechnicalLabel || Boolean(p.element_id) || p.id === selectedPointId;
+        if (!isPrincipal) continue;
+
         const { px, py } = RinkMath.metersToPixels(p.x, p.y, metrics);
         if (Math.hypot(worldPx - px, worldPy - py) < hitRadius) {
           hitNode = p;
@@ -638,7 +645,14 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       }
     }
     if (!isHovering) {
-      for (const p of points) {
+      for (let i = 0; i < points.length; i++) {
+        const p = points[i];
+        const isStartOrEnd = i === 0 || i === points.length - 1;
+        const hasTechnicalLabel = Boolean(p.label && p.label.trim() !== '' && p.label !== 'Curve');
+        const isPrincipalType = p.type ? p.type !== 'Curve' : true;
+        const isPrincipal = isStartOrEnd || isPrincipalType || hasTechnicalLabel || Boolean(p.element_id) || p.id === selectedPointId;
+        if (!isPrincipal) continue;
+
         const { px, py } = RinkMath.metersToPixels(p.x, p.y, metrics);
         if (Math.hypot(worldPx - px, worldPy - py) < hitRadius) {
           isHovering = true;

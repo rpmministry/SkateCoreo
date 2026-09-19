@@ -328,7 +328,9 @@ export class RinkRenderer {
   }
 
   /**
-   * Dibuja los puntos de anclaje de posición estándar de la coreografía
+   * Dibuja los puntos de anclaje de posición estándar de la coreografía.
+   * Filtro visual inteligente: Muestra ÚNICAMENTE los Nodos Principales (Nodos Maestros),
+   * ocultando los puntos de curvatura intermedios para que la línea se vea limpia y despejada.
    */
   public static drawAnchorPoints(
     ctx: CanvasRenderingContext2D,
@@ -336,9 +338,29 @@ export class RinkRenderer {
     points: ChoreographyPathPoint[],
     selectedPointId: string | null
   ) {
+    let visibleIndex = 0;
+
     points.forEach((p, idx) => {
-      const { px, py } = RinkMath.metersToPixels(p.x, p.y, metrics);
       const isSelected = selectedPointId === p.id;
+      const isStartOrEnd = idx === 0 || idx === points.length - 1;
+      const hasTechnicalLabel = Boolean(p.label && p.label.trim() !== '' && p.label !== 'Curve');
+      const hasElement = Boolean(p.element_id);
+      const isPrincipalType = p.type ? p.type !== 'Curve' : true;
+
+      // Un nodo es Principal (Nodo Maestro) si:
+      //  1. Es el inicio o fin del recorrido
+      //  2. O tiene tipo técnico distinto a 'Curve' (ej: 'Step', 'Jump', 'Spin', etc.)
+      //  3. O tiene figura/etiqueta asignada o elemento RollArt
+      //  4. O está seleccionado activamente por el usuario
+      const isPrincipalNode = isStartOrEnd || isPrincipalType || hasTechnicalLabel || hasElement || isSelected;
+
+      // Si es un nodo de curvatura intermedio y no está seleccionado, NO se dibuja como círculo para no saturar la línea
+      if (!isPrincipalNode) {
+        return;
+      }
+
+      visibleIndex++;
+      const { px, py } = RinkMath.metersToPixels(p.x, p.y, metrics);
 
       ctx.save();
 
@@ -366,12 +388,12 @@ export class RinkRenderer {
       ctx.strokeStyle = isSelected ? '#FFFFFF' : '#64748B';
       ctx.stroke();
 
-      // 3. Número de orden del nodo centrado en el interior
+      // 3. Número de orden del nodo centrado en el interior (secuencia de Nodos Principales)
       ctx.fillStyle = isSelected ? '#0B0F19' : '#CBD5E1';
       ctx.font = 'bold 9.5px JetBrains Mono, monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(`${idx + 1}`, px, py);
+      ctx.fillText(`${visibleIndex}`, px, py);
 
       // 4. Etiqueta / Nombre de la figura debajo del nodo
       if (p.label) {
