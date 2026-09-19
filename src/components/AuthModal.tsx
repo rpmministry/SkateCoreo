@@ -24,10 +24,12 @@ import { useAuthStore } from '../store/useAuthStore';
 export const AuthModal: React.FC = () => {
   const { 
     user, 
-    role,
-    subscription_status, 
+    access_expires_at,
+    hasActiveAccess,
+    getFormattedExpiration,
     loginWithGoogle, 
     loginWithEmail, 
+    verifyEmailOtp,
     subscribePlan, 
     redeemPromoCode,
     logout,
@@ -35,7 +37,10 @@ export const AuthModal: React.FC = () => {
   } = useAuthStore();
 
   const [emailInput, setEmailInput] = useState('');
+  const [otpInput, setOtpInput] = useState('');
   const [showEmailForm, setShowEmailForm] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+  const [authFeedback, setAuthFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Estado del Input Desplegable de Códigos
   const [showPromoInput, setShowPromoInput] = useState(false);
@@ -43,14 +48,33 @@ export const AuthModal: React.FC = () => {
   const [promoLoading, setPromoLoading] = useState(false);
   const [promoFeedback, setPromoFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  // Acceso concedido si está suscrito O si tiene rol Tester / Superadmin
-  const hasAccess = !!user && (
-    subscription_status === 'active' || 
-    role === 'tester' || 
-    role === 'superadmin'
-  );
+  // Verificación estricta en la nube: access_expires_at > NOW
+  const hasAccess = hasActiveAccess();
 
   if (hasAccess) return null;
+
+  const handleSendEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emailInput.trim()) return;
+    setAuthFeedback(null);
+    const res = await loginWithEmail(emailInput);
+    if (res.success) {
+      setEmailSent(true);
+      setAuthFeedback({ type: 'success', message: res.message });
+    } else {
+      setAuthFeedback({ type: 'error', message: res.message });
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!otpInput.trim()) return;
+    setAuthFeedback(null);
+    const res = await verifyEmailOtp(emailInput, otpInput);
+    if (!res.success) {
+      setAuthFeedback({ type: 'error', message: res.message });
+    }
+  };
 
   // Manejo del Canje de Código mediante Supabase RPC
   const handleRedeemCode = async (e: React.FormEvent) => {
@@ -129,18 +153,18 @@ export const AuthModal: React.FC = () => {
               <span>{isLoading ? 'Conectando con Google...' : 'Continuar con Google'}</span>
             </button>
 
-            {/* Botón 2: Acceder con Email */}
+            {/* Botón 2: Acceder con Email (Passwordless / OTP / Magic Link) */}
             {!showEmailForm ? (
               <button
                 type="button"
-                onClick={() => setShowEmailForm(true)}
+                onClick={() => { setShowEmailForm(true); setEmailSent(false); setAuthFeedback(null); }}
                 className="w-full min-h-[48px] px-4 py-3 rounded-2xl bg-slate-800/90 hover:bg-slate-800 text-slate-200 hover:text-white font-bold text-xs flex items-center justify-center gap-2 border border-white/10 active:scale-[0.98] transition-all"
               >
                 <Mail className="w-4 h-4 text-cyan" />
-                <span>Acceder con Email</span>
+                <span>Acceder con Email (Magic Link / OTP)</span>
               </button>
-            ) : (
-              <form onSubmit={(e) => { e.preventDefault(); loginWithEmail(emailInput); }} className="space-y-2 pt-1">
+            ) : !emailSent ? (
+              <form onSubmit={handleSendEmail} className="space-y-2 pt-1">
                 <input
                   type="email"
                   required
@@ -149,19 +173,62 @@ export const AuthModal: React.FC = () => {
                   placeholder="nombre@tucorreo.com"
                   className="w-full min-h-[44px] px-4 py-2.5 rounded-xl bg-slate-950 border border-white/15 text-white text-xs placeholder:text-slate-500 focus:border-cyan focus:outline-none"
                 />
+                {authFeedback && (
+                  <p className={`text-[11px] ${authFeedback.type === 'success' ? 'text-mint' : 'text-coral'}`}>
+                    {authFeedback.message}
+                  </p>
+                )}
                 <div className="flex gap-2">
                   <button
                     type="submit"
-                    className="flex-1 min-h-[42px] py-2 rounded-xl bg-cyan text-slate-950 font-bold text-xs hover:bg-cyan/90 transition-all"
+                    disabled={isLoading}
+                    className="flex-1 min-h-[42px] py-2 rounded-xl bg-cyan text-slate-950 font-bold text-xs hover:bg-cyan/90 transition-all disabled:opacity-50"
                   >
-                    Enviar Enlace Mágico
+                    {isLoading ? 'Enviando...' : 'Enviar Código y Enlace'}
                   </button>
                   <button
                     type="button"
-                    onClick={() => setShowEmailForm(false)}
+                    onClick={() => { setShowEmailForm(false); setAuthFeedback(null); }}
                     className="px-4 py-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white text-xs"
                   >
                     Cancelar
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleVerifyOtp} className="space-y-2 pt-1">
+                <div className="p-3 rounded-xl bg-slate-950/80 border border-cyan/30 text-[11px] text-slate-300">
+                  <p className="text-cyan font-bold mb-1">¡Código de acceso enviado!</p>
+                  <p>Revisa tu correo <strong>{emailInput}</strong> e introduce el código de 6 dígitos o haz clic en el enlace mágico.</p>
+                </div>
+                <input
+                  type="text"
+                  required
+                  maxLength={8}
+                  value={otpInput}
+                  onChange={(e) => setOtpInput(e.target.value.trim())}
+                  placeholder="Código de 6 dígitos (ej. 123456)"
+                  className="w-full min-h-[44px] px-4 py-2.5 rounded-xl bg-slate-950 border border-white/15 text-center font-mono font-bold tracking-widest text-sm text-cyan placeholder:text-slate-600 focus:border-cyan focus:outline-none"
+                />
+                {authFeedback && (
+                  <p className={`text-[11px] ${authFeedback.type === 'success' ? 'text-mint' : 'text-coral'}`}>
+                    {authFeedback.message}
+                  </p>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="flex-1 min-h-[42px] py-2 rounded-xl bg-mint text-slate-950 font-bold text-xs hover:bg-mint/90 transition-all disabled:opacity-50"
+                  >
+                    {isLoading ? 'Verificando...' : 'Validar Código'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setEmailSent(false); setAuthFeedback(null); }}
+                    className="px-4 py-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white text-xs"
+                  >
+                    Volver
                   </button>
                 </div>
               </form>
@@ -171,10 +238,10 @@ export const AuthModal: React.FC = () => {
             <div className="pt-2 text-center">
               <button
                 type="button"
-                onClick={() => useAuthStore.getState().simulateLogin('patinadora.demo@rollart.com', 'Atleta Demo')}
+                onClick={() => useAuthStore.getState().simulateLogin('patinadora.demo@rollart.com', 'Atleta Demo', 'user', 365)}
                 className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
               >
-                ¿Quieres probar primero? <span className="text-cyan underline">Iniciar modo demo</span>
+                ¿Quieres probar primero? <span className="text-cyan underline">Iniciar modo demo (365 días)</span>
               </button>
             </div>
           </div>
@@ -189,9 +256,20 @@ export const AuthModal: React.FC = () => {
                 <div className="w-6 h-6 rounded-full bg-cyan/20 border border-cyan/40 flex items-center justify-center text-[10px] font-bold text-cyan shrink-0">
                   {user.email.charAt(0).toUpperCase()}
                 </div>
-                <span className="truncate text-slate-300 text-[11px]" title={user.email}>
-                  {user.email}
-                </span>
+                <div className="truncate">
+                  <span className="truncate text-slate-300 text-[11px] block" title={user.email}>
+                    {user.email}
+                  </span>
+                  {access_expires_at ? (
+                    <span className="text-[10px] text-coral block font-medium">
+                      Expiró el {getFormattedExpiration()}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-amber-400 block font-medium">
+                      Sin suscripción anual
+                    </span>
+                  )}
+                </div>
               </div>
               <button
                 type="button"
