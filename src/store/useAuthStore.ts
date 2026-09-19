@@ -86,11 +86,20 @@ const loadSavedSession = (): {
   return { user: null, role: 'user', status: 'inactive', plan: null, access_expires_at: null };
 };
 
+const SUPERUSER_EMAILS = [
+  'recursosparaministerios@gmail.com',
+  'andradesanchezavril@gmail.com',
+  'karenprofet@gmail.com',
+  'contacto@alsiztech.com',
+  'contactoalsiztech.com',
+  'mauriandrade2@gmail.com',
+];
+
 export const isOwnerOrAdmin = (email?: string): boolean => {
   if (!email) return false;
   const clean = email.toLowerCase().trim();
+  if (SUPERUSER_EMAILS.includes(clean)) return true;
   return (
-    clean === 'recursosparaministerios@gmail.com' ||
     clean.includes('alsiztech') ||
     clean.includes('admin@skateart') ||
     clean.includes('mauricio')
@@ -343,9 +352,7 @@ export const useAuthStore = create<AuthStoreState>((set, get) => {
           });
           if (error) throw error;
         } else {
-          // Fallback de demostración
-          await new Promise((res) => setTimeout(res, 500));
-          get().simulateLogin('patinadora.google@gmail.com', 'Atleta Google', 'tester', 365);
+          throw new Error('Servicio de Google OAuth no disponible.');
         }
       } catch (err: any) {
         console.error('Error al iniciar con Google:', err);
@@ -361,17 +368,17 @@ export const useAuthStore = create<AuthStoreState>((set, get) => {
         return { success: false, message: 'Por favor escribe un correo válido.' };
       }
 
-      // Bypass Inmediato para el Propietario / Administrador
+      // Bypass Inmediato para los Superusuarios Autorizados con Acceso Total
       if (isOwnerOrAdmin(cleanEmail)) {
         get().simulateLogin(
           cleanEmail,
-          'Mauricio Andrade (Admin)',
+          cleanEmail.split('@')[0],
           'superadmin',
           3650
         );
         return { 
           success: true, 
-          message: '¡Bienvenido Administrador! Acceso verificado y desbloqueado directamente.' 
+          message: '¡Superusuario verificado! Acceso total concedido.' 
         };
       }
 
@@ -386,29 +393,20 @@ export const useAuthStore = create<AuthStoreState>((set, get) => {
           });
           if (error) {
             console.warn('Supabase auth signInWithOtp error:', error.message);
-            // Si Supabase devuelve "email rate limit exceeded" (límite de envíos alcanzado en la capa gratuita):
-            // Conceder acceso de contingencia para que el usuario no quede bloqueado
             if (error.message.toLowerCase().includes('rate limit') || (error as any).status === 429) {
-              get().simulateLogin(cleanEmail, cleanEmail.split('@')[0], 'user', 365);
-              return { 
-                success: true, 
-                message: '¡Acceso directo concedido! (Límite de correos superado en Supabase, acceso de contingencia activado).' 
+              return {
+                success: false,
+                message: 'Límite temporal de correos excedido por seguridad. Inténtalo más tarde o ingresa con tu código de activación.',
               };
             }
             throw error;
           }
           return { success: true, message: '¡Código y enlace de acceso enviados! Revisa tu bandeja de entrada.' };
         } else {
-          get().simulateLogin(cleanEmail, cleanEmail.split('@')[0], 'user', 365);
-          return { success: true, message: 'Modo demo iniciado correctamente.' };
+          return { success: false, message: 'El servicio de autenticación no está disponible en este momento.' };
         }
       } catch (err: any) {
         console.error('Error al autenticar con Email:', err);
-        // Si el catch atrapa el rate limit, permitir acceso inmediato sin bloquear
-        if (err?.message?.toLowerCase().includes('rate limit')) {
-          get().simulateLogin(cleanEmail, cleanEmail.split('@')[0], 'user', 365);
-          return { success: true, message: '¡Acceso directo concedido por límite de correos superado!' };
-        }
         return { success: false, message: err?.message || 'Error al enviar código de acceso.' };
       } finally {
         set({ isLoading: false });
@@ -437,8 +435,7 @@ export const useAuthStore = create<AuthStoreState>((set, get) => {
             return { success: true, message: '¡Sesión validada exitosamente!' };
           }
         } else {
-          get().simulateLogin(email, email.split('@')[0], 'user', 365);
-          return { success: true, message: 'Código demo aceptado.' };
+          return { success: false, message: 'Servicio de validación no disponible.' };
         }
         return { success: false, message: 'No se pudo verificar el código.' };
       } catch (err: any) {

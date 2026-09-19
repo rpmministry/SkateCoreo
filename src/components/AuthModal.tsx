@@ -108,21 +108,6 @@ export const AuthModal: React.FC = () => {
     >
       <div className="relative w-full max-w-lg bg-slate-900/95 border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-black/90 backdrop-blur-xl text-white my-auto animate-in fade-in zoom-in-95 duration-200">
         
-        {/* Botón de salida/cierre directo si el usuario ya está conectado */}
-        {user && (
-          <button
-            type="button"
-            onClick={() => {
-              // Otorgar acceso para continuar directo al lienzo
-              useAuthStore.getState().simulateLogin(user.email, user.nombre, 'user', 365);
-            }}
-            className="absolute top-4 right-4 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-all text-xs font-bold flex items-center gap-1 border border-white/5"
-            title="Continuar al editor de pista"
-          >
-            <span>Ir al Editor ✕</span>
-          </button>
-        )}
-
         {/* Halos Neón Decorativos */}
         <div className="absolute -top-12 -right-12 w-40 h-40 bg-cyan/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-12 -left-12 w-40 h-40 bg-coral/15 rounded-full blur-3xl pointer-events-none" />
@@ -321,17 +306,6 @@ export const AuthModal: React.FC = () => {
                   )}
                 </form>
               )}
-            </div>
-
-            {/* Botón sutil de modo demostración rápida */}
-            <div className="pt-2 text-center">
-              <button
-                type="button"
-                onClick={() => useAuthStore.getState().simulateLogin('patinadora.demo@rollart.com', 'Atleta Demo', 'user', 365)}
-                className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors"
-              >
-                ¿Quieres probar primero? <span className="text-cyan underline">Iniciar modo demo (365 días)</span>
-              </button>
             </div>
           </div>
         ) : (
