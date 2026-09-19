@@ -496,7 +496,14 @@ export function App() {
           {/* Play / Pause Master Transport */}
           <button
             type="button"
-            onClick={() => isAudioActive ? audioEngine.pause() : audioEngine.play()}
+            onClick={() => {
+              if (isAudioActive) {
+                audioEngine.pause();
+              } else {
+                if (phase === 'plot' && canDraw) setPhase('curve');
+                audioEngine.play();
+              }
+            }}
             disabled={!audioState.hasAudioLoaded}
             title={isAudioActive ? 'Pausar' : 'Reproducir'}
             className={[
@@ -523,6 +530,35 @@ export function App() {
           >
             <Square className="w-3.5 h-3.5 fill-current stroke-none" />
           </button>
+
+          {/* Botón Maestro Fase (Header Desktop): Conectar Ruta vs Colocar Nodos */}
+          {phase === 'plot' ? (
+            <button
+              type="button"
+              onClick={() => { if (canDraw) setPhase('curve'); }}
+              disabled={!canDraw}
+              className={[
+                'hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black interactive-tap transition-all shadow-soft-elevation',
+                canDraw
+                  ? 'bg-coral text-white shadow-glow-coral hover:bg-coral-hover'
+                  : 'bg-neon-card text-slate-500 opacity-50 cursor-not-allowed',
+              ].join(' ')}
+              title={canDraw ? 'Terminar colocación y conectar ruta' : 'Coloca al menos 2 nodos'}
+            >
+              <Route className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span className="hidden xl:inline">Conectar Ruta</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setPhase('plot')}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-neon-card hover:bg-neon-hover text-slate-300 hover:text-white shadow-soft-elevation interactive-tap transition-all"
+              title="Volver a colocar nodos libremente tocando la pista sin que las líneas estorben"
+            >
+              <PenTool className="w-3.5 h-3.5 text-amber-400 stroke-[2]" />
+              <span className="hidden xl:inline">+ Colocar Nodos</span>
+            </button>
+          )}
 
           {/* Botón Rápido Limpiar Pista 2D (Header Desktop) */}
           <button

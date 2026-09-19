@@ -147,6 +147,13 @@ export class RinkRenderer {
       return;
     }
 
+    // FASE DE COLOCACIÓN DE NODOS (phase === 'plot'):
+    // No se trazan las líneas hasta terminar de colocar los nodos a elección o nodos de tiempo.
+    // Solo se renderizan en fase 'curve' (o 'connect') o con showFullTrailOverride.
+    if (options.phase === 'plot' && !showFullTrailOverride) {
+      return;
+    }
+
     // FASE DE EDICIÓN / PREVIEW (o botón Ver Trazo Completo):
     // Se dibuja la guía visual de las trayectorias
     const { offsetX, offsetY, renderedW, renderedH, scale } = metrics;
@@ -683,7 +690,7 @@ export class RinkRenderer {
     points: ChoreographyPathPoint[],
     options: RenderOptions
   ) {
-    if (!options.showControlHandles || points.length < 2) return;
+    if (!options.showControlHandles || points.length < 2 || options.phase === 'plot') return;
     // Capa 1: UI y Controles (Tiradores y Nodos). Visible solo en isEditing = true (!isPlaying).
     if (options.isPlaying) return;
 

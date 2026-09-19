@@ -396,8 +396,8 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     const hitRadius = 30 / camera.zoom;
     let hitFound = false;
 
-    // 1. Comprobar tiradores Bézier CP1 y CP2 en TODOS los tramos (entre nodos de posición y tiempos)
-    if (!audio.isPlaying && showControlHandles && points.length >= 2) {
+    // 1. Comprobar tiradores Bézier CP1 y CP2 en TODOS los tramos (activos únicamente fuera de fase 'plot')
+    if (!audio.isPlaying && showControlHandles && points.length >= 2 && phase !== 'plot') {
       const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
       for (let i = 0; i < sorted.length - 1; i++) {
         const p0 = sorted[i];
@@ -441,8 +441,8 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       }
     }
 
-    // 3. Comprobar toque directo en el trayecto para esculpir la curva o seleccionar el tramo
-    if (!hitFound && !audio.isPlaying && points.length >= 2 && !isAddingFreeTimeNodes) {
+    // 3. Comprobar toque directo en el trayecto para esculpir la curva o seleccionar el tramo (solo cuando la ruta está conectada)
+    if (!hitFound && !audio.isPlaying && points.length >= 2 && !isAddingFreeTimeNodes && phase !== 'plot') {
       const { mX, mY } = RinkMath.pixelsToMeters(worldPx, worldPy, metrics, DEFAULT_RINK_DIMENSIONS);
       const nearest = RinkMath.findNearestPointOnPath(points, mX, mY);
       const maxTapDistMeters = 1.8 / (camera.zoom || 1);
@@ -624,21 +624,25 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       }
 
       // ── CASO TOQUE RÁPIDO EN FONDO VACÍO:
-      if (selectedPointId) {
-        // Deselección limpia
-        setSelectedPointId(null);
-        onNodeSelect?.(null);
-      } else if (points.length < 2) {
-        // En ploteo inicial: creación de los primeros 2 nodos para trazar la ruta inicial
+      if (phase === 'plot') {
+        // ── MODO COLOCACIÓN DE NODOS (Fase Plot):
+        // Cada toque en la pista añade un nuevo nodo/punto sin trazar líneas aún
         const metrics = getMetrics();
         const { x: worldPx, y: worldPy } = screenToWorld(e.clientX, e.clientY, canvas);
         const { mX, mY } = RinkMath.pixelsToMeters(worldPx, worldPy, metrics, DEFAULT_RINK_DIMENSIONS);
-        if (mX >= 1 && mX <= 49 && mY >= 1 && mY <= 24) {
+        if (mX >= 0.5 && mX <= 49.5 && mY >= 0.5 && mY <= 24.5) {
           const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
           const lastTime = sorted.length > 0 ? sorted[sorted.length - 1].time_ms : 0;
-          const newTime = audio.currentTimeMs > 0 ? audio.currentTimeMs : lastTime + 15000;
-          addPointAtCanvas(mX, mY, newTime);
+          const newTime = audio.currentTimeMs > 0 ? audio.currentTimeMs : lastTime + 10000;
+          const newPt = addPointAtCanvas(mX, mY, newTime);
+          setSelectedPointId(newPt.id);
+          onNodeSelect?.(newPt.id);
         }
+      } else {
+        // ── MODO CURVAS / RUTA TRAZADA (Fase Curve):
+        // Tocar el suelo vacío únicamente deselecciona, evitando líneas o nodos accidentales
+        setSelectedPointId(null);
+        onNodeSelect?.(null);
       }
     }
 

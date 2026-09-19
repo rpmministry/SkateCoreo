@@ -56,6 +56,8 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
 
   const showControlHandles = useChoreographyStore((s) => s.showControlHandles);
   const setShowControlHandles = useChoreographyStore((s) => s.setShowControlHandles);
+  const phase = useChoreographyStore((s) => s.phase);
+  const setPhase = useChoreographyStore((s) => s.setPhase);
 
   // Sistema de Nodos de Tiempo (Time Nodes)
   const isAddingFreeTimeNodes = useChoreographyStore((s) => s.isAddingFreeTimeNodes);
@@ -157,31 +159,87 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
         {/* ── Action Dock: Controles Coreográficos & Tiradores ─── */}
         <div className="px-4 py-3.5 space-y-3 border-b border-white/5">
 
-          {/* Botón Maestro: Estado del Trazado & Tiradores Bézier */}
-          <button
-            type="button"
-            onClick={() => setShowControlHandles(!showControlHandles)}
-            className={[
-              'w-full flex items-center justify-between px-4 py-3 rounded-2xl text-xs font-bold transition-all interactive-tap shadow-soft-elevation',
-              showControlHandles
-                ? 'bg-cyan/15 text-cyan border border-cyan/40 shadow-glow-cyan'
-                : 'bg-neon-card hover:bg-neon-hover text-slate-400 hover:text-white',
-            ].join(' ')}
-            title="Alterna la visibilidad de los tiradores de control Bézier (CP1 y CP2)"
-          >
-            <div className="flex items-center gap-2">
-              <SlidersHorizontal className="w-4 h-4 stroke-[2]" />
-              <span>Tiradores Bézier</span>
+          {/* ── BOTÓN MAESTRO DE FASE: Colocación de Nodos vs Trazado de Ruta ── */}
+          {phase === 'plot' ? (
+            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-2.5 shadow-soft-elevation">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-amber-400 flex items-center gap-1.5">
+                  <PenTool className="w-3.5 h-3.5" />
+                  Modo Colocar Nodos
+                </span>
+                <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold">
+                  {points.length} {points.length === 1 ? 'nodo' : 'nodos'}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-300 leading-snug">
+                Toca la pista libremente para colocar tus nodos y tiempos. Las líneas no se trazarán hasta que termines.
+              </p>
+              <button
+                type="button"
+                onClick={() => setPhase('curve')}
+                disabled={points.length < 2}
+                className={[
+                  'w-full py-2.5 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-2 interactive-tap shadow-soft-elevation',
+                  points.length >= 2
+                    ? 'bg-coral text-white shadow-glow-coral hover:bg-coral-hover'
+                    : 'bg-white/5 text-slate-500 cursor-not-allowed'
+                ].join(' ')}
+                title={points.length >= 2 ? 'Conectar todos los nodos y trazar líneas de trayectoria' : 'Coloca al menos 2 nodos para trazar'}
+              >
+                <Route className="w-4 h-4 stroke-[2.5]" />
+                {points.length >= 2 ? '⚡ Conectar y Trazar Ruta' : 'Coloca mínimo 2 nodos'}
+              </button>
             </div>
-            <span
+          ) : (
+            <div className="p-3 rounded-2xl bg-cyan/10 border border-cyan/30 space-y-2 shadow-soft-elevation">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-cyan flex items-center gap-1.5">
+                  <Route className="w-3.5 h-3.5" />
+                  Ruta Trazada y Conectada
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPhase('plot')}
+                  className="text-[10px] font-bold px-2 py-1 rounded-lg bg-neon-card hover:bg-neon-hover text-slate-300 hover:text-white border border-white/10 transition-all flex items-center gap-1"
+                  title="Volver a colocar nodos libremente tocando la pista"
+                >
+                  <Plus className="w-3 h-3 text-amber-400" />
+                  + Colocar Nodos
+                </button>
+              </div>
+              <p className="text-[10px] text-slate-400 leading-tight">
+                Trayecto continuo activo. Arrastra las curvas directamente o usa los tiradores CP1/CP2 para esculpirlas.
+              </p>
+            </div>
+          )}
+
+          {/* Botón Maestro: Estado del Trazado & Tiradores Bézier (visible en fase 'curve') */}
+          {phase === 'curve' && (
+            <button
+              type="button"
+              onClick={() => setShowControlHandles(!showControlHandles)}
               className={[
-                'text-[10px] font-mono px-2 py-0.5 rounded-full font-black',
-                showControlHandles ? 'bg-cyan text-black' : 'bg-neon-surface text-slate-500',
+                'w-full flex items-center justify-between px-4 py-3 rounded-2xl text-xs font-bold transition-all interactive-tap shadow-soft-elevation',
+                showControlHandles
+                  ? 'bg-cyan/15 text-cyan border border-cyan/40 shadow-glow-cyan'
+                  : 'bg-neon-card hover:bg-neon-hover text-slate-400 hover:text-white',
               ].join(' ')}
+              title="Alterna la visibilidad de los tiradores de control Bézier (CP1 y CP2)"
             >
-              {showControlHandles ? 'ACTIVOS' : 'OCULTOS'}
-            </span>
-          </button>
+              <div className="flex items-center gap-2">
+                <SlidersHorizontal className="w-4 h-4 stroke-[2]" />
+                <span>Tiradores Bézier</span>
+              </div>
+              <span
+                className={[
+                  'text-[10px] font-mono px-2 py-0.5 rounded-full font-black',
+                  showControlHandles ? 'bg-cyan text-black' : 'bg-neon-surface text-slate-500',
+                ].join(' ')}
+              >
+                {showControlHandles ? 'ACTIVOS' : 'OCULTOS'}
+              </span>
+            </button>
+          )}
 
           {/* Feedback de la coreografía */}
           <div className="flex items-center justify-between px-1 text-[11px] text-slate-400">
