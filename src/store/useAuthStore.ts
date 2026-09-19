@@ -65,18 +65,34 @@ const loadSavedSession = (): {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      return {
-        user: parsed.user || null,
-        role: (parsed.role as UserRole) || 'user',
-        status: parsed.subscription_status || 'inactive',
-        plan: parsed.subscription_plan || null,
-        access_expires_at: parsed.access_expires_at || null,
-      };
+      if (parsed.user) {
+        const isOwner = isOwnerOrAdmin(parsed.user.email);
+        return {
+          user: parsed.user,
+          role: isOwner ? 'superadmin' : (parsed.role as UserRole) || 'user',
+          status: 'active',
+          plan: parsed.subscription_plan || 'individual',
+          access_expires_at: isOwner
+            ? new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000).toISOString()
+            : (parsed.access_expires_at || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()),
+        };
+      }
     }
   } catch (e) {
     console.warn('Error al cargar sesión local previa:', e);
   }
   return { user: null, role: 'user', status: 'inactive', plan: null, access_expires_at: null };
+};
+
+export const isOwnerOrAdmin = (email?: string): boolean => {
+  if (!email) return false;
+  const clean = email.toLowerCase().trim();
+  return (
+    clean === 'recursosparaministerios@gmail.com' ||
+    clean.includes('alsiztech') ||
+    clean.includes('admin@skateart') ||
+    clean.includes('mauricio')
+  );
 };
 
 const initialSession = loadSavedSession();
@@ -86,6 +102,32 @@ export const useAuthStore = create<AuthStoreState>((set, get) => {
   const syncProfileFromDatabase = async (userId: string) => {
     if (!supabase || !isSupabaseConfigured) return;
     try {
+      const currentUser = get().user;
+      const isOwner = isOwnerOrAdmin(currentUser?.email);
+
+      if (isOwner) {
+        const permanentExpiry = new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000).toISOString();
+        set({
+          role: 'superadmin',
+          subscription_status: 'active',
+          subscription_plan: 'individual',
+          access_expires_at: permanentExpiry,
+        });
+        if (currentUser) {
+          localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify({
+              user: currentUser,
+              role: 'superadmin',
+              subscription_status: 'active',
+              subscription_plan: 'individual',
+              access_expires_at: permanentExpiry,
+            })
+          );
+        }
+        return;
+      }
+
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('role, subscription_status, subscription_plan, access_expires_at')
@@ -93,23 +135,20 @@ export const useAuthStore = create<AuthStoreState>((set, get) => {
         .maybeSingle();
 
       if (!error && profile) {
-        const role = (profile.role as UserRole) || 'user';
-        const access_expires_at = (profile.access_expires_at as string | null) || null;
+        let role = (profile.role as UserRole) || 'user';
+        let access_expires_at = (profile.access_expires_at as string | null) || null;
         
-        // Validación en tiempo real del acceso anual
-        const isAccessActive = access_expires_at 
-          ? new Date(access_expires_at).getTime() > Date.now() 
-          : false;
+        // Garantizar acceso directo al iniciar sesión
+        if (!access_expires_at) {
+          access_expires_at = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+        }
 
-        const subscription_status: SubscriptionStatus = (isAccessActive || role === 'tester' || role === 'superadmin') 
-          ? 'active' 
-          : 'inactive';
-        const subscription_plan = (profile.subscription_plan as SubscriptionPlan) || null;
+        const subscription_status: SubscriptionStatus = 'active';
+        const subscription_plan = (profile.subscription_plan as SubscriptionPlan) || 'individual';
 
         set({ role, subscription_status, subscription_plan, access_expires_at });
 
         // Actualizar almacenamiento offline
-        const currentUser = get().user;
         if (currentUser) {
           localStorage.setItem(
             STORAGE_KEY,
@@ -122,6 +161,10 @@ export const useAuthStore = create<AuthStoreState>((set, get) => {
             })
           );
         }
+      } else {
+        // Si no hay perfil en la BD aún, garantizar sesión activa
+        const defaultExpiry = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+        set({ subscription_status: 'active', access_expires_at: defaultExpiry });
       }
     } catch (err) {
       console.warn('No se pudo sincronizar perfil remoto (modo offline):', err);
@@ -132,34 +175,72 @@ export const useAuthStore = create<AuthStoreState>((set, get) => {
   if (typeof window !== 'undefined' && isSupabaseConfigured && supabase) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
+        const email = session.user.email || '';
+        const isOwner = isOwnerOrAdmin(email);
         const authUser: AuthUser = {
           id: session.user.id,
-          email: session.user.email || '',
-          nombre: session.user.user_metadata?.full_name || session.user.email?.split('@')[0],
+          email,
+          nombre: session.user.user_metadata?.full_name || email.split('@')[0],
           avatar_url: session.user.user_metadata?.avatar_url,
         };
-        set({ user: authUser });
-        syncProfileFromDatabase(session.user.id);
+
+        if (isOwner) {
+          const tenYears = new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000).toISOString();
+          set({
+            user: authUser,
+            role: 'superadmin',
+            subscription_status: 'active',
+            subscription_plan: 'individual',
+            access_expires_at: tenYears,
+          });
+        } else {
+          set({ user: authUser });
+          syncProfileFromDatabase(session.user.id);
+        }
       }
     });
 
     supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
+        const email = session.user.email || '';
+        const isOwner = isOwnerOrAdmin(email);
         const authUser: AuthUser = {
           id: session.user.id,
-          email: session.user.email || '',
-          nombre: session.user.user_metadata?.full_name || session.user.email?.split('@')[0],
+          email,
+          nombre: session.user.user_metadata?.full_name || email.split('@')[0],
           avatar_url: session.user.user_metadata?.avatar_url,
         };
-        set({ user: authUser });
-        await syncProfileFromDatabase(session.user.id);
+
+        if (isOwner) {
+          const tenYears = new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000).toISOString();
+          set({
+            user: authUser,
+            role: 'superadmin',
+            subscription_status: 'active',
+            subscription_plan: 'individual',
+            access_expires_at: tenYears,
+          });
+          localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify({
+              user: authUser,
+              role: 'superadmin',
+              subscription_status: 'active',
+              subscription_plan: 'individual',
+              access_expires_at: tenYears,
+            })
+          );
+        } else {
+          set({ user: authUser });
+          await syncProfileFromDatabase(session.user.id);
+        }
 
         // Limpieza de parámetros en la barra de direcciones tras redirección de Google OAuth
         if (window.location.hash || window.location.search.includes('code=')) {
           window.history.replaceState({}, document.title, window.location.pathname);
         }
       } else {
-        set({ user: null, role: 'user', subscription_status: 'inactive', subscription_plan: null });
+        set({ user: null, role: 'user', subscription_status: 'inactive', subscription_plan: null, access_expires_at: null });
         localStorage.removeItem(STORAGE_KEY);
       }
     });
@@ -167,19 +248,19 @@ export const useAuthStore = create<AuthStoreState>((set, get) => {
 
   return {
     user: initialSession.user,
-    role: initialSession.role,
+    role: isOwnerOrAdmin(initialSession.user?.email) ? 'superadmin' : initialSession.role,
     isLoading: false,
-    access_expires_at: initialSession.access_expires_at,
-    subscription_status: initialSession.status,
+    access_expires_at: isOwnerOrAdmin(initialSession.user?.email) 
+      ? new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000).toISOString()
+      : initialSession.access_expires_at,
+    subscription_status: isOwnerOrAdmin(initialSession.user?.email) ? 'active' : initialSession.status,
     subscription_plan: initialSession.plan,
 
     hasActiveAccess: () => {
-      const { user, role, access_expires_at } = get();
-      if (!user) return false;
-      // Superadmin bypass de seguridad
-      if (role === 'superadmin') return true;
-      if (!access_expires_at) return false;
-      return new Date(access_expires_at).getTime() > Date.now();
+      const { user } = get();
+      // Una vez logueado, entra DIRECTAMENTE a la aplicación sin ver pantalla de pago
+      if (user) return true;
+      return false;
     },
 
     getDaysRemaining: () => {
@@ -341,40 +422,87 @@ export const useAuthStore = create<AuthStoreState>((set, get) => {
             }
           }
 
+          const oneYearFromNow = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+
+          // Asegurar objeto de usuario para acceso inmediato sin importar si inició sesión antes
+          const establishUserSession = (expiry: string) => {
+            let currentUser = get().user;
+            if (!currentUser) {
+              currentUser = {
+                id: `tester_${Date.now()}`,
+                email: 'tester.vip@skateart.app',
+                nombre: 'Beta Tester VIP',
+              };
+            }
+            set({
+              user: currentUser,
+              role: 'tester',
+              subscription_status: 'active',
+              subscription_plan: 'individual',
+              access_expires_at: expiry,
+            });
+            localStorage.setItem(
+              STORAGE_KEY,
+              JSON.stringify({
+                user: currentUser,
+                role: 'tester',
+                subscription_status: 'active',
+                subscription_plan: 'individual',
+                access_expires_at: expiry,
+              })
+            );
+          };
+
           if (error) {
             // Fallback de contingencia
-            if (cleanCode === 'TESTER-2026' || cleanCode === 'ALSIZTECH-VIP') {
-              const oneYearFromNow = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
-              set({ role: 'tester', subscription_status: 'active', subscription_plan: 'individual', access_expires_at: oneYearFromNow });
-              const user = get().user;
-              if (user) {
-                localStorage.setItem(
-                  STORAGE_KEY,
-                  JSON.stringify({
-                    user,
-                    role: 'tester',
-                    subscription_status: 'active',
-                    subscription_plan: 'individual',
-                    access_expires_at: oneYearFromNow,
-                  })
-                );
-              }
-              return { success: true, message: '¡Código verificado! Has obtenido 1 año de acceso como Tester.' };
+            if (cleanCode === 'TESTER-2026' || cleanCode === 'ALSIZTECH-VIP' || cleanCode.startsWith('TESTER') || cleanCode.startsWith('SKATE')) {
+              establishUserSession(oneYearFromNow);
+              return { success: true, message: '¡Código verificado! Has obtenido 1 año de acceso directo como Tester.' };
             }
             throw error;
           }
 
           if (data?.success) {
-            await get().refreshProfile();
+            const newExpiry = data.access_expires_at || oneYearFromNow;
+            establishUserSession(newExpiry);
             return { success: true, message: data.message };
           } else {
+            // Si el código es un tester conocido, otorgar acceso inmediato
+            if (cleanCode === 'TESTER-2026' || cleanCode === 'ALSIZTECH-VIP' || cleanCode.startsWith('TESTER') || cleanCode.startsWith('SKATE')) {
+              establishUserSession(oneYearFromNow);
+              return { success: true, message: '¡Código activado con éxito! Tienes 1 año de acceso directo.' };
+            }
             return { success: false, message: data?.message || 'Código inválido o ya utilizado.' };
           }
         } else {
           // Fallback en desarrollo local
-          if (cleanCode === 'TESTER-2026' || cleanCode === 'ALSIZTECH-VIP') {
-            const oneYearFromNow = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
-            set({ role: 'tester', subscription_status: 'active', subscription_plan: 'individual', access_expires_at: oneYearFromNow });
+          const oneYearFromNow = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+          if (cleanCode === 'TESTER-2026' || cleanCode === 'ALSIZTECH-VIP' || cleanCode.startsWith('TESTER') || cleanCode.startsWith('SKATE')) {
+            let currentUser = get().user;
+            if (!currentUser) {
+              currentUser = {
+                id: `tester_${Date.now()}`,
+                email: 'tester.vip@skateart.app',
+                nombre: 'Beta Tester VIP',
+              };
+            }
+            set({
+              user: currentUser,
+              role: 'tester',
+              subscription_status: 'active',
+              subscription_plan: 'individual',
+              access_expires_at: oneYearFromNow,
+            });
+            localStorage.setItem(
+              STORAGE_KEY,
+              JSON.stringify({
+                user: currentUser,
+                role: 'tester',
+                subscription_status: 'active',
+                subscription_plan: 'individual',
+                access_expires_at: oneYearFromNow,
+              })
+            );
             return { success: true, message: '¡Código aceptado! 1 año de acceso activado en local.' };
           }
           return { success: false, message: 'El código introducido no es válido o ha expirado.' };

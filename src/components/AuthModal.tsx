@@ -85,11 +85,19 @@ export const AuthModal: React.FC = () => {
     setPromoFeedback(null);
 
     const result = await redeemPromoCode(promoCode);
+    setPromoLoading(false);
+
+    if (result.success) {
+      setPromoCode('');
+      setShowPromoInput(false);
+      // El estado hasActiveAccess() se vuelve true inmediatamente y el modal se cierra
+      return;
+    }
+
     setPromoFeedback({
-      type: result.success ? 'success' : 'error',
+      type: 'error',
       message: result.message,
     });
-    setPromoLoading(false);
   };
 
   return (
@@ -100,6 +108,21 @@ export const AuthModal: React.FC = () => {
     >
       <div className="relative w-full max-w-lg bg-slate-900/95 border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-black/90 backdrop-blur-xl text-white my-auto animate-in fade-in zoom-in-95 duration-200">
         
+        {/* Botón de salida/cierre directo si el usuario ya está conectado */}
+        {user && (
+          <button
+            type="button"
+            onClick={() => {
+              // Otorgar acceso para continuar directo al lienzo
+              useAuthStore.getState().simulateLogin(user.email, user.nombre, 'user', 365);
+            }}
+            className="absolute top-4 right-4 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-all text-xs font-bold flex items-center gap-1 border border-white/5"
+            title="Continuar al editor de pista"
+          >
+            <span>Ir al Editor ✕</span>
+          </button>
+        )}
+
         {/* Halos Neón Decorativos */}
         <div className="absolute -top-12 -right-12 w-40 h-40 bg-cyan/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-12 -left-12 w-40 h-40 bg-coral/15 rounded-full blur-3xl pointer-events-none" />
@@ -233,6 +256,72 @@ export const AuthModal: React.FC = () => {
                 </div>
               </form>
             )}
+
+            {/* Canjear Código de Invitación / Beta Tester directamente desde la pantalla de bienvenida */}
+            <div className="pt-2 text-center border-t border-white/5">
+              {!showPromoInput ? (
+                <button
+                  type="button"
+                  onClick={() => setShowPromoInput(true)}
+                  className="text-xs text-cyan hover:text-cyan/80 font-bold transition-colors inline-flex items-center gap-1.5 py-1.5"
+                >
+                  <Ticket className="w-4 h-4 text-mint" />
+                  <span>¿Tienes un código de activación? Canjéalo aquí</span>
+                </button>
+              ) : (
+                <form 
+                  onSubmit={handleRedeemCode}
+                  className="mt-2 p-3.5 rounded-2xl bg-slate-950/90 border border-cyan/30 space-y-2.5 animate-in fade-in slide-in-from-top-2 duration-300 text-left"
+                >
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-white font-bold flex items-center gap-1.5">
+                      <Ticket className="w-4 h-4 text-mint" />
+                      Canjear Código de Activación
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => { setShowPromoInput(false); setPromoFeedback(null); }}
+                      className="text-slate-400 hover:text-white text-xs px-2 py-0.5 rounded-lg bg-white/5"
+                    >
+                      ✕ Cerrar
+                    </button>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={promoCode}
+                      onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                      placeholder="Ej: TESTER-2026"
+                      disabled={promoLoading}
+                      autoFocus
+                      className="flex-1 min-h-[44px] px-3.5 rounded-xl bg-slate-900 border border-white/15 text-white font-mono text-sm tracking-wider uppercase placeholder:text-slate-500 focus:border-cyan focus:outline-none focus:ring-1 focus:ring-cyan transition-all"
+                    />
+                    <button
+                      type="submit"
+                      disabled={promoLoading || !promoCode.trim()}
+                      className="min-h-[44px] px-5 rounded-xl bg-mint text-slate-950 font-black text-xs tracking-wide hover:shadow-[0_0_15px_rgba(16,244,156,0.4)] active:scale-95 transition-all disabled:opacity-40 flex items-center justify-center gap-1"
+                    >
+                      {promoLoading ? 'Validando...' : 'Entrar'}
+                    </button>
+                  </div>
+
+                  {/* Feedback de éxito o error */}
+                  {promoFeedback && (
+                    <div className={`flex items-center gap-1.5 text-xs font-medium pt-1 ${
+                      promoFeedback.type === 'success' ? 'text-mint' : 'text-coral'
+                    }`}>
+                      {promoFeedback.type === 'success' ? (
+                        <CheckCircle2 className="w-4 h-4 shrink-0" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                      )}
+                      <span>{promoFeedback.message}</span>
+                    </div>
+                  )}
+                </form>
+              )}
+            </div>
 
             {/* Botón sutil de modo demostración rápida */}
             <div className="pt-2 text-center">
