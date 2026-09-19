@@ -296,8 +296,8 @@ export const RightInspectorPanel: React.FC = () => {
             </div>
             <div>
               <p className="text-xs font-bold text-slate-400">Pista sin nodos</p>
-              <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
-                Toca cualquier zona de la pista 2D<br />o pulsa "Añadir Nodo".
+              <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                Toca cualquier zona de la pista 2D<br />con la herramienta "Colocar Nodos" activa.
               </p>
             </div>
           </div>

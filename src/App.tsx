@@ -524,40 +524,6 @@ export function App() {
             <Square className="w-3.5 h-3.5 fill-current stroke-none" />
           </button>
 
-          {/* Grupo de Herramientas Exclusivas (Header Desktop): Colocar Nodos / Conectar Ruta */}
-          <div className="hidden sm:flex items-center bg-neon-card p-1 rounded-2xl shadow-soft-elevation border border-white/5 gap-1">
-            <button
-              type="button"
-              onClick={() => setPhase('plot')}
-              className={[
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black interactive-tap transition-all',
-                phase === 'plot'
-                  ? 'bg-amber-500 text-black shadow-glow-amber'
-                  : 'text-slate-400 hover:text-white hover:bg-white/5',
-              ].join(' ')}
-              title="Activa la herramienta para colocar nodos tocando la pista"
-            >
-              <PenTool className="w-3.5 h-3.5 stroke-[2.5]" />
-              <span className="hidden xl:inline">Colocar Nodos</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => { if (canDraw) setPhase('curve'); }}
-              disabled={!canDraw}
-              className={[
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black interactive-tap transition-all',
-                phase === 'curve'
-                  ? 'bg-cyan text-black shadow-glow-cyan'
-                  : 'text-slate-400 hover:text-white hover:bg-white/5 disabled:opacity-30 disabled:pointer-events-none',
-              ].join(' ')}
-              title={canDraw ? 'Activa la ruta conectada y el esculpido de curvas' : 'Coloca al menos 2 nodos'}
-            >
-              <Route className="w-3.5 h-3.5 stroke-[2.5]" />
-              <span className="hidden xl:inline">Conectar Ruta</span>
-            </button>
-          </div>
-
           {/* Botón Rápido Limpiar Pista 2D (Header Desktop) */}
           <button
             type="button"

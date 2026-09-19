@@ -47,8 +47,6 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
 
   const skaterGender = useChoreographyStore((s) => s.skaterGender);
   const setSkaterGender = useChoreographyStore((s) => s.setSkaterGender);
-  const showControlHandles = useChoreographyStore((s) => s.showControlHandles);
-  const setShowControlHandles = useChoreographyStore((s) => s.setShowControlHandles);
   const showRinkGrid = useChoreographyStore((s) => s.showRinkGrid);
   const setShowRinkGrid = useChoreographyStore((s) => s.setShowRinkGrid);
   const history = useChoreographyStore((s) => s.history);
@@ -365,13 +363,6 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
             Superposiciones de Pista
           </h3>
           <div className="flex gap-1.5">
-            <ToggleButton
-              icon={<Eye className="w-3 h-3" />}
-              label="Tiradores"
-              active={showControlHandles}
-              onClick={() => setShowControlHandles(!showControlHandles)}
-              title="Mostrar u ocultar tiradores Bézier"
-            />
             <ToggleButton
               icon={<Layers className="w-3 h-3" />}
               label="Cuadrícula"

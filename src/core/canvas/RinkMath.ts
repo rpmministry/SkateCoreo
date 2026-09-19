@@ -158,18 +158,16 @@ export class RinkMath {
   }
 
   /**
-   * Obtiene los puntos de agarre integrados directamente sobre la curva (Spline en línea)
-   * para un tramo entre p0 y p1.
+   * Obtiene los 3 puntos de agarre integrados directamente sobre la curva (Spline en línea)
+   * para un tramo entre p0 y p1 (t = 0.25, 0.5, 0.75).
    */
   public static getSegmentGripPoints(
     p0: ChoreographyPathPoint,
     p1: ChoreographyPathPoint
   ): Array<{ id: string; t: number; x: number; y: number }> {
     const { cp1, cp2 } = this.getSegmentControlPoints(p0, p1);
-    const dist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
-
-    // Para tramos largos (> 12m) distribuimos 2-3 puntos de agarre; para tramos estándar, el punto central (t=0.5)
-    const tValues = dist > 14 ? [0.33, 0.5, 0.67] : (dist > 8 ? [0.35, 0.65] : [0.5]);
+    // 3 puntos de control fijos y bien distribuidos a lo largo del segmento
+    const tValues = [0.25, 0.5, 0.75];
 
     return tValues.map((t) => {
       const pt = this.evaluateCubicBezier(p0, cp1, cp2, p1, t);
@@ -184,7 +182,8 @@ export class RinkMath {
 
   /**
    * Calcula los puntos de control Bézier para que la curva pase exactamente
-   * a través de la posición de agarre deseada (targetX, targetY), simulando un Spline directo.
+   * a través de la posición de agarre deseada (targetX, targetY), simulando un imán Spline directo.
+   * Permite llevar la curva libremente hasta los bordes de la pista (50m x 25m).
    */
   public static computeControlPointsFromThroughPoint(
     p0: ChoreographyPathPoint,
@@ -193,29 +192,55 @@ export class RinkMath {
     targetY: number,
     t: number = 0.5
   ): { cp1: { x: number; y: number }; cp2: { x: number; y: number } } {
-    // Para t = 0.5 (punto medio exacto):
-    // B(0.5) = (P0 + 3*CP1 + 3*CP2 + P1) / 8 = G
-    // => CP1 = (4*G - P0) / 3, CP2 = (4*G - P1) / 3
-    const clampedGx = Math.max(0.4, Math.min(49.6, targetX));
-    const clampedGy = Math.max(0.4, Math.min(24.6, targetY));
+    // La coordenada objetivo en la pista puede alcanzar los bordes reales (0 a 50m y 0 a 25m)
+    const clampedGx = Math.max(0.1, Math.min(49.9, targetX));
+    const clampedGy = Math.max(0.1, Math.min(24.9, targetY));
 
-    // Deformación proporcional exacta según el parámetro t para que B(t) = G
-    const clampedT = Math.max(0.08, Math.min(0.92, t));
-    const denom = 3 * clampedT * (1 - clampedT);
-    const baselineX = (1 - clampedT) * p0.x + clampedT * p1.x;
-    const baselineY = (1 - clampedT) * p0.y + clampedT * p1.y;
-    const deltaX = (clampedGx - baselineX) / denom;
-    const deltaY = (clampedGy - baselineY) / denom;
+    const currentCps = this.getSegmentControlPoints(p0, p1);
+    const clampedT = Math.max(0.05, Math.min(0.95, t));
 
-    const rawCp1x = (p0.x + (p1.x - p0.x) / 3) + deltaX;
-    const rawCp1y = (p0.y + (p1.y - p0.y) / 3) + deltaY;
-    const rawCp2x = (p1.x - (p1.x - p0.x) / 3) + deltaX;
-    const rawCp2y = (p1.y - (p1.y - p0.y) / 3) + deltaY;
+    let rawCp1x: number;
+    let rawCp1y: number;
+    let rawCp2x: number;
+    let rawCp2y: number;
 
-    const cp1x = Math.max(0.4, Math.min(49.6, rawCp1x));
-    const cp1y = Math.max(0.4, Math.min(24.6, rawCp1y));
-    const cp2x = Math.max(0.4, Math.min(49.6, rawCp2x));
-    const cp2y = Math.max(0.4, Math.min(24.6, rawCp2y));
+    const mt = 1 - clampedT;
+    const w1 = 3 * mt * mt * clampedT;
+    const w2 = 3 * mt * clampedT * clampedT;
+
+    if (clampedT <= 0.35) {
+      // 1. MANIPULACIÓN DEL PUNTO 1 (Cercano a p0, t ≈ 0.25):
+      // Ajusta principalmente CP1 para esculpir la curva de entrada manteniendo la salida
+      rawCp1x = (clampedGx - Math.pow(mt, 3) * p0.x - w2 * currentCps.cp2.x - Math.pow(clampedT, 3) * p1.x) / w1;
+      rawCp1y = (clampedGy - Math.pow(mt, 3) * p0.y - w2 * currentCps.cp2.y - Math.pow(clampedT, 3) * p1.y) / w1;
+      rawCp2x = currentCps.cp2.x;
+      rawCp2y = currentCps.cp2.y;
+    } else if (clampedT >= 0.65) {
+      // 2. MANIPULACIÓN DEL PUNTO 3 (Cercano a p1, t ≈ 0.75):
+      // Ajusta principalmente CP2 para esculpir la curva de salida manteniendo la entrada
+      rawCp2x = (clampedGx - Math.pow(mt, 3) * p0.x - w1 * currentCps.cp1.x - Math.pow(clampedT, 3) * p1.x) / w2;
+      rawCp2y = (clampedGy - Math.pow(mt, 3) * p0.y - w1 * currentCps.cp1.y - Math.pow(clampedT, 3) * p1.y) / w2;
+      rawCp1x = currentCps.cp1.x;
+      rawCp1y = currentCps.cp1.y;
+    } else {
+      // 3. MANIPULACIÓN DEL PUNTO CENTRAL (t ≈ 0.50 o arrastre directo de la comba):
+      // Traslada armónicamente CP1 y CP2 juntos para arquear la curva completa pasando por G
+      const currentBt = this.evaluateCubicBezier(p0, currentCps.cp1, currentCps.cp2, p1, clampedT);
+      const totalW = w1 + w2 || 0.75;
+      const deltaX = (clampedGx - currentBt.x) / totalW;
+      const deltaY = (clampedGy - currentBt.y) / totalW;
+
+      rawCp1x = currentCps.cp1.x + deltaX;
+      rawCp1y = currentCps.cp1.y + deltaY;
+      rawCp2x = currentCps.cp2.x + deltaX;
+      rawCp2y = currentCps.cp2.y + deltaY;
+    }
+
+    // Los tiradores actúan como imanes y tienen margen amplio fuera de la pista para alcanzar los bordes
+    const cp1x = Math.max(-20, Math.min(70, rawCp1x));
+    const cp1y = Math.max(-15, Math.min(40, rawCp1y));
+    const cp2x = Math.max(-20, Math.min(70, rawCp2x));
+    const cp2y = Math.max(-15, Math.min(40, rawCp2y));
 
     return {
       cp1: { x: Math.round(cp1x * 10) / 10, y: Math.round(cp1y * 10) / 10 },
@@ -324,12 +349,13 @@ export class RinkMath {
 
   /**
    * Encuentra el punto más cercano sobre la trayectoria Bézier para inserción en Modo Libre
+   * o división de tramos por doble clic. Muestrea 48 puntos por tramo para máxima fidelidad.
    */
   public static findNearestPointOnPath(
     points: ChoreographyPathPoint[],
     targetMetersX: number,
     targetMetersY: number
-  ): { x: number; y: number; time_ms: number; segmentIndex: number; distanceMeters: number } | null {
+  ): { x: number; y: number; time_ms: number; segmentIndex: number; t: number; distanceMeters: number } | null {
     if (points.length < 2) return null;
     const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
 
@@ -339,6 +365,7 @@ export class RinkMath {
       y: sorted[0].y,
       time_ms: sorted[0].time_ms,
       segmentIndex: 0,
+      t: 0,
       distanceMeters: Infinity
     };
 
@@ -348,8 +375,8 @@ export class RinkMath {
       const { cp1, cp2 } = this.getSegmentControlPoints(p0, p1);
       const totalTimeMs = p1.time_ms - p0.time_ms;
 
-      // Muestrear 24 puntos a lo largo de la curva Bézier
-      const SAMPLES = 24;
+      // Muestrear 48 puntos a lo largo de la curva Bézier para detección precisa a nivel de píxel
+      const SAMPLES = 48;
       for (let s = 0; s <= SAMPLES; s++) {
         const t = s / SAMPLES;
         const { x, y } = this.evaluateCubicBezier(p0, cp1, cp2, p1, t);
@@ -361,6 +388,7 @@ export class RinkMath {
             y: Math.round(y * 10) / 10,
             time_ms: Math.round(p0.time_ms + t * totalTimeMs),
             segmentIndex: i,
+            t,
             distanceMeters: dist
           };
         }
@@ -368,6 +396,46 @@ export class RinkMath {
     }
 
     return bestPoint;
+  }
+
+  /**
+   * Divide un tramo de curva Bézier entre p0 y p1 en dos subtramos exactos usando de Casteljau.
+   * Garantiza que la geometría de la trayectoria no cambie en absoluto al insertar el nuevo nodo.
+   */
+  public static splitBezierSegmentAtT(
+    p0: ChoreographyPathPoint,
+    p1: ChoreographyPathPoint,
+    t: number
+  ): {
+    midPoint: { x: number; y: number };
+    leftCp1: { x: number; y: number };
+    leftCp2: { x: number; y: number };
+    rightCp1: { x: number; y: number };
+    rightCp2: { x: number; y: number };
+  } {
+    const { cp1, cp2 } = this.getSegmentControlPoints(p0, p1);
+    const clampedT = Math.max(0.01, Math.min(0.99, t));
+    const mt = 1 - clampedT;
+
+    // de Casteljau nivel 1
+    const q0 = { x: mt * p0.x + clampedT * cp1.x, y: mt * p0.y + clampedT * cp1.y };
+    const q1 = { x: mt * cp1.x + clampedT * cp2.x, y: mt * cp1.y + clampedT * cp2.y };
+    const q2 = { x: mt * cp2.x + clampedT * p1.x, y: mt * cp2.y + clampedT * p1.y };
+
+    // de Casteljau nivel 2
+    const r0 = { x: mt * q0.x + clampedT * q1.x, y: mt * q0.y + clampedT * q1.y };
+    const r1 = { x: mt * q1.x + clampedT * q2.x, y: mt * q1.y + clampedT * q2.y };
+
+    // Punto medio exacto sobre la curva (nivel 3)
+    const mid = { x: mt * r0.x + clampedT * r1.x, y: mt * r0.y + clampedT * r1.y };
+
+    return {
+      midPoint: { x: Math.round(mid.x * 10) / 10, y: Math.round(mid.y * 10) / 10 },
+      leftCp1: { x: Math.round(q0.x * 10) / 10, y: Math.round(q0.y * 10) / 10 },
+      leftCp2: { x: Math.round(r0.x * 10) / 10, y: Math.round(r0.y * 10) / 10 },
+      rightCp1: { x: Math.round(r1.x * 10) / 10, y: Math.round(r1.y * 10) / 10 },
+      rightCp2: { x: Math.round(q2.x * 10) / 10, y: Math.round(q2.y * 10) / 10 },
+    };
   }
 }
 

@@ -3,7 +3,6 @@ import {
   Play, 
   Pause, 
   RotateCcw, 
-  Plus, 
   Trash2, 
   Eye, 
   Layers, 
@@ -26,7 +25,7 @@ import {
   Route
 } from 'lucide-react';
 
-import { ChoreographyPathPoint, Program, ElementLog } from '../types';
+import { ChoreographyPoint, ChoreographyPathPoint, Program, ElementLog } from '../types';
 import { useAudioEngine } from '../hooks/useAudioEngine';
 import { audioEngine } from '../core/audio/AudioEngine';
 import { RinkMath, DEFAULT_RINK_DIMENSIONS, CanvasViewportMetrics } from '../core/canvas/RinkMath';
@@ -167,6 +166,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     cp2: { x: number; y: number };
   } | null>(null);
   const pointsBeforeDragRef = useRef<ChoreographyPathPoint[] | null>(null);
+  const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
   const [cursorStyle, setCursorStyle] = useState<'default' | 'crosshair' | 'grab' | 'grabbing'>('crosshair');
 
 
@@ -593,6 +593,27 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       setSelectedPointId(currentTarget.targetId);
       onNodeSelect?.(currentTarget.targetId);
     } else if (!currentTarget && movedDistance < 5 && canvas) {
+      // ── DETECCIÓN DE DOBLE TAP TÁCTIL EN LA LÍNEA PARA DIVIDIR SEGMENTO ──
+      const now = Date.now();
+      const isDoubleTap =
+        lastTapRef.current &&
+        now - lastTapRef.current.time < 350 &&
+        Math.hypot(e.clientX - lastTapRef.current.x, e.clientY - lastTapRef.current.y) < 25;
+
+      if (isDoubleTap) {
+        const splitHandled = handleSplitSegmentAtPoint(e.clientX, e.clientY);
+        if (splitHandled) {
+          lastTapRef.current = null;
+          setIsDragging(false);
+          dragTargetRef.current = null;
+          pointerDownPosRef.current = null;
+          curveDragStartPosRef.current = null;
+          curveInitialCpsRef.current = null;
+          return;
+        }
+      }
+      lastTapRef.current = { time: now, x: e.clientX, y: e.clientY };
+
       // ── MODO TIEMPO LIBRE ACTIVO: Tocar la pista para proyectar e insertar un Nodo de Tiempo
       if (isAddingFreeTimeNodes) {
         const metrics = getMetrics();
@@ -638,15 +659,99 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     setCursorStyle('crosshair');
   };
 
+  // ── INSERCIÓN RÁPIDA DE NODOS: Doble Clic sobre cualquier parte del trazo (Tolerancia 15px) ──
+  const handleSplitSegmentAtPoint = (clientX: number, clientY: number): boolean => {
+    const canvas = canvasRef.current;
+    if (!canvas || points.length < 2) return false;
 
-  // Añadir punto manual
+    const metrics = getMetrics();
+    const { x: worldPx, y: worldPy } = screenToWorld(clientX, clientY, canvas);
+    const { mX, mY } = RinkMath.pixelsToMeters(worldPx, worldPy, metrics, DEFAULT_RINK_DIMENSIONS);
 
-  const handleAddPoint = () => {
-    const lastPoint = points.length > 0 ? points[points.length - 1] : null;
-    const newX = lastPoint ? Math.min(46, Math.max(4, lastPoint.x + (lastPoint.x > 35 ? -14 : 10))) : 25;
-    const newY = lastPoint ? Math.min(22, Math.max(3, lastPoint.y + (lastPoint.y > 15 ? -7 : 7))) : 12.5;
-    const newTime = lastPoint ? lastPoint.time_ms + 15000 : (audio.currentTimeMs > 0 ? audio.currentTimeMs : 0);
-    addPointAtCanvas(newX, newY, newTime);
+    const nearest = RinkMath.findNearestPointOnPath(points, mX, mY);
+    if (!nearest) return false;
+
+    // Convertir la distancia en metros al trazo a píxeles de pantalla reales según zoom y escala
+    const distPxOnScreen = nearest.distanceMeters * metrics.scale * (camera.zoom || 1);
+
+    // Hitbox / Área de Tolerancia de 15px en pantalla requerida
+    if (distPxOnScreen <= 15) {
+      const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
+      const p0 = sorted[nearest.segmentIndex];
+      const p1 = sorted[nearest.segmentIndex + 1];
+      if (!p0 || !p1) return false;
+
+      // Algoritmo exacto de de Casteljau para división de curvas Bézier/Spline sin pérdida de forma
+      const split = RinkMath.splitBezierSegmentAtT(p0, p1, nearest.t);
+
+      // Calcular tiempo interpolado suavemente
+      const newTimeMs = nearest.time_ms > p0.time_ms && nearest.time_ms < p1.time_ms
+        ? nearest.time_ms
+        : Math.round(p0.time_ms + (p1.time_ms - p0.time_ms) * nearest.t);
+
+      const newPointId = crypto.randomUUID();
+
+      const newPoint: ChoreographyPoint = {
+        id: newPointId,
+        x: split.midPoint.x,
+        y: split.midPoint.y,
+        time_ms: newTimeMs,
+        timestamp: newTimeMs,
+        kind: 'position',
+        type: 'standard',
+        label: '',
+        cp1x: split.rightCp1.x,
+        cp1y: split.rightCp1.y,
+        cp2x: split.rightCp2.x,
+        cp2y: split.rightCp2.y,
+      };
+
+      pushHistory();
+
+      // Actualizar el segmento original (p0 -> newPoint) y reasignar los Nodos de Tiempo correspondientes
+      const updatedPoints = points.map((p) => {
+        if (p.id === p0.id) {
+          return {
+            ...p,
+            cp1x: split.leftCp1.x,
+            cp1y: split.leftCp1.y,
+            cp2x: split.leftCp2.x,
+            cp2y: split.leftCp2.y,
+          };
+        }
+        if (p.kind === 'time' && p.parentSegmentStartId === p0.id && p.time_ms > newTimeMs) {
+          return {
+            ...p,
+            parentSegmentStartId: newPointId,
+          };
+        }
+        return p;
+      });
+
+      updatedPoints.push(newPoint);
+      updatedPoints.sort((a, b) => a.time_ms - b.time_ms);
+
+      setPoints(updatedPoints);
+      setSelectedPointId(newPointId);
+      onNodeSelect?.(newPointId);
+
+      audio.setNodes(updatedPoints);
+      if (currentProgram) {
+        onProgramUpdated({
+          ...currentProgram,
+          choreography_path: updatedPoints,
+        });
+      }
+
+      renderFrame();
+      return true;
+    }
+
+    return false;
+  };
+
+  const handleDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    handleSplitSegmentAtPoint(e.clientX, e.clientY);
   };
 
   // Eliminar punto seleccionado (Sincronizado: Canvas y Waveform)
@@ -1169,6 +1274,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
             onPointerCancel={handlePointerUp}
+            onDoubleClick={handleDoubleClick}
             style={{
               width: `${containerSize.width}px`,
               height: `${containerSize.height}px`,
@@ -1270,17 +1376,6 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
               <SkipForward className="w-3.5 h-3.5" />
             </button>
           </div>
-
-          {/* Añadir nodo */}
-          <button
-            type="button"
-            onClick={handleAddPoint}
-            className="flex items-center gap-1 px-2.5 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-800 text-xs font-bold transition-all active:scale-[0.96]"
-            title="Añadir nodo en la pista"
-          >
-            <Plus className="w-4 h-4 text-teal-400" />
-            <span className="hidden sm:inline">Añadir Nodo</span>
-          </button>
 
           {/* Limpiar todos los puntos */}
           <button
