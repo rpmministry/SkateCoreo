@@ -376,7 +376,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
   return (
     <div
       ref={containerRef}
-      className="w-full h-full bg-surface-canvas text-text-primary px-3 py-1.5 flex flex-col justify-between select-none relative overflow-visible"
+      className="w-full h-full bg-surface-canvas text-text-primary px-3 py-1 flex flex-col justify-between select-none relative overflow-hidden"
     >
       {/* Cabecera del Waveform */}
       <div className="flex items-center justify-between gap-2 text-xs shrink-0">
@@ -410,10 +410,11 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
         </div>
       </div>
 
-      {/* Contenedor del Track (Canvas + Overlay de Marcadores Gigantes) */}
+      {/* Contenedor del Track (Canvas + Overlay de Marcadores de Tamaño Fijo) */}
       <div
         ref={trackRef}
-        className="relative w-full flex-1 min-h-0 overflow-visible rounded-subtle border border-border-subtle bg-surface-card group mt-1"
+        className="relative w-full flex-1 min-h-0 overflow-x-auto overflow-y-hidden rounded-subtle border border-border-subtle bg-surface-card group mt-1"
+        style={{ overflowX: 'auto', overflowY: 'hidden' }}
       >
         <canvas
           ref={canvasRef}
@@ -427,8 +428,8 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
           title="Línea de tiempo de audio. Toca para reproducir. Arrastra los marcadores (#1, #2...) para sincronizar el tiempo."
         />
 
-        {/* DOM Overlay de Marcadores Gigantes (Mobile-First: 48px Touch Target, Números Nítidos, Alto Contraste) */}
-        <div className="absolute inset-0 pointer-events-none overflow-visible">
+        {/* DOM Overlay de Marcadores (Mobile-First: Tamaño Fijo Estricto 36x36px, Sin Gigantismo) */}
+        <div className="absolute inset-0 pointer-events-none overflow-x-auto overflow-y-hidden">
           {sortedTimelineNodes.map((point, index) => {
             const pointRatio = Math.max(0, Math.min(1, point.timestamp / effectiveDurationMs));
             const isSelected = point.id === selectedPointId;
@@ -444,7 +445,9 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
                 style={{
                   left: `${pointRatio * 100}%`,
                   transform: 'translateX(-50%)',
-                  width: 48,
+                  width: '36px',
+                  maxWidth: '36px',
+                  flexShrink: 0,
                   zIndex: isDragged ? 40 : (isSelected ? 30 : 20),
                   touchAction: 'none',
                 }}
@@ -458,49 +461,54 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
                 {/* Floating Timestamp Badge (Visible en Selección, Arrastre o Hover) */}
                 {(isSelected || isDragged || isHovered) && (
                   <div
-                    className="absolute -top-7 px-2.5 py-0.5 rounded-full bg-slate-950/95 border text-white text-[11px] font-bold font-mono shadow-2xl whitespace-nowrap pointer-events-none flex items-center gap-1.5 z-50 animate-in fade-in zoom-in-95 duration-150"
+                    className="absolute top-[38px] px-2 py-0.5 rounded bg-slate-950/95 border text-white text-[10px] font-bold font-mono shadow-2xl whitespace-nowrap pointer-events-none flex items-center gap-1 z-50 animate-in fade-in zoom-in-95 duration-150"
                     style={{
                       borderColor: theme.stroke,
-                      boxShadow: `0 0 14px ${theme.glow}`,
+                      boxShadow: `0 0 12px ${theme.glow}`,
                     }}
                   >
                     <span className="text-white font-black">#{nodeNum}</span>
                     <span style={{ color: theme.stroke }}>·</span>
                     <span className="text-white font-semibold">{(point.timestamp / 1000).toFixed(1)}s</span>
                     {point.label && point.label.trim() !== '' && (
-                      <span className="text-slate-300 font-sans text-[10px] max-w-[80px] truncate">
+                      <span className="text-slate-300 font-sans text-[9px] max-w-[70px] truncate">
                         ({point.label})
                       </span>
                     )}
                   </div>
                 )}
 
-                {/* Cabeza Gigante del Marcador (Thumb 38x38px con número grande y alto contraste) */}
+                {/* Cabeza del Marcador Táctil (Tamaño Fijo Estricto 36x36px sin deformaciones) */}
                 <div
                   className={`
-                    w-[38px] h-[38px] rounded-full mt-1 shrink-0
+                    w-[36px] h-[36px] max-w-[36px] max-h-[36px] rounded-full shrink-0
                     bg-slate-950 flex items-center justify-center
-                    border-[2.5px] transition-transform duration-100 ease-out select-none
+                    border-2 select-none transition-transform duration-100 ease-out
                     ${isDragged 
-                      ? 'scale-125 shadow-2xl ring-2 ring-cyan-400/50' 
-                      : (isSelected ? 'scale-115 shadow-xl ring-1 ring-white/20' : 'group-hover/pin:scale-110 shadow-lg')}
+                      ? 'scale-110 shadow-2xl ring-2 ring-cyan-400/50' 
+                      : (isSelected ? 'scale-105 shadow-xl ring-1 ring-white/20' : 'shadow-lg')}
                   `}
                   style={{
+                    width: '36px',
+                    height: '36px',
+                    maxWidth: '36px',
+                    maxHeight: '36px',
+                    flexShrink: 0,
                     borderColor: theme.stroke,
                     boxShadow: isDragged 
-                      ? `0 0 20px ${theme.glow}, 0 4px 14px rgba(0,0,0,0.9)` 
-                      : (isSelected ? `0 0 14px ${theme.glow}, 0 3px 10px rgba(0,0,0,0.8)` : `0 2px 8px rgba(0,0,0,0.6)`),
+                      ? `0 0 16px ${theme.glow}, 0 3px 10px rgba(0,0,0,0.9)` 
+                      : (isSelected ? `0 0 12px ${theme.glow}, 0 2px 8px rgba(0,0,0,0.8)` : `0 2px 6px rgba(0,0,0,0.6)`),
                   }}
                   title={`Nodo #${nodeNum}: ${(point.timestamp / 1000).toFixed(1)}s. Arrastra para sincronizar con la música.`}
                 >
-                  <span className="text-sm font-black font-mono text-white leading-none tracking-tight">
+                  <span className="text-xs font-black font-mono text-white leading-none tracking-tight">
                     {nodeNum}
                   </span>
                 </div>
 
                 {/* Tallo Scrubber Vertical que atraviesa la onda */}
                 <div
-                  className="w-0.5 flex-1 min-h-[14px] transition-opacity duration-150"
+                  className="w-0.5 flex-1 min-h-[10px] transition-opacity duration-150"
                   style={{
                     backgroundColor: theme.stroke,
                     opacity: isDragged ? 1 : (isSelected ? 0.9 : 0.4),

@@ -97,17 +97,19 @@ body {
 /* ═══════════════════════════════════════════════════════════════════
    ORIENTATION-AWARE LANDSCAPE LAYOUT RULES (Figma / Illustrator Style)
    ═══════════════════════════════════════════════════════════════════ */
-@media (orientation: landscape) and (max-height: 600px) {
+@media (orientation: landscape) {
   .landscape-compact-header {
     height: 40px !important;
     padding-left: 0.75rem !important;
     padding-right: 0.75rem !important;
   }
 
+  /* Visor de música con jerarquía vertical cómoda en horizontal (35dvh / 35%) */
   .landscape-compact-waveform {
-    height: 52px !important;
-    min-height: 52px !important;
-    max-height: 52px !important;
+    height: 35dvh !important;
+    min-height: 110px !important;
+    max-height: 38dvh !important;
+    flex: 0 0 35% !important;
   }
 }
 

@@ -764,19 +764,8 @@ export function App() {
           </button>
         </nav>
 
-        {/* ── CENTER WORKSPACE: Waveform + 2D Rink Canvas ── */}
+        {/* ── CENTER WORKSPACE: 2D Rink Canvas + Waveform Timeline ── */}
         <main className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden bg-neon-canvas">
-
-          {/* Interactive Waveform Strip */}
-          <div className="shrink-0 h-[18%] min-h-[60px] max-h-[140px] landscape-compact-waveform border-b border-white/5 bg-neon-surface/40">
-            <InteractiveWaveform
-              currentTimeMs={currentTimeMs}
-              durationMs={audioState.durationMs}
-              isPlaying={isAudioActive}
-              onSeek={(ms) => audioEngine.seek(ms)}
-              fileName={audioState.fileName}
-            />
-          </div>
 
           {/* 2D Canvas Rink Engine — Zero Distortion */}
           <div className="flex-1 min-h-0 overflow-hidden">
@@ -787,6 +776,17 @@ export function App() {
               elements={elements}
               onNodeSelect={handleNodeSelect}
               onDragChange={handleDragChange}
+            />
+          </div>
+
+          {/* Interactive Waveform Strip (Área Inferior del Visor de Música) */}
+          <div className="shrink-0 h-[22%] min-h-[75px] max-h-[160px] landscape-compact-waveform border-t border-white/5 bg-neon-surface/40">
+            <InteractiveWaveform
+              currentTimeMs={currentTimeMs}
+              durationMs={audioState.durationMs}
+              isPlaying={isAudioActive}
+              onSeek={(ms) => audioEngine.seek(ms)}
+              fileName={audioState.fileName}
             />
           </div>
         </main>

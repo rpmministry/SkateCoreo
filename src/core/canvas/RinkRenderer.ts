@@ -102,23 +102,33 @@ export class RinkRenderer {
       ctx.arc(offsetX + renderedW * 0.75, offsetY + renderedH / 2, circleRPx, 0, Math.PI * 2);
       ctx.stroke();
 
-      // Panel de jueces World Skate
-      const judgeW = renderedW * 0.32;
-      const judgeH = 16;
+      // Panel de jueces World Skate con ancho dinámico intrínseco (Text Overflow Fix)
+      const judgeText = 'PANEL DE JUECES (WORLD SKATE)';
+      ctx.font = 'bold 9px JetBrains Mono, monospace';
+      const textMetrics = ctx.measureText(judgeText);
+      const judgePadX = 14;
+      const judgeW = Math.ceil(textMetrics.width + judgePadX * 2);
+      const judgeH = 18;
       const judgeX = offsetX + (renderedW - judgeW) / 2;
-      const judgeY = offsetY - 18;
+      const judgeY = Math.max(2, offsetY - 20);
 
       ctx.fillStyle = 'rgba(245, 158, 11, 0.15)';
-      ctx.fillRect(judgeX, judgeY, judgeW, judgeH);
+      ctx.beginPath();
+      if (typeof ctx.roundRect === 'function') {
+        ctx.roundRect(judgeX, judgeY, judgeW, judgeH, 4);
+      } else {
+        ctx.rect(judgeX, judgeY, judgeW, judgeH);
+      }
+      ctx.fill();
+
       ctx.strokeStyle = '#F59E0B';
       ctx.lineWidth = 1.5;
-      ctx.strokeRect(judgeX, judgeY, judgeW, judgeH);
+      ctx.stroke();
 
       ctx.fillStyle = '#F59E0B';
-      ctx.font = 'bold 9px JetBrains Mono, monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('PANEL DE JUECES (WORLD SKATE)', judgeX + judgeW / 2, judgeY + judgeH / 2);
+      ctx.fillText(judgeText, judgeX + judgeW / 2, judgeY + judgeH / 2);
     }
 
     ctx.restore();
