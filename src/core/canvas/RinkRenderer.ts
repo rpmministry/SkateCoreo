@@ -1,7 +1,7 @@
 import { CanvasViewportMetrics, RinkMath } from './RinkMath';
 import { ChoreographyPathPoint, ElementLog, SkaterAvatarState, RinkDimensions, SkaterGender, isMainNode } from '../../types/choreography';
 
-export type ChoreographyPhase = 'plot' | 'connect' | 'curve';
+export type ChoreographyPhase = 'plot' | 'connect' | 'curve' | 'erase';
 
 export interface RenderOptions {
   showRinkGrid: boolean;

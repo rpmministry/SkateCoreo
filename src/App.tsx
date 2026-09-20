@@ -14,7 +14,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Play, Pause, Square, Music,
   Menu, X, ChevronDown,
-  Undo2, Route, PenTool, Users,
+  Undo2, Route, PenTool, Eraser, Users,
   Upload, Download, Save, Trash2, HardDrive, Check
 } from 'lucide-react';
 import { Skater, Program, ElementLog, AudioEngineState } from './types';
@@ -178,6 +178,13 @@ export function App() {
       setDrawerOpen(false);
     }
   }, []);
+
+  // Cleanup de selección cuando se cierra el bottom sheet en móvil
+  useEffect(() => {
+    if (!sheetOpen && typeof window !== 'undefined' && window.innerWidth < 1024) {
+      useChoreographyStore.getState().setSelectedPointId(null);
+    }
+  }, [sheetOpen]);
 
   // ── 1. Cargar Música desde archivo del dispositivo ─────
   const handleMusicFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -562,7 +569,11 @@ export function App() {
         {(drawerOpen || sheetOpen) && (
           <div
             className="lg:hidden fixed inset-0 z-40 bg-black/75 backdrop-blur-md transition-opacity"
-            onClick={() => { setDrawerOpen(false); setSheetOpen(false); }}
+            onClick={() => {
+              setDrawerOpen(false);
+              setSheetOpen(false);
+              useChoreographyStore.getState().setSelectedPointId(null);
+            }}
             onTouchStart={(e) => e.stopPropagation()}
             onTouchMove={(e) => e.stopPropagation()}
             onTouchEnd={(e) => e.stopPropagation()}
@@ -612,7 +623,7 @@ export function App() {
 
         {/* ── DESKTOP RIGHT ASIDE (Inspector de Nodo) ── */}
         <aside className="hidden lg:flex lg:w-[272px] xl:w-[288px] shrink-0 flex-col bg-neon-surface border-l border-white/5 overflow-hidden shadow-soft-elevation">
-          <RightInspectorPanel />
+          <RightInspectorPanel onClose={() => useChoreographyStore.getState().setSelectedPointId(null)} />
         </aside>
 
         {/* ── MOBILE LEFT DRAWER (Configuración Global) ── */}
@@ -715,7 +726,10 @@ export function App() {
           {/* Pull Grip Affordance */}
           <div
             className="shrink-0 flex justify-center pt-3 pb-1 cursor-pointer"
-            onClick={() => setSheetOpen(false)}
+            onClick={() => {
+              setSheetOpen(false);
+              useChoreographyStore.getState().setSelectedPointId(null);
+            }}
           >
             <div className="w-12 h-1.5 rounded-full bg-slate-700" />
           </div>
@@ -727,7 +741,10 @@ export function App() {
             </span>
             <button
               type="button"
-              onClick={() => setSheetOpen(false)}
+              onClick={() => {
+                setSheetOpen(false);
+                useChoreographyStore.getState().setSelectedPointId(null);
+              }}
               className="min-w-touch min-h-touch flex items-center justify-center rounded-2xl text-slate-400 hover:text-white interactive-tap"
               aria-label="Cerrar inspector"
             >
@@ -753,7 +770,14 @@ export function App() {
             onPointerMove={(e) => e.stopPropagation()}
             onPointerUp={(e) => e.stopPropagation()}
           >
-            <RightInspectorPanel showHeader={false} isMobileModal={true} />
+            <RightInspectorPanel
+              showHeader={false}
+              isMobileModal={true}
+              onClose={() => {
+                setSheetOpen(false);
+                useChoreographyStore.getState().setSelectedPointId(null);
+              }}
+            />
           </div>
         </div>
 
@@ -784,9 +808,13 @@ export function App() {
         {/* Herramienta 1: Colocar Nodos (Modo Nodos) */}
         <button
           type="button"
-          onClick={() => { setPhase('plot'); setSheetOpen(false); }}
+          onClick={() => {
+            setPhase('plot');
+            setSheetOpen(false);
+            useChoreographyStore.getState().setSelectedPointId(null);
+          }}
           className={[
-            'flex-[1.2] min-h-touch flex flex-col items-center justify-center gap-0.5',
+            'flex-[1.1] min-h-touch flex flex-col items-center justify-center gap-0.5',
             'text-[10px] font-black uppercase tracking-wider border-r border-white/5 interactive-tap transition-all',
             phase === 'plot'
               ? 'bg-amber-500 text-black shadow-glow-amber font-black'
@@ -795,7 +823,7 @@ export function App() {
           title="Modo Nodos: Un clic en el lienzo vacío coloca nodos. Las líneas están ocultas."
         >
           <PenTool className="w-4 h-4 stroke-[2.5]" />
-          <span>Colocar Nodos</span>
+          <span>Nodos</span>
         </button>
 
         {/* Herramienta 2: Trazar Líneas (Modo Trazado, Toggle) */}
@@ -807,10 +835,11 @@ export function App() {
             } else if (canDraw) {
               setPhase('curve');
             }
+            useChoreographyStore.getState().setSelectedPointId(null);
           }}
           disabled={!canDraw}
           className={[
-            'flex-[1.2] min-h-touch flex flex-col items-center justify-center gap-0.5',
+            'flex-[1.1] min-h-touch flex flex-col items-center justify-center gap-0.5',
             'text-[10px] font-black uppercase tracking-wider border-r border-white/5 interactive-tap transition-all',
             phase === 'curve'
               ? 'bg-cyan text-black shadow-glow-cyan font-black'
@@ -819,7 +848,32 @@ export function App() {
           title={canDraw ? 'Modo Trazado: Ver líneas conectadas y esculpir curvas' : 'Mínimo 2 nodos'}
         >
           <Route className="w-4 h-4 stroke-[2.5]" />
-          <span>Trazar Líneas</span>
+          <span>Trazar</span>
+        </button>
+
+        {/* Herramienta 3: Borrador (Modo Borrador, Toggle) */}
+        <button
+          type="button"
+          onClick={() => {
+            if (phase === 'erase') {
+              setPhase('plot');
+            } else {
+              setPhase('erase');
+            }
+            useChoreographyStore.getState().setSelectedPointId(null);
+            setSheetOpen(false);
+          }}
+          className={[
+            'flex-[1.1] min-h-touch flex flex-col items-center justify-center gap-0.5',
+            'text-[10px] font-black uppercase tracking-wider border-r border-white/5 interactive-tap transition-all',
+            phase === 'erase'
+              ? 'bg-red-500 text-white shadow-lg shadow-red-500/40 font-black'
+              : 'text-slate-400 hover:text-white',
+          ].join(' ')}
+          title="Modo Borrador: Toca cualquier nodo para eliminarlo instantáneamente."
+        >
+          <Eraser className="w-4 h-4 stroke-[2.5]" />
+          <span>Borrador</span>
         </button>
 
         {/* Limpiar Pista en un toque (Mobile) */}

@@ -8,7 +8,8 @@ import {
   PenTool,
   Route,
   Undo2,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Eraser
 } from 'lucide-react';
 
 import { useChoreographyStore } from '../store/useChoreographyStore';
@@ -30,6 +31,7 @@ const formatTime = (ms: number): string => {
 export interface RightInspectorPanelProps {
   showHeader?: boolean;
   isMobileModal?: boolean;
+  onClose?: () => void;
 }
 
 /**
@@ -39,6 +41,7 @@ export interface RightInspectorPanelProps {
 export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
   showHeader = true,
   isMobileModal = false,
+  onClose,
 }) => {
   const audio = useAudioEngine();
 
@@ -83,7 +86,10 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
 
   const handleDeleteSelected = () => {
     if (!selectedPointId) return;
-    deletePoint(selectedPointId);
+    const idToDelete = selectedPointId;
+    setSelectedPointId(null);
+    deletePoint(idToDelete);
+    onClose?.();
   };
 
   const handleStraighten = () => {
@@ -132,13 +138,16 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
               <span className="font-mono text-cyan">{points.length} {points.length === 1 ? 'nodo' : 'nodos'}</span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {/* Botón 1: Colocar Nodos (Siempre visible) */}
               <button
                 type="button"
-                onClick={() => setPhase('plot')}
+                onClick={() => {
+                  setPhase('plot');
+                  setSelectedPointId(null);
+                }}
                 className={[
-                  'flex items-center justify-center gap-1.5 py-3 px-2 rounded-xl text-xs font-black transition-all interactive-tap shadow-soft-elevation',
+                  'flex flex-col items-center justify-center gap-1 py-2.5 px-1 rounded-xl text-[11px] font-black transition-all interactive-tap shadow-soft-elevation text-center',
                   phase === 'plot'
                     ? 'bg-amber-500 text-black shadow-glow-amber ring-2 ring-amber-400'
                     : 'bg-neon-card hover:bg-neon-hover text-slate-300 hover:text-white',
@@ -146,7 +155,7 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                 title="Modo Nodos: Un clic en el lienzo coloca nodos. Las líneas están ocultas."
               >
                 <PenTool className="w-4 h-4 stroke-[2.5]" />
-                <span>Colocar Nodos</span>
+                <span>Nodos</span>
               </button>
 
               {/* Botón 2: Trazar Líneas (Toggle mutuamente excluyente) */}
@@ -158,10 +167,11 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                   } else if (points.length >= 2) {
                     setPhase('curve');
                   }
+                  setSelectedPointId(null);
                 }}
                 disabled={points.length < 2}
                 className={[
-                  'flex items-center justify-center gap-1.5 py-3 px-2 rounded-xl text-xs font-black transition-all interactive-tap shadow-soft-elevation',
+                  'flex flex-col items-center justify-center gap-1 py-2.5 px-1 rounded-xl text-[11px] font-black transition-all interactive-tap shadow-soft-elevation text-center',
                   phase === 'curve'
                     ? 'bg-cyan text-black shadow-glow-cyan ring-2 ring-cyan-400'
                     : 'bg-neon-card hover:bg-neon-hover text-slate-300 hover:text-white disabled:opacity-30 disabled:pointer-events-none',
@@ -169,7 +179,30 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                 title={points.length >= 2 ? 'Modo Trazado: Líneas visibles. Arrastra los puntos sobre el trazo para esculpir curvas.' : 'Mínimo 2 nodos requeridos'}
               >
                 <Route className="w-4 h-4 stroke-[2.5]" />
-                <span>Trazar Líneas</span>
+                <span>Trazar</span>
+              </button>
+
+              {/* Botón 3: Borrador (Modo Borrador) */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (phase === 'erase') {
+                    setPhase('plot');
+                  } else {
+                    setPhase('erase');
+                  }
+                  setSelectedPointId(null);
+                }}
+                className={[
+                  'flex flex-col items-center justify-center gap-1 py-2.5 px-1 rounded-xl text-[11px] font-black transition-all interactive-tap shadow-soft-elevation text-center',
+                  phase === 'erase'
+                    ? 'bg-red-500 text-white shadow-lg shadow-red-500/40 ring-2 ring-red-400'
+                    : 'bg-neon-card hover:bg-neon-hover text-slate-300 hover:text-red-400',
+                ].join(' ')}
+                title="Modo Borrador: Toca cualquier nodo en la pista para eliminarlo al instante."
+              >
+                <Eraser className="w-4 h-4 stroke-[2.5]" />
+                <span>Borrador</span>
               </button>
             </div>
           </div>
@@ -427,24 +460,32 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
               </div>
             </div>
 
-            {/* Acciones del Nodo */}
-            <div className="space-y-2 pt-2">
+            {/* ── ZONA DE PELIGRO / ACCIONES DEL NODO (Carbon Danger Zone) ── */}
+            <div className="pt-4 border-t border-red-500/20 space-y-3">
               <button
                 type="button"
                 onClick={() => setSelectedPointId(null)}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-neon-card hover:bg-neon-hover text-slate-400 hover:text-white text-xs font-semibold shadow-soft-elevation interactive-tap"
+                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-neon-card hover:bg-neon-hover text-slate-400 hover:text-white text-xs font-semibold shadow-soft-elevation interactive-tap transition-colors"
               >
                 <Move className="w-4 h-4" />
                 Deseleccionar
               </button>
-              <button
-                type="button"
-                onClick={handleDeleteSelected}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-coral/15 hover:bg-coral text-coral hover:text-white text-xs font-bold shadow-soft-elevation interactive-tap transition-colors"
-              >
-                <Trash2 className="w-4 h-4" />
-                Eliminar Nodo
-              </button>
+
+              <div className="p-3 rounded-2xl bg-red-950/25 border border-red-500/30 space-y-2">
+                <div className="flex items-center justify-between text-[10px] font-bold text-red-400 uppercase tracking-wider">
+                  <span>Zona de Peligro</span>
+                  <span className="font-mono text-red-400/70 text-[9px]">Irreversible</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleDeleteSelected}
+                  className="w-full min-h-[48px] flex items-center justify-center gap-2.5 px-4 py-3 rounded-xl bg-red-600 hover:bg-red-500 active:scale-[0.98] text-white text-xs font-black uppercase tracking-wider shadow-lg shadow-red-600/30 transition-all cursor-pointer"
+                  title="Eliminar este nodo y cerrar inspector"
+                >
+                  <Trash2 className="w-4 h-4 stroke-[2.5]" />
+                  <span>Eliminar Nodo</span>
+                </button>
+              </div>
             </div>
           </div>
         )}

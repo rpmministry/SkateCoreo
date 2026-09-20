@@ -23,7 +23,8 @@ import {
   Music,
   Mic,
   PenTool,
-  Route
+  Route,
+  Eraser
 } from 'lucide-react';
 
 import { ChoreographyPathPoint, ChoreographyPoint, Program, ElementLog, isMainNode } from '../types';
@@ -88,7 +89,6 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     zoomOut,
     resetCamera,
     screenToWorld,
-    worldToScreen,
     onPointerDown: camPointerDown,
     onPointerMove: camPointerMove,
     onPointerUp: camPointerUp,
@@ -98,9 +98,6 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     width: 1000,
     height: 540,
   });
-
-  // Estado del Tooltip Contextual de Borrado (Contextual Delete Tooltip)
-  const [deleteTooltip, setDeleteTooltip] = useState<{ pointId: string } | null>(null);
 
   // Observador de Redimensionamiento Responsivo (100% Ancho y Altura)
   useEffect(() => {
@@ -167,7 +164,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
   } | null>(null);
   const pointsBeforeDragRef = useRef<ChoreographyPathPoint[] | null>(null);
   const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
-  const [cursorStyle, setCursorStyle] = useState<'default' | 'crosshair' | 'grab' | 'grabbing'>('crosshair');
+  const [cursorStyle, setCursorStyle] = useState<'default' | 'crosshair' | 'grab' | 'grabbing' | 'pointer'>('crosshair');
 
   // Motor de Trazado a Mano Alzada (Freehand Pathing) y Long Press (~600ms)
   const rawStrokeRef = useRef<Point2D[]>([]);
@@ -175,14 +172,29 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
   const isLongPressActiveRef = useRef<boolean>(false);
   const strokeStartNodeRef = useRef<ChoreographyPoint | null>(null);
 
-  // Limpieza del temporizador de Long Press al desmontar
+  // Limpieza del temporizador de Long Press y selección al desmontar
   useEffect(() => {
     return () => {
+      setSelectedPointId(null);
       if (longPressTimerRef.current) {
         clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
       }
     };
-  }, []);
+  }, [setSelectedPointId]);
+
+  // Limpieza de selección y estados efímeros al cambiar de modo (Nodos <-> Trazado <-> Borrador)
+  useEffect(() => {
+    setSelectedPointId(null);
+    rawStrokeRef.current = [];
+    strokeStartNodeRef.current = null;
+    dragTargetRef.current = null;
+    setIsDragging(false);
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, [phase, setSelectedPointId]);
 
 
   // Función Deshacer (Undo / Ctrl+Z)
@@ -468,6 +480,30 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       }
     }
 
+    if (phase === 'erase') {
+      if (hitNode) {
+        // En Modo Borrador: eliminar inmediatamente el nodo tocado
+        const idToDelete = hitNode.id;
+        deletePoint(idToDelete);
+        setSelectedPointId(null);
+        try {
+          if (typeof navigator !== 'undefined' && navigator.vibrate) {
+            navigator.vibrate(40);
+          }
+        } catch (err) {}
+        const updatedPoints = points.filter(p => p.id !== idToDelete);
+        if (currentProgram && onProgramUpdated) {
+          onProgramUpdated({
+            ...currentProgram,
+            choreography_path: updatedPoints,
+          });
+        }
+        audio.setNodes(updatedPoints);
+        renderFrame();
+      }
+      return;
+    }
+
     if (hitNode) {
       hitFound = true;
       strokeStartNodeRef.current = hitNode;
@@ -485,7 +521,6 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
         // Seleccionar nodo y abrir el modal / Bottom Sheet de propiedades
         setSelectedPointId(targetNode.id);
         onNodeSelect?.(targetNode.id);
-        setDeleteTooltip({ pointId: targetNode.id });
         // Cancelar el trazo o arrastre en curso para evitar dibujar mientras se abre el menú
         rawStrokeRef.current = [];
         strokeStartNodeRef.current = null;
@@ -574,6 +609,12 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       return;
     }
 
+    // Si estamos en Modo Borrador, no permitir arrastre ni dibujo
+    if (phase === 'erase') {
+      setCursorStyle('pointer');
+      return;
+    }
+
     // 2. Cancelar Long Press si el dedo se mueve más de 8px
     const movedDistance = pointerDownPosRef.current
       ? Math.hypot(e.clientX - pointerDownPosRef.current.x, e.clientY - pointerDownPosRef.current.y)
@@ -598,7 +639,6 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       if (!isDragging) {
         setIsDragging(true);
         onDragChange?.(true);
-        setDeleteTooltip(null);
       }
 
       // Restringir a los límites de la pista reglamentaria (0.4m margen de seguridad)
@@ -719,6 +759,18 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       rawStrokeRef.current = [];
       strokeStartNodeRef.current = null;
       setIsDragging(false);
+      onDragChange?.(false);
+      renderFrame();
+      return;
+    }
+
+    // Si estamos en Modo Borrador, limpiar estados y salir sin crear nodos
+    if (phase === 'erase') {
+      setIsDragging(false);
+      dragTargetRef.current = null;
+      pointerDownPosRef.current = null;
+      rawStrokeRef.current = [];
+      strokeStartNodeRef.current = null;
       onDragChange?.(false);
       renderFrame();
       return;
@@ -868,16 +920,13 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     // 3. CASO TOQUE RÁPIDO (TAP < 8px):
     if (movedDistance < 8) {
       if (startNode) {
-        // Tap rápido en nodo existente: Seleccionar nodo y mostrar icono contextual de borrado
+        // Tap rápido en nodo existente: Seleccionar nodo
         // (El menú de propiedades solo se abre con Long Press ~600ms)
         setSelectedPointId(startNode.id);
-        setDeleteTooltip({ pointId: startNode.id });
       } else if (currentTarget && (currentTarget.type === 'curve' || currentTarget.type === 'grip')) {
         setSelectedPointId(currentTarget.targetId);
-        setDeleteTooltip(null);
       } else if (canvas) {
         // Clic en fondo vacío
-        setDeleteTooltip(null);
 
         // Comprobar doble tap para dividir segmento
         const now = Date.now();
@@ -931,7 +980,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
   // ── INSERCIÓN POR DOBLE CLIC: Coloca nuevos nodos en la pista o divide líneas existentes ──
   const handleCanvasDoubleClick = (clientX: number, clientY: number): boolean => {
     const canvas = canvasRef.current;
-    if (!canvas) return false;
+    if (!canvas || phase === 'erase') return false;
 
     const metrics = getMetrics();
     const { x: worldPx, y: worldPy } = screenToWorld(clientX, clientY, canvas);
@@ -1149,13 +1198,13 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
           </div>
         )}
 
-        {/* Mode Toggles: Colocar Nodos / Trazar Líneas (Mutually Exclusive) */}
+        {/* Mode Toggles: Colocar Nodos / Trazar Líneas / Borrador */}
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center bg-zinc-950/90 backdrop-blur-md p-1 rounded-2xl border border-white/10 shadow-2xl gap-1 select-none">
           <button
             type="button"
             onClick={() => {
               setPhase('plot');
-              setDeleteTooltip(null);
+              setSelectedPointId(null);
             }}
             className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
               phase === 'plot'
@@ -1175,7 +1224,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
               } else {
                 setPhase('curve');
               }
-              setDeleteTooltip(null);
+              setSelectedPointId(null);
             }}
             className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
               phase === 'curve'
@@ -1187,53 +1236,27 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
             <Route className="w-3.5 h-3.5 stroke-[2.5]" />
             <span>Trazar Líneas</span>
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (phase === 'erase') {
+                setPhase('plot');
+              } else {
+                setPhase('erase');
+              }
+              setSelectedPointId(null);
+            }}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
+              phase === 'erase'
+                ? 'bg-red-500 text-white shadow-lg shadow-red-500/40 font-black'
+                : 'text-slate-300 hover:text-red-400 hover:bg-zinc-800'
+            }`}
+            title="Modo Borrador: Toca cualquier nodo en la pista para eliminarlo instantáneamente."
+          >
+            <Eraser className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span>Borrador</span>
+          </button>
         </div>
-
-        {/* Tooltip / Menú contextual flotante de Borrado de Nodo */}
-        {deleteTooltip && (() => {
-          const node = points.find(p => p.id === deleteTooltip.pointId);
-          if (!node) return null;
-          const metrics = getMetrics();
-          const { px, py } = RinkMath.metersToPixels(node.x, node.y, metrics);
-          const screenPos = worldToScreen(px, py);
-
-          return (
-            <div
-              style={{
-                position: 'absolute',
-                left: `${screenPos.x}px`,
-                top: `${screenPos.y - 44}px`,
-                transform: 'translateX(-50%)',
-              }}
-              className="z-40 flex items-center gap-1.5 bg-zinc-950/95 border border-red-500/50 px-2.5 py-1.5 rounded-xl shadow-2xl backdrop-blur-md animate-in fade-in zoom-in-95 duration-150 select-none pointer-events-auto"
-            >
-              <button
-                type="button"
-                onClick={(ev) => {
-                  ev.stopPropagation();
-                  deletePoint(node.id);
-                  setDeleteTooltip(null);
-                }}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-600 hover:bg-red-500 active:scale-95 text-white text-xs font-black transition-all shadow-md shadow-red-600/40"
-                title="Eliminar este nodo"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Borrar</span>
-              </button>
-              <button
-                type="button"
-                onClick={(ev) => {
-                  ev.stopPropagation();
-                  setDeleteTooltip(null);
-                }}
-                className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
-                title="Cerrar"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          );
-        })()}
 
         {/* Floating Camera & Trail Control HUD */}
         <div className="absolute bottom-3 right-3 z-30 flex items-center gap-1.5 bg-slate-950/85 backdrop-blur-md border border-white/10 px-2 py-1.5 rounded-xl shadow-soft-elevation select-none">
@@ -1595,13 +1618,13 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
             </button>
           </div>
 
-          {/* Mode Toggles: Colocar Nodos / Trazar Líneas (Mutually Exclusive) */}
+          {/* Mode Toggles: Colocar Nodos / Trazar Líneas / Borrador */}
           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center bg-zinc-950/90 backdrop-blur-md p-1 rounded-2xl border border-white/10 shadow-2xl gap-1 select-none">
             <button
               type="button"
               onClick={() => {
                 setPhase('plot');
-                setDeleteTooltip(null);
+                setSelectedPointId(null);
               }}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
                 phase === 'plot'
@@ -1621,7 +1644,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
                 } else {
                   setPhase('curve');
                 }
-                setDeleteTooltip(null);
+                setSelectedPointId(null);
               }}
               className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
                 phase === 'curve'
@@ -1633,53 +1656,27 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
               <Route className="w-3.5 h-3.5 stroke-[2.5]" />
               <span>Trazar Líneas</span>
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (phase === 'erase') {
+                  setPhase('plot');
+                } else {
+                  setPhase('erase');
+                }
+                setSelectedPointId(null);
+              }}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
+                phase === 'erase'
+                  ? 'bg-red-500 text-white shadow-lg shadow-red-500/40 font-black'
+                  : 'text-slate-300 hover:text-red-400 hover:bg-zinc-800'
+              }`}
+              title="Modo Borrador: Toca cualquier nodo en la pista para eliminarlo instantáneamente."
+            >
+              <Eraser className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>Borrador</span>
+            </button>
           </div>
-
-          {/* Tooltip / Menú contextual flotante de Borrado de Nodo */}
-          {deleteTooltip && (() => {
-            const node = points.find(p => p.id === deleteTooltip.pointId);
-            if (!node) return null;
-            const metrics = getMetrics();
-            const { px, py } = RinkMath.metersToPixels(node.x, node.y, metrics);
-            const screenPos = worldToScreen(px, py);
-
-            return (
-              <div
-                style={{
-                  position: 'absolute',
-                  left: `${screenPos.x}px`,
-                  top: `${screenPos.y - 44}px`,
-                  transform: 'translateX(-50%)',
-                }}
-                className="z-40 flex items-center gap-1.5 bg-zinc-950/95 border border-red-500/50 px-2.5 py-1.5 rounded-xl shadow-2xl backdrop-blur-md animate-in fade-in zoom-in-95 duration-150 select-none pointer-events-auto"
-              >
-                <button
-                  type="button"
-                  onClick={(ev) => {
-                    ev.stopPropagation();
-                    deletePoint(node.id);
-                    setDeleteTooltip(null);
-                  }}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-600 hover:bg-red-500 active:scale-95 text-white text-xs font-black transition-all shadow-md shadow-red-600/40"
-                  title="Eliminar este nodo"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Borrar</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={(ev) => {
-                    ev.stopPropagation();
-                    setDeleteTooltip(null);
-                  }}
-                  className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
-                  title="Cerrar"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            );
-          })()}
 
           <canvas
             ref={canvasRef}

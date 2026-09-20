@@ -512,18 +512,9 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
 
     const updated = points.filter(p => p.id !== id);
 
-    let nextSelectedId: string | null = null;
-    if (selectedPointId === id) {
-      if (updated.length > 0) {
-        nextSelectedId = updated[Math.min(idx, updated.length - 1)].id;
-      }
-    } else {
-      nextSelectedId = selectedPointId;
-    }
-
     set({
       points: updated,
-      selectedPointId: nextSelectedId
+      selectedPointId: selectedPointId === id ? null : selectedPointId
     });
   },
 
