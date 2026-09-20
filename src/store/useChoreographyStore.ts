@@ -176,7 +176,9 @@ function normalizePoint(pt: Partial<ChoreographyPoint> & { id: string; x: number
     cp2y: cp2.y,
     type: pt.type || 'Marker',
     label: pt.label || '',
-    element_id: pt.element_id
+    element_id: pt.element_id,
+    isMainNode: pt.isMainNode ?? true,
+    path: Array.isArray(pt.path) && pt.path.length > 0 ? pt.path.map((coord) => ({ x: coord.x, y: coord.y })) : undefined
   };
 }
 
@@ -388,6 +390,11 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
         y: Math.round(Math.max(0.4, Math.min(24.6, rawCp2Y)) * 10) / 10
       };
 
+      const updatedPath = p.path ? p.path.map(pt => ({
+        x: Math.round(Math.max(0.2, Math.min(49.8, pt.x + dx)) * 100) / 100,
+        y: Math.round(Math.max(0.2, Math.min(24.8, pt.y + dy)) * 100) / 100,
+      })) : undefined;
+
       return {
         ...p,
         x: clampedX,
@@ -397,7 +404,8 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
         cp1x: cp1.x,
         cp1y: cp1.y,
         cp2x: cp2.x,
-        cp2y: cp2.y
+        cp2y: cp2.y,
+        path: updatedPath,
       };
     });
 

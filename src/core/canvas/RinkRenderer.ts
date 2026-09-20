@@ -171,6 +171,8 @@ export class RinkRenderer {
       const hasSplinePath = Boolean(p0.path && p0.path.length >= 2);
 
       ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
 
       const strokeCurve = () => {
         ctx.beginPath();
@@ -212,7 +214,8 @@ export class RinkRenderer {
   }
 
   /**
-   * Traza una curva continua a través de todos los puntos de la huella utilizando Catmull-Rom a Bézier cúbico.
+   * Traza una trayectoria continua conectando TODOS los puntos capturados en la huella (Polyline / Multi-segment).
+   * Itera sobre cada punto garantizando la preservación exacta de figuras complejas (círculos 360°, bucles, ochos).
    */
   public static traceSplinePath(
     ctx: CanvasRenderingContext2D,
@@ -225,38 +228,15 @@ export class RinkRenderer {
     const pt0 = RinkMath.metersToPixels(path[0].x, path[0].y, metrics);
     ctx.moveTo(pt0.px, pt0.py);
 
-    if (n === 2) {
-      const pt1 = RinkMath.metersToPixels(path[1].x, path[1].y, metrics);
-      ctx.lineTo(pt1.px, pt1.py);
-      return;
-    }
-
-    const factor = 1 / 6;
-    for (let i = 0; i < n - 1; i++) {
-      const p0 = path[i];
-      const p1 = path[i + 1];
-      const pPrev = i > 0 ? path[i - 1] : { x: 2 * p0.x - p1.x, y: 2 * p0.y - p1.y };
-      const pNext = i < n - 2 ? path[i + 2] : { x: 2 * p1.x - p0.x, y: 2 * p1.y - p0.y };
-
-      const cp1M = {
-        x: p0.x + (p1.x - pPrev.x) * factor,
-        y: p0.y + (p1.y - pPrev.y) * factor
-      };
-      const cp2M = {
-        x: p1.x - (pNext.x - p0.x) * factor,
-        y: p1.y - (pNext.y - p0.y) * factor
-      };
-
-      const cp1 = RinkMath.metersToPixels(cp1M.x, cp1M.y, metrics);
-      const cp2 = RinkMath.metersToPixels(cp2M.x, cp2M.y, metrics);
-      const pt1 = RinkMath.metersToPixels(p1.x, p1.y, metrics);
-
-      ctx.bezierCurveTo(cp1.px, cp1.py, cp2.px, cp2.py, pt1.px, pt1.py);
+    // Bucle iterativo sobre CADA UNO de los puntos capturados en el arreglo
+    for (let i = 1; i < n; i++) {
+      const pt = RinkMath.metersToPixels(path[i].x, path[i].y, metrics);
+      ctx.lineTo(pt.px, pt.py);
     }
   }
 
   /**
-   * Traza una curva continua parcial a través de la huella hasta el parámetro t (0 <= t <= 1).
+   * Traza una trayectoria continua parcial a través de la huella hasta el parámetro t (0 <= t <= 1).
    */
   public static tracePartialSplinePath(
     ctx: CanvasRenderingContext2D,
@@ -279,43 +259,17 @@ export class RinkRenderer {
     const pt0 = RinkMath.metersToPixels(path[0].x, path[0].y, metrics);
     ctx.moveTo(pt0.px, pt0.py);
 
-    const factor = 1 / 6;
-    for (let i = 0; i < n - 1; i++) {
-      if (dists[i] >= targetDist) break;
-
-      const p0 = path[i];
-      const p1 = path[i + 1];
-      const pPrev = i > 0 ? path[i - 1] : { x: 2 * p0.x - p1.x, y: 2 * p0.y - p1.y };
-      const pNext = i < n - 2 ? path[i + 2] : { x: 2 * p1.x - p0.x, y: 2 * p1.y - p0.y };
-
-      const segLen = dists[i + 1] - dists[i];
-      const isLastSeg = targetDist <= dists[i + 1];
-
-      const cp1M = {
-        x: p0.x + (p1.x - pPrev.x) * factor,
-        y: p0.y + (p1.y - pPrev.y) * factor
-      };
-      const cp2M = {
-        x: p1.x - (pNext.x - p0.x) * factor,
-        y: p1.y - (pNext.y - p0.y) * factor
-      };
-
-      if (!isLastSeg) {
-        const cp1 = RinkMath.metersToPixels(cp1M.x, cp1M.y, metrics);
-        const cp2 = RinkMath.metersToPixels(cp2M.x, cp2M.y, metrics);
-        const pt1 = RinkMath.metersToPixels(p1.x, p1.y, metrics);
-        ctx.bezierCurveTo(cp1.px, cp1.py, cp2.px, cp2.py, pt1.px, pt1.py);
+    for (let i = 1; i < n; i++) {
+      if (dists[i] <= targetDist) {
+        const pt = RinkMath.metersToPixels(path[i].x, path[i].y, metrics);
+        ctx.lineTo(pt.px, pt.py);
       } else {
-        const u = segLen > 0 ? (targetDist - dists[i]) / segLen : 0;
-        const q0 = { x: (1 - u) * p0.x + u * cp1M.x, y: (1 - u) * p0.y + u * cp1M.y };
-        const q1 = { x: (1 - u) * cp1M.x + u * cp2M.x, y: (1 - u) * cp1M.y + u * cp2M.y };
-        const r0 = { x: (1 - u) * q0.x + u * q1.x, y: (1 - u) * q0.y + u * q1.y };
-        const endPt = RinkMath.evaluateCubicBezier(p0, cp1M, cp2M, p1, u);
-
-        const subCp1 = RinkMath.metersToPixels(q0.x, q0.y, metrics);
-        const subCp2 = RinkMath.metersToPixels(r0.x, r0.y, metrics);
-        const subEnd = RinkMath.metersToPixels(endPt.x, endPt.y, metrics);
-        ctx.bezierCurveTo(subCp1.px, subCp1.py, subCp2.px, subCp2.py, subEnd.px, subEnd.py);
+        const segLen = dists[i] - dists[i - 1];
+        const u = segLen > 0 ? (targetDist - dists[i - 1]) / segLen : 0;
+        const interpX = path[i - 1].x + (path[i].x - path[i - 1].x) * u;
+        const interpY = path[i - 1].y + (path[i].y - path[i - 1].y) * u;
+        const pt = RinkMath.metersToPixels(interpX, interpY, metrics);
+        ctx.lineTo(pt.px, pt.py);
         break;
       }
     }

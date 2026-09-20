@@ -146,15 +146,19 @@ export class FreehandPathEngine {
     // Es recta si la desviación máxima es menor a 0.35m o menor al 5% de la cuerda
     const isStraightLineIntent = chordDist > 1.5 && (maxDevFromChord < 0.35 || (maxDevFromChord / chordDist) < 0.05);
 
-    // Simplificación Ramer-Douglas-Peucker conservadora (~2.5 píxeles de tolerancia)
-    // Preserva arcos de loops, intersecciones, ochos y serpentinas
-    const rdpTolerance = isStraightLineIntent ? 0.35 : 0.12;
-    let pathPoints = this.simplifyRDP(smoothed, rdpTolerance);
-
-    if (pathPoints.length < 2) {
-      pathPoints = [pStart, pEnd];
+    let pathPoints: Point2D[];
+    if (isStraightLineIntent) {
+      pathPoints = [
+        { x: Math.round(pStart.x * 100) / 100, y: Math.round(pStart.y * 100) / 100 },
+        { x: Math.round(pEnd.x * 100) / 100, y: Math.round(pEnd.y * 100) / 100 }
+      ];
     } else {
-      // Garantizar que los extremos de pathPoints coincidan con pStart y pEnd
+      // Conservación fiel de TODOS los micro-puntos capturados (círculos, bucles, ochos)
+      // Sin colapso destructivo RDP: Cada punto por donde pasó el dedo se preserva
+      pathPoints = smoothed.map(p => ({
+        x: Math.round(p.x * 100) / 100,
+        y: Math.round(p.y * 100) / 100
+      }));
       pathPoints[0] = { x: Math.round(pStart.x * 100) / 100, y: Math.round(pStart.y * 100) / 100 };
       pathPoints[pathPoints.length - 1] = { x: Math.round(pEnd.x * 100) / 100, y: Math.round(pEnd.y * 100) / 100 };
     }

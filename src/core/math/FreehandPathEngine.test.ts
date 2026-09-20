@@ -153,4 +153,27 @@ assert.equal(eightPoints.length, 2, 'Figura en ocho genera estrictamente 2 Nodos
 assert.ok(eightPoints[0].path && eightPoints[0].path.length >= 12, 'La huella del ocho preserva ambos lóbulos completos');
 console.log('✓ Preservación de Figura en Ocho (Figure-8) en huella path verificada');
 
+// 8. Test Preservación de Círculo Completo 360° (Inicio y Fin casi coincidentes)
+const circleRadius = 5;
+const circleCenter = { x: 25, y: 12.5 };
+const circleStroke: Point2D[] = [];
+for (let i = 0; i <= 64; i++) {
+  const angle = (i / 64) * 2 * Math.PI;
+  circleStroke.push({
+    x: circleCenter.x + circleRadius * Math.cos(angle),
+    y: circleCenter.y + circleRadius * Math.sin(angle),
+  });
+}
+const circlePoints = FreehandPathEngine.convertStrokeToChoreographyPoints(circleStroke, 3000, 3.5);
+assert.equal(circlePoints.length, 2, 'Círculo 360° genera exactamente 2 Nodos Maestros');
+assert.ok(circlePoints[0].path && circlePoints[0].path.length >= 20, 'El círculo conserva todos los puntos capturados en el arreglo');
+// Comprobar que abarca los extremos del círculo (diámetro = 10m en X y en Y)
+const minX = Math.min(...circlePoints[0].path!.map(p => p.x));
+const maxX = Math.max(...circlePoints[0].path!.map(p => p.x));
+const minY = Math.min(...circlePoints[0].path!.map(p => p.y));
+const maxY = Math.max(...circlePoints[0].path!.map(p => p.y));
+assert.ok(maxX - minX >= 9.5, 'El diámetro X del círculo dibujado se preserva (> 9.5m)');
+assert.ok(maxY - minY >= 9.5, 'El diámetro Y del círculo dibujado se preserva (> 9.5m)');
+console.log('✓ Preservación de Círculo 360° completo en huella path verificada (Diámetro íntegro)');
+
 console.log('All FreehandPathEngine tests passed successfully!');

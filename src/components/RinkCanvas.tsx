@@ -680,8 +680,9 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       const clampedY = Math.max(0.3, Math.min(DEFAULT_RINK_DIMENSIONS.widthMeters - 0.3, mY));
 
       const lastPt = rawStrokeRef.current[rawStrokeRef.current.length - 1];
-      // Muestreo inteligente: agregar punto solo si se desplazó al menos 0.15 metros
-      if (!lastPt || Math.hypot(clampedX - lastPt.x, clampedY - lastPt.y) >= 0.15) {
+      // Filtro de distancia (3px a 5px en pantalla): acumula coordenadas con alta resolución para círculos y bucles
+      const minStepMeters = Math.max(0.06, 3.5 / (metrics.scale * (camera.zoom || 1)));
+      if (!lastPt || Math.hypot(clampedX - lastPt.x, clampedY - lastPt.y) >= minStepMeters) {
         rawStrokeRef.current.push({ x: clampedX, y: clampedY });
         renderFrame();
       }

@@ -351,14 +351,21 @@ export function App() {
             <Menu className="w-5 h-5 stroke-[2]" />
           </button>
 
-          {/* Logo / Brand with Mauricio Andrade Luna attribution */}
+          {/* Logo / Brand with AlsisTech attribution */}
           <div className="flex flex-col justify-center min-w-0">
             <span
               className="text-[10px] tracking-wide text-slate-400 flex items-center gap-1 font-medium truncate-safe"
-              title="Desarrollado por Mauricio Andrade Luna"
+              title="Desarrollado por AlsisTech"
             >
               <span>Desarrollado por</span>
-              <strong className="text-cyan font-bold truncate-safe">Mauricio Andrade Luna</strong>
+              <a
+                href="https://www.alsiztech.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-cyan font-bold truncate-safe hover:underline hover:text-cyan/80 transition-colors"
+              >
+                AlsisTech
+              </a>
             </span>
             <div className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-cyan shadow-glow-cyan shrink-0" />
@@ -1043,11 +1050,19 @@ export function App() {
       </nav>
 
       {/* ═══════════════════════════════════════════════
-          FOOTER — Atribución Oficial Mauricio Andrade Luna
+          FOOTER — Atribución Oficial AlsisTech
           ═══════════════════════════════════════════════ */}
       <footer className="h-6 shrink-0 flex items-center justify-between px-3 bg-neon-surface/85 border-t border-white/5 text-[12px] text-slate-400 select-none z-20">
         <span className="truncate-safe font-normal">
-          Desarrollado por <strong className="text-slate-300 font-medium">Mauricio Andrade Luna</strong>
+          Desarrollado por{' '}
+          <a
+            href="https://www.alsiztech.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-slate-300 font-medium hover:text-cyan hover:underline transition-colors"
+          >
+            AlsisTech
+          </a>
         </span>
         <span className="hidden sm:inline text-slate-500 text-[11px] font-mono">
           SkateArt RollArt 2026

@@ -461,7 +461,15 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
         {/* ═══ Footer Attribution ═════════════════════════ */}
         <section className="px-4 py-3 bg-white/[0.01] border-t border-white/5 text-center">
           <p className="text-[12px] text-slate-400 font-normal truncate-safe">
-            Desarrollado por <span className="text-slate-300 font-medium">Mauricio Andrade Luna</span>
+            Desarrollado por{' '}
+            <a
+              href="https://www.alsiztech.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-slate-300 font-medium hover:text-cyan hover:underline transition-colors"
+            >
+              AlsisTech
+            </a>
           </p>
         </section>
     </>
