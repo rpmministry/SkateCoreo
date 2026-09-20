@@ -27,11 +27,19 @@ const formatTime = (ms: number): string => {
   return `${m}:${s.toString().padStart(2, '0')}`;
 };
 
+export interface RightInspectorPanelProps {
+  showHeader?: boolean;
+  isMobileModal?: boolean;
+}
+
 /**
  * Right inspector panel — Dark Mode Neon aesthetic.
  * Primary Master CTA in Coral Neon, Selected items highlighted in Mint Neon.
  */
-export const RightInspectorPanel: React.FC = () => {
+export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
+  showHeader = true,
+  isMobileModal = false,
+}) => {
   const audio = useAudioEngine();
 
   // ── Zustand store ──────────────────────────────────────────
@@ -114,36 +122,9 @@ export const RightInspectorPanel: React.FC = () => {
   };
 
   // ── Render ─────────────────────────────────────────────────
-  return (
-    <div
-      className="flex flex-col h-full w-full bg-neon-surface text-white select-none"
-      style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
-      onTouchStart={(e) => e.stopPropagation()}
-      onTouchMove={(e) => e.stopPropagation()}
-      onTouchEnd={(e) => e.stopPropagation()}
-    >
-      {/* ── Panel header ── */}
-      <div className="flex-none flex items-center justify-between px-4 py-3 border-b border-white/5">
-        <p
-          className={[
-            'text-[10px] font-bold uppercase tracking-widest transition-colors',
-            selectedPoint ? 'text-mint' : 'text-slate-500',
-          ].join(' ')}
-        >
-          {selectedPoint ? 'Inspector de Nodo' : 'Sin Selección'}
-        </p>
-      </div>
-
-      {/* ── Body ── */}
-      <div
-        className="flex-1 overflow-y-auto overscroll-contain pb-12"
-        style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
-        onTouchStart={(e) => e.stopPropagation()}
-        onTouchMove={(e) => e.stopPropagation()}
-        onTouchEnd={(e) => e.stopPropagation()}
-      >
-
-        {/* ── BARRA DE HERRAMIENTAS EXCLUSIVAS: Colocar Nodos vs Conectar Ruta ─── */}
+  const content = (
+    <>
+      {/* ── BARRA DE HERRAMIENTAS EXCLUSIVAS: Colocar Nodos vs Conectar Ruta ─── */}
         <div className="px-4 py-3.5 space-y-3 border-b border-white/5">
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
@@ -467,6 +448,90 @@ export const RightInspectorPanel: React.FC = () => {
             </div>
           </div>
         )}
+    </>
+  );
+
+  if (isMobileModal) {
+    return (
+      <div
+        className="w-full text-white select-none"
+        style={{
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehavior: 'contain',
+          touchAction: 'pan-y',
+        }}
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
+        onWheel={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerMove={(e) => e.stopPropagation()}
+        onPointerUp={(e) => e.stopPropagation()}
+      >
+        {showHeader && (
+          <div className="flex-none flex items-center justify-between px-4 py-3 border-b border-white/5">
+            <p
+              className={[
+                'text-[10px] font-bold uppercase tracking-widest transition-colors',
+                selectedPoint ? 'text-mint' : 'text-slate-500',
+              ].join(' ')}
+            >
+              {selectedPoint ? 'Inspector de Nodo' : 'Sin Selección'}
+            </p>
+          </div>
+        )}
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="flex flex-col h-full w-full bg-neon-surface text-white select-none"
+      style={{
+        WebkitOverflowScrolling: 'touch',
+        overscrollBehavior: 'contain',
+        touchAction: 'pan-y',
+      }}
+      onTouchStart={(e) => e.stopPropagation()}
+      onTouchMove={(e) => e.stopPropagation()}
+      onTouchEnd={(e) => e.stopPropagation()}
+      onWheel={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+      onPointerMove={(e) => e.stopPropagation()}
+      onPointerUp={(e) => e.stopPropagation()}
+    >
+      {/* ── Panel header ── */}
+      {showHeader && (
+        <div className="flex-none flex items-center justify-between px-4 py-3 border-b border-white/5">
+          <p
+            className={[
+              'text-[10px] font-bold uppercase tracking-widest transition-colors',
+              selectedPoint ? 'text-mint' : 'text-slate-500',
+            ].join(' ')}
+          >
+            {selectedPoint ? 'Inspector de Nodo' : 'Sin Selección'}
+          </p>
+        </div>
+      )}
+
+      {/* ── Body ── */}
+      <div
+        className="flex-1 overflow-y-auto overscroll-contain pb-12"
+        style={{
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehavior: 'contain',
+          touchAction: 'pan-y',
+        }}
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
+        onWheel={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerMove={(e) => e.stopPropagation()}
+        onPointerUp={(e) => e.stopPropagation()}
+      >
+        {content}
       </div>
     </div>
   );

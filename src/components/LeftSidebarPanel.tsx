@@ -31,6 +31,8 @@ interface LeftSidebarPanelProps {
   onUndo: () => void;
   onResetDemo: () => void;
   onClearRink?: () => void;
+  showHeader?: boolean;
+  isMobileModal?: boolean;
 }
 
 
@@ -44,6 +46,8 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
   onUndo,
   onResetDemo,
   onClearRink,
+  showHeader = true,
+  isMobileModal = false,
 }) => {
   const audio = useAudioEngine();
 
@@ -64,19 +68,9 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
   const { user, role, subscription_plan, logout } = useAuthStore();
   const [showDeviceModal, setShowDeviceModal] = React.useState(false);
 
-  return (
-    <div className="flex flex-col h-full w-full bg-neon-surface text-white select-none">
-      {/* ── Panel header ── */}
-      <div className="flex-none flex items-center px-4 py-3 border-b border-white/5">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-          Preparación &amp; Audio
-        </p>
-      </div>
-
-      {/* ── Scrollable body ── */}
-      <div className="flex-1 overflow-y-auto overscroll-contain divide-y divide-white/5">
-
-        {/* ═══ 0. Reglamento & Categoría 2026 ═══════════════ */}
+  const content = (
+    <>
+      {/* ═══ 0. Reglamento & Categoría 2026 ═══════════════ */}
         <section className="px-4 py-3.5 space-y-3 bg-white/[0.02]">
           <div className="flex items-center justify-between">
             <h3 className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-cyan">
@@ -463,6 +457,86 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
             </button>
           </div>
         </section>
+    </>
+  );
+
+  if (isMobileModal) {
+    return (
+      <div
+        className="w-full text-white select-none"
+        style={{
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehavior: 'contain',
+          touchAction: 'pan-y',
+        }}
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
+        onWheel={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerMove={(e) => e.stopPropagation()}
+        onPointerUp={(e) => e.stopPropagation()}
+      >
+        {showHeader && (
+          <div className="flex-none flex items-center px-4 py-3 border-b border-white/5">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+              Preparación &amp; Audio
+            </p>
+          </div>
+        )}
+        <div className="divide-y divide-white/5">
+          {content}
+        </div>
+        <DeviceSecurityModal
+          isOpen={showDeviceModal}
+          onClose={() => setShowDeviceModal(false)}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="flex flex-col h-full w-full bg-neon-surface text-white select-none"
+      style={{
+        WebkitOverflowScrolling: 'touch',
+        overscrollBehavior: 'contain',
+        touchAction: 'pan-y',
+      }}
+      onTouchStart={(e) => e.stopPropagation()}
+      onTouchMove={(e) => e.stopPropagation()}
+      onTouchEnd={(e) => e.stopPropagation()}
+      onWheel={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+      onPointerMove={(e) => e.stopPropagation()}
+      onPointerUp={(e) => e.stopPropagation()}
+    >
+      {/* ── Panel header ── */}
+      {showHeader && (
+        <div className="flex-none flex items-center px-4 py-3 border-b border-white/5">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+            Preparación &amp; Audio
+          </p>
+        </div>
+      )}
+
+      {/* ── Scrollable body ── */}
+      <div
+        className="flex-1 overflow-y-auto overscroll-contain divide-y divide-white/5"
+        style={{
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehavior: 'contain',
+          touchAction: 'pan-y',
+        }}
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
+        onWheel={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerMove={(e) => e.stopPropagation()}
+        onPointerUp={(e) => e.stopPropagation()}
+      >
+        {content}
       </div>
 
       <DeviceSecurityModal

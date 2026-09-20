@@ -563,6 +563,11 @@ export function App() {
           <div
             className="lg:hidden fixed inset-0 z-40 bg-black/75 backdrop-blur-md transition-opacity"
             onClick={() => { setDrawerOpen(false); setSheetOpen(false); }}
+            onTouchStart={(e) => e.stopPropagation()}
+            onTouchMove={(e) => e.stopPropagation()}
+            onTouchEnd={(e) => e.stopPropagation()}
+            onWheel={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
             aria-hidden="true"
           />
         )}
@@ -622,6 +627,19 @@ export function App() {
             'transition-transform duration-ui ease-spring',
             drawerOpen ? 'translate-x-0' : '-translate-x-full',
           ].join(' ')}
+          style={{
+            maxHeight: '100dvh',
+            overscrollBehavior: 'contain',
+            WebkitOverflowScrolling: 'touch',
+            touchAction: 'pan-y',
+          }}
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+          onTouchEnd={(e) => e.stopPropagation()}
+          onWheel={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onPointerMove={(e) => e.stopPropagation()}
+          onPointerUp={(e) => e.stopPropagation()}
         >
           {/* Drawer Top Handle */}
           <div className="shrink-0 h-14 flex items-center justify-between px-4 border-b border-white/5">
@@ -639,13 +657,30 @@ export function App() {
           </div>
 
           {/* Drawer Content Body */}
-          <div className="flex-1 overflow-y-auto overscroll-contain">
+          <div
+            className="flex-1 overflow-y-auto overscroll-contain pb-8"
+            style={{
+              overflowY: 'auto',
+              overscrollBehavior: 'contain',
+              WebkitOverflowScrolling: 'touch',
+              touchAction: 'pan-y',
+            }}
+            onTouchStart={(e) => e.stopPropagation()}
+            onTouchMove={(e) => e.stopPropagation()}
+            onTouchEnd={(e) => e.stopPropagation()}
+            onWheel={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            onPointerMove={(e) => e.stopPropagation()}
+            onPointerUp={(e) => e.stopPropagation()}
+          >
             <LeftSidebarPanel
               preRollSec={preRollSec}
               onPreRollSecChange={setPreRollSec}
               onUndo={handleUndo}
               onResetDemo={handleResetDemo}
               onClearRink={handleClearRink}
+              showHeader={false}
+              isMobileModal={true}
             />
           </div>
         </div>
@@ -663,13 +698,19 @@ export function App() {
             sheetOpen ? 'translate-y-0' : 'translate-y-full',
           ].join(' ')}
           style={{
-            maxHeight: '80vh',
+            maxHeight: '85dvh',
+            height: 'auto',
+            overscrollBehavior: 'contain',
             WebkitOverflowScrolling: 'touch',
             touchAction: 'pan-y',
           }}
           onTouchStart={(e) => e.stopPropagation()}
           onTouchMove={(e) => e.stopPropagation()}
           onTouchEnd={(e) => e.stopPropagation()}
+          onWheel={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onPointerMove={(e) => e.stopPropagation()}
+          onPointerUp={(e) => e.stopPropagation()}
         >
           {/* Pull Grip Affordance */}
           <div
@@ -680,7 +721,7 @@ export function App() {
           </div>
 
           {/* Sheet Header */}
-          <div className="shrink-0 flex items-center justify-between px-4 py-1.5 border-b border-white/5">
+          <div className="shrink-0 flex items-center justify-between px-4 py-2 border-b border-white/5">
             <span className="text-xs font-black uppercase tracking-widest text-mint">
               Inspector de Nodo
             </span>
@@ -694,18 +735,25 @@ export function App() {
             </button>
           </div>
 
-          {/* Sheet Content Body - Scrollable */}
+          {/* Sheet Content Body - Single Scrollable Container */}
           <div
-            className="flex-1 overflow-y-auto overscroll-contain pb-8"
+            className="flex-1 overflow-y-auto overscroll-contain pb-12"
             style={{
+              maxHeight: 'calc(85dvh - 56px)',
+              overflowY: 'auto',
+              overscrollBehavior: 'contain',
               WebkitOverflowScrolling: 'touch',
               touchAction: 'pan-y',
             }}
             onTouchStart={(e) => e.stopPropagation()}
             onTouchMove={(e) => e.stopPropagation()}
             onTouchEnd={(e) => e.stopPropagation()}
+            onWheel={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            onPointerMove={(e) => e.stopPropagation()}
+            onPointerUp={(e) => e.stopPropagation()}
           >
-            <RightInspectorPanel />
+            <RightInspectorPanel showHeader={false} isMobileModal={true} />
           </div>
         </div>
 
