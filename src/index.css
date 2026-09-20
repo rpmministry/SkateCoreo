@@ -117,3 +117,15 @@ body {
 .pb-safe {
   padding-bottom: max(0.5rem, env(safe-area-inset-bottom)) !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   ZONAS SEGURAS (SAFE ZONES) EN VISOR DE MÚSICA PARA MÓVIL PORTRAIT
+   Touch Target Clearance: Espacio físico de >=24px para evitar el gesto 'Atrás'
+   ═══════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) and (orientation: portrait) {
+  .timeline-container,
+  .timeline-safe-zone {
+    padding-left: max(24px, env(safe-area-inset-left)) !important;
+    padding-right: max(24px, env(safe-area-inset-right)) !important;
+  }
+}

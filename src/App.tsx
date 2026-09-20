@@ -780,7 +780,7 @@ export function App() {
           </div>
 
           {/* Interactive Waveform Strip (Área Inferior del Visor de Música) */}
-          <div className="shrink-0 h-[22%] min-h-[75px] max-h-[160px] landscape-compact-waveform border-t border-white/5 bg-neon-surface/40">
+          <div className="shrink-0 h-[22%] min-h-[75px] max-h-[160px] landscape-compact-waveform border-t border-white/5 bg-neon-surface/40 timeline-container">
             <InteractiveWaveform
               currentTimeMs={currentTimeMs}
               durationMs={audioState.durationMs}

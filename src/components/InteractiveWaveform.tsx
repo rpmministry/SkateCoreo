@@ -140,9 +140,14 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     ctx.lineTo(width, centerY);
     ctx.stroke();
 
-    // 2. Proyección de Progreso de Reproducción
+    // 2. Proyección de Progreso de Reproducción con zona segura interna
+    const PIN_RADIUS = 18;
+    const rect = canvas.getBoundingClientRect();
+    const padCanvas = PIN_RADIUS * (width / (rect.width || 1000));
+    const availableW = Math.max(1, width - padCanvas * 2);
+
     const playheadRatio = Math.max(0, Math.min(1, currentTimeMs / effectiveDurationMs));
-    const playheadPx = playheadRatio * width;
+    const playheadPx = padCanvas + playheadRatio * availableW;
 
     // Área reproducida (sombreado sutil cian)
     const playedGradient = ctx.createLinearGradient(0, 0, playheadPx, 0);
@@ -153,12 +158,12 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
 
     // 3. Renderizado de Picos de la Onda Sonora
     const peaks = wavePeaks.length > 0 ? wavePeaks : [0.5];
-    const barWidth = Math.max(1.5, (width / peaks.length) - 1);
-    const step = width / peaks.length;
+    const step = availableW / peaks.length;
+    const barWidth = Math.max(1.5, step - 1);
 
     for (let i = 0; i < peaks.length; i++) {
       const peakVal = peaks[i];
-      const barX = i * step;
+      const barX = padCanvas + i * step;
       const barHeight = Math.max(3, peakVal * (height * 0.82));
       const topY = centerY - barHeight / 2;
 
@@ -184,7 +189,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
 
     sortedPoints.forEach((point) => {
       const pointRatio = Math.max(0, Math.min(1, point.timestamp / effectiveDurationMs));
-      const pinX = pointRatio * width;
+      const pinX = padCanvas + pointRatio * availableW;
       const isSelected = point.id === selectedPointId;
       const isDragged = point.id === draggedPinId;
       const theme = getMarkerTheme(point.type, isSelected, isDragged);
@@ -297,14 +302,17 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     setSelectedPointId(point.id);
   };
 
+  const PIN_RADIUS = 18;
+
   const handlePinPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isDraggingPinRef.current || !dragStartPointRef.current) return;
     const track = trackRef.current;
     if (!track) return;
 
     const rect = track.getBoundingClientRect();
-    const px = e.clientX - rect.left;
-    const ratio = Math.max(0, Math.min(1, px / rect.width));
+    const availableWidth = Math.max(1, rect.width - PIN_RADIUS * 2);
+    const px = e.clientX - rect.left - PIN_RADIUS;
+    const ratio = Math.max(0, Math.min(1, px / availableWidth));
     const timeMs = Math.round(ratio * effectiveDurationMs);
 
     hasMovedRef.current = true;
@@ -341,13 +349,15 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     setDraggedPinId(null);
   };
 
-  // Gestores del Canvas: SOLO Seek de reproducción. BLOQUEO TOTAL de creación de nodos.
+  // Gestores del Canvas: SOLO Seek de reproducción con respeto a la zona segura interna
   const handleCanvasPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const rect = canvas.getBoundingClientRect();
-    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const availableWidth = Math.max(1, rect.width - PIN_RADIUS * 2);
+    const px = e.clientX - rect.left - PIN_RADIUS;
+    const ratio = Math.max(0, Math.min(1, px / availableWidth));
     const targetTimeMs = Math.round(ratio * effectiveDurationMs);
     onSeek(targetTimeMs);
   };
@@ -357,12 +367,15 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     if (!canvas) return;
 
     const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const px = (e.clientX - rect.left) * scaleX;
-    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const availableWidth = Math.max(1, rect.width - PIN_RADIUS * 2);
+    const px = e.clientX - rect.left - PIN_RADIUS;
+    const ratio = Math.max(0, Math.min(1, px / availableWidth));
     const timeMs = Math.round(ratio * effectiveDurationMs);
 
-    setHoverX(px);
+    const scaleX = canvas.width / rect.width;
+    const canvasHoverX = (e.clientX - rect.left) * scaleX;
+
+    setHoverX(canvasHoverX);
     setHoverTimeMs(timeMs);
   };
 
@@ -376,7 +389,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
   return (
     <div
       ref={containerRef}
-      className="w-full h-full bg-surface-canvas text-text-primary px-3 py-1 flex flex-col justify-between select-none relative overflow-hidden"
+      className="w-full h-full bg-surface-canvas text-text-primary px-3 sm:px-4 py-1 flex flex-col justify-between select-none relative overflow-hidden timeline-safe-zone"
     >
       {/* Cabecera del Waveform */}
       <div className="flex items-center justify-between gap-2 text-xs shrink-0">
@@ -428,7 +441,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
           title="Línea de tiempo de audio. Toca para reproducir. Arrastra los marcadores (#1, #2...) para sincronizar el tiempo."
         />
 
-        {/* DOM Overlay de Marcadores (Mobile-First: Tamaño Fijo Estricto 36x36px, Sin Gigantismo) */}
+        {/* DOM Overlay de Marcadores (Mobile-First: Tamaño Fijo Estricto 36x36px, Sin Gigantismo, Seguro ante Biseles) */}
         <div className="absolute inset-0 pointer-events-none overflow-x-auto overflow-y-hidden">
           {sortedTimelineNodes.map((point, index) => {
             const pointRatio = Math.max(0, Math.min(1, point.timestamp / effectiveDurationMs));
@@ -443,7 +456,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
                 key={point.id}
                 className="absolute top-0 bottom-0 pointer-events-auto flex flex-col items-center select-none group/pin cursor-grab active:cursor-grabbing"
                 style={{
-                  left: `${pointRatio * 100}%`,
+                  left: `calc(${PIN_RADIUS}px + ${pointRatio} * (100% - ${PIN_RADIUS * 2}px))`,
                   transform: 'translateX(-50%)',
                   width: '36px',
                   maxWidth: '36px',
