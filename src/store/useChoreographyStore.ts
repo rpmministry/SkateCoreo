@@ -66,7 +66,7 @@ export const DEFAULT_CHOREOGRAPHY_POINTS: ChoreographyPoint[] = [
     cp2x: 18,
     cp2y: 3,
     type: 'Step',
-    label: 'Salida / Choreo Entry'
+    label: ''
   },
   {
     id: 'pt-2',
@@ -81,7 +81,8 @@ export const DEFAULT_CHOREOGRAPHY_POINTS: ChoreographyPoint[] = [
     cp2x: 31,
     cp2y: 11,
     type: 'Jump',
-    label: 'Preparación 3Lo'
+    label: 'Preparación 3Lo',
+    element_id: '3Lo'
   },
   {
     id: 'pt-3',
@@ -96,7 +97,8 @@ export const DEFAULT_CHOREOGRAPHY_POINTS: ChoreographyPoint[] = [
     cp2x: 42,
     cp2y: 21,
     type: 'Spin',
-    label: 'Sit Spin SSp'
+    label: 'Sit Spin SSp',
+    element_id: 'SSp'
   },
   {
     id: 'pt-4',
@@ -111,7 +113,7 @@ export const DEFAULT_CHOREOGRAPHY_POINTS: ChoreographyPoint[] = [
     cp2x: 30,
     cp2y: 23,
     type: 'Step',
-    label: 'Curva de Transición'
+    label: ''
   },
   {
     id: 'pt-5',
@@ -126,7 +128,8 @@ export const DEFAULT_CHOREOGRAPHY_POINTS: ChoreographyPoint[] = [
     cp2x: 10,
     cp2y: 17,
     type: 'Choreo',
-    label: 'Secuencia Coreográfica'
+    label: 'Secuencia Coreográfica',
+    element_id: 'ChSt'
   },
   {
     id: 'pt-6',
@@ -141,7 +144,7 @@ export const DEFAULT_CHOREOGRAPHY_POINTS: ChoreographyPoint[] = [
     cp2x: 5,
     cp2y: 13,
     type: 'Step',
-    label: 'Pose Final'
+    label: ''
   }
 ];
 

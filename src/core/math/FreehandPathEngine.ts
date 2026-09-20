@@ -162,7 +162,7 @@ export class FreehandPathEngine {
           time_ms: baseStartTimeMs,
           timestamp: baseStartTimeMs,
           type: 'Step',
-          label: 'Inicio Trazo',
+          label: '',
           cp1x: Math.round((pStart.x + dx) * 10) / 10,
           cp1y: Math.round((pStart.y + dy) * 10) / 10,
           cp2x: Math.round((pEnd.x - dx) * 10) / 10,
@@ -177,7 +177,7 @@ export class FreehandPathEngine {
           time_ms: baseStartTimeMs + durationMs,
           timestamp: baseStartTimeMs + durationMs,
           type: 'Step',
-          label: 'Fin Trazo',
+          label: '',
           cp1x: Math.round(pEnd.x * 10) / 10,
           cp1y: Math.round(pEnd.y * 10) / 10,
           cp2x: Math.round(pEnd.x * 10) / 10,
@@ -270,10 +270,7 @@ export class FreehandPathEngine {
       // Nodos Principales: solo Inicio, Fin y Vértices/Esquinas
       const isMaster = (i === 0 || i === n - 1 || isCorner);
       const nodeType = isMaster ? 'Step' : 'Curve';
-      let label = '';
-      if (i === 0) label = 'Inicio Trazo';
-      else if (i === n - 1) label = 'Fin Trazo';
-      else if (isCorner) label = 'Vértice';
+      const label = '';
 
       result.push({
         id: crypto.randomUUID(),

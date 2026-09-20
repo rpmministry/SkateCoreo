@@ -768,7 +768,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
             ...pt,
             id: `pt-freehand-${Date.now()}-${idx}`,
             type: idx === generated.length - 2 ? ('Step' as const) : ('Curve' as const),
-            label: idx === generated.length - 2 ? 'Fin Trazo' : '',
+            label: '',
           }));
 
           finalPoints = [...updatedExisting, ...newExtensionPoints].sort((a, b) => a.time_ms - b.time_ms);
@@ -778,7 +778,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
             ...pt,
             id: `pt-freehand-${Date.now()}-${idx}`,
             type: (idx === 0 || idx === generated.length - 1) ? ('Step' as const) : ('Curve' as const),
-            label: idx === 0 ? 'Inicio Trazo' : (idx === generated.length - 1 ? 'Fin Trazo' : ''),
+            label: '',
           }));
 
           finalPoints = [...points, ...stamped].sort((a, b) => a.time_ms - b.time_ms);

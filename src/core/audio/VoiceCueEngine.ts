@@ -30,27 +30,69 @@ export const GOOGLE_TTS_VOICES: GoogleTTSVoiceOption[] = [
 ];
 
 /**
- * Determina si una etiqueta corresponde a una figura técnica o instrucción deportiva real,
- * evitando que la voz lea marcadores genéricos (ej. "Beat 4s", "Punto #1", "Nodo 3", nombres de archivo, etc.)
+ * Limpia y formatea el nombre de una figura técnica para que la voz la pronuncie de forma natural y profesional.
+ * Remueve sufijos de categoría de UI (ej: "(Posición Base)") y formatea figuras de grupos reglamentarios.
  */
-export function isSpeakableFigure(label?: string | null, type?: string | null): boolean {
+export function cleanFigureNameForSpeech(label: string): string {
+  let text = label.trim();
+  // Quitar sufijos de categorías de la UI
+  text = text.replace(/\s*\((Posición Base|Variación|Elemento Artístico)\)/gi, '');
+  // Dar formato fluido a figuras obligatorias: "1-2 (Grupo 1)" -> "Figura 1 y 2, Grupo 1"
+  text = text.replace(/^(\d+)-(\d+)\s*\((Grupo\s*\d+)\)/i, 'Figura $1 y $2, $3');
+  // Limpiar paréntesis restantes conservando el nombre: "(Rittberger)" -> "Rittberger"
+  text = text.replace(/\((.*?)\)/g, '$1');
+  return text.trim();
+}
+
+/**
+ * Determina si una etiqueta o identificador corresponde a una figura técnica real seleccionada,
+ * evitando estrictamente que la voz lea etiquetas de nodos estructurales (ej. "Inicio Trazo",
+ * "Fin Trazo", "Vértice", "Bucle", "Curva", "Pose Final", "Nodo 3", "Punto 1", etc.) o metadatos de audio.
+ * Si no hay figura seleccionada, devuelve false para omitir cualquier aviso vocal en ese nodo.
+ */
+export function isSpeakableFigure(label?: string | null, type?: string | null, element_id?: string | null): boolean {
+  // Si el nodo tiene un código de elemento RollArt asignado (ej: '1A', '2Lo', 'SSp'), es una figura válida
+  if (element_id && element_id.trim() !== '') return true;
+
   if (!label) return false;
   const trimmed = label.trim();
   if (!trimmed) return false;
 
-  // Si el tipo es 'Marker', no es una figura deportiva a menos que tenga una instrucción real
-  if (type === 'Marker') {
-    if (/^(beat|marcador|marker|nodo|punto|point)\b/i.test(trimmed)) return false;
-  }
+  const lower = trimmed.toLowerCase();
 
-  // Filtrar marcadores automáticos de beats y posiciones genéricas
-  if (/^(beat\s*\d+(\.\d+)?s?|punto\s*#?\d+|point\s*#?\d+|marcador\s*#?\d+|nodo\s*#?\d+|node\s*#?\d+)$/i.test(trimmed)) {
+  // 1. Filtrar nombres de archivos de música o metadatos de audio
+  if (/\.(wav|mp3|m4a|ogg|aac|flac)$/i.test(trimmed) || lower.includes('pista_rollart') || trimmed.startsWith('/')) {
     return false;
   }
 
-  // Filtrar nombres de archivos de música o metadatos de audio
-  if (/\.(wav|mp3|m4a|ogg|aac|flac)$/i.test(trimmed) || trimmed.toLowerCase().includes('pista') || trimmed.startsWith('/')) {
+  // 2. Filtrar placeholders de interfaz y estados vacíos
+  if (
+    /^(sin\s+figura|sin\s+etiqueta|sin\s+selecci[oó]n|ningun[ao]|none|null|undefined|vacio|vacío|custom|otro\s*\/?\s*personalizado\.\.\.)$/i.test(lower) ||
+    /^[-—–]\s*(elegir|seleccionar|sin)\b/i.test(lower)
+  ) {
     return false;
+  }
+
+  // 3. Filtrar etiquetas estructurales de nodos, trazos y conectores de dibujo
+  if (
+    /^(inicio(\s+trazo)?|fin(\s+trazo)?|final|v[eé]rtice|bucle|esquina|trazo|tramo|recta|curva(\s+de\s+transici[oó]n)?|transici[oó]n|salida\s*\/\s*choreo\s*entry|pose(\s+final)?)$/i.test(lower)
+  ) {
+    return false;
+  }
+
+  // 4. Filtrar marcadores automáticos, números aislados o identificadores genéricos de nodos
+  if (
+    /^(nodo|node|punto|point|marcador|marker|paso|step|beat|tempo|comp[aá]s|t|tiempo|time)(\s*#?\d+(\.\d+)?s?)?$/i.test(lower) ||
+    /^#?\d+(\.\d+)?s?$/i.test(lower)
+  ) {
+    return false;
+  }
+
+  // 5. Si el tipo es 'Marker' o 'Curve' y su etiqueta es genérica, descartar
+  if (type === 'Marker' || type === 'Curve') {
+    if (/^(marcador|marker|beat|punto|point|nodo|node|curve|curva)\b/i.test(lower)) {
+      return false;
+    }
   }
 
   return true;
@@ -318,12 +360,14 @@ export class VoiceCueEngine {
     const isEs = this.config.language === 'es';
     const newCues: VoiceCueEvent[] = [];
 
-    // Filtrar estrictamente solo nodos que correspondan a figuras deportivas o instrucciones reales
-    // Se descartan marcadores de audio automáticos como "Beat 4s", "Punto #1", "Marker", etc.
-    const speakableNodes = nodes.filter(n => n.time_ms > 0 && isSpeakableFigure(n.label, n.type));
+    // Filtrar estrictamente solo nodos que tengan una figura deportiva seleccionada real
+    // Si un nodo no tiene figura (ej. Inicio Trazo, Fin Trazo, Vértice, Nodo 1, etc.), se omite por completo
+    const speakableNodes = nodes.filter(n => n.time_ms > 0 && isSpeakableFigure(n.label, n.type, n.element_id));
 
     for (const node of speakableNodes) {
-      const figureName = node.label!.trim();
+      const rawFigureName = (node.label && node.label.trim()) ? cleanFigureNameForSpeech(node.label) : (node.element_id || '').trim();
+      if (!rawFigureName) continue;
+      const figureName = rawFigureName;
       const targetTimeMs = node.time_ms;
 
       // 1. Lectura previa del nombre de la figura deportiva:
@@ -396,7 +440,10 @@ export class VoiceCueEngine {
     if (this.config.ttsEngine === 'google-cloud' && this.config.googleApiKey) {
       const phrasesToPreload = [
         'tres', 'dos', 'uno', '¡ya!', 'three', 'two', 'one', 'go!',
-        ...speakableNodes.map(n => isEs ? `${n.label}, en` : `${n.label}, in`)
+        ...speakableNodes.map(n => {
+          const name = (n.label && n.label.trim()) ? cleanFigureNameForSpeech(n.label) : (n.element_id || '').trim();
+          return isEs ? `${name}, en` : `${name}, in`;
+        })
       ];
       void this.preloadGoogleTTS(phrasesToPreload);
     }

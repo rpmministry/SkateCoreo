@@ -268,16 +268,22 @@ export class TTSService {
     const cleanText = text.trim();
     if (!cleanText) return;
 
-    // Filtro de seguridad estricto: la voz nunca debe vocalizar metadatos de audio ni marcadores automáticos de beats
+    // Filtro de seguridad estricto: la voz solo vocaliza figuras técnicas y conteos.
+    // Rechaza etiquetas de nodos estructurales, metadatos y marcadores automáticos.
+    const lower = cleanText.toLowerCase();
     if (
       /\.(wav|mp3|m4a|ogg|aac|flac)$/i.test(cleanText) || 
-      cleanText.toLowerCase().includes('pista_rollart') || 
+      lower.includes('pista_rollart') || 
       cleanText.startsWith('/') ||
-      /^(beat\s*\d+(\.\d+)?s?|punto\s*#?\d+|point\s*#?\d+|marcador\s*#?\d+|nodo\s*#?\d+|node\s*#?\d+)$/i.test(cleanText) ||
-      /^¡?ya!?\s*(beat|punto|point|marcador|nodo)\b/i.test(cleanText) ||
-      /^go!?\s*(beat|punto|point|marcador|node)\b/i.test(cleanText)
+      /^(inicio(\s+trazo)?|fin(\s+trazo)?|final|v[eé]rtice|bucle|esquina|trazo|tramo|recta|curva(\s+de\s+transici[oó]n)?|transici[oó]n|salida\s*\/\s*choreo\s*entry|pose(\s+final)?)$/i.test(lower) ||
+      /^(nodo|node|punto|point|marcador|marker|paso|step|beat|tempo|comp[aá]s|t|tiempo|time)(\s*#?\d+(\.\d+)?s?)?$/i.test(lower) ||
+      /^#?\d+(\.\d+)?s?$/i.test(lower) ||
+      /^(sin\s+figura|sin\s+etiqueta|sin\s+selecci[oó]n|ningun[ao]|none|null|undefined|vacio|vacío|custom|otro\s*\/?\s*personalizado\.\.\.)$/i.test(lower) ||
+      /^[-—–]\s*(elegir|seleccionar|sin)\b/i.test(lower) ||
+      /^¡?ya!?\s*(inicio|fin|v[eé]rtice|nodo|punto|point|marcador|marker|beat|step|trazo)\b/i.test(lower) ||
+      /^go!?\s*(start|end|vertex|node|point|marker|beat|step)\b/i.test(lower)
     ) {
-      console.warn('[TTSService] Intento de vocalizar metadato o marcador automático bloqueado:', cleanText);
+      console.warn('[TTSService] Intento de vocalizar etiqueta de nodo o metadato bloqueado:', cleanText);
       return;
     }
 

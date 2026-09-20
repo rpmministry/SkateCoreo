@@ -42,8 +42,8 @@ const points = FreehandPathEngine.convertStrokeToChoreographyPoints(stroke, 1000
 assert.ok(points.length >= 2, 'Must produce at least 2 ChoreographyPoints');
 assert.equal(points[0].time_ms, 1000, 'First node must start at baseStartTimeMs');
 assert.ok(points[points.length - 1].time_ms > 1000, 'End node time must be greater than start');
-assert.equal(points[0].label, 'Inicio Trazo', 'First node is Master Start');
-assert.equal(points[points.length - 1].label, 'Fin Trazo', 'Last node is Master End');
+assert.equal(points[0].label, '', 'First node has empty label by default (no figure selected)');
+assert.equal(points[points.length - 1].label, '', 'Last node has empty label by default (no figure selected)');
 assert.ok(typeof points[0].cp1x === 'number', 'Control points must be calculated');
 console.log('✓ Stroke conversion to Master Nodes passed');
 
@@ -56,9 +56,8 @@ for (let i = 0; i <= 30; i++) {
 }
 const straightPoints = FreehandPathEngine.convertStrokeToChoreographyPoints(wobblyLine, 0, 3.5);
 assert.equal(straightPoints.length, 2, 'Intelligent straight line detection must produce exactly 2 master nodes');
-assert.equal(straightPoints[0].label, 'Inicio Trazo');
-assert.equal(straightPoints[1].label, 'Fin Trazo');
+assert.equal(straightPoints[0].label, '', 'Straight start node has empty label');
+assert.equal(straightPoints[1].label, '', 'Straight end node has empty label');
 console.log('✓ Intelligent straight line perfection passed');
 
 console.log('All FreehandPathEngine tests passed successfully!');
-

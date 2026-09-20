@@ -1,5 +1,5 @@
 import { Metronome } from './Metronome';
-import { VoiceCueEngine, isSpeakableFigure } from './VoiceCueEngine';
+import { VoiceCueEngine, isSpeakableFigure, cleanFigureNameForSpeech } from './VoiceCueEngine';
 import { ElementLog, ChoreographyPathPoint } from '../../types/choreography';
 import { ttsService } from '../../services/ttsService';
 
@@ -210,27 +210,57 @@ async function runTests() {
   const cueGo = cues.find(c => c.id === 'cue-node-salchow-go');
   assert(cueGo !== undefined && cueGo.timeMs === 45000 && cueGo.text === '¡ya!', 'Aviso de llegada "¡ya!" calculado exactamente a 45.0s');
 
-  // Validación de isSpeakableFigure y descarte de marcadores automáticos (Beat 4s, Punto #1, etc.)
+  // Validación de isSpeakableFigure y descarte de marcadores automáticos y etiquetas de nodos estructurales
   assert(isSpeakableFigure('Salchow', 'Jump') === true, 'isSpeakableFigure aprueba figura técnica real');
   assert(isSpeakableFigure('Axel', 'Jump') === true, 'isSpeakableFigure aprueba figura Axel');
+  assert(isSpeakableFigure('Loop (Rittberger)', 'Jump') === true, 'isSpeakableFigure aprueba Loop (Rittberger)');
+  assert(isSpeakableFigure('1-2 (Grupo 1)', 'Step') === true, 'isSpeakableFigure aprueba figura obligatoria');
+  assert(isSpeakableFigure('', 'Step', '1A') === true, 'isSpeakableFigure aprueba nodo con element_id');
+  
+  // Rechazo explícito de etiquetas de nodos estructurales y de dibujo
+  assert(isSpeakableFigure('Inicio Trazo', 'Step') === false, 'isSpeakableFigure rechaza "Inicio Trazo"');
+  assert(isSpeakableFigure('Fin Trazo', 'Step') === false, 'isSpeakableFigure rechaza "Fin Trazo"');
+  assert(isSpeakableFigure('Vértice', 'Step') === false, 'isSpeakableFigure rechaza "Vértice"');
+  assert(isSpeakableFigure('Bucle', 'Curve') === false, 'isSpeakableFigure rechaza "Bucle"');
+  assert(isSpeakableFigure('Curva', 'Curve') === false, 'isSpeakableFigure rechaza "Curva"');
+  assert(isSpeakableFigure('Curva de Transición', 'Step') === false, 'isSpeakableFigure rechaza "Curva de Transición"');
+  assert(isSpeakableFigure('Pose Final', 'Step') === false, 'isSpeakableFigure rechaza "Pose Final"');
   assert(isSpeakableFigure('Beat 4s', 'Marker') === false, 'isSpeakableFigure rechaza etiqueta "Beat 4s"');
   assert(isSpeakableFigure('Beat 12.5s', 'Marker') === false, 'isSpeakableFigure rechaza etiqueta "Beat 12.5s"');
   assert(isSpeakableFigure('Punto #1', 'Step') === false, 'isSpeakableFigure rechaza etiqueta "Punto #1"');
   assert(isSpeakableFigure('Nodo 2', 'Step') === false, 'isSpeakableFigure rechaza etiqueta "Nodo 2"');
+  assert(isSpeakableFigure('Step 3', 'Step') === false, 'isSpeakableFigure rechaza etiqueta "Step 3"');
+  assert(isSpeakableFigure('Sin figura', 'Step') === false, 'isSpeakableFigure rechaza "Sin figura"');
   assert(isSpeakableFigure('', 'Marker') === false, 'isSpeakableFigure rechaza etiqueta vacía');
+  assert(isSpeakableFigure(undefined, 'Step') === false, 'isSpeakableFigure rechaza undefined');
   assert(isSpeakableFigure('track.wav', 'Marker') === false, 'isSpeakableFigure rechaza archivos de audio');
 
-  // Carga de nodos mixtos en VoiceCueEngine
+  // Limpieza de nombres de figuras para voz
+  assert(cleanFigureNameForSpeech('Upright (Posición Base)') === 'Upright', 'cleanFigureNameForSpeech remueve sufijo de categoría');
+  assert(cleanFigureNameForSpeech('1-2 (Grupo 1)') === 'Figura 1 y 2, Grupo 1', 'cleanFigureNameForSpeech formatea grupo reglamentario');
+
+  // Carga de nodos mixtos en VoiceCueEngine:
+  // Solo los nodos con figuras reales seleccionadas deben generar avisos vocales;
+  // los nodos sin figura (o con etiquetas estructurales de nodo) deben omitirse POR COMPLETO (0 avisos).
   const mixedNodes = [
+    { id: 'node-inicio', x: 5, y: 12, time_ms: 1000, label: 'Inicio Trazo', type: 'Step' },
     { id: 'node-salchow', x: 25, y: 12, time_ms: 45000, label: 'Salchow', type: 'Jump' },
     { id: 'node-beat', x: 10, y: 8, time_ms: 4000, label: 'Beat 4s', type: 'Marker' },
     { id: 'node-punto', x: 15, y: 9, time_ms: 8000, label: 'Punto #2', type: 'Step' },
-    { id: 'node-empty', x: 20, y: 10, time_ms: 12000, label: '', type: 'Marker' }
+    { id: 'node-vertice', x: 18, y: 11, time_ms: 10000, label: 'Vértice', type: 'Step' },
+    { id: 'node-empty', x: 20, y: 10, time_ms: 12000, label: '', type: 'Marker' },
+    { id: 'node-fin', x: 45, y: 20, time_ms: 60000, label: 'Fin Trazo', type: 'Step' }
   ];
   voiceEngine.loadNodes(mixedNodes as any);
   const mixedCues = voiceEngine.getCues();
+  assert(!mixedCues.some(c => c.text.includes('Inicio Trazo')), 'VoiceCueEngine no genera avisos para "Inicio Trazo"');
+  assert(!mixedCues.some(c => c.text.includes('Fin Trazo')), 'VoiceCueEngine no genera avisos para "Fin Trazo"');
+  assert(!mixedCues.some(c => c.text.includes('Vértice')), 'VoiceCueEngine no genera avisos para "Vértice"');
   assert(!mixedCues.some(c => c.text.includes('Beat 4s')), 'VoiceCueEngine no genera avisos para "Beat 4s"');
   assert(!mixedCues.some(c => c.text.includes('Punto #2')), 'VoiceCueEngine no genera avisos para "Punto #2"');
+  assert(!mixedCues.some(c => c.elementId === 'node-empty'), 'Nodo sin figura seleccionada no genera ningún aviso vocal (omitido)');
+  assert(!mixedCues.some(c => c.elementId === 'node-inicio'), 'Nodo inicio sin figura no genera ningún aviso vocal');
+  assert(!mixedCues.some(c => c.elementId === 'node-fin'), 'Nodo fin sin figura no genera ningún aviso vocal');
   assert(mixedCues.some(c => c.text.includes('Salchow')), 'VoiceCueEngine conserva figura técnica real "Salchow"');
 
   // 8. Pruebas del Servicio Global de TTS (TTSService Singleton)

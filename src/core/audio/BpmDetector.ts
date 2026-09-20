@@ -198,3 +198,4 @@ export class BpmDetector {
     return output;
   }
 }
+

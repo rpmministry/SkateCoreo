@@ -57,3 +57,4 @@ const resShort = BpmDetector.detect(bufShort);
 assert(resShort.bpm === 120 && resShort.confidence === 0.0, 'Fallback seguro en audios demasiado cortos');
 
 console.log('Resultado BpmDetector: 4/4 pruebas pasadas con éxito.\n');
+
