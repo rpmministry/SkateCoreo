@@ -1220,66 +1220,6 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
           </div>
         )}
 
-        {/* Mode Toggles: Colocar Nodos / Trazar Líneas / Borrador */}
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center bg-zinc-950/90 backdrop-blur-md p-1 rounded-2xl border border-white/10 shadow-2xl gap-1 select-none">
-          <button
-            type="button"
-            onClick={() => {
-              setPhase('plot');
-              setSelectedPointId(null);
-            }}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
-              phase === 'plot'
-                ? 'bg-amber-500 text-black shadow-glow-amber font-black'
-                : 'text-slate-300 hover:text-white hover:bg-zinc-800'
-            }`}
-            title="Modo Nodos: Un clic en el lienzo vacío coloca nodos. Las líneas están ocultas."
-          >
-            <PenTool className="w-3.5 h-3.5 stroke-[2.5]" />
-            <span>Colocar Nodos</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (phase === 'curve') {
-                setPhase('plot');
-              } else {
-                setPhase('curve');
-              }
-              setSelectedPointId(null);
-            }}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
-              phase === 'curve'
-                ? 'bg-cyan text-black shadow-glow-cyan font-black'
-                : 'text-slate-300 hover:text-white hover:bg-zinc-800'
-            }`}
-            title="Modo Trazado: Muestra las líneas conectadas y puntos para esculpir la ruta."
-          >
-            <Route className="w-3.5 h-3.5 stroke-[2.5]" />
-            <span>Trazar Líneas</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (phase === 'erase') {
-                setPhase('plot');
-              } else {
-                setPhase('erase');
-              }
-              setSelectedPointId(null);
-            }}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
-              phase === 'erase'
-                ? 'bg-red-500 text-white shadow-lg shadow-red-500/40 font-black'
-                : 'text-slate-300 hover:text-red-400 hover:bg-zinc-800'
-            }`}
-            title="Modo Borrador: Toca cualquier nodo en la pista para eliminarlo instantáneamente."
-          >
-            <Eraser className="w-3.5 h-3.5 stroke-[2.5]" />
-            <span>Borrador</span>
-          </button>
-        </div>
-
         {/* Floating Camera & Trail Control HUD */}
         <div className="absolute bottom-3 right-3 z-30 flex items-center gap-1.5 bg-slate-950/85 backdrop-blur-md border border-white/10 px-2 py-1.5 rounded-xl shadow-soft-elevation select-none">
 

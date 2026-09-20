@@ -110,3 +110,8 @@ body {
     max-height: 52px !important;
   }
 }
+
+/* Soporte de iOS Safe Area (Home indicator del iPhone) */
+.pb-safe {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom)) !important;
+}

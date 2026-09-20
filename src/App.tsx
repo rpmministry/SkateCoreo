@@ -13,9 +13,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Play, Pause, Square, Music,
-  Menu, X, ChevronDown,
+  Menu, X, ChevronDown, MoreVertical,
   Undo2, Route, PenTool, Eraser, Users,
-  Upload, Download, Save, Trash2, HardDrive, Check
+  Upload, Save, Trash2, HardDrive
 } from 'lucide-react';
 import { Skater, Program, ElementLog, AudioEngineState } from './types';
 import { RinkCanvas } from './components/RinkCanvas';
@@ -338,107 +338,175 @@ export function App() {
       {/* ═══════════════════════════════════════════════
           HEADER — Pro Dark Console (h-12 / landscape-compact-header)
           ═══════════════════════════════════════════════ */}
-      <header className="h-12 landscape-compact-header shrink-0 flex items-center justify-between px-3 sm:px-4 bg-neon-surface/90 backdrop-blur-md border-b border-white/5 z-20">
+      <header className="h-12 landscape-compact-header shrink-0 flex items-center justify-between px-3 sm:px-4 bg-neon-surface/95 backdrop-blur-md border-b border-white/10 z-20">
 
-        {/* Left Section: Mobile Drawer Trigger & Athlete Branding */}
+        {/* ── ZONA 1 (Izquierda): Identidad SkateArt + Contexto Atleta ── */}
         <div className="flex items-center gap-2.5 min-w-0">
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}
-            className="lg:hidden flex items-center justify-center min-w-touch min-h-touch -ml-1 rounded-2xl text-slate-400 hover:text-white hover:bg-neon-hover interactive-tap"
-            aria-label="Abrir configuración"
+            className="lg:hidden flex items-center justify-center w-8 h-8 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 interactive-tap shrink-0"
+            aria-label="Abrir menú"
           >
-            <Menu className="w-5 h-5 stroke-[2]" />
+            <Menu className="w-4 h-4 stroke-[1.75]" />
           </button>
 
-          {/* Logo / Brand with AlsisTech attribution */}
-          <div className="flex flex-col justify-center min-w-0">
-            <span
-              className="text-[10px] tracking-wide text-slate-400 flex items-center gap-1 font-medium truncate-safe"
-              title="Desarrollado por AlsisTech"
-            >
-              <span>Desarrollado por</span>
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="w-2.5 h-2.5 rounded-full bg-cyan shadow-glow-cyan" />
+              <span className="text-[13px] font-black uppercase tracking-wider text-white">SkateArt</span>
+            </div>
+            <span className="text-slate-600 text-xs hidden sm:inline">·</span>
+            <span className="text-[11px] text-slate-400 font-medium hidden sm:inline truncate">
+              por{' '}
               <a
                 href="https://www.alsiztech.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-cyan font-bold truncate-safe hover:underline hover:text-cyan/80 transition-colors"
+                className="text-slate-300 hover:text-cyan hover:underline transition-colors"
               >
                 AlsisTech
               </a>
             </span>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-cyan shadow-glow-cyan shrink-0" />
-              <span className="text-[12px] font-black uppercase tracking-widest text-white leading-none truncate-safe">
-                SkateArt
-              </span>
-            </div>
           </div>
-          <div className="hidden sm:block h-5 w-px bg-white/10" />
 
-          {/* Athlete Metadata */}
-          <div className="flex items-center gap-2 text-xs min-w-0">
-            <span className="font-bold text-white truncate max-w-[90px] sm:max-w-[130px]">
-              {selectedSkater?.name || '—'}
+          {/* Contexto del Atleta Activo */}
+          <div className="hidden md:flex items-center gap-1.5 pl-3 border-l border-white/10 text-xs min-w-0">
+            <span className="font-semibold text-slate-200 truncate max-w-[110px]" title={selectedSkater?.name}>
+              {selectedSkater?.name || 'Sin Atleta'}
             </span>
-            <span className="text-slate-600 hidden sm:inline">/</span>
-            <span className="text-cyan text-[11px] font-bold hidden sm:inline truncate">
-              {selectedSkater?.category || ''}
-            </span>
-            <span className="text-slate-600 hidden md:inline">·</span>
-            <span className="text-slate-400 text-[11px] truncate hidden md:inline max-w-[110px]">
-              {selectedProgram?.title || 'Sin programa'}
-            </span>
+            {selectedSkater?.category && (
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-white/5 text-cyan border border-white/10 shrink-0">
+                {selectedSkater.category}
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Center/Right Section: File Actions, Audio Transport & Quick Tools */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        {/* ── ZONA 2 (Centro): Herramientas Desktop & Master Audio Transport ── */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Herramientas de Trazado (Exclusivo Desktop lg+) */}
+          <div className="hidden lg:flex items-center bg-white/[0.04] p-0.5 rounded-xl border border-white/10 gap-0.5 shadow-soft-elevation">
+            <button
+              type="button"
+              onClick={() => {
+                setPhase('plot');
+                useChoreographyStore.getState().setSelectedPointId(null);
+              }}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all interactive-tap ${
+                phase === 'plot'
+                  ? 'bg-amber-500 text-black shadow-glow-amber font-black'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
+              }`}
+              title="Modo Nodos: Coloca puntos clave"
+            >
+              <PenTool className="w-3.5 h-3.5 stroke-[1.75]" />
+              <span>Nodos</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (phase === 'curve') setPhase('plot');
+                else if (canDraw) setPhase('curve');
+                useChoreographyStore.getState().setSelectedPointId(null);
+              }}
+              disabled={!canDraw}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all interactive-tap ${
+                phase === 'curve'
+                  ? 'bg-cyan text-black shadow-glow-cyan font-black'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5 disabled:opacity-30 disabled:pointer-events-none'
+              }`}
+              title={canDraw ? 'Modo Trazado: Ver y deformar curvas' : 'Requiere al menos 2 nodos'}
+            >
+              <Route className="w-3.5 h-3.5 stroke-[1.75]" />
+              <span>Trazar</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (phase === 'erase') setPhase('plot');
+                else setPhase('erase');
+                useChoreographyStore.getState().setSelectedPointId(null);
+              }}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all interactive-tap ${
+                phase === 'erase'
+                  ? 'bg-red-500 text-white shadow-lg shadow-red-500/30 font-black'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
+              }`}
+              title="Modo Borrador: Toca cualquier nodo para eliminarlo"
+            >
+              <Eraser className="w-3.5 h-3.5 stroke-[1.75]" />
+              <span>Borrar</span>
+            </button>
+          </div>
 
-          {/* Botón Cargar Pista (Coral Neón) */}
+          {/* Master Transport Controls */}
+          <div className="flex items-center gap-1.5 bg-white/[0.03] px-2 py-1 rounded-xl border border-white/10 shadow-soft-elevation">
+            <button
+              type="button"
+              onClick={() => {
+                if (isAudioActive) {
+                  audioEngine.pause();
+                } else {
+                  if (phase === 'plot' && canDraw) setPhase('curve');
+                  audioEngine.play();
+                }
+              }}
+              disabled={!audioState.hasAudioLoaded}
+              title={isAudioActive ? 'Pausar' : 'Reproducir'}
+              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all interactive-tap ${
+                isAudioActive
+                  ? 'bg-coral text-white shadow-glow-coral'
+                  : 'bg-white/10 hover:bg-white/15 text-white'
+              } disabled:opacity-25 disabled:pointer-events-none`}
+            >
+              {isAudioActive ? (
+                <Pause className="w-3.5 h-3.5 fill-current stroke-none" />
+              ) : (
+                <Play className="w-3.5 h-3.5 fill-current stroke-none ml-0.5" />
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => audioEngine.stop()}
+              disabled={!audioState.hasAudioLoaded}
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 interactive-tap disabled:opacity-25 disabled:pointer-events-none"
+              title="Detener"
+            >
+              <Square className="w-3 h-3 fill-current stroke-none" />
+            </button>
+
+            <div className="font-mono text-[11px] px-1.5 text-slate-300 flex items-center gap-1 select-none">
+              <span className="text-cyan font-bold">{fmtTime(currentTimeMs)}</span>
+              <span className="text-slate-600">/</span>
+              <span className="text-slate-400">{fmtTime(audioState.durationMs || 240000)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* ── ZONA 3 (Derecha): CTA Principal & Menú de Desbordamiento Carbon ── */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Botón Cargar Audio (CTA Primario) */}
           <button
             type="button"
             onClick={() => audioInputRef.current?.click()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold bg-coral hover:bg-coral-hover text-white shadow-glow-coral interactive-tap transition-all"
-            title="Cargar archivo de música desde el teléfono o tablet"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/30 interactive-tap transition-all shadow-soft-elevation"
+            title="Cargar archivo de música"
           >
-            <Upload className="w-3.5 h-3.5 stroke-[2.5]" />
-            <span className="hidden sm:inline">Cargar Pista</span>
+            <Upload className="w-3.5 h-3.5 stroke-[1.75]" />
+            <span className="hidden sm:inline">Cargar Audio</span>
           </button>
 
-          {/* Botón Guardar Offline (Modo Avión IndexedDB - Menta Neón) */}
-          <button
-            type="button"
-            onClick={handleSaveOffline}
-            disabled={!audioState.hasAudioLoaded || isSavingOffline}
-            className={[
-              'flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold interactive-tap transition-all shadow-soft-elevation',
-              savedOfflineSuccess
-                ? 'bg-mint text-neon-canvas shadow-glow-mint font-black'
-                : 'bg-neon-card hover:bg-neon-hover text-slate-300 hover:text-white',
-              'disabled:opacity-30 disabled:pointer-events-none',
-            ].join(' ')}
-            title="Guardar en la memoria interna del teléfono para usar 100% sin conexión / Modo Avión"
-          >
-            {savedOfflineSuccess ? (
-              <Check className="w-3.5 h-3.5 stroke-[3]" />
-            ) : (
-              <HardDrive className="w-3.5 h-3.5 text-mint stroke-[2]" />
-            )}
-            <span className="hidden md:inline">{savedOfflineSuccess ? '¡Guardado!' : 'Modo Offline'}</span>
-          </button>
-
-          {/* Dropdown Exportar / Compartir (.WAV & .coreo) */}
+          {/* Menú de Desbordamiento Unificado (...) */}
           <div className="relative">
             <button
               type="button"
               onClick={() => setShowExportMenu((v) => !v)}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-neon-card hover:bg-neon-hover text-slate-200 hover:text-white shadow-soft-elevation interactive-tap"
-              title="Opciones de exportación y portabilidad"
+              className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white border border-white/10 interactive-tap transition-all"
+              title="Más opciones del proyecto"
             >
-              <Download className="w-3.5 h-3.5 text-cyan stroke-[2]" />
-              <span className="hidden lg:inline">Compartir</span>
-              <ChevronDown className="w-3 h-3" />
+              <MoreVertical className="w-4 h-4 stroke-[1.75]" />
             </button>
 
             {showExportMenu && (
@@ -448,119 +516,91 @@ export function App() {
                   onClick={() => setShowExportMenu(false)}
                   aria-hidden="true"
                 />
-                <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-neon-surface border border-white/10 shadow-2xl p-2 z-50 flex flex-col gap-1">
-                <button
-                  type="button"
-                  onClick={handleExportMixdown}
-                  disabled={!audioState.hasAudioLoaded || isExportingMix}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-left bg-neon-card hover:bg-neon-hover text-white transition-all disabled:opacity-40"
-                >
-                  <Music className="w-4 h-4 text-coral" />
-                  <div>
-                    <p className="leading-tight">Exportar Mezcla (.WAV)</p>
-                    <p className="text-[10px] text-slate-400 font-normal">Hardware Mixdown con metrónomo</p>
-                  </div>
-                </button>
+                <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-neon-surface/98 backdrop-blur-xl border border-white/10 shadow-2xl p-2 z-50 flex flex-col gap-1 divide-y divide-white/5 animate-in fade-in zoom-in-95 duration-100">
+                  <div className="space-y-1 pb-1">
+                    <button
+                      type="button"
+                      onClick={() => { setShowExportMenu(false); handleSaveOffline(); }}
+                      disabled={!audioState.hasAudioLoaded || isSavingOffline}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-left hover:bg-white/5 text-slate-200 hover:text-white transition-all disabled:opacity-40"
+                    >
+                      <HardDrive className="w-4 h-4 text-mint shrink-0 stroke-[1.75]" />
+                      <div>
+                        <p className="font-semibold leading-tight">{savedOfflineSuccess ? '¡Guardado!' : 'Modo Offline (IndexedDB)'}</p>
+                        <p className="text-[10px] text-slate-400 font-normal">Guardar en memoria para usar sin red</p>
+                      </div>
+                    </button>
 
-                <button
-                  type="button"
-                  onClick={handleExportCoreo}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-left bg-neon-card hover:bg-neon-hover text-white transition-all"
-                >
-                  <Save className="w-4 h-4 text-cyan" />
-                  <div>
-                    <p className="leading-tight">Exportar Proyecto (.coreo)</p>
-                    <p className="text-[10px] text-slate-400 font-normal">Bundle ZIP con Audio + Nodos 2D</p>
+                    <button
+                      type="button"
+                      onClick={() => { setShowExportMenu(false); setShowSkaters(true); }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-left hover:bg-white/5 text-slate-200 hover:text-white transition-all"
+                    >
+                      <Users className="w-4 h-4 text-cyan shrink-0 stroke-[1.75]" />
+                      <div>
+                        <p className="font-semibold leading-tight">Gestión de Atletas</p>
+                        <p className="text-[10px] text-slate-400 font-normal">Cambiar patinador o programa</p>
+                      </div>
+                    </button>
                   </div>
-                </button>
 
-                <button
-                  type="button"
-                  onClick={() => { setShowExportMenu(false); coreoInputRef.current?.click(); }}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold text-left bg-neon-card hover:bg-neon-hover text-white transition-all"
-                >
-                  <Upload className="w-4 h-4 text-mint" />
-                  <div>
-                    <p className="leading-tight">Importar Proyecto (.coreo)</p>
-                    <p className="text-[10px] text-slate-400 font-normal">Restaurar rutina y música</p>
+                  <div className="space-y-1 py-1">
+                    <button
+                      type="button"
+                      onClick={() => { setShowExportMenu(false); handleExportMixdown(); }}
+                      disabled={!audioState.hasAudioLoaded || isExportingMix}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-left hover:bg-white/5 text-slate-200 hover:text-white transition-all disabled:opacity-40"
+                    >
+                      <Music className="w-4 h-4 text-coral shrink-0 stroke-[1.75]" />
+                      <div>
+                        <p className="font-semibold leading-tight">Exportar Mezcla (.WAV)</p>
+                        <p className="text-[10px] text-slate-400 font-normal">Mixdown con metrónomo y cues</p>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => { setShowExportMenu(false); handleExportCoreo(); }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-left hover:bg-white/5 text-slate-200 hover:text-white transition-all"
+                    >
+                      <Save className="w-4 h-4 text-cyan shrink-0 stroke-[1.75]" />
+                      <div>
+                        <p className="font-semibold leading-tight">Exportar Paquete (.coreo)</p>
+                        <p className="text-[10px] text-slate-400 font-normal">Bundle completo con audio y nodos 2D</p>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => { setShowExportMenu(false); coreoInputRef.current?.click(); }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-left hover:bg-white/5 text-slate-200 hover:text-white transition-all"
+                    >
+                      <Upload className="w-4 h-4 text-mint shrink-0 stroke-[1.75]" />
+                      <div>
+                        <p className="font-semibold leading-tight">Importar Paquete (.coreo)</p>
+                        <p className="text-[10px] text-slate-400 font-normal">Cargar rutina previamente guardada</p>
+                      </div>
+                    </button>
                   </div>
-                </button>
-              </div>
-            </>
-          )}
+
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={() => { setShowExportMenu(false); handleClearRink(); }}
+                      disabled={points.length === 0}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-left hover:bg-red-500/10 text-red-400 hover:text-red-300 transition-all disabled:opacity-30"
+                    >
+                      <Trash2 className="w-4 h-4 text-coral shrink-0 stroke-[1.75]" />
+                      <div>
+                        <p className="font-semibold leading-tight">Limpiar Toda la Pista</p>
+                        <p className="text-[10px] text-red-400/70 font-normal">Reiniciar lienzo 2D en blanco</p>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
-
-          {/* Timecode Console Indicator */}
-          <div className="hidden xl:flex items-center gap-1.5 font-mono text-[11px] px-2.5 py-1 rounded-xl bg-neon-card shadow-soft-elevation">
-            <span className="text-cyan font-bold">{fmtTime(currentTimeMs)}</span>
-            <span className="text-slate-600">/</span>
-            <span className="text-slate-400">{fmtTime(audioState.durationMs || 240000)}</span>
-          </div>
-
-          {/* Play / Pause Master Transport */}
-          <button
-            type="button"
-            onClick={() => {
-              if (isAudioActive) {
-                audioEngine.pause();
-              } else {
-                if (phase === 'plot' && canDraw) setPhase('curve');
-                audioEngine.play();
-              }
-            }}
-            disabled={!audioState.hasAudioLoaded}
-            title={isAudioActive ? 'Pausar' : 'Reproducir'}
-            className={[
-              'min-w-touch min-h-touch sm:min-w-0 sm:min-h-0 sm:px-3 sm:py-1.5 rounded-xl flex items-center justify-center gap-1.5 text-xs font-bold interactive-tap transition-all',
-              isAudioActive
-                ? 'bg-coral text-white shadow-glow-coral font-black'
-                : 'bg-neon-card text-white hover:bg-neon-hover shadow-soft-elevation',
-              'disabled:opacity-25 disabled:pointer-events-none',
-            ].join(' ')}
-          >
-            {isAudioActive 
-              ? <Pause className="w-3.5 h-3.5 fill-current stroke-none" /> 
-              : <Play className="w-3.5 h-3.5 fill-current stroke-none" />}
-            <span className="hidden sm:inline">{isAudioActive ? 'Pausar' : 'Play'}</span>
-          </button>
-
-          {/* Stop Button */}
-          <button
-            type="button"
-            onClick={() => audioEngine.stop()}
-            disabled={!audioState.hasAudioLoaded}
-            className="p-2 sm:px-2.5 sm:py-1.5 rounded-xl bg-neon-card hover:bg-neon-hover text-slate-300 hover:text-white shadow-soft-elevation interactive-tap disabled:opacity-25 disabled:pointer-events-none"
-            title="Detener"
-          >
-            <Square className="w-3.5 h-3.5 fill-current stroke-none" />
-          </button>
-
-          {/* Botón Rápido Limpiar Pista 2D (Header Desktop) */}
-          <button
-            type="button"
-            onClick={handleClearRink}
-            disabled={points.length === 0}
-            className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-neon-card hover:bg-coral hover:text-white text-slate-400 shadow-soft-elevation interactive-tap transition-all disabled:opacity-25 disabled:pointer-events-none"
-            title="Limpiar toda la pista 2D en un solo toque"
-          >
-            <Trash2 className="w-3.5 h-3.5 text-coral" />
-            <span className="hidden xl:inline">Limpiar Pista</span>
-          </button>
-
-          {/* Skaters Modal Trigger */}
-          <button
-            type="button"
-            onClick={() => setShowSkaters((s) => !s)}
-            className={[
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold interactive-tap transition-all shadow-soft-elevation',
-              showSkaters 
-                ? 'bg-cyan text-neon-canvas shadow-glow-cyan' 
-                : 'bg-neon-card text-slate-300 hover:text-white hover:bg-neon-hover',
-            ].join(' ')}
-          >
-            <Users className="w-3.5 h-3.5 stroke-[2]" />
-            <span className="hidden sm:inline">Atletas</span>
-          </button>
         </div>
       </header>
 
@@ -921,7 +961,7 @@ export function App() {
           ═══════════════════════════════════════════════ */}
       <nav
         aria-label="Acciones principales táctiles en vertical"
-        className="landscape:hidden lg:hidden shrink-0 flex items-stretch justify-around bg-neon-surface/95 backdrop-blur-md border-t border-white/5 z-30"
+        className="landscape:hidden lg:hidden shrink-0 flex items-stretch justify-around bg-neon-surface/95 backdrop-blur-md border-t border-white/10 z-30 pb-safe"
         style={{ minHeight: 52 }}
       >
         {/* Config / Drawer Trigger */}
