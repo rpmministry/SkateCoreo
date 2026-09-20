@@ -299,12 +299,12 @@ class IndexedDBService {
         for (const prog of progs) {
           if (!prog.choreography_path || prog.choreography_path.length < 2) {
             prog.choreography_path = [
-              { id: 'pt-1', x: 6, y: 12.5, time_ms: 0, cp1x: 10, cp1y: 4.5, cp2x: 18, cp2y: 20.5, label: 'Inicio Pista' },
-              { id: 'pt-2', x: 25, y: 21, time_ms: 30000, cp1x: 32, cp1y: 21, cp2x: 38, cp2y: 9, label: 'Secuencia Pasos' },
-              { id: 'pt-3', x: 44, y: 7, time_ms: 60000, cp1x: 46, cp1y: 16, cp2x: 38, cp2y: 19, label: '3Lo Entrada' },
-              { id: 'pt-4', x: 25, y: 12.5, time_ms: 90000, cp1x: 18, cp1y: 9, cp2x: 12, cp2y: 16, label: 'Spin Combo [T]' },
-              { id: 'pt-5', x: 12, y: 18, time_ms: 120000, cp1x: 20, cp1y: 22, cp2x: 35, cp2y: 21, label: '3Lz Pre-check [T]' },
-              { id: 'pt-6', x: 40, y: 12.5, time_ms: 150000, cp1x: 36, cp1y: 12.5, cp2x: 40, cp2y: 12.5, label: 'Cierre Final' }
+              { id: 'pt-1', x: 6, y: 12.5, time_ms: 0, cp1x: 10, cp1y: 4.5, cp2x: 18, cp2y: 20.5, label: '', isMainNode: true },
+              { id: 'pt-2', x: 25, y: 21, time_ms: 30000, cp1x: 32, cp1y: 21, cp2x: 38, cp2y: 9, label: 'Secuencia Pasos', isMainNode: true },
+              { id: 'pt-3', x: 44, y: 7, time_ms: 60000, cp1x: 46, cp1y: 16, cp2x: 38, cp2y: 19, label: '3Lo Entrada', isMainNode: true },
+              { id: 'pt-4', x: 25, y: 12.5, time_ms: 90000, cp1x: 18, cp1y: 9, cp2x: 12, cp2y: 16, label: 'Spin Combo [T]', isMainNode: true },
+              { id: 'pt-5', x: 12, y: 18, time_ms: 120000, cp1x: 20, cp1y: 22, cp2x: 35, cp2y: 21, label: '3Lz Pre-check [T]', isMainNode: true },
+              { id: 'pt-6', x: 40, y: 12.5, time_ms: 150000, cp1x: 36, cp1y: 12.5, cp2x: 40, cp2y: 12.5, label: '', isMainNode: true }
             ];
             await this.saveProgram(prog);
           }
@@ -342,12 +342,12 @@ class IndexedDBService {
       duration_ms: programDuration,
       half_time_ms: 120000, // 2 minutes half-time for "T" factor
       choreography_path: [
-        { id: 'pt-1', x: 6, y: 12.5, time_ms: 0, cp1x: 10, cp1y: 4.5, cp2x: 18, cp2y: 20.5, label: 'Inicio Pista' },
-        { id: 'pt-2', x: 25, y: 21, time_ms: 30000, cp1x: 32, cp1y: 21, cp2x: 38, cp2y: 9, label: 'Secuencia Pasos' },
-        { id: 'pt-3', x: 44, y: 7, time_ms: 60000, cp1x: 46, cp1y: 16, cp2x: 38, cp2y: 19, label: '3Lo Entrada' },
-        { id: 'pt-4', x: 25, y: 12.5, time_ms: 90000, cp1x: 18, cp1y: 9, cp2x: 12, cp2y: 16, label: 'Spin Combo [T]' },
-        { id: 'pt-5', x: 12, y: 18, time_ms: 120000, cp1x: 20, cp1y: 22, cp2x: 35, cp2y: 21, label: '3Lz Pre-check [T]' },
-        { id: 'pt-6', x: 40, y: 12.5, time_ms: 150000, cp1x: 36, cp1y: 12.5, cp2x: 40, cp2y: 12.5, label: 'Cierre Final' }
+        { id: 'pt-1', x: 6, y: 12.5, time_ms: 0, cp1x: 10, cp1y: 4.5, cp2x: 18, cp2y: 20.5, label: '', isMainNode: true },
+        { id: 'pt-2', x: 25, y: 21, time_ms: 30000, cp1x: 32, cp1y: 21, cp2x: 38, cp2y: 9, label: 'Secuencia Pasos', isMainNode: true },
+        { id: 'pt-3', x: 44, y: 7, time_ms: 60000, cp1x: 46, cp1y: 16, cp2x: 38, cp2y: 19, label: '3Lo Entrada', isMainNode: true },
+        { id: 'pt-4', x: 25, y: 12.5, time_ms: 90000, cp1x: 18, cp1y: 9, cp2x: 12, cp2y: 16, label: 'Spin Combo [T]', isMainNode: true },
+        { id: 'pt-5', x: 12, y: 18, time_ms: 120000, cp1x: 20, cp1y: 22, cp2x: 35, cp2y: 21, label: '3Lz Pre-check [T]', isMainNode: true },
+        { id: 'pt-6', x: 40, y: 12.5, time_ms: 150000, cp1x: 36, cp1y: 12.5, cp2x: 40, cp2y: 12.5, label: '', isMainNode: true }
       ],
       created_at: Date.now() - 86400000
     };

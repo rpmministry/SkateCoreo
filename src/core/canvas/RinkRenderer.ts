@@ -1,5 +1,5 @@
 import { CanvasViewportMetrics, RinkMath } from './RinkMath';
-import { ChoreographyPathPoint, ElementLog, SkaterAvatarState, RinkDimensions, SkaterGender } from '../../types/choreography';
+import { ChoreographyPathPoint, ElementLog, SkaterAvatarState, RinkDimensions, SkaterGender, isMainNode } from '../../types/choreography';
 
 export type ChoreographyPhase = 'plot' | 'connect' | 'curve';
 
@@ -342,19 +342,10 @@ export class RinkRenderer {
 
     points.forEach((p, idx) => {
       const isSelected = selectedPointId === p.id;
-      const isStartOrEnd = idx === 0 || idx === points.length - 1;
-      const hasTechnicalLabel = Boolean(p.label && p.label.trim() !== '' && p.label !== 'Curve');
-      const hasElement = Boolean(p.element_id);
-      const isPrincipalType = p.type ? p.type !== 'Curve' : true;
 
-      // Un nodo es Principal (Nodo Maestro) si:
-      //  1. Es el inicio o fin del recorrido
-      //  2. O tiene tipo técnico distinto a 'Curve' (ej: 'Step', 'Jump', 'Spin', etc.)
-      //  3. O tiene figura/etiqueta asignada o elemento RollArt
-      //  4. O está seleccionado activamente por el usuario
-      const isPrincipalNode = isStartOrEnd || isPrincipalType || hasTechnicalLabel || hasElement || isSelected;
-
-      // Si es un nodo de curvatura intermedio y no está seleccionado, NO se dibuja como círculo para no saturar la línea
+      // Un nodo se dibuja en el lienzo ÚNICAMENTE si es un Nodo Principal (Nodo Maestro).
+      // Los puntos de curvatura secundarios nunca se renderizan en pantalla para mantener el lienzo 100% limpio y minimalista.
+      const isPrincipalNode = isMainNode(p, idx, points);
       if (!isPrincipalNode) {
         return;
       }
@@ -654,56 +645,22 @@ export class RinkRenderer {
    * Elimina por completo los tiradores flotantes externos (CPs) y sus brazos discontinuos.
    * Dibuja puntos pequeños, discretos y luminosos directamente sobre el trazo para esculpir la curva.
    */
+  /**
+   * Ultra-minimalismo 2D: Cero tiradores ni puntos de agarre visuales en la línea.
+   * La curva se manipula directamente mediante detección de proximidad al toque (Drag-to-Curve).
+   */
   public static drawSplineGripPoints(
-    ctx: CanvasRenderingContext2D,
-    metrics: CanvasViewportMetrics,
-    points: ChoreographyPathPoint[],
-    options: RenderOptions
+    _ctx: CanvasRenderingContext2D,
+    _metrics: CanvasViewportMetrics,
+    _points: ChoreographyPathPoint[],
+    _options: RenderOptions
   ) {
-    if (points.length < 2 || options.phase === 'plot') return;
-    if (options.isPlaying) return;
-
-    const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
-
-    for (let i = 0; i < sorted.length - 1; i++) {
-      const p0 = sorted[i];
-      const p1 = sorted[i + 1];
-      const isSegmentSelected = options.selectedPointId === p0.id || options.selectedPointId === p1.id;
-
-      const gripPoints = RinkMath.getSegmentGripPoints(p0, p1);
-
-      for (const grip of gripPoints) {
-        const { px, py } = RinkMath.metersToPixels(grip.x, grip.y, metrics);
-
-        ctx.save();
-
-        // 1. Halo sutil interactivo
-        const haloR = isSegmentSelected ? 8 : 5;
-        ctx.fillStyle = isSegmentSelected ? 'rgba(0, 210, 255, 0.35)' : 'rgba(0, 210, 255, 0.12)';
-        ctx.beginPath();
-        ctx.arc(px, py, haloR, 0, Math.PI * 2);
-        ctx.fill();
-
-        // 2. Anillo exterior cian neón integrado en el trazo
-        ctx.strokeStyle = '#00D2FF';
-        ctx.lineWidth = isSegmentSelected ? 1.8 : 1.2;
-        ctx.beginPath();
-        ctx.arc(px, py, isSegmentSelected ? 4 : 3, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // 3. Núcleo blanco de precisión sobre la línea
-        ctx.fillStyle = '#FFFFFF';
-        ctx.beginPath();
-        ctx.arc(px, py, isSegmentSelected ? 2 : 1.4, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.restore();
-      }
-    }
+    // Intencionalmente vacío: los puntos secundarios no se renderizan para mantener el lienzo ultra-limpio.
+    return;
   }
 
   /**
-   * Alias de compatibilidad: redirige al nuevo sistema de puntos integrados
+   * Alias de compatibilidad: redirige al nuevo sistema sin puntos visuales
    */
   public static drawBezierControlOverlay(
     ctx: CanvasRenderingContext2D,

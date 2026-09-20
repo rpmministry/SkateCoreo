@@ -20,7 +20,7 @@ async function runTests() {
       x: 5,
       y: 5,
       type: 'Marker',
-      label: 'Inicio'
+      label: ''
     },
     {
       id: 'pt-2',

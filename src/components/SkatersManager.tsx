@@ -86,9 +86,9 @@ export const SkatersManager: React.FC<SkatersManagerProps> = ({
       duration_ms: durMs,
       half_time_ms: Math.round(durMs / 2),
       choreography_path: [
-        { id: 'pt-1', x: 5, y: 12.5, time_ms: 0, label: 'Inicio Pista' },
-        { id: 'pt-2', x: 25, y: 12.5, time_ms: Math.round(durMs / 2), label: 'Mitad [T]' },
-        { id: 'pt-3', x: 45, y: 12.5, time_ms: durMs, label: 'Final' }
+        { id: 'pt-1', x: 5, y: 12.5, time_ms: 0, label: '', isMainNode: true },
+        { id: 'pt-2', x: 25, y: 12.5, time_ms: Math.round(durMs / 2), label: '', isMainNode: true },
+        { id: 'pt-3', x: 45, y: 12.5, time_ms: durMs, label: '', isMainNode: true }
       ],
       created_at: Date.now()
     };

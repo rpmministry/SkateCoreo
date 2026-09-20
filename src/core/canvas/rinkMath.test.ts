@@ -1,5 +1,5 @@
 import { RinkMath, DEFAULT_RINK_DIMENSIONS } from './RinkMath';
-import { ChoreographyPathPoint } from '../../types/choreography';
+import { ChoreographyPathPoint, isMainNode } from '../../types/choreography';
 
 function runRinkMathTests() {
   console.log('--- EJECUTANDO PRUEBAS DEL MÓDULO 2: MATEMÁTICA DE PISTA Y CURVAS BÉZIER ---');
@@ -60,6 +60,27 @@ function runRinkMathTests() {
 
   const avatarAt5s = RinkMath.interpolateSkaterPosition(points, 5000);
   assert(avatarAt5s !== null && avatarAt5s.x > 5 && avatarAt5s.x < 25, 'Patinador en t=5s viaja fluidamente entre punto 1 y 2');
+
+  // 6. Direct Drag-to-Curve (Manipulación directa del trazo sin tiradores visuales)
+  const pA = { id: 'a', x: 10, y: 10, time_ms: 0 };
+  const pB = { id: 'b', x: 30, y: 10, time_ms: 5000 };
+  const { cp1: defCp1, cp2: defCp2 } = RinkMath.computeControlPointsFromThroughPoint(pA, pB, 20, 20, 0.5);
+  const deformedMid = RinkMath.evaluateCubicBezier(pA, defCp1, defCp2, pB, 0.5);
+  assert(Math.abs(deformedMid.x - 20) < 1.0 && Math.abs(deformedMid.y - 20) < 1.0, 'Curva se deforma directamente hacia la coordenada de toque del dedo');
+
+  // 7. Discriminación estricta de Nodos Principales (isMainNode)
+  const testPoints: ChoreographyPathPoint[] = [
+    { id: 'start', x: 5, y: 5, time_ms: 0, isMainNode: true, type: 'Step' },
+    { id: 'intermediate-curve-1', x: 15, y: 8, time_ms: 1000, isMainNode: false, type: 'Curve', label: '' },
+    { id: 'intermediate-curve-2', x: 20, y: 10, time_ms: 2000, isMainNode: false, type: 'Curve', label: '' },
+    { id: 'middle-figure', x: 25, y: 15, time_ms: 3000, isMainNode: true, type: 'Jump', label: 'Axel' },
+    { id: 'end', x: 40, y: 20, time_ms: 5000, isMainNode: true, type: 'Step' }
+  ];
+  assert(isMainNode(testPoints[0], 0, testPoints) === true, 'Nodo inicial es Nodo Principal');
+  assert(isMainNode(testPoints[1], 1, testPoints) === false, 'Punto de curvatura intermedio NO es Nodo Principal (oculto en lienzo y timeline)');
+  assert(isMainNode(testPoints[2], 2, testPoints) === false, 'Segundo punto de curvatura NO es Nodo Principal');
+  assert(isMainNode(testPoints[3], 3, testPoints) === true, 'Nodo con figura técnica "Axel" es Nodo Principal');
+  assert(isMainNode(testPoints[4], 4, testPoints) === true, 'Nodo final es Nodo Principal');
 
   console.log(`\nResultado Módulo 2: ${passed}/${total} pruebas pasadas con éxito.\n`);
 }

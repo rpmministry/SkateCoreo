@@ -1,8 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useChoreographyStore } from '../store/useChoreographyStore';
 import { audioEngine } from '../core/audio/AudioEngine';
-import { isSpeakableFigure } from '../core/audio/VoiceCueEngine';
-import { ChoreographyPoint } from '../types/choreography';
+import { ChoreographyPoint, isMainNode } from '../types/choreography';
 import { Clock, Music, Sparkles } from 'lucide-react';
 
 interface InteractiveWaveformProps {
@@ -34,6 +33,10 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
   const [wavePeaks, setWavePeaks] = useState<number[]>([]);
   const [draggedPinId, setDraggedPinId] = useState<string | null>(null);
   const [cursorStyle, setCursorStyle] = useState<string>('crosshair');
+
+  // Filtrado exclusivo de Nodos Principales para el Timeline de Música:
+  // Elimina la saturación de micro-puntos de curvatura y eleva el rendimiento en pantallas móviles
+  const timelineNodes = points.filter((node, index) => isMainNode(node, index, points));
 
   const isDraggingPinRef = useRef<boolean>(false);
   const dragStartPointRef = useRef<{ id: string; originalMs: number } | null>(null);
@@ -154,7 +157,8 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     }
 
     // 4. Marcadores de Nodos Coreográficos (Pins y Badges sobre la onda)
-    const sortedPoints = [...points].sort((a, b) => a.timestamp - b.timestamp);
+    // Renderiza EXCLUSIVAMENTE los Nodos Principales, despejando la interfaz de micro-puntos
+    const sortedPoints = [...timelineNodes].sort((a, b) => a.timestamp - b.timestamp);
 
     sortedPoints.forEach((point, index) => {
       const pointRatio = Math.max(0, Math.min(1, point.timestamp / effectiveDurationMs));
@@ -212,7 +216,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
       // Si está seleccionado o arrastrado, dibujar tooltip con el tiempo o nombre debajo
       if (isSelected || isDragged) {
         const timeSec = (point.timestamp / 1000).toFixed(1);
-        const hasRealLabel = isSpeakableFigure(point.label, point.type);
+        const hasRealLabel = Boolean(point.label && point.label.trim() !== '');
         const labelText = isDragged 
           ? `T: ${timeSec}s` 
           : (hasRealLabel ? `${point.label} (${timeSec}s)` : `#${index + 1} (${timeSec}s)`);
@@ -304,9 +308,9 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     draggedPinId
   ]);
 
-  // Detección de Pin cercano con tolerancia en píxeles
-  const findPinAtPx = (px: number, canvasWidth: number, tolerance = 16): ChoreographyPoint | null => {
-    for (const pt of points) {
+  // Detección de Pin cercano con tolerancia en píxeles (exclusivo para Nodos Principales)
+  const findPinAtPx = (px: number, canvasWidth: number, tolerance = 18): ChoreographyPoint | null => {
+    for (const pt of timelineNodes) {
       const ptPx = (pt.timestamp / effectiveDurationMs) * canvasWidth;
       if (Math.abs(px - ptPx) <= tolerance) {
         return pt;

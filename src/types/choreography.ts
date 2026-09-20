@@ -40,11 +40,41 @@ export interface ChoreographyPathPoint {
   type?: string;     // 'Jump' | 'Spin' | 'Step' | 'Choreo' | 'Marker' | etc.
   label?: string;    // Technical figure or note
   element_id?: string;
+  isMainNode?: boolean; // Indicador explícito de Nodo Principal / Maestro
 }
 
 export interface ChoreographyPoint extends ChoreographyPathPoint {
   timestamp: number; // Exact moment in ms
   time_ms: number;   // Guaranteed alias
+}
+
+/**
+ * Determina de forma unificada si un punto es un "Nodo Principal" (Nodo Maestro),
+ * excluyendo puntos secundarios de curvatura o micro-puntos de geometría.
+ */
+export function isMainNode(
+  point: ChoreographyPathPoint,
+  index?: number,
+  allPoints?: ChoreographyPathPoint[]
+): boolean {
+  if (point.isMainNode === true) return true;
+  if (point.isMainNode === false) return false;
+
+  // Los extremos de la coreografía siempre son Nodos Maestros
+  if (allPoints && index !== undefined) {
+    if (index === 0 || index === allPoints.length - 1) return true;
+  }
+
+  // Nodos con elementos técnicos RollArt asignados
+  if (point.element_id && point.element_id.trim() !== '') return true;
+
+  // Nodos con figuras técnicas asignadas
+  if (point.label && point.label.trim() !== '' && point.label !== 'Curve') return true;
+
+  // Nodos con tipo estructural o de figura técnica (no curvatura pura)
+  if (point.type && point.type !== 'Curve') return true;
+
+  return false;
 }
 
 export interface SkaterAvatarState {

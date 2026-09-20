@@ -26,7 +26,7 @@ import {
   Route
 } from 'lucide-react';
 
-import { ChoreographyPathPoint, ChoreographyPoint, Program, ElementLog } from '../types';
+import { ChoreographyPathPoint, ChoreographyPoint, Program, ElementLog, isMainNode } from '../types';
 import { useAudioEngine } from '../hooks/useAudioEngine';
 import { audioEngine } from '../core/audio/AudioEngine';
 import { RinkMath, DEFAULT_RINK_DIMENSIONS, CanvasViewportMetrics } from '../core/canvas/RinkMath';
@@ -331,12 +331,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     // Capa 1: Curvas de trayectoria (Línea guía permanente en pausa, o Trazado Dinámico durante reproducción)
     RinkRenderer.drawTrajectories(ctx, metrics, currentPoints, renderOpts);
 
-    // Capa 2: Puntos de Arrastre Integrados en la Línea (Splines sobre el trazo, solo en edición)
-    if (!audio.isPlaying && currentPoints.length >= 2 && phase !== 'plot') {
-      RinkRenderer.drawSplineGripPoints(ctx, metrics, currentPoints, renderOpts);
-    }
-
-    // Capa 3: Puntos de anclaje de posición estándar (Menta Neón)
+    // Capa 2: Puntos de anclaje de Nodos Principales exclusivamente (Menta Neón)
     RinkRenderer.drawAnchorPoints(ctx, metrics, currentPoints, currentSelectedId);
 
     // Capa 5: Elementos técnicos RollArt
@@ -456,76 +451,83 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     pointsBeforeDragRef.current = points;
     pointerDownPosRef.current = { x: e.clientX, y: e.clientY };
 
-    // Radio de hit-test dinámico: 30px en pantalla siempre
-    const hitRadius = 30 / camera.zoom;
+    // Radio de hit-test dinámico para Nodos Principales: 32px en pantalla
+    const hitRadius = 32 / camera.zoom;
     let hitFound = false;
 
-    // 1. Comprobar Puntos de Arrastre Integrados en la Línea (Splines) en fase conectada
-    if (!audio.isPlaying && points.length >= 2 && phase !== 'plot') {
+    // 1. Comprobar si tocó un Nodo Maestro existente (Nodos Principales)
+    let hitNode: ChoreographyPoint | null = null;
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i];
+      if (!isMainNode(p, i, points)) continue;
+
+      const { px, py } = RinkMath.metersToPixels(p.x, p.y, metrics);
+      if (Math.hypot(worldPx - px, worldPy - py) < hitRadius) {
+        hitNode = p;
+        break;
+      }
+    }
+
+    if (hitNode) {
+      hitFound = true;
+      strokeStartNodeRef.current = hitNode;
+      // Iniciar trazo libre desde la posición exacta del nodo maestro
+      rawStrokeRef.current = [{ x: hitNode.x, y: hitNode.y }];
+
+      // Configurar temporizador de Long Press (~600ms) para abrir inspector de propiedades
+      const targetNode = hitNode;
+      longPressTimerRef.current = setTimeout(() => {
+        isLongPressActiveRef.current = true;
+        // Feedback háptico
+        try {
+          if (typeof navigator !== 'undefined' && navigator.vibrate) {
+            navigator.vibrate(50);
+          }
+        } catch (err) {}
+        // Seleccionar nodo y abrir el modal / Bottom Sheet de propiedades
+        setSelectedPointId(targetNode.id);
+        onNodeSelect?.(targetNode.id);
+        setDeleteTooltip({ pointId: targetNode.id });
+        // Cancelar el trazo en curso para evitar dibujar mientras se abre el menú
+        rawStrokeRef.current = [];
+        strokeStartNodeRef.current = null;
+        renderFrame();
+      }, 600);
+    }
+
+    // 2. Manipulación Directa de Curvas (Drag-to-Curve sin tiradores visuales)
+    // Path Proximity Detection con tolerancia invisible (~24px en pantalla) para facilitar agarre táctil
+    if (!hitFound && !audio.isPlaying && points.length >= 2) {
+      const touchTolerance = 24 / camera.zoom;
+      let closestSegment: { p0: ChoreographyPoint; p1: ChoreographyPoint; t: number } | null = null;
+      let minCurveDist = Infinity;
+
       const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
       for (let i = 0; i < sorted.length - 1; i++) {
         const p0 = sorted[i];
         const p1 = sorted[i + 1];
+        const { cp1, cp2 } = RinkMath.getSegmentControlPoints(p0, p1);
 
-        const grips = RinkMath.getSegmentGripPoints(p0, p1);
-        for (const grip of grips) {
-          const gripPx = RinkMath.metersToPixels(grip.x, grip.y, metrics);
-          if (Math.hypot(worldPx - gripPx.px, worldPy - gripPx.py) < hitRadius) {
-            setSelectedPointId(p0.id);
-            const target: DragState = { targetId: p0.id, type: 'grip', t: grip.t };
-            dragTargetRef.current = target;
-            setCursorStyle('grabbing');
-            hitFound = true;
-            break;
+        const steps = 25;
+        for (let s = 1; s < steps; s++) {
+          const t = s / steps;
+          const curvePtM = RinkMath.evaluateCubicBezier(p0, cp1, cp2, p1, t);
+          const { px: curvePx, py: curvePy } = RinkMath.metersToPixels(curvePtM.x, curvePtM.y, metrics);
+          const dist = Math.hypot(worldPx - curvePx, worldPy - curvePy);
+
+          if (dist < minCurveDist && dist <= touchTolerance) {
+            minCurveDist = dist;
+            closestSegment = { p0, p1, t };
           }
         }
-        if (hitFound) break;
-      }
-    }
-
-    // 2. Comprobar si tocó un Nodo Maestro existente (Nodos Principales)
-    if (!hitFound) {
-      let hitNode: ChoreographyPoint | null = null;
-      for (let i = 0; i < points.length; i++) {
-        const p = points[i];
-        const isStartOrEnd = i === 0 || i === points.length - 1;
-        const hasTechnicalLabel = Boolean(p.label && p.label.trim() !== '' && p.label !== 'Curve');
-        const isPrincipalType = p.type ? p.type !== 'Curve' : true;
-        const isPrincipal = isStartOrEnd || isPrincipalType || hasTechnicalLabel || Boolean(p.element_id) || p.id === selectedPointId;
-        if (!isPrincipal) continue;
-
-        const { px, py } = RinkMath.metersToPixels(p.x, p.y, metrics);
-        if (Math.hypot(worldPx - px, worldPy - py) < hitRadius) {
-          hitNode = p;
-          break;
-        }
       }
 
-      if (hitNode) {
+      if (closestSegment) {
         hitFound = true;
-        strokeStartNodeRef.current = hitNode;
-        // Iniciar trazo libre desde la posición exacta del nodo
-        rawStrokeRef.current = [{ x: hitNode.x, y: hitNode.y }];
-
-        // Configurar temporizador de Long Press (~600ms) para abrir inspector de propiedades
-        const targetNode = hitNode;
-        longPressTimerRef.current = setTimeout(() => {
-          isLongPressActiveRef.current = true;
-          // Feedback háptico
-          try {
-            if (typeof navigator !== 'undefined' && navigator.vibrate) {
-              navigator.vibrate(50);
-            }
-          } catch (err) {}
-          // Seleccionar nodo y abrir el modal / Bottom Sheet de propiedades
-          setSelectedPointId(targetNode.id);
-          onNodeSelect?.(targetNode.id);
-          setDeleteTooltip({ pointId: targetNode.id });
-          // Cancelar el trazo en curso para evitar dibujar mientras se abre el menú
-          rawStrokeRef.current = [];
-          strokeStartNodeRef.current = null;
-          renderFrame();
-        }, 600);
+        setSelectedPointId(closestSegment.p0.id);
+        const target: DragState = { targetId: closestSegment.p0.id, type: 'curve', t: closestSegment.t };
+        dragTargetRef.current = target;
+        setCursorStyle('grabbing');
       }
     }
 
@@ -627,16 +629,35 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       if (isInteractingWithCamera) return;
     }
 
-    // Feedback del Cursor
+    // Feedback del Cursor para Nodos Principales y Deformación de Curvas
     let isHovering = false;
-    const hitRadius = 30 / camera.zoom;
-    if (!audio.isPlaying && points.length >= 2 && phase !== 'plot') {
+    const hitRadius = 32 / camera.zoom;
+
+    // 1. Proximidad a Nodos Principales
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i];
+      if (!isMainNode(p, i, points)) continue;
+
+      const { px, py } = RinkMath.metersToPixels(p.x, p.y, metrics);
+      if (Math.hypot(worldPx - px, worldPy - py) < hitRadius) {
+        isHovering = true;
+        break;
+      }
+    }
+
+    // 2. Proximidad a la Curva (Direct Drag-to-Curve)
+    if (!isHovering && !audio.isPlaying && points.length >= 2) {
+      const touchTolerance = 22 / camera.zoom;
       const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
       for (let i = 0; i < sorted.length - 1; i++) {
-        const grips = RinkMath.getSegmentGripPoints(sorted[i], sorted[i + 1]);
-        for (const grip of grips) {
-          const gripPx = RinkMath.metersToPixels(grip.x, grip.y, metrics);
-          if (Math.hypot(worldPx - gripPx.px, worldPy - gripPx.py) < hitRadius) {
+        const p0 = sorted[i];
+        const p1 = sorted[i + 1];
+        const { cp1, cp2 } = RinkMath.getSegmentControlPoints(p0, p1);
+        for (let s = 1; s < 16; s++) {
+          const t = s / 16;
+          const curvePtM = RinkMath.evaluateCubicBezier(p0, cp1, cp2, p1, t);
+          const { px, py } = RinkMath.metersToPixels(curvePtM.x, curvePtM.y, metrics);
+          if (Math.hypot(worldPx - px, worldPy - py) <= touchTolerance) {
             isHovering = true;
             break;
           }
@@ -644,22 +665,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
         if (isHovering) break;
       }
     }
-    if (!isHovering) {
-      for (let i = 0; i < points.length; i++) {
-        const p = points[i];
-        const isStartOrEnd = i === 0 || i === points.length - 1;
-        const hasTechnicalLabel = Boolean(p.label && p.label.trim() !== '' && p.label !== 'Curve');
-        const isPrincipalType = p.type ? p.type !== 'Curve' : true;
-        const isPrincipal = isStartOrEnd || isPrincipalType || hasTechnicalLabel || Boolean(p.element_id) || p.id === selectedPointId;
-        if (!isPrincipal) continue;
 
-        const { px, py } = RinkMath.metersToPixels(p.x, p.y, metrics);
-        if (Math.hypot(worldPx - px, worldPy - py) < hitRadius) {
-          isHovering = true;
-          break;
-        }
-      }
-    }
     setCursorStyle(isHovering ? 'grab' : 'crosshair');
   };
 
@@ -769,6 +775,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
             id: `pt-freehand-${Date.now()}-${idx}`,
             type: idx === generated.length - 2 ? ('Step' as const) : ('Curve' as const),
             label: '',
+            isMainNode: idx === generated.length - 2,
           }));
 
           finalPoints = [...updatedExisting, ...newExtensionPoints].sort((a, b) => a.time_ms - b.time_ms);
@@ -779,6 +786,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
             id: `pt-freehand-${Date.now()}-${idx}`,
             type: (idx === 0 || idx === generated.length - 1) ? ('Step' as const) : ('Curve' as const),
             label: '',
+            isMainNode: idx === 0 || idx === generated.length - 1,
           }));
 
           finalPoints = [...points, ...stamped].sort((a, b) => a.time_ms - b.time_ms);
