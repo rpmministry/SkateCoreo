@@ -190,108 +190,99 @@ export class FreehandPathEngine {
       ];
     }
 
-    // ── INTELIGENCIA 3: Simplificación Adaptativa de Curvas (RDP Dinámico) ──
-    // Tolerancia adaptativa (0.40m - 0.75m) para capturar solo vértices y arcos significativos
-    const dynamicEpsilon = Math.max(0.40, Math.min(0.75, totalLength * 0.055));
-    let simplified = this.simplifyRDP(smoothed, dynamicEpsilon);
+    // ── MODELADO MATEMÁTICO DE CURVA: EXACTAMENTE 2 NODOS (INICIO Y FIN) ──
+    // Separación Estricta: La línea trazada es Path Data, y se modela en un único segmento
+    // Bézier Cúbico con CP1 y CP2 calculados para seguir la trayectoria del gesto táctil.
+    // Cero Nodos Intermedios ("Node Spam Eradication").
 
-    if (simplified.length < 2) {
-      simplified = [smoothed[0], smoothed[smoothed.length - 1]];
+    const durationMs = Math.max(800, Math.round((Math.max(chordDist, totalLength) / estimatedSpeedMps) * 1000));
+
+    // 1. Vector de dirección inicial (tangente de salida en pStart)
+    const idxStart = Math.max(1, Math.min(smoothed.length - 1, Math.floor(smoothed.length * 0.25)));
+    let t0x = smoothed[idxStart].x - pStart.x;
+    let t0y = smoothed[idxStart].y - pStart.y;
+    const len0 = Math.hypot(t0x, t0y) || 1;
+    t0x /= len0;
+    t0y /= len0;
+
+    // 2. Vector de dirección final (tangente de llegada en pEnd)
+    const idxEnd = Math.max(0, Math.min(smoothed.length - 2, Math.floor(smoothed.length * 0.75)));
+    let t1x = pEnd.x - smoothed[idxEnd].x;
+    let t1y = pEnd.y - smoothed[idxEnd].y;
+    const len1 = Math.hypot(t1x, t1y) || 1;
+    t1x /= len1;
+    t1y /= len1;
+
+    // 3. Punto de flexión o ápice de la curva (punto de máxima desviación o punto medio del trazo)
+    let pMid = smoothed[Math.floor(smoothed.length / 2)];
+    let maxDev = 0;
+    for (let i = 1; i < smoothed.length - 1; i++) {
+      const dev = this.perpendicularDistance(smoothed[i], pStart, pEnd);
+      if (dev > maxDev) {
+        maxDev = dev;
+        pMid = smoothed[i];
+      }
     }
 
-    const n = simplified.length;
-    const result: ChoreographyPoint[] = [];
+    // Longitud base de los tiradores
+    const handleDist = Math.min(chordDist * 0.45, Math.max(chordDist * 0.33, 1.0));
 
-    const cumulativeDistances: number[] = [0];
-    for (let i = 1; i < n; i++) {
-      const dist = Math.hypot(simplified[i].x - simplified[i - 1].x, simplified[i].y - simplified[i - 1].y);
-      cumulativeDistances.push(cumulativeDistances[i - 1] + dist);
-    }
+    let cp1x = pStart.x + t0x * handleDist;
+    let cp1y = pStart.y + t0y * handleDist;
+    let cp2x = pEnd.x - t1x * handleDist;
+    let cp2y = pEnd.y - t1y * handleDist;
 
-    for (let i = 0; i < n; i++) {
-      const p = simplified[i];
-      const distFromStart = cumulativeDistances[i];
-      const durationMs = i === 0 ? 0 : Math.max(600 * i, Math.round((distFromStart / estimatedSpeedMps) * 1000));
-      const nodeTimeMs = baseStartTimeMs + durationMs;
+    // 4. Ajuste por flexión en t = 0.5:
+    // B(0.5) = 0.125 * pStart + 0.375 * cp1 + 0.375 * cp2 + 0.125 * pEnd
+    const b05x = 0.125 * pStart.x + 0.375 * cp1x + 0.375 * cp2x + 0.125 * pEnd.x;
+    const b05y = 0.125 * pStart.y + 0.375 * cp1y + 0.375 * cp2y + 0.125 * pEnd.y;
+    const deltaX = (pMid.x - b05x) / 0.75;
+    const deltaY = (pMid.y - b05y) / 0.75;
 
-      let cp1x = p.x;
-      let cp1y = p.y;
-      let cp2x = p.x;
-      let cp2y = p.y;
+    cp1x += deltaX * 0.85;
+    cp1y += deltaY * 0.85;
+    cp2x += deltaX * 0.85;
+    cp2y += deltaY * 0.85;
 
-      let isCorner = false;
-      if (i > 0 && i < n - 1) {
-        const v1x = p.x - simplified[i - 1].x;
-        const v1y = p.y - simplified[i - 1].y;
-        const v2x = simplified[i + 1].x - p.x;
-        const v2y = simplified[i + 1].y - p.y;
-        const dot = v1x * v2x + v1y * v2y;
-        const m1 = Math.hypot(v1x, v1y);
-        const m2 = Math.hypot(v2x, v2y);
-        if (m1 > 0 && m2 > 0) {
-          const cosAngle = Math.max(-1, Math.min(1, dot / (m1 * m2)));
-          const angleDeg = (Math.acos(cosAngle) * 180) / Math.PI;
-          if (angleDeg > 45) {
-            isCorner = true;
-          }
-        }
-      }
+    // Limitar tiradores dentro de límites de pista ampliados
+    cp1x = Math.max(-10, Math.min(60, Math.round(cp1x * 10) / 10));
+    cp1y = Math.max(-10, Math.min(35, Math.round(cp1y * 10) / 10));
+    cp2x = Math.max(-10, Math.min(60, Math.round(cp2x * 10) / 10));
+    cp2y = Math.max(-10, Math.min(35, Math.round(cp2y * 10) / 10));
 
-      if (i < n - 1) {
-        const pNext = simplified[i + 1];
-        const pPrev = i > 0 ? simplified[i - 1] : { x: p.x - (pNext.x - p.x), y: p.y - (pNext.y - p.y) };
-        const pNextNext = i < n - 2 ? simplified[i + 2] : { x: pNext.x + (pNext.x - p.x), y: pNext.y + (pNext.y - p.y) };
-
-        // Si es una esquina intencional, quebrar tangencia para ángulo nítido
-        const t0x = isCorner ? (pNext.x - p.x) : (pNext.x - pPrev.x) / 2;
-        const t0y = isCorner ? (pNext.y - p.y) : (pNext.y - pPrev.y) / 2;
-        const t1x = (pNextNext.x - p.x) / 2;
-        const t1y = (pNextNext.y - p.y) / 2;
-
-        const segDist = Math.hypot(pNext.x - p.x, pNext.y - p.y);
-        const factor = 0.33;
-        const maxHandleDist = segDist * 0.45;
-
-        const h1Len = Math.hypot(t0x * factor, t0y * factor);
-        const scale1 = h1Len > maxHandleDist && h1Len > 0 ? maxHandleDist / h1Len : 1;
-
-        const h2Len = Math.hypot(t1x * factor, t1y * factor);
-        const scale2 = h2Len > maxHandleDist && h2Len > 0 ? maxHandleDist / h2Len : 1;
-
-        cp1x = p.x + (t0x * factor) * scale1;
-        cp1y = p.y + (t0y * factor) * scale1;
-        cp2x = pNext.x - (t1x * factor) * scale2;
-        cp2y = pNext.y - (t1y * factor) * scale2;
-
-        cp1x = Math.max(0.2, Math.min(49.8, Math.round(cp1x * 10) / 10));
-        cp1y = Math.max(0.2, Math.min(24.8, Math.round(cp1y * 10) / 10));
-        cp2x = Math.max(0.2, Math.min(49.8, Math.round(cp2x * 10) / 10));
-        cp2y = Math.max(0.2, Math.min(24.8, Math.round(cp2y * 10) / 10));
-      }
-
-      // Nodos Principales: solo Inicio, Fin y Vértices/Esquinas
-      const isMaster = (i === 0 || i === n - 1 || isCorner);
-      const nodeType = isMaster ? 'Step' : 'Curve';
-      const label = '';
-
-      result.push({
+    return [
+      {
         id: crypto.randomUUID(),
-        x: Math.round(p.x * 10) / 10,
-        y: Math.round(p.y * 10) / 10,
-        time_ms: nodeTimeMs,
-        timestamp: nodeTimeMs,
-        type: nodeType,
-        label,
-        isMainNode: isMaster,
+        x: Math.round(pStart.x * 10) / 10,
+        y: Math.round(pStart.y * 10) / 10,
+        time_ms: baseStartTimeMs,
+        timestamp: baseStartTimeMs,
+        type: 'Step',
+        label: '',
+        isMainNode: true,
         cp1x,
         cp1y,
         cp2x,
         cp2y,
         controlPoint1: { x: cp1x, y: cp1y },
         controlPoint2: { x: cp2x, y: cp2y },
-      });
-    }
-
-    return result;
+      },
+      {
+        id: crypto.randomUUID(),
+        x: Math.round(pEnd.x * 10) / 10,
+        y: Math.round(pEnd.y * 10) / 10,
+        time_ms: baseStartTimeMs + durationMs,
+        timestamp: baseStartTimeMs + durationMs,
+        type: 'Step',
+        label: '',
+        isMainNode: true,
+        cp1x: Math.round(pEnd.x * 10) / 10,
+        cp1y: Math.round(pEnd.y * 10) / 10,
+        cp2x: Math.round(pEnd.x * 10) / 10,
+        cp2y: Math.round(pEnd.y * 10) / 10,
+        controlPoint1: { x: Math.round(pEnd.x * 10) / 10, y: Math.round(pEnd.y * 10) / 10 },
+        controlPoint2: { x: Math.round(pEnd.x * 10) / 10, y: Math.round(pEnd.y * 10) / 10 },
+      },
+    ];
   }
 }

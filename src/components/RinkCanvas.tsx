@@ -869,32 +869,25 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
             return p;
           });
 
-          // Puntos nuevos de la extensión: el último es siempre Nodo Maestro (Nodo 2)
-          const newExtensionPoints = generated.slice(1).map((pt, idx) => {
-            const isLast = idx === generated.length - 2;
-            const isMain = isLast || Boolean(pt.isMainNode);
-            return {
-              ...pt,
-              id: `pt-freehand-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
-              type: isMain ? ('Step' as const) : ('Curve' as const),
-              label: '',
-              isMainNode: isMain,
-            };
-          });
+          // Puntos nuevos de la extensión: exactamente UN nuevo Nodo Maestro (Nodo 2)
+          const newExtensionPoints: ChoreographyPoint[] = generated.slice(1).map((pt, idx) => ({
+            ...pt,
+            id: `pt-freehand-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
+            type: 'Step',
+            label: '',
+            isMainNode: true,
+          }));
 
           finalPoints = [...updatedExisting, ...newExtensionPoints].sort((a, b) => a.time_ms - b.time_ms);
         } else {
-          // Trazo nuevo independiente (con Nodo Maestro al inicio [Nodo A] y al final [Nodo B])
-          const stamped = generated.map((pt, idx) => {
-            const isMain = idx === 0 || idx === generated.length - 1 || Boolean(pt.isMainNode);
-            return {
-              ...pt,
-              id: `pt-freehand-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
-              type: isMain ? ('Step' as const) : ('Curve' as const),
-              label: '',
-              isMainNode: isMain,
-            };
-          });
+          // Trazo nuevo independiente: exactamente dos Nodos Maestros (Nodo A inicio y Nodo B fin)
+          const stamped: ChoreographyPoint[] = generated.map((pt, idx) => ({
+            ...pt,
+            id: `pt-freehand-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
+            type: 'Step',
+            label: '',
+            isMainNode: true,
+          }));
 
           finalPoints = [...points, ...stamped].sort((a, b) => a.time_ms - b.time_ms);
         }
