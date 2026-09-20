@@ -15,11 +15,17 @@ import {
   LogOut,
   ShieldCheck,
   Smartphone,
+  Compass,
+  CircleDot,
+  Camera,
+  FileDown,
 } from 'lucide-react';
 import { useAudioEngine } from '../hooks/useAudioEngine';
 import { useChoreographyStore } from '../store/useChoreographyStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { DeviceSecurityModal } from './DeviceSecurityModal';
+import { PdfTemplateGenerator } from '../services/pdfTemplateGenerator';
+import { PaperToDigitalModal } from './PaperToDigital/PaperToDigitalModal';
 import { 
   EFICIENCIAS_DISPONIBLES, 
   getDescripcionCategoria 
@@ -57,6 +63,10 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
   const setSkaterGender = useChoreographyStore((s) => s.setSkaterGender);
   const showRinkGrid = useChoreographyStore((s) => s.showRinkGrid);
   const setShowRinkGrid = useChoreographyStore((s) => s.setShowRinkGrid);
+  const showReglamentaryGuides = useChoreographyStore((s) => s.showReglamentaryGuides);
+  const setShowReglamentaryGuides = useChoreographyStore((s) => s.setShowReglamentaryGuides);
+  const showCompulsoryFigures = useChoreographyStore((s) => s.showCompulsoryFigures);
+  const setShowCompulsoryFigures = useChoreographyStore((s) => s.setShowCompulsoryFigures);
   const history = useChoreographyStore((s) => s.history);
 
   // Reglamento 2026
@@ -69,6 +79,7 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
   // SaaS Auth state
   const { user, role, subscription_plan, logout } = useAuthStore();
   const [showDeviceModal, setShowDeviceModal] = React.useState(false);
+  const [showPaperModal, setShowPaperModal] = React.useState(false);
 
   const content = (
     <>
@@ -383,7 +394,7 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
             <Eye className="w-3.5 h-3.5 text-cyan" />
             Superposiciones de Pista
           </h3>
-          <div className="flex gap-1.5">
+          <div className="grid grid-cols-3 gap-1.5">
             <ToggleButton
               icon={<Layers className="w-3 h-3" />}
               label="Cuadrícula"
@@ -391,6 +402,56 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
               onClick={() => setShowRinkGrid(!showRinkGrid)}
               title="Mostrar u ocultar cuadrícula World Skate"
             />
+            <ToggleButton
+              icon={<Compass className="w-3 h-3" />}
+              label="Guías 3/4"
+              active={showReglamentaryGuides}
+              onClick={() => setShowReglamentaryGuides(!showReglamentaryGuides)}
+              title="Ejes y marcas de 3/4 para Skating Skills y Tijeras"
+            />
+            <ToggleButton
+              icon={<CircleDot className="w-3 h-3" />}
+              label="Figuras"
+              active={showCompulsoryFigures}
+              onClick={() => setShowCompulsoryFigures(!showCompulsoryFigures)}
+              title="Círculos oficiales de Figuras Obligatorias (World Skate)"
+            />
+          </div>
+        </section>
+
+        {/* ═══ Paper-to-Digital Ecosystem ═══════════════════ */}
+        <section className="px-4 py-3.5 space-y-2 bg-gradient-to-b from-white/[0.03] to-transparent">
+          <div className="flex items-center justify-between">
+            <h3 className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-cyan">
+              <Camera className="w-3.5 h-3.5 text-cyan" />
+              Paper-to-Digital
+            </h3>
+            <span className="text-[9px] font-black text-mint px-1.5 py-0.5 rounded bg-mint/10 border border-mint/20">
+              World Skate
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-400 leading-snug">
+            Imprime la plantilla oficial, dibuja a mano alzada y digitaliza al instante.
+          </p>
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => PdfTemplateGenerator.downloadTemplate()}
+              className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-neon-card hover:bg-neon-hover text-slate-300 hover:text-white border border-white/5 text-xs font-bold transition-all interactive-tap shadow-soft-elevation"
+              title="Descargar plantilla A4 para imprimir"
+            >
+              <FileDown className="w-3.5 h-3.5 text-cyan" />
+              <span>Plantilla A4</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowPaperModal(true)}
+              className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/30 text-xs font-bold transition-all interactive-tap shadow-soft-elevation"
+              title="Tomar foto o subir dibujo en papel"
+            >
+              <Camera className="w-3.5 h-3.5" />
+              <span>Digitalizar</span>
+            </button>
           </div>
         </section>
 
@@ -530,6 +591,10 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
           isOpen={showDeviceModal}
           onClose={() => setShowDeviceModal(false)}
         />
+        <PaperToDigitalModal
+          isOpen={showPaperModal}
+          onClose={() => setShowPaperModal(false)}
+        />
       </div>
     );
   }
@@ -581,6 +646,10 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
       <DeviceSecurityModal
         isOpen={showDeviceModal}
         onClose={() => setShowDeviceModal(false)}
+      />
+      <PaperToDigitalModal
+        isOpen={showPaperModal}
+        onClose={() => setShowPaperModal(false)}
       />
     </div>
   );

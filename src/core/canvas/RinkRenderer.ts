@@ -14,6 +14,10 @@ export interface RenderOptions {
   showFullTrailOverride?: boolean;
   currentTimeMs?: number;
   avatar?: SkaterAvatarState | null;
+  showReglamentaryGuides?: boolean;
+  showCompulsoryFigures?: boolean;
+  paperTraceOverlay?: { imageUrl: string; opacity: number; visible: boolean } | null;
+  paperTraceImageElement?: HTMLImageElement | null;
 }
 
 // Pre-carga de imágenes de los patinadores artísticos (SVG de alta resolución)
@@ -53,6 +57,29 @@ export class RinkRenderer {
     ctx.fillStyle = '#090D16';
     ctx.fill();
 
+    // ── Etapa 1: Superposición de Calco de Papel (Paper-to-Digital Overlay) ──
+    if (
+      options.paperTraceOverlay?.visible &&
+      options.paperTraceImageElement &&
+      options.paperTraceImageElement.complete &&
+      options.paperTraceImageElement.naturalWidth > 0
+    ) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(offsetX, offsetY, renderedW, renderedH, cornerRadiusPx);
+      ctx.clip(); // Recortar estrictamente al perímetro interior de la pista
+
+      ctx.globalAlpha = Math.max(0.05, Math.min(1.0, options.paperTraceOverlay.opacity));
+      ctx.drawImage(
+        options.paperTraceImageElement,
+        offsetX,
+        offsetY,
+        renderedW,
+        renderedH
+      );
+      ctx.restore();
+    }
+
     // Valla perimetral reglamentaria en tono neutro
     ctx.lineWidth = 2.5;
     ctx.strokeStyle = '#475569';
@@ -62,21 +89,93 @@ export class RinkRenderer {
     ctx.fillStyle = 'rgba(15, 23, 42, 0.4)';
     ctx.fill();
 
-    // Línea central longitudinal (X = 25m)
-    ctx.setLineDash([6, 6]);
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.3)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(offsetX, offsetY + renderedH / 2);
-    ctx.lineTo(offsetX + renderedW, offsetY + renderedH / 2);
-    ctx.stroke();
+    // ── Guías Espaciales Reglamentarias (World Skate / FEP) ──
+    const showGuides = options.showReglamentaryGuides !== false;
 
-    // Línea central transversal (Y = 12.5m)
-    ctx.beginPath();
-    ctx.moveTo(offsetX + renderedW / 2, offsetY);
-    ctx.lineTo(offsetX + renderedW / 2, offsetY + renderedH);
-    ctx.stroke();
-    ctx.setLineDash([]);
+    if (showGuides) {
+      const guides = RinkMath.getRegulatoryGuides(rink);
+
+      // 1. Eje Largo (Long Axis) - Evaluación de Skating Skills (>= 3/4 recorrido)
+      ctx.save();
+      ctx.setLineDash([6, 6]);
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(offsetX, offsetY + renderedH / 2);
+      ctx.lineTo(offsetX + renderedW, offsetY + renderedH / 2);
+      ctx.stroke();
+
+      // Marcas y cotas de 3/4 de longitud (37.5m)
+      ctx.setLineDash([]);
+      ctx.strokeStyle = '#00F0FF';
+      ctx.fillStyle = '#00F0FF';
+      ctx.lineWidth = 1.5;
+
+      guides.longAxis.threeQuarterMarks.forEach((mark) => {
+        const markX = offsetX + mark.x * scale;
+        const markY = offsetY + renderedH / 2;
+
+        // Tick perpendicular
+        ctx.beginPath();
+        ctx.moveTo(markX, markY - 8);
+        ctx.lineTo(markX, markY + 8);
+        ctx.stroke();
+
+        // Pequeño indicador
+        ctx.font = 'bold 8px JetBrains Mono, monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillStyle = 'rgba(0, 240, 255, 0.7)';
+        ctx.fillText('3/4 (37.5m)', markX, markY - 10);
+      });
+      ctx.restore();
+
+      // 2. Eje Corto (Short Axis) - Línea central transversal
+      ctx.save();
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.3)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(offsetX + renderedW / 2, offsetY);
+      ctx.lineTo(offsetX + renderedW / 2, offsetY + renderedH);
+      ctx.stroke();
+      ctx.restore();
+
+      // 3. Diagonales Reglamentarias - Evaluación de Scissors (>= 3/4 recorrido)
+      ctx.save();
+      ctx.setLineDash([4, 6]);
+      ctx.strokeStyle = 'rgba(168, 85, 247, 0.25)'; // Púrpura sutil
+      ctx.lineWidth = 1.2;
+
+      guides.diagonals.forEach((diag) => {
+        const startX = offsetX + diag.start.x * scale;
+        const startY = offsetY + diag.start.y * scale;
+        const endX = offsetX + diag.end.x * scale;
+        const endY = offsetY + diag.end.y * scale;
+
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(endX, endY);
+        ctx.stroke();
+
+        // Marcas de 3/4 sobre la diagonal
+        diag.threeQuarterMarks.forEach((m) => {
+          const mx = offsetX + m.x * scale;
+          const my = offsetY + m.y * scale;
+
+          ctx.save();
+          ctx.setLineDash([]);
+          ctx.strokeStyle = '#A855F7';
+          ctx.fillStyle = '#A855F7';
+          ctx.beginPath();
+          ctx.arc(mx, my, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
+        });
+      });
+      ctx.restore();
+    }
 
     // Círculo central reglamentario
     ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
@@ -85,7 +184,40 @@ export class RinkRenderer {
     ctx.arc(offsetX + renderedW / 2, offsetY + renderedH / 2, 3 * scale, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Marcas de competición reglamentarias (Opcionales por toggle)
+    // ── Patrón Oficial de Figuras Obligatorias (World Skate Compulsory Figures) ──
+    if (options.showCompulsoryFigures) {
+      ctx.save();
+      const figures = RinkMath.getCompulsoryFiguresCircles(rink);
+
+      figures.forEach((fig) => {
+        const cx = offsetX + fig.center.x * scale;
+        const cy = offsetY + fig.center.y * scale;
+        const rPx = fig.radius * scale;
+
+        ctx.setLineDash(fig.isLoop ? [2, 2] : [4, 4]);
+        ctx.strokeStyle = fig.isLoop ? 'rgba(245, 158, 11, 0.6)' : 'rgba(0, 240, 255, 0.45)';
+        ctx.lineWidth = fig.isLoop ? 1.5 : 1.2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, rPx, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Centro del círculo
+        ctx.fillStyle = fig.isLoop ? '#F59E0B' : '#00F0FF';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Etiqueta del círculo
+        ctx.font = '8px JetBrains Mono, monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillStyle = fig.isLoop ? 'rgba(245, 158, 11, 0.8)' : 'rgba(0, 240, 255, 0.7)';
+        ctx.fillText(fig.name, cx, cy + (fig.isLoop ? rPx + 2 : 4));
+      });
+      ctx.restore();
+    }
+
+    // Marcas de competición reglamentarias (Opcionales por toggle de cuadrícula)
     if (options.showRinkGrid) {
       // Círculos de saltos y trompos (3 círculos reglamentarios)
       const circleRPx = 6 * scale;

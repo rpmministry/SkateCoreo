@@ -542,5 +542,99 @@ export class RinkMath {
       rightCp2: { x: Math.round(q2.x * 10) / 10, y: Math.round(q2.y * 10) / 10 },
     };
   }
+
+  /**
+   * Obtiene la definición geométrica de las Guías Reglamentarias (World Skate / FEP):
+   * - Eje Largo (Long Axis) con marcas de 3/4 para Skating Skills (>= 37.5m).
+   * - Eje Corto (Short Axis) en el centro transversal (X = 25m).
+   * - Diagonales con marcas de 3/4 para secuencias de Scissors (>= 41.9m).
+   */
+  public static getRegulatoryGuides(rink: RinkDimensions = DEFAULT_RINK_DIMENSIONS): {
+    longAxis: {
+      start: { x: number; y: number };
+      end: { x: number; y: number };
+      threeQuarterMarks: { x: number; y: number; label: string }[];
+    };
+    shortAxis: {
+      start: { x: number; y: number };
+      end: { x: number; y: number };
+    };
+    diagonals: {
+      id: string;
+      start: { x: number; y: number };
+      end: { x: number; y: number };
+      threeQuarterMarks: { x: number; y: number; label: string }[];
+    }[];
+  } {
+    const L = rink.lengthMeters; // 50
+    const W = rink.widthMeters;  // 25
+    const midY = W / 2;          // 12.5
+    const midX = L / 2;          // 25.0
+
+    return {
+      longAxis: {
+        start: { x: 0, y: midY },
+        end: { x: L, y: midY },
+        threeQuarterMarks: [
+          { x: L * 0.25, y: midY, label: '3/4 Izq (37.5m)' },
+          { x: L * 0.75, y: midY, label: '3/4 Der (37.5m)' },
+        ],
+      },
+      shortAxis: {
+        start: { x: midX, y: 0 },
+        end: { x: midX, y: W },
+      },
+      diagonals: [
+        {
+          id: 'diag-tl-br',
+          start: { x: 0, y: 0 },
+          end: { x: L, y: W },
+          threeQuarterMarks: [
+            { x: L * 0.25, y: W * 0.25, label: '3/4 Diag' },
+            { x: L * 0.75, y: W * 0.75, label: '3/4 Diag' },
+          ],
+        },
+        {
+          id: 'diag-bl-tr',
+          start: { x: 0, y: W },
+          end: { x: L, y: 0 },
+          threeQuarterMarks: [
+            { x: L * 0.25, y: W * 0.75, label: '3/4 Diag' },
+            { x: L * 0.75, y: W * 0.25, label: '3/4 Diag' },
+          ],
+        },
+      ],
+    };
+  }
+
+  /**
+   * Obtiene el patrón oficial de círculos de Figuras Obligatorias World Skate:
+   * 3 círculos tangentes alineados sobre el eje largo (diámetro 6m, radio 3m),
+   * y bucles (loops) de 1.5m de diámetro según la normativa de figuras de precisión.
+   */
+  public static getCompulsoryFiguresCircles(rink: RinkDimensions = DEFAULT_RINK_DIMENSIONS): {
+    id: string;
+    name: string;
+    center: { x: number; y: number };
+    radius: number;
+    isLoop?: boolean;
+  }[] {
+    const W = rink.widthMeters;
+    const midY = W / 2; // 12.5
+
+    return [
+      // Círculo 1: Izquierdo (Centro 12.5m)
+      { id: 'cf-circle-left', name: 'Círculo 1 (Izq)', center: { x: 12.5, y: midY }, radius: 3.0 },
+      // Círculo 2: Central (Centro 25.0m)
+      { id: 'cf-circle-center', name: 'Círculo 2 (Centro)', center: { x: 25.0, y: midY }, radius: 3.0 },
+      // Círculo 3: Derecho (Centro 37.5m)
+      { id: 'cf-circle-right', name: 'Círculo 3 (Der)', center: { x: 37.5, y: midY }, radius: 3.0 },
+      // Bucle interior (Loop) en Círculo 1
+      { id: 'cf-loop-left-top', name: 'Bucle Izq', center: { x: 12.5, y: midY - 2.25 }, radius: 0.75, isLoop: true },
+      // Bucle interior (Loop) en Círculo 3
+      { id: 'cf-loop-right-top', name: 'Bucle Der', center: { x: 37.5, y: midY - 2.25 }, radius: 0.75, isLoop: true },
+    ];
+  }
 }
+
 

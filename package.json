@@ -7,11 +7,12 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "tsx src/services/rollartEngine.test.ts && tsx src/core/audio/audioEngine.test.ts && tsx src/core/canvas/rinkMath.test.ts && tsx src/store/choreographyStore.test.ts && tsx src/core/audio/bpmDetector.test.ts && tsx src/services/coreoPackage.test.ts && tsx src/core/math/FreehandPathEngine.test.ts && tsx src/store/audioStudioStore.test.ts && tsx src/hooks/useAudioZoomPan.test.ts"
+    "test": "tsx src/services/rollartEngine.test.ts && tsx src/core/audio/audioEngine.test.ts && tsx src/core/canvas/rinkMath.test.ts && tsx src/store/choreographyStore.test.ts && tsx src/core/audio/bpmDetector.test.ts && tsx src/services/coreoPackage.test.ts && tsx src/core/math/FreehandPathEngine.test.ts && tsx src/store/audioStudioStore.test.ts && tsx src/hooks/useAudioZoomPan.test.ts && tsx src/core/vision/homographyWarp.test.ts && tsx src/services/pdfTemplateGenerator.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",
     "i18next": "^26.4.2",
+    "jspdf": "^4.2.1",
     "jszip": "^3.10.2",
     "lucide-react": "^0.469.0",
     "react": "^18.3.1",

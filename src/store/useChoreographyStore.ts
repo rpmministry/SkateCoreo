@@ -18,6 +18,9 @@ export interface ChoreographyStoreState {
   phase: ChoreographyPhase;
   showControlHandles: boolean;
   showRinkGrid: boolean;
+  showReglamentaryGuides: boolean;
+  showCompulsoryFigures: boolean;
+  paperTraceOverlay: { imageUrl: string; opacity: number; visible: boolean } | null;
   history: ChoreographyPoint[][];
 
   // Motor de Reglas y Categorización 2026
@@ -34,6 +37,12 @@ export interface ChoreographyStoreState {
   setPhase: (phase: ChoreographyPhase) => void;
   setShowControlHandles: (show: boolean) => void;
   setShowRinkGrid: (show: boolean) => void;
+  setShowReglamentaryGuides: (show: boolean) => void;
+  setShowCompulsoryFigures: (show: boolean) => void;
+  setPaperTraceOverlay: (overlay: { imageUrl: string; opacity: number; visible: boolean } | null) => void;
+  updatePaperTraceOpacity: (opacity: number) => void;
+  togglePaperTraceVisibility: () => void;
+  clearPaperTraceOverlay: () => void;
 
   // Modificación y Creación Audio-First & Canvas
   addPointFromAudio: (timestampMs: number, customX?: number, customY?: number) => ChoreographyPoint;
@@ -196,6 +205,9 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
   phase: 'plot',
   showControlHandles: true,
   showRinkGrid: true,
+  showReglamentaryGuides: true,
+  showCompulsoryFigures: false,
+  paperTraceOverlay: null,
   history: [],
 
   // Reglamento 2026: Estado inicial y cálculo reactivo
@@ -226,6 +238,30 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
   setShowControlHandles: (show) => set({ showControlHandles: show }),
 
   setShowRinkGrid: (show) => set({ showRinkGrid: show }),
+
+  setShowReglamentaryGuides: (show) => set({ showReglamentaryGuides: show }),
+
+  setShowCompulsoryFigures: (show) => set({ showCompulsoryFigures: show }),
+
+  setPaperTraceOverlay: (overlay) => set({ paperTraceOverlay: overlay }),
+
+  updatePaperTraceOpacity: (opacity) => {
+    set((state) => ({
+      paperTraceOverlay: state.paperTraceOverlay
+        ? { ...state.paperTraceOverlay, opacity: Math.max(0.05, Math.min(1.0, opacity)) }
+        : null,
+    }));
+  },
+
+  togglePaperTraceVisibility: () => {
+    set((state) => ({
+      paperTraceOverlay: state.paperTraceOverlay
+        ? { ...state.paperTraceOverlay, visible: !state.paperTraceOverlay.visible }
+        : null,
+    }));
+  },
+
+  clearPaperTraceOverlay: () => set({ paperTraceOverlay: null }),
 
   pushHistory: () => {
     const { points, history } = get();

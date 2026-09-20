@@ -1,0 +1,450 @@
+import React, { useState, useRef } from 'react';
+import {
+  Camera,
+  Sparkles,
+  Layers,
+  X,
+  RefreshCw,
+  CheckCircle2,
+  FileText,
+  AlertCircle
+} from 'lucide-react';
+import { QuadCorners, HomographyWarp } from '../../core/vision/HomographyWarp';
+import { FiducialDetector } from '../../core/vision/FiducialDetector';
+import { PaperVectorizer } from '../../core/vision/PaperVectorizer';
+import { PaperOcrEngine } from '../../core/vision/PaperOcrEngine';
+import { CornerPinAdjuster } from './CornerPinAdjuster';
+import { useChoreographyStore } from '../../store/useChoreographyStore';
+import { ChoreographyPoint } from '../../types/choreography';
+
+interface PaperToDigitalModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
+  isOpen,
+  onClose,
+}) => {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const [imageSrc, setImageSrc] = useState<string | null>(null);
+  const [corners, setCorners] = useState<QuadCorners | null>(null);
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
+  const setPaperTraceOverlay = useChoreographyStore((s) => s.setPaperTraceOverlay);
+  const setPoints = useChoreographyStore((s) => s.setPoints);
+  const setPhase = useChoreographyStore((s) => s.setPhase);
+
+  if (!isOpen) return null;
+
+  // Carga de archivo de imagen (desde disco o cámara del dispositivo)
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const src = event.target?.result as string;
+      loadImageAndDetectCorners(src);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const loadImageAndDetectCorners = (src: string) => {
+    setIsProcessing(true);
+    setStatusMessage('Analizando marcas fiduciales en la hoja...');
+
+    const img = new Image();
+    img.src = src;
+    img.onload = () => {
+      setImageSrc(src);
+      const detected = FiducialDetector.detectCorners(img);
+      setCorners(detected);
+      setIsProcessing(false);
+      setStatusMessage(null);
+    };
+    img.onerror = () => {
+      alert('Error cargando la imagen. Por favor intenta con otra foto.');
+      setIsProcessing(false);
+      setStatusMessage(null);
+    };
+  };
+
+  // Cargar imagen de prueba sintética para demostración instantánea
+  const handleLoadDemoSheet = () => {
+    setIsProcessing(true);
+    setStatusMessage('Generando hoja de demostración...');
+
+    // Crear un canvas representativo de la hoja con trazos dibujados a mano
+    const demoCanvas = document.createElement('canvas');
+    demoCanvas.width = 1200;
+    demoCanvas.height = 700;
+    const ctx = demoCanvas.getContext('2d');
+    if (!ctx) return;
+
+    // Fondo papel con leve ángulo simulado
+    ctx.fillStyle = '#E2E8F0';
+    ctx.fillRect(0, 0, 1200, 700);
+
+    // Hoja A4 blanca
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath();
+    ctx.moveTo(80, 50);
+    ctx.lineTo(1120, 70);
+    ctx.lineTo(1100, 650);
+    ctx.lineTo(70, 620);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#94A3B8';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // 4 Marcas Fiduciales en las esquinas de la pista dibujada
+    const drawFiducial = (x: number, y: number) => {
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(x - 14, y - 14, 28, 28);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath();
+      ctx.arc(x, y, 9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#000000';
+      ctx.beginPath();
+      ctx.arc(x, y, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(x - 12, y);
+      ctx.lineTo(x + 12, y);
+      ctx.moveTo(x, y - 12);
+      ctx.lineTo(x, y + 12);
+      ctx.stroke();
+    };
+
+    const tl = { x: 130, y: 130 };
+    const tr = { x: 1040, y: 145 };
+    const br = { x: 1020, y: 560 };
+    const bl = { x: 120, y: 540 };
+
+    drawFiducial(tl.x, tl.y);
+    drawFiducial(tr.x, tr.y);
+    drawFiducial(br.x, br.y);
+    drawFiducial(bl.x, bl.y);
+
+    // Contorno de la pista en perspectiva
+    ctx.strokeStyle = '#64748B';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(tl.x, tl.y);
+    ctx.lineTo(tr.x, tr.y);
+    ctx.lineTo(br.x, br.y);
+    ctx.lineTo(bl.x, bl.y);
+    ctx.closePath();
+    ctx.stroke();
+
+    // Trazos simulados a mano de la entrenadora (tinta azul oscura)
+    ctx.strokeStyle = '#1E3A8A';
+    ctx.lineWidth = 5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    ctx.beginPath();
+    ctx.moveTo(220, 340);
+    ctx.bezierCurveTo(400, 180, 700, 500, 920, 260);
+    ctx.stroke();
+
+    // Nodos numerados manuscritos (círculos con 1, 2, 3)
+    const drawNode = (num: number, x: number, y: number) => {
+      ctx.fillStyle = '#1E3A8A';
+      ctx.beginPath();
+      ctx.arc(x, y, 16, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 15px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${num}`, x, y + 1);
+    };
+
+    drawNode(1, 220, 340);
+    drawNode(2, 550, 320);
+    drawNode(3, 920, 260);
+
+    const demoUrl = demoCanvas.toDataURL('image/jpeg', 0.9);
+    setImageSrc(demoUrl);
+    setCorners({ topLeft: tl, topRight: tr, bottomRight: br, bottomLeft: bl });
+    setIsProcessing(false);
+    setStatusMessage(null);
+  };
+
+  // ── ETAPA 1: Usar como Fondo de Calco Asistido (Onion Skin) ──
+  const handleApplyAsTraceOverlay = () => {
+    if (!imageSrc || !corners) return;
+
+    setIsProcessing(true);
+    setStatusMessage('Corrigiendo perspectiva y aplanando imagen a escala 2:1...');
+
+    const img = new Image();
+    img.src = imageSrc;
+    img.onload = () => {
+      try {
+        // Warp ortogonal plano calibrado 2000 x 1000 píxeles
+        const warpedCanvas = HomographyWarp.warpPerspective(img, corners, 2000, 1000);
+        const warpedDataUrl = warpedCanvas.toDataURL('image/png');
+
+        setPaperTraceOverlay({
+          imageUrl: warpedDataUrl,
+          opacity: 0.65,
+          visible: true,
+        });
+
+        setIsProcessing(false);
+        setStatusMessage(null);
+        onClose();
+      } catch (err: any) {
+        alert('Error en la rectificación de perspectiva: ' + (err?.message || err));
+        setIsProcessing(false);
+        setStatusMessage(null);
+      }
+    };
+  };
+
+  // ── ETAPA 2: Digitalización Automática Completa (Vectorización + OCR) ──
+  const handleAutoVectorizeAndOcr = async () => {
+    if (!imageSrc || !corners) return;
+
+    setIsProcessing(true);
+    setStatusMessage('Paso 1/3: Corrigiendo perspectiva de la pista...');
+
+    const img = new Image();
+    img.src = imageSrc;
+    img.onload = async () => {
+      try {
+        const warpedCanvas = HomographyWarp.warpPerspective(img, corners, 2000, 1000);
+        const warpedDataUrl = warpedCanvas.toDataURL('image/png');
+
+        setStatusMessage('Paso 2/3: Extrayendo trazos de tinta con Ramer-Douglas-Peucker...');
+        const strokes = PaperVectorizer.extractStrokes(warpedCanvas);
+
+        setStatusMessage('Paso 3/3: Reconociendo nodos numerados mediante OCR...');
+        const detectedNodes = await PaperOcrEngine.detectNumberedNodes(warpedCanvas);
+
+        // Si se detectaron nodos, los convertimos en ChoreographyPoints editables en el store
+        if (detectedNodes.length > 0) {
+          const generatedPoints: ChoreographyPoint[] = detectedNodes.map((node, idx) => {
+            const timeMs = idx * 4000; // Distribución temporal de base (4 segundos entre marcas)
+            return {
+              id: `node-paper-${Date.now()}-${idx + 1}`,
+              timestamp: timeMs,
+              time_ms: timeMs,
+              x: node.positionMeters.x,
+              y: node.positionMeters.y,
+              controlPoint1: { x: node.positionMeters.x + 3, y: node.positionMeters.y },
+              controlPoint2: { x: node.positionMeters.x + 6, y: node.positionMeters.y },
+              cp1x: node.positionMeters.x + 3,
+              cp1y: node.positionMeters.y,
+              cp2x: node.positionMeters.x + 6,
+              cp2y: node.positionMeters.y,
+              type: idx === 0 ? 'Step' : 'Jump',
+              label: `Nodo ${node.sequenceNumber} (Papel)`,
+              isMainNode: true,
+            };
+          });
+
+          setPoints(generatedPoints);
+          setPhase('curve'); // Pasa directamente a modo curva interactiva
+        }
+
+        // Dejar también el fondo de calco para que la entrenadora pueda contrastar la precisión
+        setPaperTraceOverlay({
+          imageUrl: warpedDataUrl,
+          opacity: 0.45,
+          visible: true,
+        });
+
+        setIsProcessing(false);
+        setStatusMessage(null);
+        alert(`¡Digitalización Exitosa! Se detectaron ${detectedNodes.length} nodos y ${strokes.length} trazos. La coreografía ya está en el lienzo.`);
+        onClose();
+      } catch (err: any) {
+        alert('Error en la digitalización automática: ' + (err?.message || err));
+        setIsProcessing(false);
+        setStatusMessage(null);
+      }
+    };
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-md animate-in fade-in">
+      <div className="w-full max-w-4xl max-h-[92vh] flex flex-col bg-[#0D1322] border border-cyan/30 rounded-3xl shadow-2xl overflow-hidden text-slate-100">
+        {/* ── Modal Header ── */}
+        <div className="h-14 px-5 border-b border-white/10 flex items-center justify-between bg-slate-950/70 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-cyan/15 text-cyan flex items-center justify-center border border-cyan/30">
+              <Camera className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="text-sm font-black tracking-wide text-white uppercase flex items-center gap-2">
+                <span>Paper-to-Digital</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan/15 text-cyan border border-cyan/30 font-bold lowercase">
+                  visión artificial
+                </span>
+              </h2>
+              <p className="text-[11px] text-slate-400">
+                Convierte tus coreografías dibujadas a mano en trazados digitales interactivos
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* ── Modal Body ── */}
+        <div className="flex-1 min-h-0 p-4 overflow-y-auto flex flex-col gap-4">
+          {!imageSrc ? (
+            /* Pantalla inicial de selección de imagen */
+            <div className="flex-1 min-h-[350px] flex flex-col items-center justify-center border-2 border-dashed border-white/15 rounded-3xl p-6 text-center gap-4 bg-slate-950/40">
+              <div className="w-16 h-16 rounded-2xl bg-cyan/10 border border-cyan/25 flex items-center justify-center text-cyan shadow-glow-cyan">
+                <FileText className="w-8 h-8" />
+              </div>
+
+              <div className="max-w-md space-y-1">
+                <h3 className="text-base font-bold text-white">
+                  Sube o toma una foto de la plantilla impresa
+                </h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Asegúrate de que la hoja esté bien iluminada y que las{' '}
+                  <strong className="text-cyan">4 marcas fiduciales (⊕)</strong> de las esquinas sean visibles.
+                </p>
+              </div>
+
+              {/* Botones de subida */}
+              <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-cyan text-slate-950 font-black text-xs hover:bg-cyan/90 shadow-glow-cyan transition-all interactive-tap"
+                >
+                  <Camera className="w-4 h-4" />
+                  <span>Tomar Foto / Subir Imagen</span>
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+
+                <button
+                  type="button"
+                  onClick={handleLoadDemoSheet}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 font-bold text-xs transition-all"
+                >
+                  <Sparkles className="w-4 h-4 text-amber-400" />
+                  <span>Probar con Hoja Demo</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* Visualizador y Calibrador de Esquinas */
+            <div className="flex-1 min-h-[380px] flex flex-col gap-3">
+              {/* Barra de herramientas superior del calibrador */}
+              <div className="flex items-center justify-between text-xs px-2 shrink-0">
+                <div className="flex items-center gap-2 text-slate-300">
+                  <CheckCircle2 className="w-4 h-4 text-cyan" />
+                  <span className="font-semibold">Calibración de Esquinas (Perspective Warp)</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => imageSrc && loadImageAndDetectCorners(imageSrc)}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-[11px] text-slate-300 border border-white/10 transition-all"
+                    title="Volver a buscar las marcas automáticamente"
+                  >
+                    <RefreshCw className="w-3 h-3 text-cyan" />
+                    <span>Auto-Alinear</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setImageSrc(null)}
+                    className="text-[11px] text-slate-400 hover:text-red-400 px-2 py-1"
+                  >
+                    Cambiar Foto
+                  </button>
+                </div>
+              </div>
+
+              {/* Ajustador de 4 pines interactivo con lupa */}
+              <div className="flex-1 min-h-[300px] relative">
+                {corners && (
+                  <CornerPinAdjuster
+                    imageSrc={imageSrc}
+                    corners={corners}
+                    onChangeCorners={setCorners}
+                  />
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Mensaje de estado durante el procesamiento */}
+          {statusMessage && (
+            <div className="bg-cyan/15 border border-cyan/30 px-4 py-2 rounded-xl text-xs text-cyan flex items-center gap-2 animate-in fade-in shrink-0">
+              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              <span>{statusMessage}</span>
+            </div>
+          )}
+        </div>
+
+        {/* ── Modal Footer: Botones de Acción (Etapa 1 vs Etapa 2) ── */}
+        {imageSrc && (
+          <div className="p-4 border-t border-white/10 bg-slate-950/80 flex flex-wrap items-center justify-between gap-3 shrink-0">
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
+              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>Verifica que los 4 pines coincidan con las dianas ⊕ antes de continuar.</span>
+            </div>
+
+            <div className="flex items-center gap-2.5">
+              {/* Opción A: Etapa 1 (Manual Asistido / Onion Skin) */}
+              <button
+                type="button"
+                onClick={handleApplyAsTraceOverlay}
+                disabled={isProcessing}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/15 text-slate-200 border border-white/10 transition-all interactive-tap disabled:opacity-30"
+                title="Inserta la hoja aplanada como fondo transparente en el lienzo para que puedas calcar por encima"
+              >
+                <Layers className="w-4 h-4 text-cyan" />
+                <span>Usar como Fondo de Calco</span>
+              </button>
+
+              {/* Opción B: Etapa 2 (Automatización Mágica) */}
+              <button
+                type="button"
+                onClick={handleAutoVectorizeAndOcr}
+                disabled={isProcessing}
+                className="flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-black bg-cyan text-slate-950 hover:bg-cyan/90 border border-white/20 shadow-glow-cyan transition-all interactive-tap disabled:opacity-30"
+                title="Aísla la tinta, detecta los números y crea automáticamente los nodos interactivos en la pista"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Digitalizar Trazos con IA</span>
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+

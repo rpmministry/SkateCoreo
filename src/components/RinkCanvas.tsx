@@ -132,6 +132,13 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
   const phase = useChoreographyStore((state) => state.phase);
   const showControlHandles = useChoreographyStore((state) => state.showControlHandles);
   const showRinkGrid = useChoreographyStore((state) => state.showRinkGrid);
+  const showReglamentaryGuides = useChoreographyStore((state) => state.showReglamentaryGuides);
+  const showCompulsoryFigures = useChoreographyStore((state) => state.showCompulsoryFigures);
+  const paperTraceOverlay = useChoreographyStore((state) => state.paperTraceOverlay);
+  const updatePaperTraceOpacity = useChoreographyStore((state) => state.updatePaperTraceOpacity);
+  const togglePaperTraceVisibility = useChoreographyStore((state) => state.togglePaperTraceVisibility);
+  const clearPaperTraceOverlay = useChoreographyStore((state) => state.clearPaperTraceOverlay);
+  const paperImageRef = useRef<HTMLImageElement | null>(null);
   const history = useChoreographyStore((state) => state.history);
   const unplacedNodes = useChoreographyStore((state) => state.unplacedNodes);
   const activeTrayNodeIndex = useChoreographyStore((state) => state.activeTrayNodeIndex);
@@ -310,6 +317,9 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     const currentSelectedId = useChoreographyStore.getState().selectedPointId;
     const currentShowHandles = useChoreographyStore.getState().showControlHandles;
     const currentShowGrid = useChoreographyStore.getState().showRinkGrid;
+    const currentRegGuides = useChoreographyStore.getState().showReglamentaryGuides;
+    const currentCompFigures = useChoreographyStore.getState().showCompulsoryFigures;
+    const currentPaperOverlay = useChoreographyStore.getState().paperTraceOverlay;
     const currentFullTrail = useChoreographyStore.getState().showFullTrailOverride;
 
     const currentPlayTime = audio.isPlaying ? audioEngine.getCurrentTimeMs() : audio.currentTimeMs;
@@ -337,7 +347,11 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       isPlaying: audio.isPlaying,
       showFullTrailOverride: currentFullTrail,
       currentTimeMs: currentPlayTime,
-      avatar: currentAvatar
+      avatar: currentAvatar,
+      showReglamentaryGuides: currentRegGuides,
+      showCompulsoryFigures: currentCompFigures,
+      paperTraceOverlay: currentPaperOverlay,
+      paperTraceImageElement: paperImageRef.current,
     };
 
     // Capa 0: Pista reglamentaria y marcas World Skate
@@ -429,6 +443,21 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     };
   }, [audio.isPlaying, renderFrame]);
 
+  // Carga reactiva de la imagen de fondo de calco de papel (Paper Trace Overlay)
+  useEffect(() => {
+    if (!paperTraceOverlay?.imageUrl) {
+      paperImageRef.current = null;
+      renderFrame();
+      return;
+    }
+    const img = new Image();
+    img.src = paperTraceOverlay.imageUrl;
+    img.onload = () => {
+      paperImageRef.current = img;
+      renderFrame();
+    };
+  }, [paperTraceOverlay?.imageUrl, renderFrame]);
+
   // Redibujado reactivo instantáneo ante cualquier cambio de coordenadas, selección o cámara en modo edición
   useEffect(() => {
     if (!audio.isPlaying) {
@@ -439,6 +468,9 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     selectedPointId,
     showControlHandles,
     showRinkGrid,
+    showReglamentaryGuides,
+    showCompulsoryFigures,
+    paperTraceOverlay,
     showFullTrailOverride,
     audio.currentTimeMs,
     renderFrame
@@ -1320,6 +1352,50 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
           </div>
         )}
 
+        {/* Floating Paper Trace Overlay Control Panel */}
+        {paperTraceOverlay && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 bg-slate-950/90 backdrop-blur-md border border-cyan/40 px-3 py-1.5 rounded-2xl shadow-glow-cyan text-xs select-none">
+            <div className="flex items-center gap-1.5 pr-2 border-r border-white/10">
+              <span className="w-2 h-2 rounded-full bg-cyan animate-pulse" />
+              <span className="font-bold text-white tracking-wide text-[11px]">Calco Papel 1:1</span>
+            </div>
+            
+            <button
+              type="button"
+              onClick={togglePaperTraceVisibility}
+              className={`p-1.5 rounded-lg transition-all ${
+                paperTraceOverlay.visible ? 'text-cyan bg-cyan/15' : 'text-slate-400 hover:text-white bg-slate-900'
+              }`}
+              title={paperTraceOverlay.visible ? "Ocultar calco de papel" : "Mostrar calco de papel"}
+            >
+              <Eye className="w-3.5 h-3.5" />
+            </button>
+
+            <div className="flex items-center gap-1.5 px-1">
+              <span className="text-[10px] text-slate-400 font-mono">{Math.round(paperTraceOverlay.opacity * 100)}%</span>
+              <input
+                type="range"
+                min={0.1}
+                max={1}
+                step={0.05}
+                value={paperTraceOverlay.opacity}
+                onChange={(e) => updatePaperTraceOpacity(parseFloat(e.target.value))}
+                className="w-16 h-1 accent-cyan bg-slate-800 rounded-full cursor-pointer"
+                title="Opacidad del calco de papel"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={clearPaperTraceOverlay}
+              className="p-1.5 text-slate-400 hover:text-coral rounded-lg hover:bg-coral/10 transition-colors ml-1"
+              title="Quitar imagen de calco"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         {/* Floating Camera & Trail Control HUD */}
         <div className="absolute bottom-3 right-3 z-30 flex items-center gap-1.5 bg-slate-950/85 backdrop-blur-md border border-white/10 px-2 py-1.5 rounded-xl shadow-soft-elevation select-none">
 
@@ -1739,6 +1815,50 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
               <span>Borrador</span>
             </button>
           </div>
+
+          {/* Floating Paper Trace Overlay Control Panel */}
+          {paperTraceOverlay && (
+            <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 bg-slate-950/90 backdrop-blur-md border border-cyan/40 px-3 py-1.5 rounded-2xl shadow-glow-cyan text-xs select-none">
+              <div className="flex items-center gap-1.5 pr-2 border-r border-white/10">
+                <span className="w-2 h-2 rounded-full bg-cyan animate-pulse" />
+                <span className="font-bold text-white tracking-wide text-[11px]">Calco Papel 1:1</span>
+              </div>
+              
+              <button
+                type="button"
+                onClick={togglePaperTraceVisibility}
+                className={`p-1.5 rounded-lg transition-all ${
+                  paperTraceOverlay.visible ? 'text-cyan bg-cyan/15' : 'text-slate-400 hover:text-white bg-slate-900'
+                }`}
+                title={paperTraceOverlay.visible ? "Ocultar calco de papel" : "Mostrar calco de papel"}
+              >
+                <Eye className="w-3.5 h-3.5" />
+              </button>
+
+              <div className="flex items-center gap-1.5 px-1">
+                <span className="text-[10px] text-slate-400 font-mono">{Math.round(paperTraceOverlay.opacity * 100)}%</span>
+                <input
+                  type="range"
+                  min={0.1}
+                  max={1}
+                  step={0.05}
+                  value={paperTraceOverlay.opacity}
+                  onChange={(e) => updatePaperTraceOpacity(parseFloat(e.target.value))}
+                  className="w-16 h-1 accent-cyan bg-slate-800 rounded-full cursor-pointer"
+                  title="Opacidad del calco de papel"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={clearPaperTraceOverlay}
+                className="p-1.5 text-slate-400 hover:text-coral rounded-lg hover:bg-coral/10 transition-colors ml-1"
+                title="Quitar imagen de calco"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
 
           <canvas
             ref={canvasRef}
