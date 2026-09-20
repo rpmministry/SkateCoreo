@@ -18,6 +18,11 @@ import {
   Sliders,
   Menu,
   Plus,
+  Scissors,
+  Copy,
+  ClipboardPaste,
+  MousePointer,
+  Loader2,
 } from 'lucide-react';
 import { useAudioStudioStore } from '../../store/useAudioStudioStore';
 import { audioEngine } from '../../services/audioEngine';
@@ -65,6 +70,16 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   const updateTimeNode = useAudioStudioStore((s) => s.updateTimeNode);
   const sendMixToChoreo = useAudioStudioStore((s) => s.sendMixToChoreo);
 
+  const activeTool = useAudioStudioStore((s) => s.activeTool);
+  const setActiveTool = useAudioStudioStore((s) => s.setActiveTool);
+  const selectedClipId = useAudioStudioStore((s) => s.selectedClipId);
+  const clipboardClip = useAudioStudioStore((s) => s.clipboardClip);
+  const copyClip = useAudioStudioStore((s) => s.copyClip);
+  const pasteClip = useAudioStudioStore((s) => s.pasteClip);
+  const deleteClip = useAudioStudioStore((s) => s.deleteClip);
+  const renderAndExportMixdown = useAudioStudioStore((s) => s.renderAndExportMixdown);
+
+  const [isExporting, setIsExporting] = useState(false);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -195,22 +210,39 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     }
   };
 
-  // Exportar mezcla y nodos a la Pista 2D
-  const handleExportToChoreo = () => {
+  // Exportar mezcla y nodos a la Pista 2D mediante OfflineAudioContext
+  const handleExportToChoreo = async () => {
     if (audioNodes.length === 0) {
-      if (!window.confirm('No has creado ningún marcador temporal en la regla. ¿Deseas exportar la música a la Pista 2D sin nodos de audio?')) {
+      if (!window.confirm('No has creado ningún marcador temporal en la regla. ¿Deseas mezclar y enviar a la Pista 2D sin nodos de audio?')) {
         return;
       }
     }
 
-    const result = sendMixToChoreo();
-    if (result.success) {
-      setExportNotice(`¡Éxito! ${result.nodes.length} nodos exportados a la Bandeja de la Pista 2D.`);
-      setTimeout(() => {
-        setExportNotice(null);
-        if (onExportToRink) onExportToRink();
-        else if (onBackToRink) onBackToRink();
-      }, 600);
+    setIsExporting(true);
+    try {
+      const result = await renderAndExportMixdown();
+      if (result.success) {
+        setExportNotice(`¡Mezcla completada! (${fmtTimeWithMs(result.durationSec)}). Nodos listos en Pista 2D.`);
+        setTimeout(() => {
+          setExportNotice(null);
+          if (onExportToRink) onExportToRink();
+          else if (onBackToRink) onBackToRink();
+        }, 700);
+      } else {
+        const fallback = sendMixToChoreo();
+        if (fallback.success) {
+          setExportNotice(`Audio y ${fallback.nodes.length} nodos exportados a la Pista 2D.`);
+          setTimeout(() => {
+            setExportNotice(null);
+            if (onExportToRink) onExportToRink();
+            else if (onBackToRink) onBackToRink();
+          }, 700);
+        }
+      }
+    } catch (err: any) {
+      alert('Error en el renderizado de mezcla: ' + (err?.message || err));
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -219,14 +251,14 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
       {/* ═══════════════════════════════════════════════
           HEADER: Barra de Transporte y Navegación DAW Lite
           ═══════════════════════════════════════════════ */}
-      <header className="h-14 shrink-0 bg-[#0E1322] border-b border-white/10 px-3 sm:px-4 flex items-center justify-between z-20">
+      <header className="min-h-14 py-1.5 sm:py-0 shrink-0 bg-[#0E1322] border-b border-white/10 px-2.5 sm:px-4 flex items-center justify-between flex-wrap gap-2 z-20">
         {/* Izquierda: Volver a la Pista + Menú Hamburguesa + Título */}
         <div className="flex items-center gap-2 sm:gap-3">
           {onOpenDrawer && (
             <button
               type="button"
               onClick={onOpenDrawer}
-              className="p-1.5 sm:p-2 rounded-xl text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-all active:scale-95"
+              className="min-w-[44px] min-h-[44px] p-2 rounded-xl text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-all active:scale-95 flex items-center justify-center"
               title="Abrir menú de navegación"
             >
               <Menu className="w-4 h-4" />
@@ -236,7 +268,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           <button
             type="button"
             onClick={onBackToRink}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-all"
+            className="min-h-[44px] flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-all"
             title="Regresar a la vista de la pista 2D"
           >
             <span>← Pista 2D</span>
@@ -254,12 +286,12 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
         </div>
 
         {/* Centro: Controles de Transporte Master (Play / Pause / Stop / Tiempo) */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 bg-slate-950/80 px-2.5 py-1.5 rounded-2xl border border-white/10 shadow-soft-elevation">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 bg-slate-950/80 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-2xl border border-white/10 shadow-soft-elevation">
             <button
               type="button"
               onClick={handleTogglePlay}
-              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
+              className={`min-w-[44px] min-h-[44px] w-11 h-11 rounded-xl flex items-center justify-center transition-all ${
                 isPlaying
                   ? 'bg-coral text-white shadow-glow-coral'
                   : 'bg-cyan text-slate-950 hover:bg-cyan/90 shadow-glow-cyan font-black'
@@ -276,7 +308,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             <button
               type="button"
               onClick={handleStop}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-all"
+              className="min-w-[44px] min-h-[44px] w-11 h-11 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-all"
               title="Detener y volver al inicio"
             >
               <Square className="w-3.5 h-3.5 fill-current stroke-none" />
@@ -342,7 +374,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-all"
+            className="min-h-[44px] flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-all"
             title="Cargar archivo de música"
           >
             <Upload className="w-3.5 h-3.5" />
@@ -359,18 +391,131 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             }}
           />
 
-          {/* CTA Exportar a Pista 2D */}
+          {/* CTA Exportar / Mezclar a Pista 2D */}
           <button
             type="button"
             onClick={handleExportToChoreo}
-            className="flex items-center gap-2 px-4 py-1.5 rounded-xl text-xs font-black bg-cyan text-slate-950 hover:bg-cyan/90 border border-white/20 shadow-glow-cyan transition-all interactive-tap"
-            title="Exporta los marcadores temporales a la bandeja de colocación en la Pista 2D"
+            disabled={isExporting}
+            className="min-h-[44px] flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-black bg-cyan text-slate-950 hover:bg-cyan/90 border border-white/20 shadow-glow-cyan transition-all interactive-tap disabled:opacity-60"
+            title="Mezcla todas las pistas con OfflineAudioContext y las exporta a la Pista 2D"
           >
-            <span>Exportar a Pista 2D</span>
-            <ArrowRight className="w-4 h-4 stroke-[2.5]" />
+            {isExporting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                <span>Mezclando...</span>
+              </>
+            ) : (
+              <>
+                <span>Mezclar y Enviar a Pista 2D</span>
+                <ArrowRight className="w-4 h-4 stroke-[2.5]" />
+              </>
+            )}
           </button>
         </div>
       </header>
+
+      {/* ═══════════════════════════════════════════════
+          DAW EDITING TOOLBAR: Selector de Herramientas Táctiles (44x44px)
+          ═══════════════════════════════════════════════ */}
+      <div className="min-h-12 py-1.5 bg-[#090D18] border-b border-white/10 px-2.5 sm:px-4 flex items-center justify-between overflow-x-auto gap-2 z-10">
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Herramienta 1: Seleccionar / Puntero */}
+          <button
+            type="button"
+            onClick={() => setActiveTool('select')}
+            className={`min-w-[44px] min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 ${
+              activeTool === 'select'
+                ? 'bg-cyan text-slate-950 shadow-glow-cyan font-black'
+                : 'bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10'
+            }`}
+            title="Seleccionar y mover clips horizontalmente en el tiempo"
+          >
+            <MousePointer className="w-4 h-4" />
+            <span className="hidden sm:inline">Seleccionar</span>
+          </button>
+
+          {/* Herramienta 2: Cortar / Tijeras */}
+          <button
+            type="button"
+            onClick={() => setActiveTool('split')}
+            className={`min-w-[44px] min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 ${
+              activeTool === 'split'
+                ? 'bg-amber-400 text-slate-950 shadow-glow-amber font-black'
+                : 'bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10'
+            }`}
+            title="Tijeras: Toca cualquier clip para cortarlo en dos partes"
+          >
+            <Scissors className="w-4 h-4" />
+            <span className="hidden sm:inline">Cortar (Tijeras)</span>
+          </button>
+
+          {/* Herramienta 3: Borrador */}
+          <button
+            type="button"
+            onClick={() => {
+              if (selectedClipId) {
+                deleteClip();
+              } else {
+                setActiveTool('delete');
+              }
+            }}
+            className={`min-w-[44px] min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 ${
+              activeTool === 'delete'
+                ? 'bg-red-500 text-white shadow-lg shadow-red-500/40 font-black'
+                : 'bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10'
+            }`}
+            title="Borrar: Toca cualquier clip para eliminarlo de la pista"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span className="hidden sm:inline">Borrar Clip</span>
+          </button>
+
+          <div className="h-6 w-px bg-white/10 mx-1 hidden sm:block" />
+
+          {/* Portapapeles: Copiar */}
+          <button
+            type="button"
+            onClick={() => copyClip()}
+            disabled={!selectedClipId}
+            className="min-w-[44px] min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 disabled:opacity-30 disabled:pointer-events-none transition-all active:scale-95"
+            title={selectedClipId ? 'Copiar clip seleccionado' : 'Selecciona un clip para copiarlo'}
+          >
+            <Copy className="w-4 h-4" />
+            <span className="hidden sm:inline">Copiar</span>
+          </button>
+
+          {/* Portapapeles: Pegar */}
+          <button
+            type="button"
+            onClick={() => pasteClip()}
+            disabled={!clipboardClip}
+            className="min-w-[44px] min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 disabled:opacity-30 disabled:pointer-events-none transition-all active:scale-95"
+            title={clipboardClip ? `Pegar clip (${clipboardClip.name})` : 'Portapapeles vacío'}
+          >
+            <ClipboardPaste className="w-4 h-4" />
+            <span className="hidden sm:inline">Pegar</span>
+          </button>
+        </div>
+
+        {/* Indicador visual de modo activo */}
+        <div className="text-[11px] text-slate-400 font-medium hidden md:flex items-center gap-2">
+          {activeTool === 'split' && (
+            <span className="text-amber-400 flex items-center gap-1 bg-amber-400/10 px-2 py-0.5 rounded-md border border-amber-400/30">
+              <Scissors className="w-3.5 h-3.5" /> Modo Tijeras: Haz clic en cualquier onda para dividir el clip
+            </span>
+          )}
+          {activeTool === 'delete' && (
+            <span className="text-red-400 flex items-center gap-1 bg-red-400/10 px-2 py-0.5 rounded-md border border-red-400/30">
+              <Trash2 className="w-3.5 h-3.5" /> Modo Borrador: Haz clic en un clip para eliminarlo
+            </span>
+          )}
+          {activeTool === 'select' && (
+            <span className="text-slate-400">
+              Arrastra horizontalmente los clips para moverlos en el tiempo
+            </span>
+          )}
+        </div>
+      </div>
 
       {/* Banner de Notificación de Éxito */}
       {exportNotice && (
@@ -465,7 +610,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           </div>
 
           {/* Pistas Multitrack (Música, Voz, Metrónomo, Libres) */}
-          <div className="divide-y divide-white/5">
+          <div className="min-h-[40vh] overflow-y-auto divide-y divide-white/5">
             <MultitrackTrackRow
               track={tracks.music}
               totalDurationSec={totalDurationSec}
@@ -510,15 +655,15 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
               />
             ))}
 
-            {/* Botón "+ Añadir Pista de Audio" */}
+            {/* Botón "+ Añadir Pista de Audio" (Full width en mobile con min-h-[44px]) */}
             <div className="p-3 bg-[#060911]/80 flex items-center border-t border-white/5">
               <button
                 type="button"
                 onClick={() => addAudioTrack()}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-dashed border-white/20 hover:border-cyan/50 hover:bg-cyan/5 transition-all active:scale-95"
+                className="w-full sm:w-auto min-h-[44px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-slate-200 hover:text-white bg-white/5 hover:bg-cyan/10 border border-dashed border-white/20 hover:border-cyan/50 hover:bg-cyan/5 transition-all active:scale-95"
               >
-                <Plus className="w-3.5 h-3.5 text-cyan" />
-                <span>Añadir Pista de Audio</span>
+                <Plus className="w-4 h-4 text-cyan" />
+                <span>+ Añadir Pista de Audio</span>
               </button>
             </div>
           </div>

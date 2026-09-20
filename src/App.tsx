@@ -344,26 +344,26 @@ export function App() {
       {/* ═══════════════════════════════════════════════
           HEADER — Pro Dark Console (h-12 / landscape-compact-header)
           ═══════════════════════════════════════════════ */}
-      <header className="h-12 landscape-compact-header shrink-0 flex items-center justify-between px-3 sm:px-4 bg-neon-surface/95 backdrop-blur-md border-b border-white/10 z-20">
+      <header className="min-h-12 h-auto py-1 sm:py-0 landscape-compact-header shrink-0 flex items-center justify-between px-2 sm:px-4 bg-neon-surface/95 backdrop-blur-md border-b border-white/10 z-20 flex-wrap gap-1.5 sm:gap-2">
 
         {/* ── ZONA 1 (Izquierda): Identidad SkateArt + Contexto Atleta ── */}
-        <div className="flex items-center gap-2.5 min-w-0">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}
-            className="lg:hidden flex items-center justify-center w-8 h-8 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 interactive-tap shrink-0"
+            className="lg:hidden flex items-center justify-center min-w-[44px] min-h-[44px] w-11 h-11 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 interactive-tap shrink-0"
             aria-label="Abrir menú"
           >
-            <Menu className="w-4 h-4 stroke-[1.75]" />
+            <Menu className="w-5 h-5 stroke-[1.75]" />
           </button>
 
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
             <div className="flex items-center gap-1.5 shrink-0">
               <span className="w-2.5 h-2.5 rounded-full bg-cyan shadow-glow-cyan" />
               <span className="text-[13px] font-black uppercase tracking-wider text-white">SkateArt</span>
             </div>
-            <span className="text-slate-600 text-xs hidden sm:inline">·</span>
-            <span className="text-[11px] text-slate-400 font-medium hidden sm:inline truncate">
+            <span className="text-slate-600 text-xs hidden md:inline">·</span>
+            <span className="text-[11px] text-slate-400 font-medium hidden md:inline truncate">
               por{' '}
               <a
                 href="https://www.alsiztech.com"
@@ -377,7 +377,7 @@ export function App() {
           </div>
 
           {/* Contexto del Atleta Activo */}
-          <div className="hidden md:flex items-center gap-1.5 pl-3 border-l border-white/10 text-xs min-w-0">
+          <div className="hidden lg:flex items-center gap-1.5 pl-3 border-l border-white/10 text-xs min-w-0">
             <span className="font-semibold text-slate-200 truncate max-w-[110px]" title={selectedSkater?.name}>
               {selectedSkater?.name || 'Sin Atleta'}
             </span>
@@ -390,7 +390,7 @@ export function App() {
         </div>
 
         {/* ── ZONA 2 (Centro): Herramientas Desktop & Master Audio Transport ── */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {/* Herramientas de Trazado (Exclusivo Desktop lg+) */}
           <div className="hidden lg:flex items-center bg-white/[0.04] p-0.5 rounded-xl border border-white/10 gap-0.5 shadow-soft-elevation">
             <button
@@ -447,7 +447,7 @@ export function App() {
           </div>
 
           {/* Master Transport Controls */}
-          <div className="flex items-center gap-1.5 bg-white/[0.03] px-2 py-1 rounded-xl border border-white/10 shadow-soft-elevation">
+          <div className="flex items-center gap-1 sm:gap-1.5 bg-white/[0.03] px-1.5 sm:px-2 py-1 rounded-xl border border-white/10 shadow-soft-elevation">
             <button
               type="button"
               onClick={() => {
@@ -460,16 +460,16 @@ export function App() {
               }}
               disabled={!audioState.hasAudioLoaded}
               title={isAudioActive ? 'Pausar' : 'Reproducir'}
-              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all interactive-tap ${
+              className={`min-w-[44px] min-h-[44px] w-11 h-11 rounded-lg flex items-center justify-center transition-all interactive-tap ${
                 isAudioActive
                   ? 'bg-coral text-white shadow-glow-coral'
                   : 'bg-white/10 hover:bg-white/15 text-white'
               } disabled:opacity-25 disabled:pointer-events-none`}
             >
               {isAudioActive ? (
-                <Pause className="w-3.5 h-3.5 fill-current stroke-none" />
+                <Pause className="w-4 h-4 fill-current stroke-none" />
               ) : (
-                <Play className="w-3.5 h-3.5 fill-current stroke-none ml-0.5" />
+                <Play className="w-4 h-4 fill-current stroke-none ml-0.5" />
               )}
             </button>
 
@@ -477,27 +477,27 @@ export function App() {
               type="button"
               onClick={() => audioEngine.stop()}
               disabled={!audioState.hasAudioLoaded}
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 interactive-tap disabled:opacity-25 disabled:pointer-events-none"
+              className="min-w-[44px] min-h-[44px] w-11 h-11 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 interactive-tap disabled:opacity-25 disabled:pointer-events-none"
               title="Detener"
             >
-              <Square className="w-3 h-3 fill-current stroke-none" />
+              <Square className="w-3.5 h-3.5 fill-current stroke-none" />
             </button>
 
-            <div className="font-mono text-[11px] px-1.5 text-slate-300 flex items-center gap-1 select-none">
+            <div className="font-mono text-[11px] px-1 text-slate-300 flex items-center gap-1 select-none">
               <span className="text-cyan font-bold">{fmtTime(currentTimeMs)}</span>
-              <span className="text-slate-600">/</span>
-              <span className="text-slate-400">{fmtTime(audioState.durationMs || 240000)}</span>
+              <span className="text-slate-600 hidden xs:inline">/</span>
+              <span className="text-slate-400 hidden xs:inline">{fmtTime(audioState.durationMs || 240000)}</span>
             </div>
           </div>
         </div>
 
         {/* ── ZONA 3 (Derecha): CTA Principal & Menú de Desbordamiento Carbon ── */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {/* Botón Estudio de Audio (DAW Lite) */}
           <button
             type="button"
             onClick={() => setActiveView((v) => (v === 'studio' ? 'rink' : 'studio'))}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all interactive-tap shadow-soft-elevation border ${
+            className={`min-h-[44px] flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all interactive-tap shadow-soft-elevation border ${
               activeView === 'studio'
                 ? 'bg-cyan text-slate-950 border-white/20 shadow-glow-cyan font-black'
                 : 'bg-white/[0.04] hover:bg-white/10 text-cyan border-cyan/30'
@@ -519,10 +519,10 @@ export function App() {
           <button
             type="button"
             onClick={() => audioInputRef.current?.click()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/30 interactive-tap transition-all shadow-soft-elevation"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/30 interactive-tap transition-all shadow-soft-elevation"
             title="Cargar archivo de música"
           >
-            <Upload className="w-3.5 h-3.5 stroke-[1.75]" />
+            <Upload className="w-4 h-4 stroke-[1.75]" />
             <span className="hidden sm:inline">Cargar Audio</span>
           </button>
 
@@ -531,7 +531,7 @@ export function App() {
             <button
               type="button"
               onClick={() => setShowExportMenu((v) => !v)}
-              className="w-8 h-8 rounded-xl flex items-center justify-center bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white border border-white/10 interactive-tap transition-all"
+              className="min-w-[44px] min-h-[44px] w-11 h-11 rounded-xl flex items-center justify-center bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white border border-white/10 interactive-tap transition-all"
               title="Más opciones del proyecto"
             >
               <MoreVertical className="w-4 h-4 stroke-[1.75]" />

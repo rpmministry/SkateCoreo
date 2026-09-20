@@ -1,8 +1,16 @@
 import { create } from 'zustand';
-import { AudioTimeNode, AudioStudioTrack, StudioMetronomeConfig } from '../types/audioStudio';
+import { 
+  AudioTimeNode, 
+  AudioStudioTrack, 
+  StudioMetronomeConfig, 
+  AudioClip, 
+  StudioTool,
+  CARBON_TRACK_COLORS 
+} from '../types/audioStudio';
 import { BpmDetector } from '../core/audio/BpmDetector';
 import { audioEngine } from '../core/audio/AudioEngine';
 import { useChoreographyStore } from './useChoreographyStore';
+import { renderStudioMixdown } from '../core/audio/studioMixdown';
 
 export interface AudioStudioStoreState {
   // Pistas del editor multitrack
@@ -14,8 +22,23 @@ export interface AudioStudioStoreState {
   };
   additionalTracks: AudioStudioTrack[];
 
+  // Herramientas de Edición Mini-DAW
+  activeTool: StudioTool;
+  setActiveTool: (tool: StudioTool) => void;
+  selectedClipId: string | null;
+  setSelectedClipId: (clipId: string | null) => void;
+  clipboardClip: AudioClip | null;
+
+  // Acciones de Clips
+  splitClip: (trackId: string, clipId: string, splitTimeSec: number) => boolean;
+  moveClip: (trackId: string, clipId: string, newStartOffsetSec: number) => void;
+  deleteClip: (trackId?: string, clipId?: string) => void;
+  copyClip: (clip?: AudioClip) => void;
+  pasteClip: (trackId?: string, atTimeSec?: number) => AudioClip | null;
+  setClipFades: (trackId: string, clipId: string, fadeInSec: number, fadeOutSec: number) => void;
+
   // Acciones de Pistas Libres Dinámicas (+ Añadir Pista de Audio)
-  addAudioTrack: (name?: string) => AudioStudioTrack;
+  addAudioTrack: (name?: string, buffer?: AudioBuffer, fileName?: string) => AudioStudioTrack;
   removeAudioTrack: (id: string) => void;
 
   // Marcadores de tiempo (Nodos sin coordenadas espaciales)
@@ -55,8 +78,9 @@ export interface AudioStudioStoreState {
   setMetronomeConfig: (config: Partial<StudioMetronomeConfig>) => void;
   analyzeBpm: () => Promise<number | null>;
 
-  // Función Puente (Audio-to-Canvas Bridge)
+  // Función Puente (Audio-to-Canvas Bridge) & Mixdown
   sendMixToChoreo: () => { nodes: AudioTimeNode[]; success: boolean };
+  renderAndExportMixdown: () => Promise<{ success: boolean; durationSec: number }>;
 }
 
 const DEFAULT_METRONOME_CONFIG: StudioMetronomeConfig = {
@@ -72,8 +96,10 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
     music: {
       id: 'track-music',
       name: 'Música Principal',
+      color: CARBON_TRACK_COLORS[0], // Cyan Eléctrico
       type: 'music',
       buffer: null,
+      clips: [],
       volume: 1.0,
       muted: false,
       solo: false,
@@ -86,8 +112,10 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
     voice: {
       id: 'track-voice',
       name: 'Voz & Guías Técnicas',
+      color: CARBON_TRACK_COLORS[1], // Magenta Neón
       type: 'voice',
       buffer: null,
+      clips: [],
       volume: 1.0,
       muted: false,
       solo: false,
@@ -100,8 +128,10 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
     metronome: {
       id: 'track-metronome',
       name: 'Metrónomo Sintético',
+      color: CARBON_TRACK_COLORS[3], // Ámbar Cálido
       type: 'metronome',
       buffer: null,
+      clips: [],
       volume: 0.8,
       muted: false,
       solo: false,
@@ -113,26 +143,278 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   },
   additionalTracks: [],
 
-  addAudioTrack: (name) => {
+  activeTool: 'select',
+  setActiveTool: (tool) => set({ activeTool: tool }),
+  selectedClipId: null,
+  setSelectedClipId: (clipId) => set({ selectedClipId: clipId }),
+  clipboardClip: null,
+
+  splitClip: (trackId, clipId, splitTimeSec) => {
+    let wasSplit = false;
+    set((state) => {
+      const updateClips = (track: AudioStudioTrack): AudioStudioTrack => {
+        const clipIndex = track.clips.findIndex((c) => c.id === clipId);
+        if (clipIndex === -1) return track;
+        const clip = track.clips[clipIndex];
+
+        const clipDuration = clip.trimEndSec - clip.trimStartSec;
+        const relativeSplit = splitTimeSec - clip.startOffsetSec;
+
+        if (relativeSplit <= 0.1 || relativeSplit >= clipDuration - 0.1) {
+          return track;
+        }
+
+        const bufferSplitPoint = clip.trimStartSec + relativeSplit;
+
+        const firstClip: AudioClip = {
+          ...clip,
+          id: `clip-${Date.now()}-a`,
+          trimEndSec: bufferSplitPoint,
+          fadeOutSec: Math.min(clip.fadeOutSec, 0.2),
+        };
+
+        const secondClip: AudioClip = {
+          ...clip,
+          id: `clip-${Date.now()}-b`,
+          startOffsetSec: splitTimeSec,
+          trimStartSec: bufferSplitPoint,
+          fadeInSec: Math.min(clip.fadeInSec, 0.2),
+        };
+
+        const newClips = [...track.clips];
+        newClips.splice(clipIndex, 1, firstClip, secondClip);
+        wasSplit = true;
+
+        return {
+          ...track,
+          clips: newClips,
+        };
+      };
+
+      if (state.tracks[trackId]) {
+        return {
+          tracks: {
+            ...state.tracks,
+            [trackId]: updateClips(state.tracks[trackId]),
+          },
+          selectedClipId: `clip-${Date.now()}-b`,
+        };
+      }
+
+      return {
+        additionalTracks: state.additionalTracks.map((t) =>
+          t.id === trackId ? updateClips(t) : t
+        ),
+        selectedClipId: `clip-${Date.now()}-b`,
+      };
+    });
+
+    return wasSplit;
+  },
+
+  moveClip: (trackId, clipId, newStartOffsetSec) => {
+    const clampedOffset = Math.max(0, Math.round(newStartOffsetSec * 100) / 100);
+    set((state) => {
+      const updateClips = (track: AudioStudioTrack): AudioStudioTrack => ({
+        ...track,
+        clips: track.clips.map((c) =>
+          c.id === clipId ? { ...c, startOffsetSec: clampedOffset } : c
+        ),
+      });
+
+      if (state.tracks[trackId]) {
+        return {
+          tracks: {
+            ...state.tracks,
+            [trackId]: updateClips(state.tracks[trackId]),
+          },
+        };
+      }
+
+      return {
+        additionalTracks: state.additionalTracks.map((t) =>
+          t.id === trackId ? updateClips(t) : t
+        ),
+      };
+    });
+  },
+
+  deleteClip: (trackId, clipId) => {
+    set((state) => {
+      const targetClipId = clipId || state.selectedClipId;
+      if (!targetClipId) return state;
+
+      const updateClips = (track: AudioStudioTrack): AudioStudioTrack => ({
+        ...track,
+        clips: track.clips.filter((c) => c.id !== targetClipId),
+      });
+
+      if (trackId && state.tracks[trackId]) {
+        return {
+          tracks: {
+            ...state.tracks,
+            [trackId]: updateClips(state.tracks[trackId]),
+          },
+          selectedClipId: state.selectedClipId === targetClipId ? null : state.selectedClipId,
+        };
+      }
+
+      // If trackId not specified, search all tracks
+      const newTracks = { ...state.tracks };
+      for (const k of Object.keys(newTracks)) {
+        if (newTracks[k].clips.some((c) => c.id === targetClipId)) {
+          newTracks[k] = updateClips(newTracks[k]);
+          break;
+        }
+      }
+
+      const newAdditional = state.additionalTracks.map((t) =>
+        t.clips.some((c) => c.id === targetClipId) ? updateClips(t) : t
+      );
+
+      return {
+        tracks: newTracks,
+        additionalTracks: newAdditional,
+        selectedClipId: state.selectedClipId === targetClipId ? null : state.selectedClipId,
+      };
+    });
+  },
+
+  copyClip: (clip) => {
+    if (clip) {
+      set({ clipboardClip: { ...clip } });
+      return;
+    }
+    const state = get();
+    if (!state.selectedClipId) return;
+    const allTracks = [state.tracks.music, state.tracks.voice, ...state.additionalTracks];
+    for (const t of allTracks) {
+      const found = t.clips.find((c) => c.id === state.selectedClipId);
+      if (found) {
+        set({ clipboardClip: { ...found } });
+        return;
+      }
+    }
+  },
+
+  pasteClip: (trackId, atTimeSec) => {
+    const { clipboardClip, currentTimeSec, selectedClipId, tracks, additionalTracks } = get();
+    if (!clipboardClip) return null;
+
+    let targetTrackId = trackId;
+    if (!targetTrackId) {
+      const allTracks = [tracks.music, tracks.voice, ...additionalTracks];
+      const owner = allTracks.find((t) => t.clips.some((c) => c.id === selectedClipId));
+      targetTrackId = owner ? (owner.type === 'music' || owner.type === 'voice' ? owner.type : owner.id) : 'music';
+    }
+
+    const targetTime = atTimeSec !== undefined ? atTimeSec : currentTimeSec;
+    const newClip: AudioClip = {
+      ...clipboardClip,
+      id: `clip-paste-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      startOffsetSec: Math.max(0, targetTime),
+    };
+
+    set((state) => {
+      const addClip = (track: AudioStudioTrack): AudioStudioTrack => ({
+        ...track,
+        clips: [...track.clips, newClip],
+      });
+
+      if (state.tracks[targetTrackId!]) {
+        return {
+          tracks: {
+            ...state.tracks,
+            [targetTrackId!]: addClip(state.tracks[targetTrackId!]),
+          },
+          selectedClipId: newClip.id,
+        };
+      }
+
+      return {
+        additionalTracks: state.additionalTracks.map((t) =>
+          t.id === targetTrackId ? addClip(t) : t
+        ),
+        selectedClipId: newClip.id,
+      };
+    });
+
+    return newClip;
+  },
+
+  setClipFades: (trackId, clipId, fadeInSec, fadeOutSec) => {
+    set((state) => {
+      const updateClips = (track: AudioStudioTrack): AudioStudioTrack => ({
+        ...track,
+        clips: track.clips.map((c) =>
+          c.id === clipId
+            ? { ...c, fadeInSec: Math.max(0, fadeInSec), fadeOutSec: Math.max(0, fadeOutSec) }
+            : c
+        ),
+      });
+
+      if (state.tracks[trackId]) {
+        return {
+          tracks: {
+            ...state.tracks,
+            [trackId]: updateClips(state.tracks[trackId]),
+          },
+        };
+      }
+
+      return {
+        additionalTracks: state.additionalTracks.map((t) =>
+          t.id === trackId ? updateClips(t) : t
+        ),
+      };
+    });
+  },
+
+  addAudioTrack: (name, buffer, fileName) => {
     const newId = `track-user-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    const trackCount = get().additionalTracks.length + 1;
+    const currentCount = get().additionalTracks.length;
+    // Asignación de color cíclica Carbon (comenzando en Verde Neón para la primera pista libre)
+    const colorIndex = (2 + currentCount) % CARBON_TRACK_COLORS.length;
+    const assignedColor = CARBON_TRACK_COLORS[colorIndex];
+
+    const initialClips: AudioClip[] = buffer
+      ? [{
+          id: `clip-${newId}-init`,
+          name: fileName || name || `Pista Libre ${currentCount + 1}`,
+          buffer,
+          startOffsetSec: 0,
+          trimStartSec: 0,
+          trimEndSec: buffer.duration,
+          fadeInSec: 0,
+          fadeOutSec: 0,
+        }]
+      : [];
+
     const newTrack: AudioStudioTrack = {
       id: newId,
-      name: name || `Pista Libre ${trackCount}`,
-      type: 'music',
-      buffer: null,
+      name: name || `Pista Libre ${currentCount + 1}`,
+      color: assignedColor,
+      type: 'user',
+      buffer: buffer || null,
+      clips: initialClips,
       volume: 1.0,
       muted: false,
       solo: false,
       trimStartSec: 0,
-      trimEndSec: 0,
+      trimEndSec: buffer ? buffer.duration : 0,
       fadeInSec: 0,
       fadeOutSec: 0,
-      fileName: null,
+      fileName: fileName || null,
     };
+
     set((state) => ({
       additionalTracks: [...state.additionalTracks, newTrack],
     }));
+
+    if (buffer) {
+      get().setTrackBuffer(newId, buffer, fileName);
+    }
+
     return newTrack;
   },
 
@@ -161,19 +443,40 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
       const updatedTracks = { ...state.tracks };
       let updatedAdditional = [...state.additionalTracks];
 
+      const initialClip: AudioClip = {
+        id: `clip-${trackKey}-${Date.now()}`,
+        name: fileName || (isCore ? updatedTracks[trackKey]?.name : 'Pista Libre') || 'Audio',
+        buffer,
+        startOffsetSec: 0,
+        trimStartSec: 0,
+        trimEndSec: duration,
+        fadeInSec: 0,
+        fadeOutSec: 0,
+      };
+
       if (isCore) {
+        const existingClips = updatedTracks[trackKey].clips;
         updatedTracks[trackKey] = {
-          ...state.tracks[trackKey],
+          ...updatedTracks[trackKey],
           buffer,
+          clips: existingClips.length > 0 ? existingClips : [initialClip],
           trimEndSec: duration,
           fileName: fileName || state.tracks[trackKey].fileName,
         };
       } else {
-        updatedAdditional = updatedAdditional.map((t) =>
-          t.id === trackKey
-            ? { ...t, buffer, trimEndSec: duration, fileName: fileName || t.fileName }
-            : t
-        );
+        updatedAdditional = updatedAdditional.map((t) => {
+          if (t.id === trackKey) {
+            const existingClips = t.clips || [];
+            return {
+              ...t,
+              buffer,
+              clips: existingClips.length > 0 ? existingClips : [initialClip],
+              trimEndSec: duration,
+              fileName: fileName || t.fileName,
+            };
+          }
+          return t;
+        });
       }
 
       const allBuffers = [
@@ -478,5 +781,45 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
       nodes,
       success: true,
     };
+  },
+
+  // ── RENDERIZADO MIXDOWN POR HARDWARE: Exportar mezcla combinada a Pista 2D ──
+  renderAndExportMixdown: async () => {
+    const state = get();
+    const allTracks: AudioStudioTrack[] = [
+      state.tracks.music,
+      state.tracks.voice,
+      ...state.additionalTracks,
+    ];
+
+    try {
+      const result = await renderStudioMixdown(
+        allTracks,
+        state.totalDurationSec,
+        state.metronomeConfig
+      );
+
+      // Inyectar el AudioBuffer combinado directamente en AudioEngine (Pista 2D)
+      audioEngine.setAudioBuffer(result.buffer, 'mezcla_skateart_master.wav');
+
+      // Actualizar también la pista de música del estudio con la mezcla unificada
+      get().setTrackBuffer('music', result.buffer, 'mezcla_skateart_master.wav');
+
+      // Enviar nodos temporales a la bandeja lateral de la Pista 2D
+      useChoreographyStore.getState().setUnplacedNodes(state.audioNodes);
+
+      return {
+        success: true,
+        durationSec: result.durationSec,
+      };
+    } catch (err) {
+      console.error('[AudioStudioStore] Error rendering mixdown with OfflineAudioContext:', err);
+      // Fallback seguro
+      state.sendMixToChoreo();
+      return {
+        success: false,
+        durationSec: state.totalDurationSec,
+      };
+    }
   },
 }));
