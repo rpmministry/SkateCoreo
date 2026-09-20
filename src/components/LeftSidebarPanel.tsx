@@ -99,9 +99,9 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
                 onChange={(e) => setEdad(parseInt(e.target.value) || 0)}
                 className="w-20 px-3 py-1.5 rounded-xl bg-neon-card border border-white/10 text-white font-mono font-bold text-xs focus:outline-none focus:border-cyan transition-all text-center"
               />
-              <div className="flex-1 px-3 py-1.5 rounded-xl bg-neon-card border border-white/5 flex items-center justify-between">
-                <span className="text-[10px] text-slate-400 font-semibold">Categoría:</span>
-                <span className="text-xs font-black text-mint tracking-wide">{categoria}</span>
+              <div className="flex-1 min-w-0 px-3 py-1.5 rounded-xl bg-neon-card border border-white/5 flex items-center justify-between gap-1">
+                <span className="text-[10px] text-slate-400 font-semibold truncate-safe">Categoría:</span>
+                <span className="text-xs font-black text-mint tracking-wide truncate-safe">{categoria}</span>
               </div>
             </div>
           </div>
@@ -109,8 +109,8 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
           {/* Selector de Eficiencia */}
           <div className="space-y-1.5">
             <label className="text-[11px] text-slate-400 font-medium flex items-center justify-between">
-              <span>Nivel de Eficiencia</span>
-              <span className="text-[10px] text-cyan font-mono font-bold">{eficiencia}</span>
+              <span className="truncate-safe">Nivel de Eficiencia</span>
+              <span className="text-[10px] text-cyan font-mono font-bold shrink-0">{eficiencia}</span>
             </label>
             <div className="grid grid-cols-3 gap-1">
               {EFICIENCIAS_DISPONIBLES.map((eff) => (
@@ -119,7 +119,7 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
                   type="button"
                   onClick={() => setEficiencia(eff)}
                   className={[
-                    'py-2 px-1 rounded-xl text-[10px] font-bold interactive-tap transition-all truncate text-center',
+                    'py-2 px-1 rounded-xl text-[10px] font-bold interactive-tap transition-all truncate-safe text-center',
                     eficiencia === eff
                       ? 'bg-cyan text-neon-canvas shadow-glow-cyan font-black'
                       : 'bg-neon-card text-slate-400 hover:text-white hover:bg-neon-hover shadow-soft-elevation',
@@ -456,6 +456,13 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
               Salir
             </button>
           </div>
+        </section>
+
+        {/* ═══ Footer Attribution ═════════════════════════ */}
+        <section className="px-4 py-3 bg-white/[0.01] border-t border-white/5 text-center">
+          <p className="text-[12px] text-slate-400 font-normal truncate-safe">
+            Desarrollado por <span className="text-slate-300 font-medium">Mauricio Andrade Luna</span>
+          </p>
         </section>
     </>
   );

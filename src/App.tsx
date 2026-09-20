@@ -336,9 +336,9 @@ export function App() {
       />
 
       {/* ═══════════════════════════════════════════════
-          HEADER — Pro Dark Console (h-12)
+          HEADER — Pro Dark Console (h-12 / landscape-compact-header)
           ═══════════════════════════════════════════════ */}
-      <header className="h-12 shrink-0 flex items-center justify-between px-3 sm:px-4 bg-neon-surface/90 backdrop-blur-md border-b border-white/5 z-20">
+      <header className="h-12 landscape-compact-header shrink-0 flex items-center justify-between px-3 sm:px-4 bg-neon-surface/90 backdrop-blur-md border-b border-white/5 z-20">
 
         {/* Left Section: Mobile Drawer Trigger & Athlete Branding */}
         <div className="flex items-center gap-2.5 min-w-0">
@@ -351,21 +351,18 @@ export function App() {
             <Menu className="w-5 h-5 stroke-[2]" />
           </button>
 
-          {/* Logo / Brand with AlsisTech attribution on top */}
-          <div className="flex flex-col justify-center">
-            <a
-              href="https://alsiztech.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[9px] tracking-wide text-slate-400 hover:text-cyan transition-colors flex items-center gap-1 font-medium group"
-              title="Visitar alsiztech.com"
+          {/* Logo / Brand with Mauricio Andrade Luna attribution */}
+          <div className="flex flex-col justify-center min-w-0">
+            <span
+              className="text-[10px] tracking-wide text-slate-400 flex items-center gap-1 font-medium truncate-safe"
+              title="Desarrollado por Mauricio Andrade Luna"
             >
               <span>Desarrollado por</span>
-              <span className="text-cyan font-bold group-hover:underline">AlsisTech</span>
-            </a>
+              <strong className="text-cyan font-bold truncate-safe">Mauricio Andrade Luna</strong>
+            </span>
             <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-cyan shadow-glow-cyan" />
-              <span className="text-[12px] font-black uppercase tracking-widest text-white leading-none">
+              <span className="w-2 h-2 rounded-full bg-cyan shadow-glow-cyan shrink-0" />
+              <span className="text-[12px] font-black uppercase tracking-widest text-white leading-none truncate-safe">
                 SkateArt
               </span>
             </div>
@@ -561,9 +558,9 @@ export function App() {
       </header>
 
       {/* ═══════════════════════════════════════════════
-          BODY — IDE Tri-Column (lg+) / Mobile Stack (<lg)
+          BODY — IDE Tri-Column (lg+) / Orientation-Aware Mobile (<lg)
           ═══════════════════════════════════════════════ */}
-      <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden relative">
+      <div className="flex-1 min-h-0 flex flex-col landscape:flex-row lg:flex-row overflow-hidden relative">
 
         {/* Backdrop for Mobile Drawers/Sheets (EXCLUSIVAMENTE MÓVIL: lg:hidden) */}
         {(drawerOpen || sheetOpen) && (
@@ -594,11 +591,137 @@ export function App() {
           />
         </aside>
 
+        {/* ── MOBILE / TABLET LANDSCAPE TOOLBAR (Figma Style Sidebar) ── */}
+        <nav
+          aria-label="Herramientas táctiles en modo horizontal"
+          className="hidden landscape:flex lg:hidden w-14 shrink-0 flex-col items-center py-2 px-1 gap-1.5 bg-neon-surface/95 border-r border-white/5 z-30 overflow-y-auto"
+        >
+          {/* 1. Config / Menu */}
+          <button
+            type="button"
+            onClick={() => { setDrawerOpen((o) => !o); setSheetOpen(false); }}
+            className={[
+              'w-11 h-11 shrink-0 flex flex-col items-center justify-center rounded-xl interactive-tap transition-all',
+              drawerOpen ? 'text-cyan bg-cyan/15 shadow-glow-cyan' : 'text-slate-400 hover:text-white bg-neon-card hover:bg-neon-hover',
+            ].join(' ')}
+            title="Configuración y Audio"
+          >
+            <Menu className="w-4 h-4 stroke-[2]" />
+            <span className="text-[9px] font-bold truncate-safe max-w-[44px]">Config</span>
+          </button>
+
+          {/* 2. Modo Nodos */}
+          <button
+            type="button"
+            onClick={() => {
+              setPhase('plot');
+              setSheetOpen(false);
+              useChoreographyStore.getState().setSelectedPointId(null);
+            }}
+            className={[
+              'w-11 h-11 shrink-0 flex flex-col items-center justify-center rounded-xl interactive-tap transition-all',
+              phase === 'plot'
+                ? 'bg-amber-500 text-black shadow-glow-amber font-black'
+                : 'text-slate-400 hover:text-white bg-neon-card hover:bg-neon-hover',
+            ].join(' ')}
+            title="Modo Nodos: Toca para colocar puntos"
+          >
+            <PenTool className="w-4 h-4 stroke-[2.5]" />
+            <span className="text-[9px] font-bold truncate-safe max-w-[44px]">Nodos</span>
+          </button>
+
+          {/* 3. Modo Trazado */}
+          <button
+            type="button"
+            onClick={() => {
+              if (phase === 'curve') {
+                setPhase('plot');
+              } else if (canDraw) {
+                setPhase('curve');
+              }
+              useChoreographyStore.getState().setSelectedPointId(null);
+            }}
+            disabled={!canDraw}
+            className={[
+              'w-11 h-11 shrink-0 flex flex-col items-center justify-center rounded-xl interactive-tap transition-all',
+              phase === 'curve'
+                ? 'bg-cyan text-black shadow-glow-cyan font-black'
+                : 'text-slate-400 hover:text-white bg-neon-card hover:bg-neon-hover disabled:opacity-30 disabled:pointer-events-none',
+            ].join(' ')}
+            title={canDraw ? 'Modo Trazado: Ver y deformar curvas' : 'Mínimo 2 nodos'}
+          >
+            <Route className="w-4 h-4 stroke-[2.5]" />
+            <span className="text-[9px] font-bold truncate-safe max-w-[44px]">Trazar</span>
+          </button>
+
+          {/* 4. Modo Borrador */}
+          <button
+            type="button"
+            onClick={() => {
+              if (phase === 'erase') {
+                setPhase('plot');
+              } else {
+                setPhase('erase');
+              }
+              useChoreographyStore.getState().setSelectedPointId(null);
+              setSheetOpen(false);
+            }}
+            className={[
+              'w-11 h-11 shrink-0 flex flex-col items-center justify-center rounded-xl interactive-tap transition-all',
+              phase === 'erase'
+                ? 'bg-red-500 text-white shadow-lg shadow-red-500/40 font-black'
+                : 'text-slate-400 hover:text-white bg-neon-card hover:bg-neon-hover',
+            ].join(' ')}
+            title="Modo Borrador: Toca cualquier nodo para eliminarlo"
+          >
+            <Eraser className="w-4 h-4 stroke-[2.5]" />
+            <span className="text-[9px] font-bold truncate-safe max-w-[44px]">Borrar</span>
+          </button>
+
+          {/* 5. Limpiar Pista */}
+          <button
+            type="button"
+            onClick={handleClearRink}
+            disabled={points.length === 0}
+            className="w-11 h-11 shrink-0 flex flex-col items-center justify-center rounded-xl text-slate-400 hover:text-coral bg-neon-card hover:bg-neon-hover interactive-tap disabled:opacity-20 disabled:pointer-events-none"
+            title="Limpiar toda la pista"
+          >
+            <Trash2 className="w-4 h-4 text-coral stroke-[2]" />
+            <span className="text-[9px] font-bold truncate-safe max-w-[44px]">Limpiar</span>
+          </button>
+
+          {/* 6. Deshacer */}
+          <button
+            type="button"
+            onClick={undo}
+            disabled={history.length === 0}
+            className="w-11 h-11 shrink-0 flex flex-col items-center justify-center rounded-xl text-slate-400 hover:text-white bg-neon-card hover:bg-neon-hover interactive-tap disabled:opacity-20 disabled:pointer-events-none"
+            title="Deshacer último cambio"
+          >
+            <Undo2 className="w-4 h-4 stroke-[2]" />
+            <span className="text-[9px] font-bold truncate-safe max-w-[44px]">Deshacer</span>
+          </button>
+
+          {/* 7. Inspector de Nodo */}
+          <button
+            type="button"
+            onClick={() => { setSheetOpen((o) => !o); setDrawerOpen(false); }}
+            className={[
+              'w-11 h-11 shrink-0 flex flex-col items-center justify-center rounded-xl interactive-tap transition-all',
+              sheetOpen ? 'text-mint bg-mint/15 shadow-glow-mint' : 'text-slate-400 hover:text-white bg-neon-card hover:bg-neon-hover',
+            ].join(' ')}
+            title="Inspector de nodo seleccionado"
+          >
+            <ChevronDown className={`w-4 h-4 stroke-[2] transition-transform ${sheetOpen ? 'rotate-180' : ''}`} />
+            <span className="text-[9px] font-bold truncate-safe max-w-[44px]">Nodo</span>
+          </button>
+        </nav>
+
         {/* ── CENTER WORKSPACE: Waveform + 2D Rink Canvas ── */}
         <main className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden bg-neon-canvas">
 
           {/* Interactive Waveform Strip */}
-          <div className="shrink-0 h-[18%] min-h-[68px] max-h-[140px] border-b border-white/5 bg-neon-surface/40">
+          <div className="shrink-0 h-[18%] min-h-[60px] max-h-[140px] landscape-compact-waveform border-b border-white/5 bg-neon-surface/40">
             <InteractiveWaveform
               currentTimeMs={currentTimeMs}
               durationMs={audioState.durationMs}
@@ -696,17 +819,19 @@ export function App() {
           </div>
         </div>
 
-        {/* ── MOBILE BOTTOM SHEET (Inspector de Nodo Táctil) ── */}
+        {/* ── MOBILE INSPECTOR (Bottom Sheet en Portrait / Right Panel en Landscape) ── */}
         <div
           role="dialog"
           aria-modal="true"
           aria-label="Inspector de nodo"
           className={[
-            'lg:hidden fixed bottom-0 left-0 right-0 z-50',
-            'flex flex-col',
-            'bg-neon-surface rounded-t-3xl shadow-2xl shadow-black/80 border-t border-white/10',
+            'lg:hidden fixed z-50 flex flex-col bg-neon-surface shadow-2xl shadow-black/80',
+            'portrait:bottom-0 portrait:left-0 portrait:right-0 portrait:rounded-t-3xl portrait:border-t portrait:border-white/10',
+            'landscape:top-0 landscape:bottom-0 landscape:right-0 landscape:w-[320px] landscape:max-w-[42vw] landscape:rounded-l-2xl landscape:border-l landscape:border-white/10',
             'transition-transform duration-ui ease-spring',
-            sheetOpen ? 'translate-y-0' : 'translate-y-full',
+            sheetOpen
+              ? 'portrait:translate-y-0 landscape:translate-x-0'
+              : 'portrait:translate-y-full landscape:translate-x-full',
           ].join(' ')}
           style={{
             maxHeight: '85dvh',
@@ -723,9 +848,9 @@ export function App() {
           onPointerMove={(e) => e.stopPropagation()}
           onPointerUp={(e) => e.stopPropagation()}
         >
-          {/* Pull Grip Affordance */}
+          {/* Pull Grip Affordance (Portrait Only) */}
           <div
-            className="shrink-0 flex justify-center pt-3 pb-1 cursor-pointer"
+            className="portrait:flex landscape:hidden shrink-0 justify-center pt-3 pb-1 cursor-pointer"
             onClick={() => {
               setSheetOpen(false);
               useChoreographyStore.getState().setSelectedPointId(null);
@@ -735,8 +860,8 @@ export function App() {
           </div>
 
           {/* Sheet Header */}
-          <div className="shrink-0 flex items-center justify-between px-4 py-2 border-b border-white/5">
-            <span className="text-xs font-black uppercase tracking-widest text-mint">
+          <div className="shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-white/5">
+            <span className="text-xs font-black uppercase tracking-widest text-mint truncate-safe">
               Inspector de Nodo
             </span>
             <button
@@ -748,7 +873,8 @@ export function App() {
               className="min-w-touch min-h-touch flex items-center justify-center rounded-2xl text-slate-400 hover:text-white interactive-tap"
               aria-label="Cerrar inspector"
             >
-              <ChevronDown className="w-5 h-5 stroke-[2]" />
+              <ChevronDown className="w-5 h-5 stroke-[2] portrait:block landscape:hidden" />
+              <X className="w-5 h-5 stroke-[2] portrait:hidden landscape:block" />
             </button>
           </div>
 
@@ -784,25 +910,25 @@ export function App() {
       </div>
 
       {/* ═══════════════════════════════════════════════
-          MOBILE BOTTOM ACTION DOCK — 48px+ Touch Surface
+          MOBILE BOTTOM ACTION DOCK — Portrait Only (<lg)
           ═══════════════════════════════════════════════ */}
       <nav
-        aria-label="Acciones principales táctiles"
-        className="lg:hidden shrink-0 flex items-stretch bg-neon-surface/95 backdrop-blur-md border-t border-white/5 z-30"
-        style={{ minHeight: 56 }}
+        aria-label="Acciones principales táctiles en vertical"
+        className="landscape:hidden lg:hidden shrink-0 flex items-stretch justify-around bg-neon-surface/95 backdrop-blur-md border-t border-white/5 z-30"
+        style={{ minHeight: 52 }}
       >
         {/* Config / Drawer Trigger */}
         <button
           type="button"
           onClick={() => { setDrawerOpen((o) => !o); setSheetOpen(false); }}
           className={[
-            'flex-1 min-h-touch flex flex-col items-center justify-center gap-0.5',
+            'flex-1 max-w-[64px] min-h-touch flex flex-col items-center justify-center gap-0.5',
             'text-[10px] font-bold border-r border-white/5 interactive-tap',
             drawerOpen ? 'text-cyan bg-cyan/10' : 'text-slate-400 hover:text-white',
           ].join(' ')}
         >
           <Menu className="w-4 h-4 stroke-[2]" />
-          <span>Config</span>
+          <span className="truncate-safe max-w-[56px] text-center">Config</span>
         </button>
 
         {/* Herramienta 1: Colocar Nodos (Modo Nodos) */}
@@ -814,7 +940,7 @@ export function App() {
             useChoreographyStore.getState().setSelectedPointId(null);
           }}
           className={[
-            'flex-[1.1] min-h-touch flex flex-col items-center justify-center gap-0.5',
+            'flex-1 max-w-[64px] min-h-touch flex flex-col items-center justify-center gap-0.5',
             'text-[10px] font-black uppercase tracking-wider border-r border-white/5 interactive-tap transition-all',
             phase === 'plot'
               ? 'bg-amber-500 text-black shadow-glow-amber font-black'
@@ -823,7 +949,7 @@ export function App() {
           title="Modo Nodos: Un clic en el lienzo vacío coloca nodos. Las líneas están ocultas."
         >
           <PenTool className="w-4 h-4 stroke-[2.5]" />
-          <span>Nodos</span>
+          <span className="truncate-safe max-w-[56px] text-center">Nodos</span>
         </button>
 
         {/* Herramienta 2: Trazar Líneas (Modo Trazado, Toggle) */}
@@ -839,7 +965,7 @@ export function App() {
           }}
           disabled={!canDraw}
           className={[
-            'flex-[1.1] min-h-touch flex flex-col items-center justify-center gap-0.5',
+            'flex-1 max-w-[64px] min-h-touch flex flex-col items-center justify-center gap-0.5',
             'text-[10px] font-black uppercase tracking-wider border-r border-white/5 interactive-tap transition-all',
             phase === 'curve'
               ? 'bg-cyan text-black shadow-glow-cyan font-black'
@@ -848,7 +974,7 @@ export function App() {
           title={canDraw ? 'Modo Trazado: Ver líneas conectadas y esculpir curvas' : 'Mínimo 2 nodos'}
         >
           <Route className="w-4 h-4 stroke-[2.5]" />
-          <span>Trazar</span>
+          <span className="truncate-safe max-w-[56px] text-center">Trazar</span>
         </button>
 
         {/* Herramienta 3: Borrador (Modo Borrador, Toggle) */}
@@ -864,7 +990,7 @@ export function App() {
             setSheetOpen(false);
           }}
           className={[
-            'flex-[1.1] min-h-touch flex flex-col items-center justify-center gap-0.5',
+            'flex-1 max-w-[64px] min-h-touch flex flex-col items-center justify-center gap-0.5',
             'text-[10px] font-black uppercase tracking-wider border-r border-white/5 interactive-tap transition-all',
             phase === 'erase'
               ? 'bg-red-500 text-white shadow-lg shadow-red-500/40 font-black'
@@ -873,7 +999,7 @@ export function App() {
           title="Modo Borrador: Toca cualquier nodo para eliminarlo instantáneamente."
         >
           <Eraser className="w-4 h-4 stroke-[2.5]" />
-          <span>Borrador</span>
+          <span className="truncate-safe max-w-[56px] text-center">Borrar</span>
         </button>
 
         {/* Limpiar Pista en un toque (Mobile) */}
@@ -881,10 +1007,11 @@ export function App() {
           type="button"
           onClick={handleClearRink}
           disabled={points.length === 0}
-          className="flex-1 min-h-touch flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold text-slate-400 hover:text-coral border-r border-white/5 interactive-tap disabled:opacity-20 disabled:pointer-events-none"
+          className="flex-1 max-w-[64px] min-h-touch flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold text-slate-400 hover:text-coral border-r border-white/5 interactive-tap disabled:opacity-20 disabled:pointer-events-none"
+          title="Limpiar toda la pista"
         >
           <Trash2 className="w-4 h-4 text-coral stroke-[2]" />
-          <span>Limpiar</span>
+          <span className="truncate-safe max-w-[56px] text-center">Limpiar</span>
         </button>
 
         {/* Deshacer Action */}
@@ -892,10 +1019,11 @@ export function App() {
           type="button"
           onClick={undo}
           disabled={history.length === 0}
-          className="flex-1 min-h-touch flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold text-slate-400 hover:text-white border-r border-white/5 interactive-tap disabled:opacity-20 disabled:pointer-events-none"
+          className="flex-1 max-w-[64px] min-h-touch flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold text-slate-400 hover:text-white border-r border-white/5 interactive-tap disabled:opacity-20 disabled:pointer-events-none"
+          title="Deshacer"
         >
           <Undo2 className="w-4 h-4 stroke-[2]" />
-          <span>Deshacer</span>
+          <span className="truncate-safe max-w-[56px] text-center">Deshacer</span>
         </button>
 
         {/* Inspector Bottom Sheet Trigger */}
@@ -903,15 +1031,28 @@ export function App() {
           type="button"
           onClick={() => { setSheetOpen((o) => !o); setDrawerOpen(false); }}
           className={[
-            'flex-1 min-h-touch flex flex-col items-center justify-center gap-0.5',
+            'flex-1 max-w-[64px] min-h-touch flex flex-col items-center justify-center gap-0.5',
             'text-[10px] font-bold interactive-tap',
             sheetOpen ? 'text-mint bg-mint/10' : 'text-slate-400 hover:text-white',
           ].join(' ')}
+          title="Inspector de nodo"
         >
           <ChevronDown className={`w-4 h-4 stroke-[2] transition-transform ${sheetOpen ? 'rotate-180' : ''}`} />
-          <span>Inspector</span>
+          <span className="truncate-safe max-w-[56px] text-center">Inspector</span>
         </button>
       </nav>
+
+      {/* ═══════════════════════════════════════════════
+          FOOTER — Atribución Oficial Mauricio Andrade Luna
+          ═══════════════════════════════════════════════ */}
+      <footer className="h-6 shrink-0 flex items-center justify-between px-3 bg-neon-surface/85 border-t border-white/5 text-[12px] text-slate-400 select-none z-20">
+        <span className="truncate-safe font-normal">
+          Desarrollado por <strong className="text-slate-300 font-medium">Mauricio Andrade Luna</strong>
+        </span>
+        <span className="hidden sm:inline text-slate-500 text-[11px] font-mono">
+          SkateArt RollArt 2026
+        </span>
+      </footer>
 
       {/* ═══════════════════════════════════════════════
           SKATERS MANAGER OVERLAY MODAL

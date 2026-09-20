@@ -253,7 +253,7 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                     {i + 1}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold truncate text-slate-200">
+                    <p className="text-xs font-semibold truncate-safe text-slate-200">
                       {p.label || 'Sin etiqueta'}
                     </p>
                     <p className="text-[10px] font-mono text-slate-500">
@@ -291,7 +291,7 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                 #{selectedPointIndex + 1}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-bold text-white truncate">
+                <p className="text-xs font-bold text-white truncate-safe">
                   {selectedPoint.label || 'Nodo sin asignar'}
                 </p>
                 <p className="text-[10px] font-mono text-slate-400">

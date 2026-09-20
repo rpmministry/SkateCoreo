@@ -62,6 +62,29 @@ body {
   min-width: 48px;
 }
 
+/* Truncamiento seguro contra desbordamientos (Overlaps prevention) */
+.truncate-safe {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* Tipografía fluida con clamp() para responsividad matemática continua */
+.text-fluid-xs {
+  font-size: clamp(0.65rem, 1.8vw, 0.75rem);
+  line-height: 1.2;
+}
+
+.text-fluid-sm {
+  font-size: clamp(0.75rem, 2vw, 0.875rem);
+  line-height: 1.25;
+}
+
+.text-fluid-base {
+  font-size: clamp(0.875rem, 2.2vw, 1rem);
+  line-height: 1.3;
+}
+
 /* Micro-interacción Apple: feedback físico táctil */
 .interactive-tap {
   transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1), background-color 150ms ease, box-shadow 150ms ease, color 150ms ease;
@@ -69,4 +92,21 @@ body {
 }
 .interactive-tap:active {
   transform: scale(0.95);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ORIENTATION-AWARE LANDSCAPE LAYOUT RULES (Figma / Illustrator Style)
+   ═══════════════════════════════════════════════════════════════════ */
+@media (orientation: landscape) and (max-height: 600px) {
+  .landscape-compact-header {
+    height: 40px !important;
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+
+  .landscape-compact-waveform {
+    height: 52px !important;
+    min-height: 52px !important;
+    max-height: 52px !important;
+  }
 }
