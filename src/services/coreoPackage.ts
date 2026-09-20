@@ -95,7 +95,7 @@ export async function exportCoreoProject(
     createdAt: Date.now(),
     program: {
       title: programTitle || 'Programa Coreográfico',
-      category: category || 'RollArt Standard',
+      category: category || 'Standard',
       durationMs: points.length > 0 ? points[points.length - 1].time_ms + 5000 : 120000,
       skaterGender: skaterGender || 'female'
     },

@@ -208,7 +208,7 @@ export const AuthModal: React.FC = () => {
             SkateArt <span className="text-coral">Pro 2026</span>
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-xl mx-auto">
-            Plataforma Profesional de Trazado Coreográfico y Catálogo Oficial RollArt
+            Plataforma Profesional de Trazado Coreográfico y Catálogo Oficial de Figuras
           </p>
         </div>
 
@@ -249,7 +249,7 @@ export const AuthModal: React.FC = () => {
               <ul className="mt-4 space-y-2 text-xs text-slate-300">
                 <li className="flex items-center gap-2">
                   <Check className="w-4 h-4 text-mint shrink-0" />
-                  <span>Catálogo reglamentario RollArt 2026 y cálculo de BV</span>
+                  <span>Catálogo reglamentario de figuras y cálculo de BV</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <Check className="w-4 h-4 text-mint shrink-0" />
@@ -525,7 +525,7 @@ export const AuthModal: React.FC = () => {
 
         {/* ── Footer ── */}
         <div className="text-center mt-5 text-[11px] text-slate-500 space-x-3">
-          <span>SkateArt Pro v2.6 · RollArt Compliant</span>
+          <span>SkateArt Pro v2.6</span>
           <span>•</span>
           <a
             href="https://alsiztech.com"

@@ -382,7 +382,7 @@ export const AudioStudio: React.FC<AudioStudioProps> = ({
       const rawBlob = audioEngine.getRawAudioBlob() || (audioState.hasAudioLoaded ? audioEngine.exportBufferToWav() : null);
       const blob = await exportCoreoProject(
         currentProgram?.title || 'Programa Coreográfico SkateArt',
-        'RollArt Standard',
+        'Standard',
         store.skaterGender,
         store.points,
         rawBlob,
@@ -964,12 +964,12 @@ export const AudioStudio: React.FC<AudioStudioProps> = ({
           </div>
         </div>
 
-        {/* 2. METRÓNOMO & GUÍAS DE VOZ ROLLART */}
+        {/* 2. METRÓNOMO & GUÍAS DE VOZ */}
         <div className="bg-zinc-950 border border-sky-900/50 rounded-2xl p-5 shadow-xl space-y-4">
           <div className="flex items-center justify-between border-b border-sky-900/50 pb-3">
             <h3 className="text-xs font-bold text-sky-400 uppercase tracking-wider flex items-center gap-2">
               <Timer className="w-4 h-4 text-sky-400" />
-              {t('metronome.title', 'Metrónomo & Guías RollArt')}
+              {t('metronome.title', 'Metrónomo & Guías de Voz')}
             </h3>
             <span className="text-[10px] font-mono text-sky-300 bg-sky-950 px-2 py-0.5 rounded border border-sky-800">
               Lookahead Sync
@@ -1051,12 +1051,12 @@ export const AudioStudio: React.FC<AudioStudioProps> = ({
               </div>
 
               <div>
-                <label className="text-sky-300/80 block mb-1">Compás RollArt:</label>
+                <label className="text-sky-300/80 block mb-1">Compás:</label>
                 <div className="flex flex-wrap gap-1">
                   {[
                     { sig: 1, label: '1/1', desc: 'Pulso continuo' },
                     { sig: 2, label: '2/4', desc: 'Marcha / Polka (2 tiempos)' },
-                    { sig: 3, label: '3/4', desc: 'Vals RollArt (3 tiempos)' },
+                    { sig: 3, label: '3/4', desc: 'Vals (3 tiempos)' },
                     { sig: 4, label: '4/4', desc: 'Estándar (4 tiempos)' },
                     { sig: 6, label: '6/8', desc: 'Ternario compuesto' }
                   ].map(({ sig, label, desc }) => (

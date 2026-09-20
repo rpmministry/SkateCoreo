@@ -82,6 +82,54 @@ function runRinkMathTests() {
   assert(isMainNode(testPoints[3], 3, testPoints) === true, 'Nodo con figura técnica "Axel" es Nodo Principal');
   assert(isMainNode(testPoints[4], 4, testPoints) === true, 'Nodo final es Nodo Principal');
 
+  // 8. Movimiento exacto milimétrico sobre curva/bucle compleja (Path Following)
+  const complexLoopPath = [
+    { x: 10, y: 10 },
+    { x: 15, y: 15 },
+    { x: 20, y: 10 },
+    { x: 15, y: 5 },
+    { x: 10, y: 10 }
+  ];
+  const loopPoints: ChoreographyPathPoint[] = [
+    { id: 'loop-start', x: 10, y: 10, time_ms: 0, path: complexLoopPath },
+    { id: 'loop-end', x: 10, y: 10, time_ms: 4000 }
+  ];
+
+  // A t=0.25 (1000ms), debe estar en el vértice (15, 15)
+  const avatarAt1s = RinkMath.interpolateSkaterPosition(loopPoints, 1000);
+  assert(avatarAt1s !== null && Math.abs(avatarAt1s.x - 15) < 0.1 && Math.abs(avatarAt1s.y - 15) < 0.1, 'Avatar sigue milimétricamente el primer vértice del bucle');
+
+  // A t=0.5 (2000ms), debe estar en el extremo (20, 10)
+  const avatarAt2s = RinkMath.interpolateSkaterPosition(loopPoints, 2000);
+  assert(avatarAt2s !== null && Math.abs(avatarAt2s.x - 20) < 0.1 && Math.abs(avatarAt2s.y - 10) < 0.1, 'Avatar sigue milimétricamente el extremo del bucle');
+
+  // A t=0.75 (3000ms), debe estar en (15, 5)
+  const avatarAt3s = RinkMath.interpolateSkaterPosition(loopPoints, 3000);
+  assert(avatarAt3s !== null && Math.abs(avatarAt3s.x - 15) < 0.1 && Math.abs(avatarAt3s.y - 5) < 0.1, 'Avatar sigue milimétricamente el retorno del bucle');
+
+  // 9. Orientación cinemática exacta calculada por vector tangente
+  const straightHorizontalPath = [
+    { x: 10, y: 10 },
+    { x: 20, y: 10 }
+  ];
+  const evalStraight = RinkMath.evaluateSplinePath(straightHorizontalPath, 0.5);
+  assert(Math.abs(evalStraight.angleRad - 0) < 0.01, 'Orientación hacia la derecha es exactamente 0 radianes');
+
+  const straightVerticalPath = [
+    { x: 10, y: 10 },
+    { x: 10, y: 20 }
+  ];
+  const evalVertical = RinkMath.evaluateSplinePath(straightVerticalPath, 0.5);
+  assert(Math.abs(evalVertical.angleRad - Math.PI / 2) < 0.01, 'Orientación hacia abajo es exactamente PI/2 radianes');
+
+  // 10. Segmento sin path (tap simple) avanza en línea recta exacta
+  const tapPoints: ChoreographyPathPoint[] = [
+    { id: 'tap-1', x: 10, y: 10, time_ms: 0 },
+    { id: 'tap-2', x: 30, y: 20, time_ms: 2000 }
+  ];
+  const avatarTapMid = RinkMath.interpolateSkaterPosition(tapPoints, 1000);
+  assert(avatarTapMid !== null && avatarTapMid.x === 20 && avatarTapMid.y === 15, 'Tap simple avanza exactamente en el punto medio de la recta (20, 15)');
+
   console.log(`\nResultado Módulo 2: ${passed}/${total} pruebas pasadas con éxito.\n`);
 }
 

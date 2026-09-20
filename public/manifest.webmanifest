@@ -1,7 +1,7 @@
 {
-  "name": "SkateArt - RollArt Digital Ecosystem",
+  "name": "SkateArt - Digital Ecosystem",
   "short_name": "SkateArt",
-  "description": "Ecosistema Digital PWA para Patinaje Artístico con Sistema RollArt Oficial",
+  "description": "Ecosistema Digital PWA para Patinaje Artístico",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

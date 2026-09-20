@@ -179,6 +179,7 @@ export class RinkRenderer {
 
       const isSegmentSelected = options.selectedPointId === p0.id || options.selectedPointId === p1.id;
       const hasSplinePath = Boolean(p0.path && p0.path.length >= 2);
+      const hasCustomCps = p0.cp1x !== undefined && p0.cp2x !== undefined;
 
       ctx.save();
       ctx.lineCap = 'round';
@@ -188,14 +189,19 @@ export class RinkRenderer {
         ctx.beginPath();
         if (hasSplinePath) {
           RinkRenderer.traceSplinePath(ctx, p0.path!, metrics);
-        } else {
+        } else if (hasCustomCps) {
           const pt0 = RinkMath.metersToPixels(p0.x, p0.y, metrics);
           const pt1 = RinkMath.metersToPixels(p1.x, p1.y, metrics);
-          const { cp1: cp1M, cp2: cp2M } = RinkMath.getSegmentControlPoints(p0, p1);
-          const cp1 = RinkMath.metersToPixels(cp1M.x, cp1M.y, metrics);
-          const cp2 = RinkMath.metersToPixels(cp2M.x, cp2M.y, metrics);
+          const cp1 = RinkMath.metersToPixels(p0.cp1x!, p0.cp1y ?? p0.y, metrics);
+          const cp2 = RinkMath.metersToPixels(p0.cp2x!, p0.cp2y ?? p1.y, metrics);
           ctx.moveTo(pt0.px, pt0.py);
           ctx.bezierCurveTo(cp1.px, cp1.py, cp2.px, cp2.py, pt1.px, pt1.py);
+        } else {
+          // Si y solo si un segmento es un tap simple (sin puntos intermedios), trazar una línea recta directa
+          const pt0 = RinkMath.metersToPixels(p0.x, p0.y, metrics);
+          const pt1 = RinkMath.metersToPixels(p1.x, p1.y, metrics);
+          ctx.moveTo(pt0.px, pt0.py);
+          ctx.lineTo(pt1.px, pt1.py);
         }
         ctx.stroke();
       };
@@ -344,14 +350,18 @@ export class RinkRenderer {
         ctx.beginPath();
         if (prevP0.path && prevP0.path.length >= 2) {
           RinkRenderer.traceSplinePath(ctx, prevP0.path, metrics);
-        } else {
-          const { cp1: pCp1M, cp2: pCp2M } = RinkMath.getSegmentControlPoints(prevP0, prevP1);
+        } else if (prevP0.cp1x !== undefined && prevP0.cp2x !== undefined) {
           const ptPrev0 = RinkMath.metersToPixels(prevP0.x, prevP0.y, metrics);
           const ptPrev1 = RinkMath.metersToPixels(prevP1.x, prevP1.y, metrics);
-          const cpPrev1 = RinkMath.metersToPixels(pCp1M.x, pCp1M.y, metrics);
-          const cpPrev2 = RinkMath.metersToPixels(pCp2M.x, pCp2M.y, metrics);
+          const cpPrev1 = RinkMath.metersToPixels(prevP0.cp1x, prevP0.cp1y ?? prevP0.y, metrics);
+          const cpPrev2 = RinkMath.metersToPixels(prevP0.cp2x, prevP0.cp2y ?? prevP1.y, metrics);
           ctx.moveTo(ptPrev0.px, ptPrev0.py);
           ctx.bezierCurveTo(cpPrev1.px, cpPrev1.py, cpPrev2.px, cpPrev2.py, ptPrev1.px, ptPrev1.py);
+        } else {
+          const ptPrev0 = RinkMath.metersToPixels(prevP0.x, prevP0.y, metrics);
+          const ptPrev1 = RinkMath.metersToPixels(prevP1.x, prevP1.y, metrics);
+          ctx.moveTo(ptPrev0.px, ptPrev0.py);
+          ctx.lineTo(ptPrev1.px, ptPrev1.py);
         }
         ctx.stroke();
         ctx.restore();
@@ -367,17 +377,20 @@ export class RinkRenderer {
       ctx.beginPath();
       if (p0.path && p0.path.length >= 2) {
         RinkRenderer.tracePartialSplinePath(ctx, p0.path, t, metrics);
-      } else {
-        const { cp1: cp1M, cp2: cp2M } = RinkMath.getSegmentControlPoints(p0, p1);
+      } else if (p0.cp1x !== undefined && p0.cp2x !== undefined) {
         const pt0 = RinkMath.metersToPixels(p0.x, p0.y, metrics);
-        const q1x = (1 - t) * p0.x + t * cp1M.x;
-        const q1y = (1 - t) * p0.y + t * cp1M.y;
-        const q2x = (1 - t) * cp1M.x + t * cp2M.x;
-        const q2y = (1 - t) * cp1M.y + t * cp2M.y;
+        const q1x = (1 - t) * p0.x + t * p0.cp1x;
+        const q1y = (1 - t) * p0.y + t * (p0.cp1y ?? p0.y);
+        const q2x = (1 - t) * p0.cp1x + t * p0.cp2x;
+        const q2y = (1 - t) * (p0.cp1y ?? p0.y) + t * (p0.cp2y ?? p1.y);
         const subCp1 = RinkMath.metersToPixels(q1x, q1y, metrics);
         const subCp2 = RinkMath.metersToPixels(q2x, q2y, metrics);
         ctx.moveTo(pt0.px, pt0.py);
         ctx.bezierCurveTo(subCp1.px, subCp1.py, subCp2.px, subCp2.py, avatarPx.px, avatarPx.py);
+      } else {
+        const pt0 = RinkMath.metersToPixels(p0.x, p0.y, metrics);
+        ctx.moveTo(pt0.px, pt0.py);
+        ctx.lineTo(avatarPx.px, avatarPx.py);
       }
       ctx.stroke();
     };

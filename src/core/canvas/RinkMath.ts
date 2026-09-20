@@ -83,10 +83,10 @@ export class RinkMath {
     const dy = p1.y - p0.y;
 
     const rawCp1x = p0.cp1x !== undefined ? p0.cp1x : p0.x + dx * 0.33;
-    const rawCp1y = p0.cp1y !== undefined ? p0.cp1y : p0.y + dy * 0.2;
+    const rawCp1y = p0.cp1y !== undefined ? p0.cp1y : p0.y + dy * 0.33;
 
     const rawCp2x = p0.cp2x !== undefined ? p0.cp2x : p1.x - dx * 0.33;
-    const rawCp2y = p0.cp2y !== undefined ? p0.cp2y : p1.y - dy * 0.2;
+    const rawCp2y = p0.cp2y !== undefined ? p0.cp2y : p1.y - dy * 0.33;
 
     // Asegurar que los tiradores nunca excedan los márgenes perimetrales de la pista
     const cp1x = Math.max(0.4, Math.min(49.6, rawCp1x));
@@ -316,24 +316,17 @@ export class RinkMath {
     const segLen = dists[segIdx + 1] - dists[segIdx];
     const u = segLen > 0 ? (targetDist - dists[segIdx]) / segLen : 0;
 
-    // Puntos de control para Catmull-Rom: pPrev, p0, p1, pNext
     const p0 = path[segIdx];
     const p1 = path[segIdx + 1];
-    const pPrev = segIdx > 0 ? path[segIdx - 1] : { x: 2 * p0.x - p1.x, y: 2 * p0.y - p1.y };
-    const pNext = segIdx < n - 2 ? path[segIdx + 2] : { x: 2 * p1.x - p0.x, y: 2 * p1.y - p0.y };
 
-    // Convertir Catmull-Rom a Bézier cúbico (tensión = 0.5)
-    const factor = 1 / 6;
-    const cp1 = {
-      x: p0.x + (p1.x - pPrev.x) * factor,
-      y: p0.y + (p1.y - pPrev.y) * factor
-    };
-    const cp2 = {
-      x: p1.x - (pNext.x - p0.x) * factor,
-      y: p1.y - (pNext.y - p0.y) * factor
-    };
+    // Recorrido exacto milimétrico a lo largo de los puntos de la huella dibujada
+    const x = p0.x + (p1.x - p0.x) * u;
+    const y = p0.y + (p1.y - p0.y) * u;
 
-    return this.evaluateCubicBezier(p0, cp1, cp2, p1, u);
+    // Vector tangente del segmento actual del trazo por el que va pasando
+    const angleRad = Math.atan2(p1.y - p0.y, p1.x - p0.x);
+
+    return { x, y, angleRad };
   }
 
   /**
@@ -378,7 +371,7 @@ export class RinkMath {
         const timeSpanMs = p1.time_ms - p0.time_ms;
         const t = timeSpanMs > 0 ? (currentTimeMs - p0.time_ms) / timeSpanMs : 0;
 
-        // Si el segmento posee huella de alta fidelidad (Catmull-Rom Spline), seguir la curva compleja
+        // Si el segmento posee huella de alta fidelidad, la patinadora recorre única y exclusivamente ese trazo
         if (p0.path && p0.path.length >= 2) {
           const splinePt = this.evaluateSplinePath(p0.path, t);
           const totalDist = this.getPathLength(p0.path);
@@ -394,11 +387,31 @@ export class RinkMath {
           };
         }
 
-        const { cp1, cp2 } = this.getSegmentControlPoints(p0, p1);
-        const { x, y, angleRad } = this.evaluateCubicBezier(p0, cp1, cp2, p1, t);
+        // Si el segmento tiene tiradores de control manipulados explícitamente (Drag-to-Curve)
+        if (p0.cp1x !== undefined && p0.cp2x !== undefined) {
+          const cp1 = { x: p0.cp1x, y: p0.cp1y ?? p0.y };
+          const cp2 = { x: p0.cp2x, y: p0.cp2y ?? p1.y };
+          const { x, y, angleRad } = this.evaluateCubicBezier(p0, cp1, cp2, p1, t);
 
+          const distanceM = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+          const speedMps = timeSpanMs > 0 ? (distanceM / (timeSpanMs / 1000)) : 0;
+
+          return {
+            x,
+            y,
+            angleRad,
+            speedMps: Math.round(speedMps * 10) / 10,
+            activeElement: null,
+            activePointIndex: i
+          };
+        }
+
+        // Tap simple (sin puntos intermedios): avance en línea recta directa entre nodos
         const distanceM = Math.hypot(p1.x - p0.x, p1.y - p0.y);
         const speedMps = timeSpanMs > 0 ? (distanceM / (timeSpanMs / 1000)) : 0;
+        const x = p0.x + (p1.x - p0.x) * t;
+        const y = p0.y + (p1.y - p0.y) * t;
+        const angleRad = Math.atan2(p1.y - p0.y, p1.x - p0.x);
 
         return {
           x,

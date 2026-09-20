@@ -834,13 +834,33 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       touchEndM = RinkMath.pixelsToMeters(worldPx, worldPy, metrics, DEFAULT_RINK_DIMENSIONS);
     }
 
-    if (rawStroke.length > 0 && touchEndM) {
-      const clampedEndM = {
-        x: Math.max(0.2, Math.min(DEFAULT_RINK_DIMENSIONS.lengthMeters - 0.2, touchEndM.mX)),
-        y: Math.max(0.2, Math.min(DEFAULT_RINK_DIMENSIONS.widthMeters - 0.2, touchEndM.mY)),
-      };
-      // Forzar que el último punto del trazo coincida exactamente con la coordenada donde se levantó el dedo
-      rawStroke[rawStroke.length - 1] = clampedEndM;
+    // Detectar si el final del trazo aterrizó sobre o cerca de un Nodo Maestro existente (Snap a Nodo)
+    let targetEndNode: ChoreographyPoint | null = null;
+    if (touchEndM) {
+      let minEndDist = Infinity;
+      const snapRadiusMeters = 1.5; // Tolerancia de enganche táctil en pista (~30px)
+      for (const p of points) {
+        if (startNode && p.id === startNode.id) continue;
+        const d = Math.hypot(touchEndM.mX - p.x, touchEndM.mY - p.y);
+        if (d < snapRadiusMeters && d < minEndDist) {
+          minEndDist = d;
+          targetEndNode = p;
+        }
+      }
+    }
+
+    if (rawStroke.length > 0) {
+      if (targetEndNode) {
+        // Imantar el último punto del trazo directamente al centro del nodo destino existente
+        rawStroke[rawStroke.length - 1] = { x: targetEndNode.x, y: targetEndNode.y };
+      } else if (touchEndM) {
+        const clampedEndM = {
+          x: Math.max(0.2, Math.min(DEFAULT_RINK_DIMENSIONS.lengthMeters - 0.2, touchEndM.mX)),
+          y: Math.max(0.2, Math.min(DEFAULT_RINK_DIMENSIONS.widthMeters - 0.2, touchEndM.mY)),
+        };
+        // Forzar que el último punto del trazo coincida exactamente con la coordenada donde se levantó el dedo
+        rawStroke[rawStroke.length - 1] = clampedEndM;
+      }
     }
 
     if (startNode && rawStroke.length > 0) {
@@ -871,56 +891,113 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       if (generated.length >= 2) {
         pushHistory();
         let finalPoints: ChoreographyPoint[] = [];
+        const durationMs = generated[1].time_ms - generated[0].time_ms;
 
-        if (startNode) {
-          // Conectar al Nodo Maestro existente (Nodo 1 -> Curva / Loop / Spline -> Nodo 2)
-          // Asigna la huella de alta fidelidad y tiradores de respaldo al nodo de inicio
+        if (startNode && targetEndNode) {
+          // CASO A: Conexión directa entre DOS NODOS EXISTENTES (Nodo 1 -> Trazo dibujado -> Nodo 2)
+          // Cero duplicación de nodos. Actualiza el path de startNode hacia targetEndNode sin crear nodos fantasma.
           const updatedExisting: ChoreographyPoint[] = points.map((p) => {
             if (p.id === startNode.id) {
-              const cp1 = generated[0].controlPoint1 || { x: generated[0].x, y: generated[0].y };
-              const cp2 = generated[0].controlPoint2 || { x: generated[0].x, y: generated[0].y };
               return {
                 ...p,
-                cp1x: cp1.x,
-                cp1y: cp1.y,
-                cp2x: cp2.x,
-                cp2y: cp2.y,
-                controlPoint1: cp1,
-                controlPoint2: cp2,
-                path: generated[0].path, // Huella geométrica completa del trazo
+                cp1x: generated[0].cp1x,
+                cp1y: generated[0].cp1y,
+                cp2x: generated[0].cp2x,
+                cp2y: generated[0].cp2y,
+                controlPoint1: generated[0].controlPoint1,
+                controlPoint2: generated[0].controlPoint2,
+                path: generated[0].path, // Huella exacta del trazo dibujado
+              };
+            }
+            if (p.id === targetEndNode.id && targetEndNode.time_ms <= startNode.time_ms) {
+              const adjustedTime = startNode.time_ms + durationMs;
+              return {
+                ...p,
+                time_ms: adjustedTime,
+                timestamp: adjustedTime,
               };
             }
             return p;
           });
 
-          // Puntos nuevos de la extensión: exactamente UN nuevo Nodo Maestro (Nodo 2)
-          const newExtensionPoints: ChoreographyPoint[] = generated.slice(1).map((pt, idx) => ({
-            ...pt,
-            id: `pt-freehand-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
-            type: 'Step',
-            label: '',
-            isMainNode: true,
-          }));
+          finalPoints = [...updatedExisting].sort((a, b) => a.time_ms - b.time_ms);
+          setSelectedPointId(targetEndNode.id);
+        } else if (startNode) {
+          // CASO B: Trazo desde nodo existente hacia espacio libre (Crea exactamente UN nuevo nodo final)
+          const updatedExisting: ChoreographyPoint[] = points.map((p) => {
+            if (p.id === startNode.id) {
+              return {
+                ...p,
+                cp1x: generated[0].cp1x,
+                cp1y: generated[0].cp1y,
+                cp2x: generated[0].cp2x,
+                cp2y: generated[0].cp2y,
+                controlPoint1: generated[0].controlPoint1,
+                controlPoint2: generated[0].controlPoint2,
+                path: generated[0].path,
+              };
+            }
+            return p;
+          });
 
-          finalPoints = [...updatedExisting, ...newExtensionPoints].sort((a, b) => a.time_ms - b.time_ms);
-        } else {
-          // Trazo nuevo independiente: exactamente dos Nodos Maestros (Nodo A inicio y Nodo B fin)
-          const stamped: ChoreographyPoint[] = generated.map((pt, idx) => ({
-            ...pt,
-            id: `pt-freehand-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
+          const newExtensionPoint: ChoreographyPoint = {
+            ...generated[1],
+            id: `pt-freehand-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
             type: 'Step',
             label: '',
             isMainNode: true,
-          }));
+          };
+
+          finalPoints = [...updatedExisting, newExtensionPoint].sort((a, b) => a.time_ms - b.time_ms);
+          setSelectedPointId(newExtensionPoint.id);
+        } else if (targetEndNode) {
+          // CASO C: Trazo desde espacio libre hacia un nodo existente (Crea UN nuevo nodo inicial)
+          const newStartPoint: ChoreographyPoint = {
+            ...generated[0],
+            id: `pt-freehand-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            type: 'Step',
+            label: '',
+            isMainNode: true,
+          };
+
+          const updatedExisting: ChoreographyPoint[] = points.map((p) => {
+            if (p.id === targetEndNode.id && targetEndNode.time_ms <= newStartPoint.time_ms) {
+              const adjustedTime = newStartPoint.time_ms + durationMs;
+              return {
+                ...p,
+                time_ms: adjustedTime,
+                timestamp: adjustedTime,
+              };
+            }
+            return p;
+          });
+
+          finalPoints = [...updatedExisting, newStartPoint].sort((a, b) => a.time_ms - b.time_ms);
+          setSelectedPointId(targetEndNode.id);
+        } else {
+          // CASO D: Trazo nuevo independiente en espacio libre (Crea exactamente DOS nodos)
+          const stamped: ChoreographyPoint[] = [
+            {
+              ...generated[0],
+              id: `pt-freehand-${Date.now()}-0-${Math.random().toString(36).slice(2, 6)}`,
+              type: 'Step',
+              label: '',
+              isMainNode: true,
+            },
+            {
+              ...generated[1],
+              id: `pt-freehand-${Date.now()}-1-${Math.random().toString(36).slice(2, 6)}`,
+              type: 'Step',
+              label: '',
+              isMainNode: true,
+            }
+          ];
 
           finalPoints = [...points, ...stamped].sort((a, b) => a.time_ms - b.time_ms);
+          setSelectedPointId(stamped[1].id);
         }
 
         setPoints(finalPoints);
-        const lastCreated = finalPoints[finalPoints.length - 1];
-        if (lastCreated) {
-          setSelectedPointId(lastCreated.id);
-        }
         if (finalPoints.length >= 2) {
           setPhase('curve');
         }

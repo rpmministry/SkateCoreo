@@ -242,7 +242,7 @@ export function App() {
       const metroConfig = audioEngine.metronome.getConfig();
       const coreoBlob = await exportCoreoProject(
         selectedProgram?.title || 'Rutina Patinaje',
-        selectedSkater?.category || 'RollArt',
+        selectedSkater?.category || 'Standard',
         useChoreographyStore.getState().skaterGender,
         points,
         rawBlob,
@@ -1103,9 +1103,6 @@ export function App() {
           >
             AlsisTech
           </a>
-        </span>
-        <span className="hidden sm:inline text-slate-500 text-[11px] font-mono">
-          SkateArt RollArt 2026
         </span>
       </footer>
 

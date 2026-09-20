@@ -54,7 +54,7 @@ export class MediaSessionManager {
     }
   }
 
-  public updateMetadata(title: string, artist: string = 'Patinadora', album: string = 'SkateArt RollArt') {
+  public updateMetadata(title: string, artist: string = 'Patinadora', album: string = 'SkateArt') {
     if (!this.isSupported) return;
 
     try {
