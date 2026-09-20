@@ -109,7 +109,7 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
   const subTickCount = Math.floor(duration / subStepSec);
   const subTicks = Array.from({ length: subTickCount + 1 }, (_, i) => Math.round(i * subStepSec * 100) / 100);
 
-  const playheadPx = (currentTimeSec / duration) * effectiveWidth;
+  const playheadPx = Math.max(0, Math.min(effectiveWidth, (currentTimeSec / duration) * effectiveWidth));
 
   return (
     <div

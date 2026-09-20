@@ -217,11 +217,11 @@ export const useCanvasCamera = (initialCamera: CameraState = { x: 0, y: 0, zoom:
   }, []);
 
   /**
-   * 7. Zoom incremental por botones
+   * 7. Zoom incremental por botones (Pasos exactos del 10%)
    */
   const zoomIn = useCallback((canvasElement?: HTMLCanvasElement | null) => {
     setCamera((prev) => {
-      const newZoom = Math.min(MAX_ZOOM, prev.zoom * 1.25);
+      const newZoom = Math.min(MAX_ZOOM, Math.round((prev.zoom + 0.1) * 10) / 10);
       if (canvasElement) {
         const rect = canvasElement.getBoundingClientRect();
         const midX = rect.width / 2;
@@ -240,7 +240,7 @@ export const useCanvasCamera = (initialCamera: CameraState = { x: 0, y: 0, zoom:
 
   const zoomOut = useCallback((canvasElement?: HTMLCanvasElement | null) => {
     setCamera((prev) => {
-      const newZoom = Math.max(MIN_ZOOM, prev.zoom / 1.25);
+      const newZoom = Math.max(MIN_ZOOM, Math.round((prev.zoom - 0.1) * 10) / 10);
       if (canvasElement) {
         const rect = canvasElement.getBoundingClientRect();
         const midX = rect.width / 2;

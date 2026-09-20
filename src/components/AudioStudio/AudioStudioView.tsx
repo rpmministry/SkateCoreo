@@ -16,6 +16,8 @@ import {
   ZoomOut,
   RotateCcw,
   Sliders,
+  Menu,
+  Plus,
 } from 'lucide-react';
 import { useAudioStudioStore } from '../../store/useAudioStudioStore';
 import { audioEngine } from '../../services/audioEngine';
@@ -26,6 +28,7 @@ import { MultitrackTrackRow } from './MultitrackTrackRow';
 interface AudioStudioViewProps {
   onExportToRink?: () => void;
   onBackToRink?: () => void;
+  onOpenDrawer?: () => void;
 }
 
 const fmtTimeWithMs = (sec: number): string => {
@@ -39,8 +42,10 @@ const fmtTimeWithMs = (sec: number): string => {
 export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   onExportToRink,
   onBackToRink,
+  onOpenDrawer,
 }) => {
   const tracks = useAudioStudioStore((s) => s.tracks);
+  const additionalTracks = useAudioStudioStore((s) => s.additionalTracks);
   const audioNodes = useAudioStudioStore((s) => s.audioNodes);
   const currentTimeSec = useAudioStudioStore((s) => s.currentTimeSec);
   const totalDurationSec = useAudioStudioStore((s) => s.totalDurationSec);
@@ -48,6 +53,8 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   const metronomeConfig = useAudioStudioStore((s) => s.metronomeConfig);
   const isAnalyzingBpm = useAudioStudioStore((s) => s.isAnalyzingBpm);
 
+  const addAudioTrack = useAudioStudioStore((s) => s.addAudioTrack);
+  const removeAudioTrack = useAudioStudioStore((s) => s.removeAudioTrack);
   const setCurrentTimeSec = useAudioStudioStore((s) => s.setCurrentTimeSec);
   const setIsPlaying = useAudioStudioStore((s) => s.setIsPlaying);
   const setTrackBuffer = useAudioStudioStore((s) => s.setTrackBuffer);
@@ -61,6 +68,14 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   const [exportNotice, setExportNotice] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 640);
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  const widthOffset = isMobile ? 64 : 224;
+
   // Motor de Zoom y Paneo Dinámico Multidispositivo para el Estudio de Audio
   const {
     zoom,
@@ -73,7 +88,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     minZoom: 1.0,
     maxZoom: 35.0,
     initialZoom: 1.0,
-    widthOffset: 224, // Ancho exacto del panel sticky lateral izquierdo (w-56)
+    widthOffset,
     enableWheelPan: true,
   });
 
@@ -85,7 +100,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
 
     const dur = Math.max(10, totalDurationSec);
     const playheadRatio = Math.max(0, Math.min(1, currentTimeSec / dur));
-    const playheadPx = 224 + playheadRatio * contentWidth;
+    const playheadPx = widthOffset + playheadRatio * contentWidth;
 
     const left = container.scrollLeft;
     const right = left + container.clientWidth;
@@ -148,7 +163,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   };
 
   // Carga de archivo de audio
-  const handleFileUpload = async (file: File, trackKey: 'music' | 'voice' = 'music') => {
+  const handleFileUpload = async (file: File, trackKey: string = 'music') => {
     try {
       audioEngine.initAudioContext();
       const ctx = (audioEngine as any).ctx as AudioContext;
@@ -204,22 +219,35 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
       {/* ═══════════════════════════════════════════════
           HEADER: Barra de Transporte y Navegación DAW Lite
           ═══════════════════════════════════════════════ */}
-      <header className="h-14 shrink-0 bg-[#0E1322] border-b border-white/10 px-4 flex items-center justify-between z-20">
-        {/* Izquierda: Volver a la Pista + Título */}
-        <div className="flex items-center gap-3">
+      <header className="h-14 shrink-0 bg-[#0E1322] border-b border-white/10 px-3 sm:px-4 flex items-center justify-between z-20">
+        {/* Izquierda: Volver a la Pista + Menú Hamburguesa + Título */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          {onOpenDrawer && (
+            <button
+              type="button"
+              onClick={onOpenDrawer}
+              className="p-1.5 sm:p-2 rounded-xl text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-all active:scale-95"
+              title="Abrir menú de navegación"
+            >
+              <Menu className="w-4 h-4" />
+            </button>
+          )}
+
           <button
             type="button"
             onClick={onBackToRink}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-all"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-all"
             title="Regresar a la vista de la pista 2D"
           >
             <span>← Pista 2D</span>
           </button>
 
-          <div className="flex items-center gap-2 border-l border-white/10 pl-3">
+          <div className="flex items-center gap-2 border-l border-white/10 pl-2 sm:pl-3">
             <span className="w-2.5 h-2.5 rounded-full bg-cyan shadow-glow-cyan" />
-            <span className="text-sm font-black tracking-wide text-white uppercase">Estudio de Audio</span>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan/10 text-cyan border border-cyan/25 font-bold uppercase">
+            <span className="text-xs sm:text-sm font-black tracking-wide text-white uppercase truncate max-w-[120px] sm:max-w-none">
+              Estudio de Audio
+            </span>
+            <span className="hidden sm:inline text-[10px] px-2 py-0.5 rounded-full bg-cyan/10 text-cyan border border-cyan/25 font-bold uppercase">
               DAW Lite
             </span>
           </div>
@@ -372,14 +400,14 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           touchAction: zoom > 1 ? 'pan-x' : 'none',
         }}
       >
-        <div style={{ width: `${contentWidth + 224}px`, minWidth: '100%' }}>
+        <div style={{ width: `${contentWidth + widthOffset}px`, minWidth: '100%' }}>
           {/* Fila de la Regla Graduada de Tiempo con esquina Sticky */}
           <div className="flex border-b border-white/10 bg-slate-950">
             {/* Esquina Sticky Izquierda: Controles de Zoom del Workspace */}
-            <div className="w-56 shrink-0 bg-slate-950/95 border-r border-white/10 px-3 py-1 flex items-center justify-between sticky left-0 z-30">
+            <div className="w-16 sm:w-56 shrink-0 bg-slate-950/95 border-r border-white/10 px-2 sm:px-3 py-1 flex items-center justify-between sticky left-0 z-30">
               <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-300">
-                <Sliders className="w-3.5 h-3.5 text-cyan" />
-                <span>Pistas</span>
+                <Sliders className="w-3.5 h-3.5 text-cyan shrink-0" />
+                <span className="hidden sm:inline">Pistas</span>
               </div>
 
               {/* Botones de Zoom In / Out / Reset */}
@@ -395,7 +423,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
                 </button>
 
                 <span
-                  className="font-mono text-[10px] text-cyan font-bold px-1 min-w-[32px] text-center"
+                  className="font-mono text-[10px] text-cyan font-bold px-1 min-w-[28px] sm:min-w-[32px] text-center"
                   title="Zoom horizontal actual"
                 >
                   {zoom.toFixed(1)}x
@@ -415,7 +443,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
                   <button
                     type="button"
                     onClick={resetZoom}
-                    className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-cyan/15 text-cyan hover:bg-cyan/25 transition-all flex items-center gap-0.5"
+                    className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-cyan/15 text-cyan hover:bg-cyan/25 transition-all hidden sm:flex items-center gap-0.5"
                     title="Restablecer a vista completa (1x)"
                   >
                     <RotateCcw className="w-2.5 h-2.5" />
@@ -436,13 +464,14 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             </div>
           </div>
 
-          {/* Pistas Multitrack (Música, Voz, Metrónomo) */}
+          {/* Pistas Multitrack (Música, Voz, Metrónomo, Libres) */}
           <div className="divide-y divide-white/5">
             <MultitrackTrackRow
               track={tracks.music}
               totalDurationSec={totalDurationSec}
               currentTimeSec={currentTimeSec}
               contentWidth={contentWidth}
+              widthOffset={widthOffset}
               onUploadFile={(file) => handleFileUpload(file, 'music')}
               onSeek={handleSeek}
             />
@@ -452,6 +481,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
               totalDurationSec={totalDurationSec}
               currentTimeSec={currentTimeSec}
               contentWidth={contentWidth}
+              widthOffset={widthOffset}
               onUploadFile={(file) => handleFileUpload(file, 'voice')}
               onSeek={handleSeek}
             />
@@ -461,8 +491,36 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
               totalDurationSec={totalDurationSec}
               currentTimeSec={currentTimeSec}
               contentWidth={contentWidth}
+              widthOffset={widthOffset}
               onSeek={handleSeek}
             />
+
+            {/* Pistas adicionales dinámicas */}
+            {additionalTracks.map((trk) => (
+              <MultitrackTrackRow
+                key={trk.id}
+                track={trk}
+                totalDurationSec={totalDurationSec}
+                currentTimeSec={currentTimeSec}
+                contentWidth={contentWidth}
+                widthOffset={widthOffset}
+                onUploadFile={(file) => handleFileUpload(file, trk.id)}
+                onSeek={handleSeek}
+                onRemove={() => removeAudioTrack(trk.id)}
+              />
+            ))}
+
+            {/* Botón "+ Añadir Pista de Audio" */}
+            <div className="p-3 bg-[#060911]/80 flex items-center border-t border-white/5">
+              <button
+                type="button"
+                onClick={() => addAudioTrack()}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-dashed border-white/20 hover:border-cyan/50 hover:bg-cyan/5 transition-all active:scale-95"
+              >
+                <Plus className="w-3.5 h-3.5 text-cyan" />
+                <span>Añadir Pista de Audio</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>

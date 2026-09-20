@@ -10,7 +10,13 @@ export interface AudioStudioStoreState {
     music: AudioStudioTrack;
     voice: AudioStudioTrack;
     metronome: AudioStudioTrack;
+    [key: string]: AudioStudioTrack;
   };
+  additionalTracks: AudioStudioTrack[];
+
+  // Acciones de Pistas Libres Dinámicas (+ Añadir Pista de Audio)
+  addAudioTrack: (name?: string) => AudioStudioTrack;
+  removeAudioTrack: (id: string) => void;
 
   // Marcadores de tiempo (Nodos sin coordenadas espaciales)
   audioNodes: AudioTimeNode[];
@@ -28,12 +34,12 @@ export interface AudioStudioStoreState {
   isAnalyzingBpm: boolean;
 
   // Acciones de Pistas
-  setTrackBuffer: (trackKey: 'music' | 'voice', buffer: AudioBuffer, fileName?: string) => void;
-  setTrackVolume: (trackKey: 'music' | 'voice' | 'metronome', volume: number) => void;
-  toggleTrackMute: (trackKey: 'music' | 'voice' | 'metronome') => void;
-  toggleTrackSolo: (trackKey: 'music' | 'voice' | 'metronome') => void;
-  setTrackTrim: (trackKey: 'music' | 'voice', trimStartSec: number, trimEndSec: number) => void;
-  setTrackFades: (trackKey: 'music' | 'voice', fadeInSec: number, fadeOutSec: number) => void;
+  setTrackBuffer: (trackKey: string, buffer: AudioBuffer, fileName?: string) => void;
+  setTrackVolume: (trackKey: string, volume: number) => void;
+  toggleTrackMute: (trackKey: string) => void;
+  toggleTrackSolo: (trackKey: string) => void;
+  setTrackTrim: (trackKey: string, trimStartSec: number, trimEndSec: number) => void;
+  setTrackFades: (trackKey: string, fadeInSec: number, fadeOutSec: number) => void;
 
   // Acciones de Nodos Temporales (Marcadores)
   addTimeNode: (timestampSec: number, label?: string) => AudioTimeNode;
@@ -105,6 +111,36 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
       fadeOutSec: 0,
     },
   },
+  additionalTracks: [],
+
+  addAudioTrack: (name) => {
+    const newId = `track-user-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const trackCount = get().additionalTracks.length + 1;
+    const newTrack: AudioStudioTrack = {
+      id: newId,
+      name: name || `Pista Libre ${trackCount}`,
+      type: 'music',
+      buffer: null,
+      volume: 1.0,
+      muted: false,
+      solo: false,
+      trimStartSec: 0,
+      trimEndSec: 0,
+      fadeInSec: 0,
+      fadeOutSec: 0,
+      fileName: null,
+    };
+    set((state) => ({
+      additionalTracks: [...state.additionalTracks, newTrack],
+    }));
+    return newTrack;
+  },
+
+  removeAudioTrack: (id) => {
+    set((state) => ({
+      additionalTracks: state.additionalTracks.filter((t) => t.id !== id),
+    }));
+  },
 
   audioNodes: [],
   selectedNodeId: null,
@@ -121,23 +157,36 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   setTrackBuffer: (trackKey, buffer, fileName) => {
     const duration = buffer.duration;
     set((state) => {
-      const updatedTrack = {
-        ...state.tracks[trackKey],
-        buffer,
-        trimEndSec: duration,
-        fileName: fileName || state.tracks[trackKey].fileName,
-      };
+      const isCore = !!state.tracks[trackKey];
+      const updatedTracks = { ...state.tracks };
+      let updatedAdditional = [...state.additionalTracks];
 
-      const maxDuration = Math.max(
-        duration,
-        trackKey === 'music' ? duration : (state.tracks.music.buffer?.duration || 120)
-      );
+      if (isCore) {
+        updatedTracks[trackKey] = {
+          ...state.tracks[trackKey],
+          buffer,
+          trimEndSec: duration,
+          fileName: fileName || state.tracks[trackKey].fileName,
+        };
+      } else {
+        updatedAdditional = updatedAdditional.map((t) =>
+          t.id === trackKey
+            ? { ...t, buffer, trimEndSec: duration, fileName: fileName || t.fileName }
+            : t
+        );
+      }
+
+      const allBuffers = [
+        updatedTracks.music?.buffer,
+        updatedTracks.voice?.buffer,
+        ...updatedAdditional.map((t) => t.buffer),
+      ].filter(Boolean) as AudioBuffer[];
+
+      const maxDuration = allBuffers.reduce((max, b) => Math.max(max, b.duration), duration);
 
       return {
-        tracks: {
-          ...state.tracks,
-          [trackKey]: updatedTrack,
-        },
+        tracks: updatedTracks,
+        additionalTracks: updatedAdditional,
         totalDurationSec: Math.max(10, Math.round(maxDuration * 10) / 10),
       };
     });
@@ -145,15 +194,24 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
 
   setTrackVolume: (trackKey, volume) => {
     const clamped = Math.max(0, Math.min(1, volume));
-    set((state) => ({
-      tracks: {
-        ...state.tracks,
-        [trackKey]: {
-          ...state.tracks[trackKey],
-          volume: clamped,
-        },
-      },
-    }));
+    set((state) => {
+      if (state.tracks[trackKey]) {
+        return {
+          tracks: {
+            ...state.tracks,
+            [trackKey]: {
+              ...state.tracks[trackKey],
+              volume: clamped,
+            },
+          },
+        };
+      }
+      return {
+        additionalTracks: state.additionalTracks.map((t) =>
+          t.id === trackKey ? { ...t, volume: clamped } : t
+        ),
+      };
+    });
 
     // Sincronizar con AudioEngine
     if (trackKey === 'music') {
@@ -167,68 +225,109 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
 
   toggleTrackMute: (trackKey) => {
     set((state) => {
-      const newMuted = !state.tracks[trackKey].muted;
-      const updatedTrack = {
-        ...state.tracks[trackKey],
-        muted: newMuted,
-      };
+      if (state.tracks[trackKey]) {
+        const newMuted = !state.tracks[trackKey].muted;
+        const updatedTrack = {
+          ...state.tracks[trackKey],
+          muted: newMuted,
+        };
 
-      if (trackKey === 'music') {
-        audioEngine.setMusicVolume(newMuted ? 0 : updatedTrack.volume);
-      } else if (trackKey === 'metronome') {
-        audioEngine.metronome.setEnabled(!newMuted && state.metronomeConfig.enabled);
-      } else if (trackKey === 'voice') {
-        audioEngine.voiceCueEngine.setConfig({ enabled: !newMuted });
+        if (trackKey === 'music') {
+          audioEngine.setMusicVolume(newMuted ? 0 : updatedTrack.volume);
+        } else if (trackKey === 'metronome') {
+          audioEngine.metronome.setEnabled(!newMuted && state.metronomeConfig.enabled);
+        } else if (trackKey === 'voice') {
+          audioEngine.voiceCueEngine.setConfig({ enabled: !newMuted });
+        }
+
+        return {
+          tracks: {
+            ...state.tracks,
+            [trackKey]: updatedTrack,
+          },
+        };
       }
 
       return {
-        tracks: {
-          ...state.tracks,
-          [trackKey]: updatedTrack,
-        },
+        additionalTracks: state.additionalTracks.map((t) =>
+          t.id === trackKey ? { ...t, muted: !t.muted } : t
+        ),
       };
     });
   },
 
   toggleTrackSolo: (trackKey) => {
     set((state) => {
-      const newSolo = !state.tracks[trackKey].solo;
-      return {
-        tracks: {
-          ...state.tracks,
-          [trackKey]: {
-            ...state.tracks[trackKey],
-            solo: newSolo,
+      if (state.tracks[trackKey]) {
+        const newSolo = !state.tracks[trackKey].solo;
+        return {
+          tracks: {
+            ...state.tracks,
+            [trackKey]: {
+              ...state.tracks[trackKey],
+              solo: newSolo,
+            },
           },
-        },
+        };
+      }
+      return {
+        additionalTracks: state.additionalTracks.map((t) =>
+          t.id === trackKey ? { ...t, solo: !t.solo } : t
+        ),
       };
     });
   },
 
   setTrackTrim: (trackKey, trimStartSec, trimEndSec) => {
-    set((state) => ({
-      tracks: {
-        ...state.tracks,
-        [trackKey]: {
-          ...state.tracks[trackKey],
-          trimStartSec: Math.max(0, trimStartSec),
-          trimEndSec: Math.max(trimStartSec + 0.1, trimEndSec),
-        },
-      },
-    }));
+    set((state) => {
+      const validStart = Math.max(0, trimStartSec);
+      const validEnd = Math.max(trimStartSec + 0.1, trimEndSec);
+      if (state.tracks[trackKey]) {
+        return {
+          tracks: {
+            ...state.tracks,
+            [trackKey]: {
+              ...state.tracks[trackKey],
+              trimStartSec: validStart,
+              trimEndSec: validEnd,
+            },
+          },
+        };
+      }
+      return {
+        additionalTracks: state.additionalTracks.map((t) =>
+          t.id === trackKey
+            ? { ...t, trimStartSec: validStart, trimEndSec: validEnd }
+            : t
+        ),
+      };
+    });
   },
 
   setTrackFades: (trackKey, fadeInSec, fadeOutSec) => {
-    set((state) => ({
-      tracks: {
-        ...state.tracks,
-        [trackKey]: {
-          ...state.tracks[trackKey],
-          fadeInSec: Math.max(0, fadeInSec),
-          fadeOutSec: Math.max(0, fadeOutSec),
-        },
-      },
-    }));
+    set((state) => {
+      const validFadeIn = Math.max(0, fadeInSec);
+      const validFadeOut = Math.max(0, fadeOutSec);
+      if (state.tracks[trackKey]) {
+        return {
+          tracks: {
+            ...state.tracks,
+            [trackKey]: {
+              ...state.tracks[trackKey],
+              fadeInSec: validFadeIn,
+              fadeOutSec: validFadeOut,
+            },
+          },
+        };
+      }
+      return {
+        additionalTracks: state.additionalTracks.map((t) =>
+          t.id === trackKey
+            ? { ...t, fadeInSec: validFadeIn, fadeOutSec: validFadeOut }
+            : t
+        ),
+      };
+    });
   },
 
   // ── Marcadores Temporales (Time Nodes) ──

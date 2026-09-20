@@ -281,11 +281,11 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
   }, [points.length, phase, setPhase]);
 
 
-  // Viewport Metrics con cálculo adaptativo responsivo
+  // Viewport Metrics con cálculo adaptativo responsivo (Margen de seguridad para evitar colisión con controles)
   const getMetrics = useCallback((): CanvasViewportMetrics => {
     const w = containerSize.width || 1000;
     const h = containerSize.height || 540;
-    const padding = w < 640 ? 12 : 28;
+    const padding = w < 640 ? 24 : 36;
     return RinkMath.calculateViewportMetrics(w, h, DEFAULT_RINK_DIMENSIONS, padding);
   }, [containerSize]);
 
@@ -1396,22 +1396,20 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
           </div>
         )}
 
-        {/* Floating Camera & Trail Control HUD */}
-        <div className="absolute bottom-3 right-3 z-30 flex items-center gap-1.5 bg-slate-950/85 backdrop-blur-md border border-white/10 px-2 py-1.5 rounded-xl shadow-soft-elevation select-none">
-
-
+        {/* Floating Camera & Trail Control HUD (Safe Non-Obstructive Zone) */}
+        <div className="absolute bottom-2.5 right-2.5 z-30 flex items-center gap-1 bg-slate-950/70 backdrop-blur-md border border-white/10 px-1.5 py-1 rounded-xl shadow-soft-elevation select-none pointer-events-none">
           <button
             type="button"
             onClick={() => zoomOut(canvasRef.current)}
-            className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 active:scale-95 text-base font-bold transition-all border border-white/5"
-            title="Alejar (Zoom Out)"
+            className="w-6 h-6 flex items-center justify-center rounded-lg bg-slate-900/90 hover:bg-slate-800 text-slate-200 active:scale-95 text-sm font-bold transition-all border border-white/5 pointer-events-auto"
+            title="Alejar (Zoom Out -10%)"
           >
             −
           </button>
           <button
             type="button"
             onClick={resetCamera}
-            className="px-2 h-7 flex items-center justify-center rounded-lg bg-slate-900 hover:bg-slate-800 text-cyan active:scale-95 text-[11px] font-mono font-bold transition-all border border-white/5"
+            className="px-1.5 h-6 flex items-center justify-center rounded-lg bg-slate-900/90 hover:bg-slate-800 text-cyan active:scale-95 text-[10px] font-mono font-bold transition-all border border-white/5 pointer-events-auto"
             title="Restablecer Vista (100% y centrar)"
           >
             {Math.round(camera.zoom * 100)}%
@@ -1419,8 +1417,8 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
           <button
             type="button"
             onClick={() => zoomIn(canvasRef.current)}
-            className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 active:scale-95 text-base font-bold transition-all border border-white/5"
-            title="Acercar (Zoom In)"
+            className="w-6 h-6 flex items-center justify-center rounded-lg bg-slate-900/90 hover:bg-slate-800 text-slate-200 active:scale-95 text-sm font-bold transition-all border border-white/5 pointer-events-auto"
+            title="Acercar (Zoom In +10%)"
           >
             +
           </button>
@@ -1728,20 +1726,20 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
             </button>
           )}
 
-          {/* Floating Camera Control HUD (Pinch / Pan Indicator & Zoom Buttons) */}
-          <div className="absolute bottom-3 right-3 z-30 flex items-center gap-1 bg-slate-950/85 backdrop-blur-md border border-white/10 px-2 py-1.5 rounded-xl shadow-soft-elevation select-none">
+          {/* Floating Camera Control HUD (Safe Non-Obstructive Zone) */}
+          <div className="absolute bottom-2.5 right-2.5 z-30 flex items-center gap-1 bg-slate-950/70 backdrop-blur-md border border-white/10 px-1.5 py-1 rounded-xl shadow-soft-elevation select-none pointer-events-none">
             <button
               type="button"
               onClick={() => zoomOut(canvasRef.current)}
-              className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 active:scale-95 text-base font-bold transition-all border border-white/5"
-              title="Alejar (Zoom Out)"
+              className="w-6 h-6 flex items-center justify-center rounded-lg bg-slate-900/90 hover:bg-slate-800 text-slate-200 active:scale-95 text-sm font-bold transition-all border border-white/5 pointer-events-auto"
+              title="Alejar (Zoom Out -10%)"
             >
               −
             </button>
             <button
               type="button"
               onClick={resetCamera}
-              className="px-2 h-7 flex items-center justify-center rounded-lg bg-slate-900 hover:bg-slate-800 text-cyan active:scale-95 text-[11px] font-mono font-bold transition-all border border-white/5"
+              className="px-1.5 h-6 flex items-center justify-center rounded-lg bg-slate-900/90 hover:bg-slate-800 text-cyan active:scale-95 text-[10px] font-mono font-bold transition-all border border-white/5 pointer-events-auto"
               title="Restablecer Vista (100% y centrar)"
             >
               {Math.round(camera.zoom * 100)}%
@@ -1749,8 +1747,8 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
             <button
               type="button"
               onClick={() => zoomIn(canvasRef.current)}
-              className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 active:scale-95 text-base font-bold transition-all border border-white/5"
-              title="Acercar (Zoom In)"
+              className="w-6 h-6 flex items-center justify-center rounded-lg bg-slate-900/90 hover:bg-slate-800 text-slate-200 active:scale-95 text-sm font-bold transition-all border border-white/5 pointer-events-auto"
+              title="Acercar (Zoom In +10%)"
             >
               +
             </button>

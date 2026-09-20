@@ -659,6 +659,7 @@ export function App() {
           <AudioStudioView
             onExportToRink={() => setActiveView('rink')}
             onBackToRink={() => setActiveView('rink')}
+            onOpenDrawer={() => setDrawerOpen(true)}
           />
         </div>
       ) : (
@@ -666,24 +667,6 @@ export function App() {
           <div className="flex-1 min-h-0 flex flex-col landscape:flex-row lg:flex-row overflow-hidden relative">
             {/* Bandeja de Colocación de Nodos de Audio (Estricto Orden Secuencial) */}
             <NodePlacementTray onOpenAudioStudio={() => setActiveView('studio')} />
-
-            {/* Backdrop for Mobile Drawers/Sheets (EXCLUSIVAMENTE MÓVIL: lg:hidden) */}
-            {(drawerOpen || sheetOpen) && (
-              <div
-                className="lg:hidden fixed inset-0 z-40 bg-black/75 backdrop-blur-md transition-opacity"
-                onClick={() => {
-                  setDrawerOpen(false);
-                  setSheetOpen(false);
-                  useChoreographyStore.getState().setSelectedPointId(null);
-                }}
-                onTouchStart={(e) => e.stopPropagation()}
-                onTouchMove={(e) => e.stopPropagation()}
-                onTouchEnd={(e) => e.stopPropagation()}
-                onWheel={(e) => e.stopPropagation()}
-                onPointerDown={(e) => e.stopPropagation()}
-                aria-hidden="true"
-              />
-            )}
 
             {/* ── DESKTOP LEFT ASIDE (Preparación y Mezcla) ── */}
             <aside className="hidden lg:flex lg:w-[272px] xl:w-[288px] shrink-0 flex-col bg-neon-surface border-r border-white/5 overflow-hidden shadow-soft-elevation">
@@ -855,76 +838,7 @@ export function App() {
           <RightInspectorPanel onClose={() => useChoreographyStore.getState().setSelectedPointId(null)} />
         </aside>
 
-        {/* ── MOBILE LEFT DRAWER (Configuración Global) ── */}
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Panel de configuración"
-          className={[
-            'lg:hidden fixed inset-y-0 left-0 z-50',
-            'w-[85vw] max-w-[320px] flex flex-col',
-            'bg-neon-surface shadow-2xl shadow-black/80',
-            'transition-transform duration-ui ease-spring',
-            drawerOpen ? 'translate-x-0' : '-translate-x-full',
-          ].join(' ')}
-          style={{
-            maxHeight: '100dvh',
-            overscrollBehavior: 'contain',
-            WebkitOverflowScrolling: 'touch',
-            touchAction: 'pan-y',
-          }}
-          onTouchStart={(e) => e.stopPropagation()}
-          onTouchMove={(e) => e.stopPropagation()}
-          onTouchEnd={(e) => e.stopPropagation()}
-          onWheel={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
-          onPointerMove={(e) => e.stopPropagation()}
-          onPointerUp={(e) => e.stopPropagation()}
-        >
-          {/* Drawer Top Handle */}
-          <div className="shrink-0 h-14 flex items-center justify-between px-4 border-b border-white/5">
-            <span className="text-xs font-black uppercase tracking-widest text-cyan">
-              Preparación &amp; Audio
-            </span>
-            <button
-              type="button"
-              onClick={() => setDrawerOpen(false)}
-              className="min-w-touch min-h-touch flex items-center justify-center rounded-2xl text-slate-400 hover:text-white interactive-tap"
-              aria-label="Cerrar menú"
-            >
-              <X className="w-5 h-5 stroke-[2]" />
-            </button>
-          </div>
 
-          {/* Drawer Content Body */}
-          <div
-            className="flex-1 overflow-y-auto overscroll-contain pb-8"
-            style={{
-              overflowY: 'auto',
-              overscrollBehavior: 'contain',
-              WebkitOverflowScrolling: 'touch',
-              touchAction: 'pan-y',
-            }}
-            onTouchStart={(e) => e.stopPropagation()}
-            onTouchMove={(e) => e.stopPropagation()}
-            onTouchEnd={(e) => e.stopPropagation()}
-            onWheel={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            onPointerMove={(e) => e.stopPropagation()}
-            onPointerUp={(e) => e.stopPropagation()}
-          >
-            <LeftSidebarPanel
-              preRollSec={preRollSec}
-              onPreRollSecChange={setPreRollSec}
-              onUndo={handleUndo}
-              onResetDemo={handleResetDemo}
-              onClearRink={handleClearRink}
-              onOpenAudioStudio={() => { setDrawerOpen(false); setActiveView('studio'); }}
-              showHeader={false}
-              isMobileModal={true}
-            />
-          </div>
-        </div>
 
         {/* ── MOBILE INSPECTOR (Bottom Sheet en Portrait / Right Panel en Landscape) ── */}
         <div
@@ -1150,6 +1064,95 @@ export function App() {
       </nav>
       </>
       )}
+
+      {/* Backdrop for Mobile Drawers/Sheets (EXCLUSIVAMENTE MÓVIL: lg:hidden) */}
+      {(drawerOpen || sheetOpen) && (
+        <div
+          className="lg:hidden fixed inset-0 z-40 bg-black/75 backdrop-blur-md transition-opacity"
+          onClick={() => {
+            setDrawerOpen(false);
+            setSheetOpen(false);
+            useChoreographyStore.getState().setSelectedPointId(null);
+          }}
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+          onTouchEnd={(e) => e.stopPropagation()}
+          onWheel={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* ── MOBILE LEFT DRAWER (Configuración Global Accesible en Pista y Estudio) ── */}
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Panel de configuración"
+        className={[
+          'lg:hidden fixed inset-y-0 left-0 z-50',
+          'w-[85vw] max-w-[320px] flex flex-col',
+          'bg-neon-surface shadow-2xl shadow-black/80',
+          'transition-transform duration-ui ease-spring',
+          drawerOpen ? 'translate-x-0' : '-translate-x-full',
+        ].join(' ')}
+        style={{
+          maxHeight: '100dvh',
+          overscrollBehavior: 'contain',
+          WebkitOverflowScrolling: 'touch',
+          touchAction: 'pan-y',
+        }}
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
+        onWheel={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerMove={(e) => e.stopPropagation()}
+        onPointerUp={(e) => e.stopPropagation()}
+      >
+        {/* Drawer Top Handle */}
+        <div className="shrink-0 h-14 flex items-center justify-between px-4 border-b border-white/5">
+          <span className="text-xs font-black uppercase tracking-widest text-cyan">
+            Preparación &amp; Audio
+          </span>
+          <button
+            type="button"
+            onClick={() => setDrawerOpen(false)}
+            className="min-w-touch min-h-touch flex items-center justify-center rounded-2xl text-slate-400 hover:text-white interactive-tap"
+            aria-label="Cerrar menú"
+          >
+            <X className="w-5 h-5 stroke-[2]" />
+          </button>
+        </div>
+
+        {/* Drawer Content Body */}
+        <div
+          className="flex-1 overflow-y-auto overscroll-contain pb-8"
+          style={{
+            overflowY: 'auto',
+            overscrollBehavior: 'contain',
+            WebkitOverflowScrolling: 'touch',
+            touchAction: 'pan-y',
+          }}
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+          onTouchEnd={(e) => e.stopPropagation()}
+          onWheel={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onPointerMove={(e) => e.stopPropagation()}
+          onPointerUp={(e) => e.stopPropagation()}
+        >
+          <LeftSidebarPanel
+            preRollSec={preRollSec}
+            onPreRollSecChange={setPreRollSec}
+            onUndo={handleUndo}
+            onResetDemo={handleResetDemo}
+            onClearRink={handleClearRink}
+            onOpenAudioStudio={() => { setDrawerOpen(false); setActiveView('studio'); }}
+            showHeader={false}
+            isMobileModal={true}
+          />
+        </div>
+      </div>
 
       {/* ═══════════════════════════════════════════════
           FOOTER — Atribución Oficial AlsisTech

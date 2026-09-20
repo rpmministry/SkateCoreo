@@ -43,7 +43,7 @@ export const NodePlacementTray: React.FC<NodePlacementTrayProps> = ({
   };
 
   return (
-    <div className="absolute top-3 right-3 z-30 w-80 max-w-[calc(100vw-24px)] bg-[#0C1220]/95 backdrop-blur-xl border border-cyan/40 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in slide-in-from-top-4 duration-200">
+    <div className="portrait:relative portrait:top-0 portrait:right-0 portrait:w-full portrait:max-w-none portrait:rounded-none portrait:border-x-0 portrait:border-t-0 portrait:border-b portrait:border-cyan/40 portrait:shrink-0 landscape:absolute landscape:top-3 landscape:right-3 landscape:w-80 lg:absolute lg:top-3 lg:right-3 lg:w-80 lg:rounded-2xl z-30 bg-[#0C1220]/95 backdrop-blur-xl border border-cyan/40 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in slide-in-from-top-4 duration-200">
       {/* ── Cabecera de la Bandeja ── */}
       <div className="h-10 px-3.5 bg-gradient-to-r from-cyan/20 to-transparent border-b border-white/10 flex items-center justify-between">
         <div className="flex items-center gap-2">

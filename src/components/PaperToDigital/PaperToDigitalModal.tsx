@@ -7,7 +7,7 @@ import {
   RefreshCw,
   CheckCircle2,
   FileText,
-  AlertCircle
+  Trash2,
 } from 'lucide-react';
 import { QuadCorners, HomographyWarp } from '../../core/vision/HomographyWarp';
 import { FiducialDetector } from '../../core/vision/FiducialDetector';
@@ -34,6 +34,8 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const setPaperTraceOverlay = useChoreographyStore((s) => s.setPaperTraceOverlay);
+  const clearPaperTraceOverlay = useChoreographyStore((s) => s.clearPaperTraceOverlay);
+  const paperTraceOverlay = useChoreographyStore((s) => s.paperTraceOverlay);
   const setPoints = useChoreographyStore((s) => s.setPoints);
   const setPhase = useChoreographyStore((s) => s.setPhase);
 
@@ -231,10 +233,49 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
         setStatusMessage('Paso 3/3: Reconociendo nodos numerados mediante OCR...');
         const detectedNodes = await PaperOcrEngine.detectNumberedNodes(warpedCanvas);
 
-        // Si se detectaron nodos, los convertimos en ChoreographyPoints editables en el store
+        // Vectorización estricta: strokes van EXCLUSIVAMENTE a la curva continua (node.path).
+        // Los Nodos Maestros interactivos (isMainNode: true) se crean ÚNICAMENTE para los números OCR detectados.
+        const allStrokePoints: Array<{ x: number; y: number }> = strokes.flatMap((s) => s.pointsMeters);
+
         if (detectedNodes.length > 0) {
-          const generatedPoints: ChoreographyPoint[] = detectedNodes.map((node, idx) => {
-            const timeMs = idx * 4000; // Distribución temporal de base (4 segundos entre marcas)
+          // Orden estricto 1 -> 2 -> 3...
+          const sortedOcrNodes = [...detectedNodes].sort((a, b) => a.sequenceNumber - b.sequenceNumber);
+
+          const generatedPoints: ChoreographyPoint[] = sortedOcrNodes.map((node, idx) => {
+            const timeMs = idx * 4000; // Distribución temporal base
+
+            // Asociar trazo continuo de tinta entre este nodo y el siguiente para node.path
+            let segmentPath: Array<{ x: number; y: number }> | undefined = undefined;
+
+            if (allStrokePoints.length > 1) {
+              const nextNode = sortedOcrNodes[idx + 1];
+              if (nextNode) {
+                let bestStartIdx = 0;
+                let bestEndIdx = allStrokePoints.length - 1;
+                let minDistStart = Infinity;
+                let minDistEnd = Infinity;
+
+                allStrokePoints.forEach((pt, pIdx) => {
+                  const dStart = Math.hypot(pt.x - node.positionMeters.x, pt.y - node.positionMeters.y);
+                  const dEnd = Math.hypot(pt.x - nextNode.positionMeters.x, pt.y - nextNode.positionMeters.y);
+                  if (dStart < minDistStart) {
+                    minDistStart = dStart;
+                    bestStartIdx = pIdx;
+                  }
+                  if (dEnd < minDistEnd) {
+                    minDistEnd = dEnd;
+                    bestEndIdx = pIdx;
+                  }
+                });
+
+                if (bestStartIdx < bestEndIdx) {
+                  segmentPath = allStrokePoints.slice(bestStartIdx, bestEndIdx + 1);
+                } else if (bestEndIdx < bestStartIdx) {
+                  segmentPath = allStrokePoints.slice(bestEndIdx, bestStartIdx + 1).reverse();
+                }
+              }
+            }
+
             return {
               id: `node-paper-${Date.now()}-${idx + 1}`,
               timestamp: timeMs,
@@ -250,11 +291,15 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
               type: idx === 0 ? 'Step' : 'Jump',
               label: `Nodo ${node.sequenceNumber} (Papel)`,
               isMainNode: true,
+              path: segmentPath && segmentPath.length > 1 ? segmentPath : undefined,
             };
           });
 
           setPoints(generatedPoints);
           setPhase('curve'); // Pasa directamente a modo curva interactiva
+          alert(`¡Digitalización Exitosa! Se detectaron ${detectedNodes.length} nodos maestros numerados. Los trazos continuos se asociaron fielmente a la curva sin spam de nodos.`);
+        } else {
+          alert('No se detectaron números manuscritos físicos (1, 2, 3...) para crear nodos interactivos. La hoja rectificada se ha aplicado como fondo de calco para que coloques los nodos con un toque.');
         }
 
         // Dejar también el fondo de calco para que la entrenadora pueda contrastar la precisión
@@ -266,7 +311,6 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
 
         setIsProcessing(false);
         setStatusMessage(null);
-        alert(`¡Digitalización Exitosa! Se detectaron ${detectedNodes.length} nodos y ${strokes.length} trazos. La coreografía ya está en el lienzo.`);
         onClose();
       } catch (err: any) {
         alert('Error en la digitalización automática: ' + (err?.message || err));
@@ -409,38 +453,52 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
         </div>
 
         {/* ── Modal Footer: Botones de Acción (Etapa 1 vs Etapa 2) ── */}
-        {imageSrc && (
+        {(imageSrc || paperTraceOverlay) && (
           <div className="p-4 border-t border-white/10 bg-slate-950/80 flex flex-wrap items-center justify-between gap-3 shrink-0">
-            <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
-              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
-              <span>Verifica que los 4 pines coincidan con las dianas ⊕ antes de continuar.</span>
-            </div>
-
-            <div className="flex items-center gap-2.5">
-              {/* Opción A: Etapa 1 (Manual Asistido / Onion Skin) */}
+            <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={handleApplyAsTraceOverlay}
+                onClick={() => {
+                  setImageSrc(null);
+                  setCorners(null);
+                  clearPaperTraceOverlay();
+                }}
                 disabled={isProcessing}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/15 text-slate-200 border border-white/10 transition-all interactive-tap disabled:opacity-30"
-                title="Inserta la hoja aplanada como fondo transparente en el lienzo para que puedas calcar por encima"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-red-500/15 hover:bg-red-500/25 text-red-300 border border-red-500/30 transition-all interactive-tap disabled:opacity-30"
+                title="Descartar foto cargada y eliminar plantilla"
               >
-                <Layers className="w-4 h-4 text-cyan" />
-                <span>Usar como Fondo de Calco</span>
-              </button>
-
-              {/* Opción B: Etapa 2 (Automatización Mágica) */}
-              <button
-                type="button"
-                onClick={handleAutoVectorizeAndOcr}
-                disabled={isProcessing}
-                className="flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-black bg-cyan text-slate-950 hover:bg-cyan/90 border border-white/20 shadow-glow-cyan transition-all interactive-tap disabled:opacity-30"
-                title="Aísla la tinta, detecta los números y crea automáticamente los nodos interactivos en la pista"
-              >
-                <Sparkles className="w-4 h-4" />
-                <span>Digitalizar Trazos con IA</span>
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Descartar Plantilla / Limpiar</span>
               </button>
             </div>
+
+            {imageSrc && (
+              <div className="flex items-center gap-2.5">
+                {/* Opción A: Etapa 1 (Manual Asistido / Onion Skin) */}
+                <button
+                  type="button"
+                  onClick={handleApplyAsTraceOverlay}
+                  disabled={isProcessing}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/15 text-slate-200 border border-white/10 transition-all interactive-tap disabled:opacity-30"
+                  title="Inserta la hoja aplanada como fondo transparente en el lienzo para que puedas calcar por encima"
+                >
+                  <Layers className="w-4 h-4 text-cyan" />
+                  <span>Usar como Fondo de Calco</span>
+                </button>
+
+                {/* Opción B: Etapa 2 (Automatización Mágica) */}
+                <button
+                  type="button"
+                  onClick={handleAutoVectorizeAndOcr}
+                  disabled={isProcessing}
+                  className="flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-black bg-cyan text-slate-950 hover:bg-cyan/90 border border-white/20 shadow-glow-cyan transition-all interactive-tap disabled:opacity-30"
+                  title="Aísla la tinta, detecta los números y crea automáticamente los nodos interactivos en la pista"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>Digitalizar Trazos con IA</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

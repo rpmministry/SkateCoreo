@@ -7,7 +7,8 @@ import {
   Upload, 
   Sparkles,
   Sliders,
-  FileAudio
+  FileAudio,
+  Trash2
 } from 'lucide-react';
 import { AudioStudioTrack } from '../../types/audioStudio';
 import { useAudioStudioStore } from '../../store/useAudioStudioStore';
@@ -17,8 +18,10 @@ interface MultitrackTrackRowProps {
   totalDurationSec: number;
   currentTimeSec: number;
   contentWidth?: number;
+  widthOffset?: number;
   onUploadFile?: (file: File) => void;
   onSeek?: (sec: number) => void;
+  onRemove?: () => void;
 }
 
 export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
@@ -26,8 +29,10 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
   totalDurationSec,
   currentTimeSec,
   contentWidth,
+  widthOffset,
   onUploadFile,
   onSeek,
+  onRemove,
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -211,8 +216,12 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
     contentWidth
   ]);
 
-  const playheadPercent = (currentTimeSec / duration) * 100;
-  const playheadPx = (currentTimeSec / duration) * effectiveWidth;
+  const trackKey = (track.type === 'music' || track.type === 'voice' || track.type === 'metronome')
+    ? track.type
+    : track.id;
+
+  const playheadPercent = Math.max(0, Math.min(100, (currentTimeSec / duration) * 100));
+  const playheadPx = Math.max(0, Math.min(effectiveWidth, (currentTimeSec / duration) * effectiveWidth));
 
   const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!containerRef.current || !onSeek) return;
@@ -223,53 +232,69 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
     onSeek(ratio * duration);
   };
 
+  const panelWidth = widthOffset !== undefined ? widthOffset : 224;
+
   return (
     <div
-      style={{ width: contentWidth ? `${contentWidth + 224}px` : '100%' }}
+      style={{ width: contentWidth ? `${contentWidth + panelWidth}px` : '100%' }}
       className="h-28 flex items-stretch border-b border-white/5 bg-[#090D16] hover:bg-[#0c1220] transition-colors select-none"
     >
-      {/* ── PANEL DE CONTROL IZQUIERDO (MUTE, SOLO, VOLUMEN) ── */}
-      <div className="w-56 shrink-0 p-3 bg-slate-950/95 border-r border-white/10 flex flex-col justify-between sticky left-0 z-20">
+      {/* ── PANEL DE CONTROL IZQUIERDO (MUTE, SOLO, VOLUMEN) — Responsive w-16 en móvil, w-56 en desktop ── */}
+      <div className="w-16 sm:w-56 shrink-0 p-2 sm:p-3 bg-slate-950/95 border-r border-white/10 flex flex-col justify-between sticky left-0 z-30 shadow-md">
         {/* Cabecera de la Pista */}
         <div className="flex items-center justify-between min-w-0">
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
             <span
               className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
               style={{ backgroundColor: accentColor }}
             />
             <TrackIcon className="w-4 h-4 shrink-0 text-slate-300" />
-            <span className="text-xs font-bold text-slate-200 truncate" title={track.name}>
+            <span className="text-xs font-bold text-slate-200 truncate hidden sm:inline" title={track.name}>
               {track.name}
             </span>
           </div>
 
-          {/* Subir archivo de audio en Pista Música o Voz */}
-          {track.type !== 'metronome' && (
-            <div>
+          <div className="flex items-center gap-1">
+            {/* Subir archivo de audio en Pista Música, Voz o Pistas Libres */}
+            {track.type !== 'metronome' && (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+                  title="Cargar archivo de audio"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="audio/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file && onUploadFile) onUploadFile(file);
+                  }}
+                  className="hidden"
+                />
+              </div>
+            )}
+
+            {/* Eliminar pista si es pista libre adicional */}
+            {onRemove && (
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
-                title="Cargar archivo de audio"
+                onClick={onRemove}
+                className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                title="Eliminar esta pista de audio"
               >
-                <Upload className="w-3.5 h-3.5" />
+                <Trash2 className="w-3.5 h-3.5" />
               </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="audio/*"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file && onUploadFile) onUploadFile(file);
-                }}
-                className="hidden"
-              />
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
-        {/* Info archivo o badges */}
-        <div className="text-[10px] text-slate-400 truncate flex items-center gap-1">
+        {/* Info archivo o badges (visible en desktop) */}
+        <div className="text-[10px] text-slate-400 truncate hidden sm:flex items-center gap-1">
           {track.fileName ? (
             <>
               <FileAudio className="w-3 h-3 text-cyan shrink-0" />
@@ -285,14 +310,14 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
         </div>
 
         {/* Controles de Mezcla: Mute, Solo y Slider de Volumen */}
-        <div className="space-y-1.5 pt-1">
-          <div className="flex items-center gap-1.5">
+        <div className="space-y-1 sm:space-y-1.5 pt-0.5">
+          <div className="flex items-center justify-between sm:justify-start gap-1 sm:gap-1.5">
             {/* Botón Mute [M] */}
             <button
               type="button"
-              onClick={() => toggleTrackMute(track.type)}
+              onClick={() => toggleTrackMute(trackKey)}
               className={[
-                'w-7 h-6 rounded text-[11px] font-black tracking-wider transition-all',
+                'w-5 h-5 sm:w-7 sm:h-6 rounded text-[10px] sm:text-[11px] font-black tracking-wider transition-all',
                 track.muted
                   ? 'bg-red-500 text-white shadow-glow-red font-black'
                   : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10',
@@ -305,9 +330,9 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
             {/* Botón Solo [S] */}
             <button
               type="button"
-              onClick={() => toggleTrackSolo(track.type)}
+              onClick={() => toggleTrackSolo(trackKey)}
               className={[
-                'w-7 h-6 rounded text-[11px] font-black tracking-wider transition-all',
+                'w-5 h-5 sm:w-7 sm:h-6 rounded text-[10px] sm:text-[11px] font-black tracking-wider transition-all',
                 track.solo
                   ? 'bg-amber-400 text-slate-950 font-black shadow-glow-amber'
                   : 'bg-white/5 text-slate-400 hover:text-white hover:bg-white/10',
@@ -317,8 +342,8 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
               S
             </button>
 
-            {/* Slider de Volumen Permanente */}
-            <div className="flex-1 flex items-center gap-1.5 min-w-0 pl-1">
+            {/* Slider de Volumen Permanente (Desktop) */}
+            <div className="hidden sm:flex flex-1 items-center gap-1.5 min-w-0 pl-1">
               <Volume2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <input
                 type="range"
@@ -326,7 +351,7 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
                 max="1"
                 step="0.01"
                 value={track.volume}
-                onChange={(e) => setTrackVolume(track.type, parseFloat(e.target.value))}
+                onChange={(e) => setTrackVolume(trackKey, parseFloat(e.target.value))}
                 className="flex-1 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan"
                 title={`Volumen: ${Math.round(track.volume * 100)}%`}
               />
@@ -358,7 +383,7 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
           className="block"
         />
 
-        {/* Aguja del Playhead Global */}
+        {/* Aguja del Playhead Global (rigurosamente contenida en overflow-hidden) */}
         <div
           className="absolute top-0 bottom-0 w-[2px] bg-amber-400 shadow-glow-amber pointer-events-none z-20"
           style={{ left: contentWidth ? `${playheadPx}px` : `${playheadPercent}%` }}
@@ -395,7 +420,7 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
                     max="6"
                     step="0.5"
                     value={track.fadeInSec}
-                    onChange={(e) => setTrackFades(track.type as 'music' | 'voice', parseFloat(e.target.value), track.fadeOutSec)}
+                    onChange={(e) => setTrackFades(trackKey, parseFloat(e.target.value), track.fadeOutSec)}
                     className="w-full h-1.5 bg-slate-800 rounded appearance-none accent-cyan"
                   />
                 </div>
@@ -411,7 +436,7 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
                     max="6"
                     step="0.5"
                     value={track.fadeOutSec}
-                    onChange={(e) => setTrackFades(track.type as 'music' | 'voice', track.fadeInSec, parseFloat(e.target.value))}
+                    onChange={(e) => setTrackFades(trackKey, track.fadeInSec, parseFloat(e.target.value))}
                     className="w-full h-1.5 bg-slate-800 rounded appearance-none accent-cyan"
                   />
                 </div>

@@ -67,6 +67,8 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
   const setShowReglamentaryGuides = useChoreographyStore((s) => s.setShowReglamentaryGuides);
   const showCompulsoryFigures = useChoreographyStore((s) => s.showCompulsoryFigures);
   const setShowCompulsoryFigures = useChoreographyStore((s) => s.setShowCompulsoryFigures);
+  const paperTraceOverlay = useChoreographyStore((s) => s.paperTraceOverlay);
+  const clearPaperTraceOverlay = useChoreographyStore((s) => s.clearPaperTraceOverlay);
   const history = useChoreographyStore((s) => s.history);
 
   // Reglamento 2026
@@ -453,6 +455,18 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
               <span>Digitalizar</span>
             </button>
           </div>
+
+          {paperTraceOverlay && (
+            <button
+              type="button"
+              onClick={() => clearPaperTraceOverlay()}
+              className="w-full flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-red-500/15 hover:bg-red-500/25 text-red-300 border border-red-500/30 text-xs font-bold transition-all interactive-tap mt-1.5"
+              title="Descartar calco de la plantilla de papel"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-red-400" />
+              <span>Descartar Plantilla / Calco</span>
+            </button>
+          )}
         </section>
 
         {/* ═══ 5. Secondary actions ═════════════════════════ */}
