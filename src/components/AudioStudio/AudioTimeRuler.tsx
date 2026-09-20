@@ -6,12 +6,14 @@ interface AudioTimeRulerProps {
   totalDurationSec: number;
   currentTimeSec: number;
   onSeek: (sec: number) => void;
+  contentWidth?: number;
 }
 
 export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
   totalDurationSec,
   currentTimeSec,
   onSeek,
+  contentWidth,
 }) => {
   const rulerRef = useRef<HTMLDivElement | null>(null);
   const audioNodes = useAudioStudioStore((s) => s.audioNodes);
@@ -24,12 +26,15 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
 
   const duration = Math.max(10, totalDurationSec);
+  const effectiveWidth = contentWidth || 1000;
 
   // Clic en la regla para agregar un nodo temporal o saltar en el tiempo
   const handleRulerClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!rulerRef.current) return;
     const rect = rulerRef.current.getBoundingClientRect();
-    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const w = contentWidth || rect.width;
+    const px = e.clientX - rect.left;
+    const ratio = Math.max(0, Math.min(1, px / w));
     const clickedSec = Math.round(ratio * duration * 100) / 100;
 
     // Si hizo clic con Shift o doble clic, añade un nodo; de lo contrario salta a esa posición
@@ -53,7 +58,9 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
   const handleNodePointerMove = (id: string, e: React.PointerEvent) => {
     if (draggingNodeId !== id || !rulerRef.current) return;
     const rect = rulerRef.current.getBoundingClientRect();
-    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const w = contentWidth || rect.width;
+    const px = e.clientX - rect.left;
+    const ratio = Math.max(0, Math.min(1, px / w));
     const newSec = Math.round(ratio * duration * 100) / 100;
     updateTimeNode(id, newSec);
     onSeek(newSec);
@@ -68,15 +75,47 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
     }
   };
 
-  // Generar marcas de tiempo cada 5 segundos
-  const stepSec = duration > 180 ? 15 : duration > 60 ? 10 : 5;
-  const tickCount = Math.floor(duration / stepSec);
-  const ticks = Array.from({ length: tickCount + 1 }, (_, i) => i * stepSec);
+  // Graduación dinámica inteligente según el factor de zoom (LOD / Pixels per second)
+  const pxPerSec = effectiveWidth / duration;
+  let majorStepSec = 10;
+  let subStepSec = 5;
 
-  const playheadPercent = (currentTimeSec / duration) * 100;
+  if (pxPerSec > 250) {
+    majorStepSec = 0.5;
+    subStepSec = 0.1;
+  } else if (pxPerSec > 120) {
+    majorStepSec = 1;
+    subStepSec = 0.25;
+  } else if (pxPerSec > 50) {
+    majorStepSec = 2;
+    subStepSec = 0.5;
+  } else if (pxPerSec > 20) {
+    majorStepSec = 5;
+    subStepSec = 1;
+  } else if (pxPerSec > 8) {
+    majorStepSec = 10;
+    subStepSec = 2;
+  } else if (pxPerSec > 3) {
+    majorStepSec = 30;
+    subStepSec = 5;
+  } else {
+    majorStepSec = 60;
+    subStepSec = 15;
+  }
+
+  const majorTickCount = Math.floor(duration / majorStepSec);
+  const majorTicks = Array.from({ length: majorTickCount + 1 }, (_, i) => Math.round(i * majorStepSec * 100) / 100);
+
+  const subTickCount = Math.floor(duration / subStepSec);
+  const subTicks = Array.from({ length: subTickCount + 1 }, (_, i) => Math.round(i * subStepSec * 100) / 100);
+
+  const playheadPx = (currentTimeSec / duration) * effectiveWidth;
 
   return (
-    <div className="w-full select-none bg-slate-950 border-b border-white/10 flex flex-col">
+    <div
+      style={{ width: contentWidth ? `${contentWidth}px` : '100%' }}
+      className="select-none bg-slate-950 border-b border-white/10 flex flex-col"
+    >
       {/* ── Sub-header: Instrucción Rápida y Contador de Marcadores ── */}
       <div className="h-7 px-3 flex items-center justify-between bg-slate-900/80 border-b border-white/5 text-[11px]">
         <div className="flex items-center gap-2 text-slate-300 font-medium">
@@ -97,22 +136,38 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
       <div
         ref={rulerRef}
         onClick={handleRulerClick}
-        className="relative h-12 w-full cursor-crosshair bg-[#060911] overflow-hidden"
+        style={{ width: contentWidth ? `${contentWidth}px` : '100%' }}
+        className="relative h-12 cursor-crosshair bg-[#060911] overflow-hidden"
       >
-        {/* Ticks y Marcas de Tiempo */}
-        {ticks.map((tSec) => {
-          const leftPercent = (tSec / duration) * 100;
+        {/* Sub-ticks sutiles */}
+        {subTicks.map((tSec) => {
+          const leftPx = (tSec / duration) * effectiveWidth;
+          return (
+            <div
+              key={`sub-${tSec}`}
+              className="absolute top-0 pointer-events-none w-[1px] h-2 bg-slate-700/40"
+              style={{ left: `${leftPx}px` }}
+            />
+          );
+        })}
+
+        {/* Ticks Mayores y Marcas de Tiempo */}
+        {majorTicks.map((tSec) => {
+          const leftPx = (tSec / duration) * effectiveWidth;
           const mins = Math.floor(tSec / 60);
-          const secs = Math.floor(tSec % 60);
-          const timeLabel = `${mins}:${secs.toString().padStart(2, '0')}`;
+          const secs = tSec % 60;
+          const isFractional = majorStepSec < 1;
+          const timeLabel = isFractional
+            ? `${mins}:${secs < 10 ? '0' : ''}${secs.toFixed(1)}`
+            : `${mins}:${Math.floor(secs).toString().padStart(2, '0')}`;
 
           return (
             <div
-              key={tSec}
+              key={`maj-${tSec}`}
               className="absolute top-0 bottom-0 pointer-events-none flex flex-col items-center"
-              style={{ left: `${leftPercent}%` }}
+              style={{ left: `${leftPx}px` }}
             >
-              <div className="w-[1px] h-3.5 bg-slate-600/70" />
+              <div className="w-[1px] h-3.5 bg-slate-500/80" />
               <span className="text-[9px] font-mono font-medium text-slate-400 mt-0.5 -translate-x-1/2">
                 {timeLabel}
               </span>
@@ -124,19 +179,19 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
         {/* Aguja del Playhead (Línea Amarilla de Tiempo) */}
         <div
           className="absolute top-0 bottom-0 w-[2px] bg-amber-400 shadow-glow-amber pointer-events-none z-30 transition-none"
-          style={{ left: `${playheadPercent}%` }}
+          style={{ left: `${playheadPx}px` }}
         >
           <div className="w-3 h-3 bg-amber-400 rotate-45 -translate-x-1.5 -translate-y-1 rounded-sm shadow-md" />
         </div>
 
-        {/* Marcadores de Nodos Temporales (Chips numerados 1, 2, 3...) */}
+        {/* Marcadores de Nodos Temporales (Chips rígidos numerados 1, 2, 3... Sin deformación) */}
         {audioNodes.map((node) => {
-          const leftPercent = (node.timestampSec / duration) * 100;
+          const leftPx = (node.timestampSec / duration) * effectiveWidth;
           const isSelected = selectedNodeId === node.id;
           const isDragging = draggingNodeId === node.id;
 
           const mins = Math.floor(node.timestampSec / 60);
-          const secs = (node.timestampSec % 60).toFixed(1);
+          const secs = (node.timestampSec % 60).toFixed(2);
           const formattedTime = `${mins}:${node.timestampSec % 60 < 10 ? '0' : ''}${secs}`;
 
           return (
@@ -147,16 +202,16 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
               onPointerUp={(e) => handleNodePointerUp(node.id, e)}
               className={[
                 'absolute top-4 -translate-x-1/2 z-20 group cursor-grab active:cursor-grabbing',
-                'flex items-center gap-1 px-2 py-0.5 rounded-full border shadow-lg transition-transform',
+                'flex items-center gap-1 px-2 py-0.5 rounded-full border shadow-lg transition-transform shrink-0',
                 isDragging ? 'scale-110 z-40' : '',
                 isSelected
                   ? 'bg-cyan text-slate-950 font-black border-white shadow-cyan/40 shadow-glow-cyan'
                   : 'bg-slate-900/95 text-cyan border-cyan/40 hover:border-cyan',
               ].join(' ')}
-              style={{ left: `${leftPercent}%` }}
+              style={{ left: `${leftPx}px` }}
               title={`Nodo ${node.numeroSecuencial} · ${formattedTime}s (Arrastra para mover)`}
             >
-              <span className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-black bg-cyan-950/60 text-cyan">
+              <span className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-black bg-cyan-950/60 text-cyan shrink-0">
                 {node.numeroSecuencial}
               </span>
               <span className="text-[10px] font-mono font-bold whitespace-nowrap">
@@ -170,7 +225,7 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
                   e.stopPropagation();
                   deleteTimeNode(node.id);
                 }}
-                className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-slate-400 hover:text-red-400 hover:bg-red-500/20 transition-all opacity-0 group-hover:opacity-100"
+                className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-slate-400 hover:text-red-400 hover:bg-red-500/20 transition-all opacity-0 group-hover:opacity-100 shrink-0"
                 title="Eliminar este marcador"
               >
                 <Trash2 className="w-2.5 h-2.5" />
@@ -182,3 +237,4 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
     </div>
   );
 };
+

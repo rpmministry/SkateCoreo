@@ -16,6 +16,7 @@ interface MultitrackTrackRowProps {
   track: AudioStudioTrack;
   totalDurationSec: number;
   currentTimeSec: number;
+  contentWidth?: number;
   onUploadFile?: (file: File) => void;
   onSeek?: (sec: number) => void;
 }
@@ -24,6 +25,7 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
   track,
   totalDurationSec,
   currentTimeSec,
+  contentWidth,
   onUploadFile,
   onSeek,
 }) => {
@@ -40,6 +42,7 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
   const [showFadeMenu, setShowFadeMenu] = useState(false);
 
   const duration = Math.max(10, totalDurationSec);
+  const effectiveWidth = contentWidth || 1000;
 
   // Icono representativo por tipo de pista
   const TrackIcon = useMemo(() => {
@@ -69,11 +72,11 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
     }
   }, [track.type]);
 
-  // Extraer picos de audio de forma eficiente a partir del AudioBuffer
+  // Extraer picos de audio de forma eficiente a partir del AudioBuffer con resolución escalada al zoom
   const wavePeaks = useMemo(() => {
     if (!track.buffer) return [];
     const channelData = track.buffer.getChannelData(0);
-    const SAMPLES = 300;
+    const SAMPLES = Math.max(300, Math.min(4000, Math.floor(effectiveWidth / 3)));
     const blockSize = Math.floor(channelData.length / SAMPLES);
     const peaks: number[] = [];
 
@@ -88,7 +91,7 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
       peaks.push(Math.max(0.04, Math.min(1.0, maxVal)));
     }
     return peaks;
-  }, [track.buffer]);
+  }, [track.buffer, effectiveWidth]);
 
   // Renderizado de la forma de onda en Canvas 2D
   useEffect(() => {
@@ -98,12 +101,12 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
     if (!ctx) return;
 
     const dpr = window.devicePixelRatio || 1;
-    const width = canvas.clientWidth;
-    const height = canvas.clientHeight;
+    const width = contentWidth || canvas.clientWidth || 1000;
+    const height = canvas.clientHeight || 112;
 
-    if (canvas.width !== width * dpr || canvas.height !== height * dpr) {
-      canvas.width = width * dpr;
-      canvas.height = height * dpr;
+    if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
     }
 
     ctx.save();
@@ -204,22 +207,29 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
     track.fadeOutSec, 
     duration, 
     metronomeConfig, 
-    accentColor
+    accentColor,
+    contentWidth
   ]);
 
   const playheadPercent = (currentTimeSec / duration) * 100;
+  const playheadPx = (currentTimeSec / duration) * effectiveWidth;
 
   const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!containerRef.current || !onSeek) return;
     const rect = containerRef.current.getBoundingClientRect();
-    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const w = contentWidth || rect.width;
+    const px = e.clientX - rect.left;
+    const ratio = Math.max(0, Math.min(1, px / w));
     onSeek(ratio * duration);
   };
 
   return (
-    <div className="h-28 w-full flex items-stretch border-b border-white/5 bg-[#090D16] hover:bg-[#0c1220] transition-colors select-none">
+    <div
+      style={{ width: contentWidth ? `${contentWidth + 224}px` : '100%' }}
+      className="h-28 flex items-stretch border-b border-white/5 bg-[#090D16] hover:bg-[#0c1220] transition-colors select-none"
+    >
       {/* ── PANEL DE CONTROL IZQUIERDO (MUTE, SOLO, VOLUMEN) ── */}
-      <div className="w-56 shrink-0 p-3 bg-slate-950/80 border-r border-white/10 flex flex-col justify-between">
+      <div className="w-56 shrink-0 p-3 bg-slate-950/95 border-r border-white/10 flex flex-col justify-between sticky left-0 z-20">
         {/* Cabecera de la Pista */}
         <div className="flex items-center justify-between min-w-0">
           <div className="flex items-center gap-2 min-w-0">
@@ -332,17 +342,26 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
       <div
         ref={containerRef}
         onClick={handleTimelineClick}
+        style={{
+          width: contentWidth ? `${contentWidth}px` : undefined,
+          minWidth: contentWidth ? `${contentWidth}px` : undefined,
+        }}
         className="flex-1 relative cursor-pointer bg-[#050811] overflow-hidden"
       >
         <canvas
           ref={canvasRef}
-          className="w-full h-full block"
+          style={{
+            width: contentWidth ? `${contentWidth}px` : '100%',
+            minWidth: contentWidth ? `${contentWidth}px` : undefined,
+            height: '100%',
+          }}
+          className="block"
         />
 
         {/* Aguja del Playhead Global */}
         <div
           className="absolute top-0 bottom-0 w-[2px] bg-amber-400 shadow-glow-amber pointer-events-none z-20"
-          style={{ left: `${playheadPercent}%` }}
+          style={{ left: contentWidth ? `${playheadPx}px` : `${playheadPercent}%` }}
         />
 
         {/* Tiradores Visuales de Fade In / Fade Out */}

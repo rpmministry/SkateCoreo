@@ -2,7 +2,8 @@ import React, { useRef, useEffect, useState } from 'react';
 import { useChoreographyStore } from '../store/useChoreographyStore';
 import { audioEngine } from '../core/audio/AudioEngine';
 import { ChoreographyPoint, isMainNode } from '../types/choreography';
-import { Clock, Music, Sparkles } from 'lucide-react';
+import { Clock, Music, Sparkles, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { useAudioZoomPan } from '../hooks/useAudioZoomPan';
 
 interface InteractiveWaveformProps {
   currentTimeMs: number;
@@ -15,12 +16,12 @@ interface InteractiveWaveformProps {
 export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
   currentTimeMs,
   durationMs,
+  isPlaying,
   onSeek,
   fileName
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const trackRef = useRef<HTMLDivElement | null>(null);
 
   const points = useChoreographyStore((state) => state.points);
   const selectedPointId = useChoreographyStore((state) => state.selectedPointId);
@@ -34,6 +35,9 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
   const [draggedPinId, setDraggedPinId] = useState<string | null>(null);
   const [hoveredPinId, setHoveredPinId] = useState<string | null>(null);
 
+  // Radio seguro de marcadores en px
+  const PIN_RADIUS = 18;
+
   // Filtrado exclusivo de Nodos Principales para el Timeline de Música:
   // Elimina la saturación de micro-puntos de curvatura y eleva el rendimiento en pantallas móviles
   const timelineNodes = points.filter((node, index) => isMainNode(node, index, points));
@@ -41,6 +45,21 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
   const isDraggingPinRef = useRef<boolean>(false);
   const dragStartPointRef = useRef<{ id: string; originalMs: number } | null>(null);
   const hasMovedRef = useRef<boolean>(false);
+
+  // Motor de Zoom y Paneo Dinámico Multidispositivo
+  const {
+    zoom,
+    containerRef: trackRef,
+    contentWidth,
+    zoomIn,
+    zoomOut,
+    resetZoom,
+  } = useAudioZoomPan({
+    minZoom: 1.0,
+    maxZoom: 35.0,
+    initialZoom: 1.0,
+    enableWheelPan: true,
+  });
 
   // Paleta de colores temáticos por figura técnica
   const getMarkerTheme = (type?: string, isSelected = false, isDragged = false) => {
@@ -67,17 +86,19 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
   // Duración efectiva (por defecto 120s si no hay audio cargado aún)
   const effectiveDurationMs = durationMs > 0 ? durationMs : 120000;
 
-  // Actualizar datos de onda sonora al cambiar de pista o al montar
+  // Actualizar datos de onda sonora al cambiar de pista, duración o al hacer zoom
   useEffect(() => {
     const updatePeaks = () => {
-      const peaks = audioEngine.getWaveformData(300);
+      // Al hacer zoom, solicitamos una mayor resolución de buckets al AudioBuffer para detalle milimétrico
+      const numBuckets = Math.max(300, Math.min(3000, Math.floor(contentWidth / 3.2)));
+      const peaks = audioEngine.getWaveformData(numBuckets);
       if (peaks && peaks.length > 0) {
         setWavePeaks(peaks);
       } else {
         // Generar onda representativa elegante si aún no se ha cargado archivo
         const demoPeaks: number[] = [];
-        for (let i = 0; i < 300; i++) {
-          const t = i / 300;
+        for (let i = 0; i < numBuckets; i++) {
+          const t = i / numBuckets;
           const beat = Math.sin(t * Math.PI * 16) * 0.4 + 0.5;
           const harmonic = Math.sin(t * Math.PI * 64) * 0.25;
           const noise = Math.sin(t * 123.45) * 0.15;
@@ -94,7 +115,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     });
 
     return () => unsubState();
-  }, [durationMs, fileName]);
+  }, [durationMs, fileName, contentWidth]);
 
   // Auto-cargar la pista de música de prueba oficial si no hay audio cargado
   useEffect(() => {
@@ -105,6 +126,24 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     }
   }, []);
 
+  // Auto-scroll durante reproducción si hay zoom activo
+  useEffect(() => {
+    if (!isPlaying || zoom <= 1.05) return;
+    const track = trackRef.current;
+    if (!track) return;
+
+    const playheadRatio = Math.max(0, Math.min(1, currentTimeMs / effectiveDurationMs));
+    const availableW = Math.max(1, contentWidth - PIN_RADIUS * 2);
+    const playheadPx = PIN_RADIUS + playheadRatio * availableW;
+
+    const left = track.scrollLeft;
+    const right = left + track.clientWidth;
+
+    if (playheadPx > right - 80 || playheadPx < left + 20) {
+      track.scrollLeft = Math.max(0, playheadPx - track.clientWidth / 2);
+    }
+  }, [currentTimeMs, isPlaying, zoom, contentWidth, effectiveDurationMs]);
+
   // Formato mm:ss.S
   const formatTime = (ms: number): string => {
     const totalSec = Math.max(0, ms / 1000);
@@ -114,21 +153,29 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${tenths}`;
   };
 
-  // Render Loop del Waveform Canvas
+  // Render Loop del Waveform Canvas con escalado Retina y CERO transform: scaleX CSS
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const width = canvas.width;
-    const height = canvas.height;
+    const dpr = window.devicePixelRatio || 1;
+    const width = contentWidth;
+    const height = canvas.clientHeight || 90;
+
+    if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+    }
+
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, width, height);
+
     const centerY = height / 2;
 
     // 1. Limpieza de Fondo
-    ctx.clearRect(0, 0, width, height);
-
-    // Fondo oscuro con sutil textura
     ctx.fillStyle = '#090D16';
     ctx.fillRect(0, 0, width, height);
 
@@ -141,13 +188,9 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     ctx.stroke();
 
     // 2. Proyección de Progreso de Reproducción con zona segura interna
-    const PIN_RADIUS = 18;
-    const rect = canvas.getBoundingClientRect();
-    const padCanvas = PIN_RADIUS * (width / (rect.width || 1000));
-    const availableW = Math.max(1, width - padCanvas * 2);
-
+    const availableW = Math.max(1, width - PIN_RADIUS * 2);
     const playheadRatio = Math.max(0, Math.min(1, currentTimeMs / effectiveDurationMs));
-    const playheadPx = padCanvas + playheadRatio * availableW;
+    const playheadPx = PIN_RADIUS + playheadRatio * availableW;
 
     // Área reproducida (sombreado sutil cian)
     const playedGradient = ctx.createLinearGradient(0, 0, playheadPx, 0);
@@ -156,27 +199,20 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     ctx.fillStyle = playedGradient;
     ctx.fillRect(0, 0, playheadPx, height);
 
-    // 3. Renderizado de Picos de la Onda Sonora
+    // 3. Renderizado de Picos de la Onda Sonora (Detalle de alta densidad al hacer zoom)
     const peaks = wavePeaks.length > 0 ? wavePeaks : [0.5];
     const step = availableW / peaks.length;
-    const barWidth = Math.max(1.5, step - 1);
+    const barWidth = Math.max(1.5, Math.min(6, step - 1));
 
     for (let i = 0; i < peaks.length; i++) {
       const peakVal = peaks[i];
-      const barX = padCanvas + i * step;
+      const barX = PIN_RADIUS + i * step;
       const barHeight = Math.max(3, peakVal * (height * 0.82));
       const topY = centerY - barHeight / 2;
 
       // Color dinámico según si ya ha sido reproducido o está por sonar
       const isPast = barX <= playheadPx;
-
-      if (isPast) {
-        // Picos ya reproducidos: Electric Ice Cyan puro y nítido
-        ctx.fillStyle = '#00F5FF';
-      } else {
-        // Picos futuros: monocromático atenuado de alto contraste WCAG
-        ctx.fillStyle = 'rgba(161, 161, 170, 0.35)';
-      }
+      ctx.fillStyle = isPast ? '#00F5FF' : 'rgba(161, 161, 170, 0.35)';
 
       ctx.beginPath();
       ctx.roundRect(barX, topY, barWidth, barHeight, 1);
@@ -184,12 +220,11 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     }
 
     // 4. Marcadores de Nodos Coreográficos (Líneas verticales del Scrubber)
-    // Renderiza EXCLUSIVAMENTE los Nodos Principales, despejando la interfaz de micro-puntos
     const sortedPoints = [...timelineNodes].sort((a, b) => a.timestamp - b.timestamp);
 
     sortedPoints.forEach((point) => {
       const pointRatio = Math.max(0, Math.min(1, point.timestamp / effectiveDurationMs));
-      const pinX = padCanvas + pointRatio * availableW;
+      const pinX = PIN_RADIUS + pointRatio * availableW;
       const isSelected = point.id === selectedPointId;
       const isDragged = point.id === draggedPinId;
       const theme = getMarkerTheme(point.type, isSelected, isDragged);
@@ -203,7 +238,6 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
         ctx.globalAlpha = 0.45;
       } else {
         ctx.setLineDash([]);
-        // Resplandor neón de selección / arrastre activo
         ctx.shadowColor = theme.stroke;
         ctx.shadowBlur = isDragged ? 14 : 8;
       }
@@ -270,7 +304,10 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
       ctx.fillText(timeStr, hTipX + hTipW / 2, hTipY + hTipH / 2);
       ctx.restore();
     }
+
+    ctx.restore();
   }, [
+    contentWidth,
     wavePeaks,
     currentTimeMs,
     effectiveDurationMs,
@@ -278,10 +315,10 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     selectedPointId,
     hoverX,
     hoverTimeMs,
-    draggedPinId
+    draggedPinId,
   ]);
 
-  // Gestores de Interacción Táctil y Puntero para los Marcadores DOM Gigantes (48px Touch Target)
+  // Gestores de Interacción Táctil y Puntero para los Marcadores DOM (Tamaño Fijo Rígido 36x36px)
   const handlePinPointerDown = (e: React.PointerEvent<HTMLDivElement>, point: ChoreographyPoint) => {
     e.stopPropagation();
     try {
@@ -302,16 +339,15 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     setSelectedPointId(point.id);
   };
 
-  const PIN_RADIUS = 18;
-
   const handlePinPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isDraggingPinRef.current || !dragStartPointRef.current) return;
     const track = trackRef.current;
     if (!track) return;
 
     const rect = track.getBoundingClientRect();
-    const availableWidth = Math.max(1, rect.width - PIN_RADIUS * 2);
-    const px = e.clientX - rect.left - PIN_RADIUS;
+    const availableWidth = Math.max(1, contentWidth - PIN_RADIUS * 2);
+    // Incorpora scrollLeft para arrastre exacto en cualquier nivel de zoom
+    const px = e.clientX - rect.left + track.scrollLeft - PIN_RADIUS;
     const ratio = Math.max(0, Math.min(1, px / availableWidth));
     const timeMs = Math.round(ratio * effectiveDurationMs);
 
@@ -349,33 +385,32 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     setDraggedPinId(null);
   };
 
-  // Gestores del Canvas: SOLO Seek de reproducción con respeto a la zona segura interna
+  // Gestores del Canvas: Seek de reproducción con respeto al desplazamiento horizontal
   const handleCanvasPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const track = trackRef.current;
+    if (!track) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const availableWidth = Math.max(1, rect.width - PIN_RADIUS * 2);
-    const px = e.clientX - rect.left - PIN_RADIUS;
+    const rect = track.getBoundingClientRect();
+    const availableWidth = Math.max(1, contentWidth - PIN_RADIUS * 2);
+    const px = e.clientX - rect.left + track.scrollLeft - PIN_RADIUS;
     const ratio = Math.max(0, Math.min(1, px / availableWidth));
     const targetTimeMs = Math.round(ratio * effectiveDurationMs);
     onSeek(targetTimeMs);
   };
 
   const handleCanvasPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const track = trackRef.current;
+    if (!track) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const availableWidth = Math.max(1, rect.width - PIN_RADIUS * 2);
-    const px = e.clientX - rect.left - PIN_RADIUS;
+    const rect = track.getBoundingClientRect();
+    const availableWidth = Math.max(1, contentWidth - PIN_RADIUS * 2);
+    const px = e.clientX - rect.left + track.scrollLeft - PIN_RADIUS;
     const ratio = Math.max(0, Math.min(1, px / availableWidth));
     const timeMs = Math.round(ratio * effectiveDurationMs);
 
-    const scaleX = canvas.width / rect.width;
-    const canvasHoverX = (e.clientX - rect.left) * scaleX;
+    const canvasX = e.clientX - rect.left + track.scrollLeft;
 
-    setHoverX(canvasHoverX);
+    setHoverX(canvasX);
     setHoverTimeMs(timeMs);
   };
 
@@ -391,14 +426,14 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
       ref={containerRef}
       className="w-full h-full bg-surface-canvas text-text-primary px-3 sm:px-4 py-1 flex flex-col justify-between select-none relative overflow-hidden timeline-safe-zone"
     >
-      {/* Cabecera del Waveform */}
+      {/* ── Cabecera del Waveform: Información y Controles de Zoom ── */}
       <div className="flex items-center justify-between gap-2 text-xs shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           <div className="w-5 h-5 rounded-subtle bg-surface-hover text-text-secondary flex items-center justify-center border border-border-subtle shrink-0">
             <Music className="w-3 h-3" />
           </div>
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className="font-semibold text-text-primary truncate max-w-[130px] sm:max-w-[200px]">
+            <span className="font-semibold text-text-primary truncate max-w-[110px] sm:max-w-[180px]">
               {fileName || 'Pista Musical'}
             </span>
             <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-surface-hover text-text-tertiary border border-border-subtle hidden sm:inline shrink-0">
@@ -407,8 +442,51 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
           </div>
         </div>
 
-        {/* Telemetría rápida */}
+        {/* Controles de Zoom & Telemetría */}
         <div className="flex items-center gap-2 font-mono text-[11px] shrink-0">
+          {/* Botones de Zoom In / Zoom Out / Reset */}
+          <div className="flex items-center gap-1 bg-surface-hover/80 p-0.5 rounded-subtle border border-border-subtle">
+            <button
+              type="button"
+              onClick={() => zoomOut()}
+              disabled={zoom <= 1.01}
+              className="w-5 h-5 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-surface-active disabled:opacity-25 disabled:pointer-events-none transition-all active:scale-95"
+              title="Alejar (Ctrl + Rueda abajo)"
+            >
+              <ZoomOut className="w-3 h-3" />
+            </button>
+
+            <span
+              className="font-mono text-[10px] text-accent font-bold px-1 min-w-[34px] text-center"
+              title="Factor de zoom horizontal actual"
+            >
+              {zoom.toFixed(1)}x
+            </span>
+
+            <button
+              type="button"
+              onClick={() => zoomIn()}
+              disabled={zoom >= 34.9}
+              className="w-5 h-5 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-surface-active disabled:opacity-25 disabled:pointer-events-none transition-all active:scale-95"
+              title="Acercar (Ctrl + Rueda arriba o Pellizco)"
+            >
+              <ZoomIn className="w-3 h-3" />
+            </button>
+
+            {zoom > 1.05 && (
+              <button
+                type="button"
+                onClick={resetZoom}
+                className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-accent/15 text-accent hover:bg-accent/25 transition-all flex items-center gap-0.5"
+                title="Restablecer a vista completa (1x)"
+              >
+                <RotateCcw className="w-2.5 h-2.5" />
+                <span>1x</span>
+              </button>
+            )}
+          </div>
+
+          {/* Telemetría de Tiempo */}
           <div className="flex items-center gap-1 text-text-tertiary">
             <Clock className="w-3 h-3 text-accent" />
             <span className="text-accent font-semibold">{formatTime(currentTimeMs)}</span>
@@ -416,35 +494,53 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
             <span>{formatTime(effectiveDurationMs)}</span>
           </div>
 
-          <div className="flex items-center gap-1 text-text-secondary bg-surface-hover/70 px-2 py-0.5 rounded-subtle border border-border-subtle">
+          <div className="hidden sm:flex items-center gap-1 text-text-secondary bg-surface-hover/70 px-2 py-0.5 rounded-subtle border border-border-subtle">
             <Sparkles className="w-3 h-3 text-accent" />
             <span>Nodos: <strong className="text-text-primary font-bold">{timelineNodes.length}</strong></span>
           </div>
         </div>
       </div>
 
-      {/* Contenedor del Track (Canvas + Overlay de Marcadores de Tamaño Fijo) */}
+      {/* ── Contenedor del Track Desplazable (Scroll & Paneo Nativo Horizontal) ── */}
       <div
         ref={trackRef}
         className="relative w-full flex-1 min-h-0 overflow-x-auto overflow-y-hidden rounded-subtle border border-border-subtle bg-surface-card group mt-1"
-        style={{ overflowX: 'auto', overflowY: 'hidden' }}
+        style={{
+          overflowX: 'auto',
+          overflowY: 'hidden',
+          WebkitOverflowScrolling: 'touch',
+          touchAction: zoom > 1 ? 'pan-x' : 'none',
+        }}
       >
+        {/* Canvas de Onda con resolución nativa de píxeles (¡Cero CSS scaleX!) */}
         <canvas
           ref={canvasRef}
-          width={1000}
-          height={90}
           onPointerDown={handleCanvasPointerDown}
           onPointerMove={handleCanvasPointerMove}
           onPointerLeave={handleCanvasPointerLeave}
-          style={{ cursor: 'crosshair', touchAction: 'none' }}
-          className="w-full h-full block select-none touch-none rounded-subtle"
-          title="Línea de tiempo de audio. Toca para reproducir. Arrastra los marcadores (#1, #2...) para sincronizar el tiempo."
+          style={{
+            width: `${contentWidth}px`,
+            minWidth: `${contentWidth}px`,
+            height: '100%',
+            cursor: 'crosshair',
+          }}
+          className="h-full block select-none rounded-subtle"
+          title="Línea de tiempo de audio. Ctrl + Scroll o Pellizco para Zoom. Toca para reproducir. Arrastra marcadores para sincronizar."
         />
 
-        {/* DOM Overlay de Marcadores (Mobile-First: Tamaño Fijo Estricto 36x36px, Sin Gigantismo, Seguro ante Biseles) */}
-        <div className="absolute inset-0 pointer-events-none overflow-x-auto overflow-y-hidden">
+        {/* DOM Overlay de Marcadores (Tamaño Fijo Rígido 36x36px, Sin Deformación Óptica) */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            width: `${contentWidth}px`,
+            minWidth: `${contentWidth}px`,
+          }}
+        >
           {sortedTimelineNodes.map((point, index) => {
             const pointRatio = Math.max(0, Math.min(1, point.timestamp / effectiveDurationMs));
+            const availableW = Math.max(1, contentWidth - PIN_RADIUS * 2);
+            const pinLeftPx = PIN_RADIUS + pointRatio * availableW;
+
             const isSelected = point.id === selectedPointId;
             const isDragged = point.id === draggedPinId;
             const isHovered = point.id === hoveredPinId;
@@ -456,7 +552,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
                 key={point.id}
                 className="absolute top-0 bottom-0 pointer-events-auto flex flex-col items-center select-none group/pin cursor-grab active:cursor-grabbing"
                 style={{
-                  left: `calc(${PIN_RADIUS}px + ${pointRatio} * (100% - ${PIN_RADIUS * 2}px))`,
+                  left: `${pinLeftPx}px`,
                   transform: 'translateX(-50%)',
                   width: '36px',
                   maxWidth: '36px',
@@ -491,7 +587,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
                   </div>
                 )}
 
-                {/* Cabeza del Marcador Táctil (Tamaño Fijo Estricto 36x36px sin deformaciones) */}
+                {/* Cabeza del Marcador Táctil (Tamaño Fijo Estricto 36x36px: CERO Deformación Ovalada) */}
                 <div
                   className={`
                     w-[36px] h-[36px] max-w-[36px] max-h-[36px] rounded-full shrink-0
@@ -540,9 +636,11 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
           })}
         </div>
 
-        {/* Indicador discreto */}
+        {/* Indicador de Ayuda Dinámico */}
         <div className="absolute bottom-1 right-2 text-[9px] font-mono font-medium text-text-tertiary pointer-events-none group-hover:text-text-secondary transition-colors">
-          Toca: Reproducir aquí · Arrastra marcadores: Ajustar tiempo
+          {zoom > 1.05
+            ? `Zoom ${zoom.toFixed(1)}x · Paneo activo (Scroll horizontal o Arrastre)`
+            : 'Ctrl + Rueda o Pellizco para Zoom · Arrastra marcadores para sincronizar'}
         </div>
       </div>
     </div>

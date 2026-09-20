@@ -314,7 +314,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   },
 
   setZoom: (zoom) => {
-    set({ zoom: Math.max(0.5, Math.min(4, zoom)) });
+    set({ zoom: Math.max(1.0, Math.min(35.0, zoom)) });
   },
 
   setMetronomeConfig: (config) => {

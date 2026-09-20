@@ -33,3 +33,4 @@ export interface StudioMetronomeConfig {
   accentFirstBeat: boolean;
   volume: number;
 }
+

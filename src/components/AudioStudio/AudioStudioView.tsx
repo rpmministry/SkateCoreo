@@ -11,10 +11,15 @@ import {
   Activity,
   Layers,
   CheckCircle2,
-  Clock
+  Clock,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+  Sliders,
 } from 'lucide-react';
 import { useAudioStudioStore } from '../../store/useAudioStudioStore';
 import { audioEngine } from '../../services/audioEngine';
+import { useAudioZoomPan } from '../../hooks/useAudioZoomPan';
 import { AudioTimeRuler } from './AudioTimeRuler';
 import { MultitrackTrackRow } from './MultitrackTrackRow';
 
@@ -55,6 +60,40 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
 
   const [exportNotice, setExportNotice] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Motor de Zoom y Paneo Dinámico Multidispositivo para el Estudio de Audio
+  const {
+    zoom,
+    containerRef: timelineContainerRef,
+    contentWidth,
+    zoomIn,
+    zoomOut,
+    resetZoom,
+  } = useAudioZoomPan({
+    minZoom: 1.0,
+    maxZoom: 35.0,
+    initialZoom: 1.0,
+    widthOffset: 224, // Ancho exacto del panel sticky lateral izquierdo (w-56)
+    enableWheelPan: true,
+  });
+
+  // Auto-scroll durante reproducción si hay zoom activo
+  useEffect(() => {
+    if (!isPlaying || zoom <= 1.05) return;
+    const container = timelineContainerRef.current;
+    if (!container) return;
+
+    const dur = Math.max(10, totalDurationSec);
+    const playheadRatio = Math.max(0, Math.min(1, currentTimeSec / dur));
+    const playheadPx = 224 + playheadRatio * contentWidth;
+
+    const left = container.scrollLeft;
+    const right = left + container.clientWidth;
+
+    if (playheadPx > right - 120 || playheadPx < left + 240) {
+      container.scrollLeft = Math.max(0, playheadPx - container.clientWidth / 2);
+    }
+  }, [currentTimeSec, isPlaying, zoom, contentWidth, totalDurationSec]);
 
   // Sincronizar tiempo de AudioEngine con el store de AudioStudio
   useEffect(() => {
@@ -323,47 +362,110 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
       )}
 
       {/* ═══════════════════════════════════════════════
-          BODY PRINCIPAL: Multitrack Workspace & Timeline
+          BODY PRINCIPAL: Multitrack Workspace & Timeline (Sincronizado con Zoom y Paneo)
           ═══════════════════════════════════════════════ */}
-      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-        {/* Regla Graduada de Tiempo con Marcadores */}
-        <div className="shrink-0">
-          <AudioTimeRuler
-            totalDurationSec={totalDurationSec}
-            currentTimeSec={currentTimeSec}
-            onSeek={handleSeek}
-          />
+      <div
+        ref={timelineContainerRef}
+        className="flex-1 min-h-0 overflow-x-auto overflow-y-auto bg-[#060911] select-none"
+        style={{
+          WebkitOverflowScrolling: 'touch',
+          touchAction: zoom > 1 ? 'pan-x' : 'none',
+        }}
+      >
+        <div style={{ width: `${contentWidth + 224}px`, minWidth: '100%' }}>
+          {/* Fila de la Regla Graduada de Tiempo con esquina Sticky */}
+          <div className="flex border-b border-white/10 bg-slate-950">
+            {/* Esquina Sticky Izquierda: Controles de Zoom del Workspace */}
+            <div className="w-56 shrink-0 bg-slate-950/95 border-r border-white/10 px-3 py-1 flex items-center justify-between sticky left-0 z-30">
+              <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-300">
+                <Sliders className="w-3.5 h-3.5 text-cyan" />
+                <span>Pistas</span>
+              </div>
+
+              {/* Botones de Zoom In / Out / Reset */}
+              <div className="flex items-center gap-1 bg-slate-900 px-1 py-0.5 rounded-lg border border-white/10">
+                <button
+                  type="button"
+                  onClick={() => zoomOut()}
+                  disabled={zoom <= 1.01}
+                  className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-white hover:bg-white/10 disabled:opacity-25 disabled:pointer-events-none transition-all active:scale-95"
+                  title="Alejar (Ctrl + Rueda abajo)"
+                >
+                  <ZoomOut className="w-3 h-3" />
+                </button>
+
+                <span
+                  className="font-mono text-[10px] text-cyan font-bold px-1 min-w-[32px] text-center"
+                  title="Zoom horizontal actual"
+                >
+                  {zoom.toFixed(1)}x
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => zoomIn()}
+                  disabled={zoom >= 34.9}
+                  className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-white hover:bg-white/10 disabled:opacity-25 disabled:pointer-events-none transition-all active:scale-95"
+                  title="Acercar (Ctrl + Rueda arriba o Pellizco)"
+                >
+                  <ZoomIn className="w-3 h-3" />
+                </button>
+
+                {zoom > 1.05 && (
+                  <button
+                    type="button"
+                    onClick={resetZoom}
+                    className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-cyan/15 text-cyan hover:bg-cyan/25 transition-all flex items-center gap-0.5"
+                    title="Restablecer a vista completa (1x)"
+                  >
+                    <RotateCcw className="w-2.5 h-2.5" />
+                    <span>1x</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Timeline de la Regla */}
+            <div style={{ width: `${contentWidth}px` }} className="flex-1">
+              <AudioTimeRuler
+                totalDurationSec={totalDurationSec}
+                currentTimeSec={currentTimeSec}
+                contentWidth={contentWidth}
+                onSeek={handleSeek}
+              />
+            </div>
+          </div>
+
+          {/* Pistas Multitrack (Música, Voz, Metrónomo) */}
+          <div className="divide-y divide-white/5">
+            <MultitrackTrackRow
+              track={tracks.music}
+              totalDurationSec={totalDurationSec}
+              currentTimeSec={currentTimeSec}
+              contentWidth={contentWidth}
+              onUploadFile={(file) => handleFileUpload(file, 'music')}
+              onSeek={handleSeek}
+            />
+
+            <MultitrackTrackRow
+              track={tracks.voice}
+              totalDurationSec={totalDurationSec}
+              currentTimeSec={currentTimeSec}
+              contentWidth={contentWidth}
+              onUploadFile={(file) => handleFileUpload(file, 'voice')}
+              onSeek={handleSeek}
+            />
+
+            <MultitrackTrackRow
+              track={tracks.metronome}
+              totalDurationSec={totalDurationSec}
+              currentTimeSec={currentTimeSec}
+              contentWidth={contentWidth}
+              onSeek={handleSeek}
+            />
+          </div>
         </div>
-
-        {/* Pistas Multitrack (Música, Voz, Metrónomo) */}
-        <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-white/5 bg-[#060911]">
-          {/* Pista 1: Música Principal */}
-          <MultitrackTrackRow
-            track={tracks.music}
-            totalDurationSec={totalDurationSec}
-            currentTimeSec={currentTimeSec}
-            onUploadFile={(file) => handleFileUpload(file, 'music')}
-            onSeek={handleSeek}
-          />
-
-          {/* Pista 2: Voz y Guías Técnicas */}
-          <MultitrackTrackRow
-            track={tracks.voice}
-            totalDurationSec={totalDurationSec}
-            currentTimeSec={currentTimeSec}
-            onUploadFile={(file) => handleFileUpload(file, 'voice')}
-            onSeek={handleSeek}
-          />
-
-          {/* Pista 3: Metrónomo Sintético */}
-          <MultitrackTrackRow
-            track={tracks.metronome}
-            totalDurationSec={totalDurationSec}
-            currentTimeSec={currentTimeSec}
-            onSeek={handleSeek}
-          />
-        </div>
-
+      </div>
         {/* ═══════════════════════════════════════════════
             PANEL INFERIOR: Lista y Gestión de Nodos Temporales
             ═══════════════════════════════════════════════ */}
@@ -456,6 +558,5 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           </div>
         </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
