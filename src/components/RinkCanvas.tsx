@@ -58,7 +58,7 @@ interface RinkCanvasProps {
 
 interface DragState {
   targetId: string;
-  type: 'anchor' | 'grip' | 'curve';
+  type: 'anchor' | 'grip' | 'curve' | 'point';
   t?: number;
 }
 
@@ -471,8 +471,6 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     if (hitNode) {
       hitFound = true;
       strokeStartNodeRef.current = hitNode;
-      // Iniciar trazo libre desde la posición exacta del nodo maestro
-      rawStrokeRef.current = [{ x: hitNode.x, y: hitNode.y }];
 
       // Configurar temporizador de Long Press (~600ms) para abrir inspector de propiedades
       const targetNode = hitNode;
@@ -488,11 +486,24 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
         setSelectedPointId(targetNode.id);
         onNodeSelect?.(targetNode.id);
         setDeleteTooltip({ pointId: targetNode.id });
-        // Cancelar el trazo en curso para evitar dibujar mientras se abre el menú
+        // Cancelar el trazo o arrastre en curso para evitar dibujar mientras se abre el menú
         rawStrokeRef.current = [];
         strokeStartNodeRef.current = null;
+        dragTargetRef.current = null;
+        setIsDragging(false);
         renderFrame();
       }, 600);
+
+      // Decisión según la Máquina de Estados:
+      if (phase === 'plot') {
+        // En Modo Nodos: Mover libremente el nodo principal por la pista (Drag & Drop)
+        dragTargetRef.current = { targetId: hitNode.id, type: 'point' };
+        rawStrokeRef.current = [];
+      } else {
+        // En Modo Trazado: Iniciar dibujo libre a mano alzada desde la posición del nodo
+        dragTargetRef.current = null;
+        rawStrokeRef.current = [{ x: hitNode.x, y: hitNode.y }];
+      }
     }
 
     // 2. Manipulación Directa de Curvas (Drag-to-Curve sin tiradores visuales)
@@ -582,7 +593,25 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     const { x: worldPx, y: worldPy } = screenToWorld(e.clientX, e.clientY, canvas);
     const { mX, mY } = RinkMath.pixelsToMeters(worldPx, worldPy, metrics, DEFAULT_RINK_DIMENSIONS);
 
-    // 3. Arrastre de Spline Grip Point (curvas Catmull-Rom sobre el tramo)
+    // 3. REPOSICIONAMIENTO DE NODOS EN TIEMPO REAL (MODO NODOS: DRAG & DROP A 60 FPS)
+    if (dragTargetRef.current && dragTargetRef.current.type === 'point' && movedDistance >= 5) {
+      if (!isDragging) {
+        setIsDragging(true);
+        onDragChange?.(true);
+        setDeleteTooltip(null);
+      }
+
+      // Restringir a los límites de la pista reglamentaria (0.4m margen de seguridad)
+      const clampedX = Math.max(0.4, Math.min(DEFAULT_RINK_DIMENSIONS.lengthMeters - 0.4, mX));
+      const clampedY = Math.max(0.4, Math.min(DEFAULT_RINK_DIMENSIONS.widthMeters - 0.4, mY));
+
+      const targetId = dragTargetRef.current.targetId;
+      useChoreographyStore.getState().updatePointPosition(targetId, clampedX, clampedY);
+      renderFrame();
+      return;
+    }
+
+    // 4. Arrastre de Spline Grip Point (curvas Catmull-Rom sobre el tramo)
     if (dragTargetRef.current && (dragTargetRef.current.type === 'grip' || dragTargetRef.current.type === 'curve')) {
       if (movedDistance >= 5 && !isDragging) {
         setIsDragging(true);
@@ -700,6 +729,27 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       : 0;
 
     const currentTarget = dragTargetRef.current;
+
+    // 0. Finalización de reposicionamiento de Nodo Principal (Mover Nodo en Modo Nodos)
+    if (currentTarget && currentTarget.type === 'point' && isDragging) {
+      if (pointsBeforeDragRef.current) {
+        pushHistory();
+        pointsBeforeDragRef.current = null;
+      }
+      const updatedPoints = useChoreographyStore.getState().points;
+      audio.setNodes(updatedPoints);
+      if (currentProgram) {
+        onProgramUpdated({
+          ...currentProgram,
+          choreography_path: updatedPoints,
+        });
+      }
+      setIsDragging(false);
+      dragTargetRef.current = null;
+      onDragChange?.(false);
+      renderFrame();
+      return;
+    }
 
     // 1. Finalización de arrastre de Spline Grip Point
     if (currentTarget && (currentTarget.type === 'grip' || currentTarget.type === 'curve') && isDragging) {

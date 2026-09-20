@@ -24,7 +24,6 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
   const points = useChoreographyStore((state) => state.points);
   const selectedPointId = useChoreographyStore((state) => state.selectedPointId);
   const setSelectedPointId = useChoreographyStore((state) => state.setSelectedPointId);
-  const addPointFromAudio = useChoreographyStore((state) => state.addPointFromAudio);
   const updatePointTimestamp = useChoreographyStore((state) => state.updatePointTimestamp);
   const pushHistory = useChoreographyStore((state) => state.pushHistory);
 
@@ -174,16 +173,16 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
 
       const isDragged = point.id === draggedPinId;
 
-      // Línea vertical marcadora
+      // Línea vertical marcadora (Scrubber Line atravesando el Waveform)
       ctx.save();
-      ctx.strokeStyle = isDragged ? '#38BDF8' : (isSelected ? '#FFFFFF' : themeColor);
+      ctx.strokeStyle = isDragged ? '#00D2FF' : (isSelected ? '#10F49C' : themeColor);
       ctx.lineWidth = isDragged ? 3 : (isSelected ? 2.5 : 1.5);
       if (!isSelected && !isDragged) {
         ctx.setLineDash([3, 2]);
       } else {
         ctx.setLineDash([]);
-        // Resplandor de selección / arrastre
-        ctx.shadowColor = isDragged ? '#38BDF8' : themeColor;
+        // Resplandor neón de selección / arrastre activo
+        ctx.shadowColor = isDragged ? '#00D2FF' : (isSelected ? '#10F49C' : themeColor);
         ctx.shadowBlur = isDragged ? 16 : 10;
       }
 
@@ -193,27 +192,35 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
       ctx.stroke();
       ctx.restore();
 
-      // Badge superior (#N con fondo)
-      const badgeW = isDragged ? 34 : 28;
-      const badgeH = 16;
-      const badgeY = 4;
-      const badgeX = Math.max(2, Math.min(width - badgeW - 2, pinX - badgeW / 2));
+      // Pulgar Superior (Thumb) - Círculo/Botón táctil prominente conectado a la línea
+      const thumbRadius = isDragged ? 12 : (isSelected ? 11 : 9);
+      const thumbY = thumbRadius + 2;
+      const thumbColor = isDragged ? '#00D2FF' : (isSelected ? '#10F49C' : themeColor);
 
       ctx.save();
-      ctx.fillStyle = isDragged ? '#38BDF8' : (isSelected ? '#FFFFFF' : themeColor);
-      ctx.beginPath();
-      ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 4);
-      ctx.fill();
+      if (isSelected || isDragged) {
+        ctx.shadowColor = thumbColor;
+        ctx.shadowBlur = 12;
+      }
 
-      // Texto de orden (#1, #2, ...)
-      ctx.fillStyle = (isSelected || isDragged) ? '#090D16' : '#0B0F19';
-      ctx.font = 'bold 9px JetBrains Mono, monospace';
+      // Círculo exterior del Thumb
+      ctx.beginPath();
+      ctx.arc(pinX, thumbY, thumbRadius, 0, Math.PI * 2);
+      ctx.fillStyle = '#0F172A';
+      ctx.fill();
+      ctx.lineWidth = isSelected || isDragged ? 2.5 : 1.8;
+      ctx.strokeStyle = thumbColor;
+      ctx.stroke();
+
+      // Texto de orden (#1, #2, ...) centrado en el Thumb
+      ctx.fillStyle = isSelected || isDragged ? '#FFFFFF' : '#E2E8F0';
+      ctx.font = `bold ${isDragged || isSelected ? '10px' : '9px'} JetBrains Mono, monospace`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(`#${index + 1}`, badgeX + badgeW / 2, badgeY + badgeH / 2);
+      ctx.fillText(`${index + 1}`, pinX, thumbY);
       ctx.restore();
 
-      // Si está seleccionado o arrastrado, dibujar tooltip con el tiempo o nombre debajo
+      // Tooltip informativo inferior flotante con el tiempo exacto
       if (isSelected || isDragged) {
         const timeSec = (point.timestamp / 1000).toFixed(1);
         const hasRealLabel = Boolean(point.label && point.label.trim() !== '');
@@ -228,7 +235,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
         const tipX = Math.max(2, Math.min(width - tipW - 2, pinX - tipW / 2));
 
         ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
-        ctx.strokeStyle = themeColor;
+        ctx.strokeStyle = thumbColor;
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.roundRect(tipX, tipY, tipW, tipH, 4);
@@ -308,15 +315,19 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     draggedPinId
   ]);
 
-  // Detección de Pin cercano con tolerancia en píxeles (exclusivo para Nodos Principales)
-  const findPinAtPx = (px: number, canvasWidth: number, tolerance = 18): ChoreographyPoint | null => {
+  // Detección de Pin con Hitbox amplio (mínimo 44px-48px de área táctil horizontal)
+  const findPinAtPx = (px: number, canvasWidth: number, tolerance = 24): ChoreographyPoint | null => {
+    let closestPt: ChoreographyPoint | null = null;
+    let minDiff = Infinity;
     for (const pt of timelineNodes) {
       const ptPx = (pt.timestamp / effectiveDurationMs) * canvasWidth;
-      if (Math.abs(px - ptPx) <= tolerance) {
-        return pt;
+      const diff = Math.abs(px - ptPx);
+      if (diff <= tolerance && diff < minDiff) {
+        minDiff = diff;
+        closestPt = pt;
       }
     }
-    return null;
+    return closestPt;
   };
 
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -327,7 +338,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     const scaleX = canvas.width / rect.width;
     const px = (e.clientX - rect.left) * scaleX;
 
-    const hit = findPinAtPx(px, canvas.width, 16);
+    const hit = findPinAtPx(px, canvas.width, 24);
     if (hit) {
       try {
         e.currentTarget.setPointerCapture(e.pointerId);
@@ -363,7 +374,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
       onSeek(timeMs);
       setCursorStyle('grabbing');
     } else {
-      const isNearPin = Boolean(findPinAtPx(px, canvas.width, 14));
+      const isNearPin = Boolean(findPinAtPx(px, canvas.width, 24));
       setCursorStyle(isNearPin ? 'ew-resize' : 'crosshair');
     }
   };
@@ -391,20 +402,19 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
       return;
     }
 
-    // Clic en zona vacía: Crear nuevo nodo Audio-First
+    // Tocar en el visor de música: SOLO reposicionar reproducción (Seek). NUNCA crear nodos.
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const clickPx = (e.clientX - rect.left) * scaleX;
     const clickRatio = Math.max(0, Math.min(1, clickPx / canvas.width));
     const targetTimeMs = Math.round(clickRatio * effectiveDurationMs);
 
-    const hit = findPinAtPx(clickPx, canvas.width, 14);
+    const hit = findPinAtPx(clickPx, canvas.width, 24);
     if (hit) {
       setSelectedPointId(hit.id);
       onSeek(hit.timestamp);
     } else {
-      const newPoint = addPointFromAudio(targetTimeMs);
-      setSelectedPointId(newPoint.id);
+      // Reposiciona exclusivamente el cabezal de audio
       onSeek(targetTimeMs);
     }
   };
@@ -479,12 +489,12 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
           onPointerLeave={handlePointerLeave}
           style={{ cursor: cursorStyle, touchAction: 'none' }}
           className="w-full h-full block select-none touch-none"
-          title="Haz clic para crear un nodo. Arrastra los marcadores (#1, #2...) para mover su tiempo."
+          title="Línea de tiempo de audio. Toca para reproducir desde ese punto. Arrastra los marcadores (#1, #2...) para sincronizar el tiempo."
         />
 
         {/* Indicador discreto */}
         <div className="absolute bottom-1 right-2 text-[9px] font-mono font-medium text-text-tertiary pointer-events-none group-hover:text-text-secondary transition-colors">
-          Clic: Crear/Buscar · Arrastrar: Ajustar tiempo
+          Toca: Reproducir aquí · Arrastra marcadores: Ajustar tiempo
         </div>
       </div>
     </div>

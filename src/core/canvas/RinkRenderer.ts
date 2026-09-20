@@ -147,10 +147,8 @@ export class RinkRenderer {
       return;
     }
 
-    // FASE DE COLOCACIÓN DE NODOS (phase === 'plot'):
-    // No se trazan las líneas hasta terminar de colocar los nodos a elección o nodos de tiempo.
-    // Solo se renderizan en fase 'curve' (o 'connect') o con showFullTrailOverride.
-    if (options.phase === 'plot' && !showFullTrailOverride) {
+    // Si hay menos de 2 nodos, no hay trayectorias continuas que trazar
+    if (sorted.length < 2) {
       return;
     }
 
