@@ -60,4 +60,66 @@ assert.equal(straightPoints[0].label, '', 'Straight start node has empty label')
 assert.equal(straightPoints[1].label, '', 'Straight end node has empty label');
 console.log('✓ Intelligent straight line perfection passed');
 
+// 5. Test Flujo 2: Trazo anclado a un Nodo Existente (Nodo 1 -> Trazo -> Nodo 2) sin duplicados
+const existingNode1 = {
+  id: 'node-1-unique',
+  x: 10.0,
+  y: 12.0,
+  time_ms: 0,
+  timestamp: 0,
+  type: 'Step' as const,
+  label: '',
+  isMainNode: true,
+};
+
+// Usuario arrastra desde Node 1 (10, 12) hasta (20, 15)
+const strokeFromNode1: Point2D[] = [
+  { x: existingNode1.x, y: existingNode1.y },
+  { x: 12, y: 13 },
+  { x: 15, y: 14 },
+  { x: 18, y: 14.5 },
+  { x: 20, y: 15 },
+];
+
+const generatedFlow2 = FreehandPathEngine.convertStrokeToChoreographyPoints(
+  strokeFromNode1,
+  existingNode1.time_ms,
+  3.5
+);
+
+assert.ok(generatedFlow2.length >= 2, 'Debe generar al menos 2 puntos para el enlace');
+assert.equal(generatedFlow2[0].x, existingNode1.x, 'El inicio del trazo coincide exactamente con Nodo 1 en X');
+assert.equal(generatedFlow2[0].y, existingNode1.y, 'El inicio del trazo coincide exactamente con Nodo 1 en Y');
+assert.equal(generatedFlow2[0].time_ms, existingNode1.time_ms, 'Tiempo de inicio es idéntico a Nodo 1');
+
+// Simular el ensamblado en RinkCanvas sin duplicados
+const updatedExisting = [{
+  ...existingNode1,
+  cp1x: generatedFlow2[0].controlPoint1?.x,
+  cp1y: generatedFlow2[0].controlPoint1?.y,
+  cp2x: generatedFlow2[0].controlPoint2?.x,
+  cp2y: generatedFlow2[0].controlPoint2?.y,
+  controlPoint1: generatedFlow2[0].controlPoint1,
+  controlPoint2: generatedFlow2[0].controlPoint2,
+}];
+
+const extensionPoints = generatedFlow2.slice(1).map((pt, idx) => {
+  const isLast = idx === generatedFlow2.length - 2;
+  const isMain = isLast || Boolean(pt.isMainNode);
+  return {
+    ...pt,
+    id: `node-2-created-${idx}`,
+    type: isMain ? ('Step' as const) : ('Curve' as const),
+    label: '',
+    isMainNode: isMain,
+  };
+});
+
+const finalChoreography = [...updatedExisting, ...extensionPoints];
+assert.equal(finalChoreography.length, generatedFlow2.length, 'Total de nodos no debe tener duplicados de Nodo 1');
+assert.equal(finalChoreography[0].id, 'node-1-unique', 'Nodo 1 conserva su ID original sin reemplazo');
+assert.equal(finalChoreography[finalChoreography.length - 1].isMainNode, true, 'Nodo 2 final debe ser Nodo Maestro');
+assert.ok(finalChoreography[finalChoreography.length - 1].time_ms > 0, 'Nodo 2 tiene timestamp posterior al Nodo 1');
+console.log('✓ Flujo 2: Enlace Nodo 1 -> Nodo 2 verificado con éxito sin duplicados');
+
 console.log('All FreehandPathEngine tests passed successfully!');

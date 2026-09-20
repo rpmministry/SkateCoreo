@@ -467,16 +467,18 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     const hitRadius = 32 / camera.zoom;
     let hitFound = false;
 
-    // 1. Comprobar si tocó un Nodo Maestro existente (Nodos Principales)
+    // 1. Comprobar si tocó un Nodo Maestro existente (Nodos Principales) con hitbox táctil optimizado
     let hitNode: ChoreographyPoint | null = null;
+    let minNodeDist = Infinity;
     for (let i = 0; i < points.length; i++) {
       const p = points[i];
       if (!isMainNode(p, i, points)) continue;
 
       const { px, py } = RinkMath.metersToPixels(p.x, p.y, metrics);
-      if (Math.hypot(worldPx - px, worldPy - py) < hitRadius) {
+      const dist = Math.hypot(worldPx - px, worldPy - py);
+      if (dist < hitRadius && dist < minNodeDist) {
+        minNodeDist = dist;
         hitNode = p;
-        break;
       }
     }
 
@@ -508,7 +510,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       hitFound = true;
       strokeStartNodeRef.current = hitNode;
 
-      // Configurar temporizador de Long Press (~600ms) para abrir inspector de propiedades
+      // Configurar temporizador de Long Press (~600ms) para abrir inspector de propiedades si no hay arrastre
       const targetNode = hitNode;
       longPressTimerRef.current = setTimeout(() => {
         isLongPressActiveRef.current = true;
@@ -521,7 +523,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
         // Seleccionar nodo y abrir el modal / Bottom Sheet de propiedades
         setSelectedPointId(targetNode.id);
         onNodeSelect?.(targetNode.id);
-        // Cancelar el trazo o arrastre en curso para evitar dibujar mientras se abre el menú
+        // Cancelar el trazo en curso para evitar dibujar mientras se abre el menú
         rawStrokeRef.current = [];
         strokeStartNodeRef.current = null;
         dragTargetRef.current = null;
@@ -529,16 +531,10 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
         renderFrame();
       }, 600);
 
-      // Decisión según la Máquina de Estados:
-      if (phase === 'plot') {
-        // En Modo Nodos: Mover libremente el nodo principal por la pista (Drag & Drop)
-        dragTargetRef.current = { targetId: hitNode.id, type: 'point' };
-        rawStrokeRef.current = [];
-      } else {
-        // En Modo Trazado: Iniciar dibujo libre a mano alzada desde la posición del nodo
-        dragTargetRef.current = null;
-        rawStrokeRef.current = [{ x: hitNode.x, y: hitNode.y }];
-      }
+      // Caso B (Sobre un nodo existente): Captura el nodo y lo establece como startNode temporal.
+      // El trazo se ancla ESTRICTAMENTE a las coordenadas exactas de ese nodo (previene duplicados).
+      dragTargetRef.current = null;
+      rawStrokeRef.current = [{ x: hitNode.x, y: hitNode.y }];
     }
 
     // 2. Manipulación Directa de Curvas (Drag-to-Curve sin tiradores visuales)
@@ -834,8 +830,8 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       totalStrokeLength += Math.hypot(rawStroke[i].x - rawStroke[i - 1].x, rawStroke[i].y - rawStroke[i - 1].y);
     }
 
-    // Si el trazo fue significativo (al menos 0.8 metros de longitud total o 2 puntos bien separados)
-    if (rawStroke.length >= 2 && totalStrokeLength >= 0.8) {
+    // Si el trazo fue significativo (al menos 0.35 metros de longitud total o 2 puntos bien separados)
+    if (rawStroke.length >= 2 && totalStrokeLength >= 0.35) {
       const sortedPts = [...points].sort((a, b) => a.time_ms - b.time_ms);
       let baseTime = 0;
       if (startNode) {
@@ -854,7 +850,8 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
         let finalPoints: ChoreographyPoint[] = [];
 
         if (startNode) {
-          // Conectar al Nodo Maestro existente
+          // Conectar al Nodo Maestro existente (Nodo 1 -> Curva -> Nodo 2)
+          // Actualiza puntos de control Bézier en startNode SIN duplicarlo
           const updatedExisting: ChoreographyPoint[] = points.map((p) => {
             if (p.id === startNode.id) {
               const cp1 = generated[0].controlPoint1 || { x: generated[0].x, y: generated[0].y };
@@ -872,24 +869,32 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
             return p;
           });
 
-          const newExtensionPoints = generated.slice(1).map((pt, idx) => ({
-            ...pt,
-            id: `pt-freehand-${Date.now()}-${idx}`,
-            type: idx === generated.length - 2 ? ('Step' as const) : ('Curve' as const),
-            label: '',
-            isMainNode: idx === generated.length - 2,
-          }));
+          // Puntos nuevos de la extensión: el último es siempre Nodo Maestro (Nodo 2)
+          const newExtensionPoints = generated.slice(1).map((pt, idx) => {
+            const isLast = idx === generated.length - 2;
+            const isMain = isLast || Boolean(pt.isMainNode);
+            return {
+              ...pt,
+              id: `pt-freehand-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
+              type: isMain ? ('Step' as const) : ('Curve' as const),
+              label: '',
+              isMainNode: isMain,
+            };
+          });
 
           finalPoints = [...updatedExisting, ...newExtensionPoints].sort((a, b) => a.time_ms - b.time_ms);
         } else {
-          // Trazo nuevo independiente (con Nodo Maestro al inicio y al final)
-          const stamped = generated.map((pt, idx) => ({
-            ...pt,
-            id: `pt-freehand-${Date.now()}-${idx}`,
-            type: (idx === 0 || idx === generated.length - 1) ? ('Step' as const) : ('Curve' as const),
-            label: '',
-            isMainNode: idx === 0 || idx === generated.length - 1,
-          }));
+          // Trazo nuevo independiente (con Nodo Maestro al inicio [Nodo A] y al final [Nodo B])
+          const stamped = generated.map((pt, idx) => {
+            const isMain = idx === 0 || idx === generated.length - 1 || Boolean(pt.isMainNode);
+            return {
+              ...pt,
+              id: `pt-freehand-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
+              type: isMain ? ('Step' as const) : ('Curve' as const),
+              label: '',
+              isMainNode: isMain,
+            };
+          });
 
           finalPoints = [...points, ...stamped].sort((a, b) => a.time_ms - b.time_ms);
         }
@@ -903,7 +908,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
           setPhase('curve');
         }
         audio.setNodes(finalPoints);
-        if (currentProgram) {
+        if (currentProgram && onProgramUpdated) {
           onProgramUpdated({
             ...currentProgram,
             choreography_path: finalPoints,
@@ -947,22 +952,22 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
         }
         lastTapRef.current = { time: now, x: e.clientX, y: e.clientY };
 
-        if (phase === 'plot') {
-          // En modo nodos, un tap en vacío coloca un nodo
-          const metrics = getMetrics();
-          const { x: worldPx, y: worldPy } = screenToWorld(e.clientX, e.clientY, canvas);
-          const { mX, mY } = RinkMath.pixelsToMeters(worldPx, worldPy, metrics, DEFAULT_RINK_DIMENSIONS);
-          if (mX >= 0.5 && mX <= 49.5 && mY >= 0.5 && mY <= 24.5) {
+        // Tap en vacío coloca un "Nodo Aislado"
+        const metrics = getMetrics();
+        const { x: worldPx, y: worldPy } = screenToWorld(e.clientX, e.clientY, canvas);
+        const { mX, mY } = RinkMath.pixelsToMeters(worldPx, worldPy, metrics, DEFAULT_RINK_DIMENSIONS);
+        if (mX >= 0.5 && mX <= 49.5 && mY >= 0.5 && mY <= 24.5) {
+          if (phase === 'plot' || points.length === 0) {
             const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
             const lastTime = sorted.length > 0 ? sorted[sorted.length - 1].time_ms : 0;
-            const newTime = audio.currentTimeMs > 0 ? audio.currentTimeMs : lastTime + 3000;
+            const newTime = audio.currentTimeMs > 0 ? audio.currentTimeMs : (sorted.length === 0 ? 0 : lastTime + 3000);
             const newPt = addPointAtCanvas(mX, mY, newTime);
             setSelectedPointId(newPt.id);
             renderFrame();
+          } else {
+            // En modo trazado con nodos existentes, tap en vacío deselecciona
+            setSelectedPointId(null);
           }
-        } else {
-          // En modo trazado, tap en vacío deselecciona
-          setSelectedPointId(null);
         }
       }
     }
