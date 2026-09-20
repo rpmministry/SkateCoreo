@@ -133,6 +133,9 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
   const showControlHandles = useChoreographyStore((state) => state.showControlHandles);
   const showRinkGrid = useChoreographyStore((state) => state.showRinkGrid);
   const history = useChoreographyStore((state) => state.history);
+  const unplacedNodes = useChoreographyStore((state) => state.unplacedNodes);
+  const activeTrayNodeIndex = useChoreographyStore((state) => state.activeTrayNodeIndex);
+  const placeTrayNode = useChoreographyStore((state) => state.placeTrayNode);
 
   const setPoints = useChoreographyStore((state) => state.setPoints);
   const setSelectedPointId = useChoreographyStore((state) => state.setSelectedPointId);
@@ -1051,6 +1054,26 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
         const { x: worldPx, y: worldPy } = screenToWorld(e.clientX, e.clientY, canvas);
         const { mX, mY } = RinkMath.pixelsToMeters(worldPx, worldPy, metrics, DEFAULT_RINK_DIMENSIONS);
         if (mX >= 0.5 && mX <= 49.5 && mY >= 0.5 && mY <= 24.5) {
+          // Si hay nodos pendientes de la bandeja del Estudio de Audio:
+          if (unplacedNodes.length > 0 && activeTrayNodeIndex < unplacedNodes.length) {
+            const currentTrayNode = unplacedNodes[activeTrayNodeIndex];
+            if (currentTrayNode) {
+              const placed = placeTrayNode(currentTrayNode.id, mX, mY);
+              if (placed) {
+                const currentPts = useChoreographyStore.getState().points;
+                audio.setNodes(currentPts);
+                if (currentProgram && onProgramUpdated) {
+                  onProgramUpdated({
+                    ...currentProgram,
+                    choreography_path: currentPts,
+                  });
+                }
+                renderFrame();
+                return;
+              }
+            }
+          }
+
           if (phase === 'plot' || points.length === 0) {
             const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
             const lastTime = sorted.length > 0 ? sorted[sorted.length - 1].time_ms : 0;

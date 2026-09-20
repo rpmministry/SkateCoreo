@@ -29,6 +29,8 @@ import { useChoreographyStore } from './store/useChoreographyStore';
 import { renderChoreographyMixdown } from './core/audio/audioMixdown';
 import { exportCoreoProject, importCoreoProject } from './services/coreoPackage';
 import { ProtectedLayout } from './components/ProtectedLayout';
+import { AudioStudioView } from './components/AudioStudio/AudioStudioView';
+import { NodePlacementTray } from './components/NodePlacementTray';
 
 // ── Helpers ────────────────────────────────────────────────────
 const fmtTime = (ms: number): string => {
@@ -38,6 +40,10 @@ const fmtTime = (ms: number): string => {
 
 // ── Component ──────────────────────────────────────────────────
 export function App() {
+
+  // ── Modos de Vista: Pista 2D vs Estudio de Audio (DAW Lite) ──
+  const [activeView, setActiveView] = useState<'rink' | 'studio'>('rink');
+  const unplacedNodes = useChoreographyStore((s) => s.unplacedNodes);
 
   // ── DB / domain state ──────────────────────────────────
   const [skaters, setSkaters] = useState<Skater[]>([]);
@@ -487,6 +493,28 @@ export function App() {
 
         {/* ── ZONA 3 (Derecha): CTA Principal & Menú de Desbordamiento Carbon ── */}
         <div className="flex items-center gap-2 shrink-0">
+          {/* Botón Estudio de Audio (DAW Lite) */}
+          <button
+            type="button"
+            onClick={() => setActiveView((v) => (v === 'studio' ? 'rink' : 'studio'))}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all interactive-tap shadow-soft-elevation border ${
+              activeView === 'studio'
+                ? 'bg-cyan text-slate-950 border-white/20 shadow-glow-cyan font-black'
+                : 'bg-white/[0.04] hover:bg-white/10 text-cyan border-cyan/30'
+            }`}
+            title="Abrir Estudio de Audio (DAW Lite multipista)"
+          >
+            <span>🎛️</span>
+            <span className="hidden sm:inline">
+              {activeView === 'studio' ? 'Ver Pista 2D' : 'Estudio de Audio'}
+            </span>
+            {unplacedNodes.length > 0 && activeView !== 'studio' && (
+              <span className="w-4 h-4 rounded-full bg-amber-400 text-slate-950 text-[10px] font-black flex items-center justify-center animate-pulse">
+                {unplacedNodes.length}
+              </span>
+            )}
+          </button>
+
           {/* Botón Cargar Audio (CTA Primario) */}
           <button
             type="button"
@@ -518,6 +546,25 @@ export function App() {
                 />
                 <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-neon-surface/98 backdrop-blur-xl border border-white/10 shadow-2xl p-2 z-50 flex flex-col gap-1 divide-y divide-white/5 animate-in fade-in zoom-in-95 duration-100">
                   <div className="space-y-1 pb-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowExportMenu(false);
+                        setActiveView((v) => (v === 'studio' ? 'rink' : 'studio'));
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-left hover:bg-white/5 text-slate-200 hover:text-white transition-all"
+                    >
+                      <Music className="w-4 h-4 text-cyan shrink-0 stroke-[1.75]" />
+                      <div>
+                        <p className="font-semibold leading-tight">
+                          {activeView === 'studio' ? 'Volver a Pista 2D' : 'Estudio de Audio (DAW)'}
+                        </p>
+                        <p className="text-[10px] text-slate-400 font-normal">
+                          {activeView === 'studio' ? 'Ver lienzo y coreografía' : 'Editor multipista y marcadores'}
+                        </p>
+                      </div>
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => { setShowExportMenu(false); handleSaveOffline(); }}
@@ -605,38 +652,50 @@ export function App() {
       </header>
 
       {/* ═══════════════════════════════════════════════
-          BODY — IDE Tri-Column (lg+) / Orientation-Aware Mobile (<lg)
+          BODY — Audio Studio (DAW Lite) vs Pista 2D Tri-Column
           ═══════════════════════════════════════════════ */}
-      <div className="flex-1 min-h-0 flex flex-col landscape:flex-row lg:flex-row overflow-hidden relative">
-
-        {/* Backdrop for Mobile Drawers/Sheets (EXCLUSIVAMENTE MÓVIL: lg:hidden) */}
-        {(drawerOpen || sheetOpen) && (
-          <div
-            className="lg:hidden fixed inset-0 z-40 bg-black/75 backdrop-blur-md transition-opacity"
-            onClick={() => {
-              setDrawerOpen(false);
-              setSheetOpen(false);
-              useChoreographyStore.getState().setSelectedPointId(null);
-            }}
-            onTouchStart={(e) => e.stopPropagation()}
-            onTouchMove={(e) => e.stopPropagation()}
-            onTouchEnd={(e) => e.stopPropagation()}
-            onWheel={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            aria-hidden="true"
+      {activeView === 'studio' ? (
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden relative">
+          <AudioStudioView
+            onExportToRink={() => setActiveView('rink')}
+            onBackToRink={() => setActiveView('rink')}
           />
-        )}
+        </div>
+      ) : (
+        <>
+          <div className="flex-1 min-h-0 flex flex-col landscape:flex-row lg:flex-row overflow-hidden relative">
+            {/* Bandeja de Colocación de Nodos de Audio (Estricto Orden Secuencial) */}
+            <NodePlacementTray onOpenAudioStudio={() => setActiveView('studio')} />
 
-        {/* ── DESKTOP LEFT ASIDE (Preparación y Mezcla) ── */}
-        <aside className="hidden lg:flex lg:w-[272px] xl:w-[288px] shrink-0 flex-col bg-neon-surface border-r border-white/5 overflow-hidden shadow-soft-elevation">
-          <LeftSidebarPanel
-            preRollSec={preRollSec}
-            onPreRollSecChange={setPreRollSec}
-            onUndo={handleUndo}
-            onResetDemo={handleResetDemo}
-            onClearRink={handleClearRink}
-          />
-        </aside>
+            {/* Backdrop for Mobile Drawers/Sheets (EXCLUSIVAMENTE MÓVIL: lg:hidden) */}
+            {(drawerOpen || sheetOpen) && (
+              <div
+                className="lg:hidden fixed inset-0 z-40 bg-black/75 backdrop-blur-md transition-opacity"
+                onClick={() => {
+                  setDrawerOpen(false);
+                  setSheetOpen(false);
+                  useChoreographyStore.getState().setSelectedPointId(null);
+                }}
+                onTouchStart={(e) => e.stopPropagation()}
+                onTouchMove={(e) => e.stopPropagation()}
+                onTouchEnd={(e) => e.stopPropagation()}
+                onWheel={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                aria-hidden="true"
+              />
+            )}
+
+            {/* ── DESKTOP LEFT ASIDE (Preparación y Mezcla) ── */}
+            <aside className="hidden lg:flex lg:w-[272px] xl:w-[288px] shrink-0 flex-col bg-neon-surface border-r border-white/5 overflow-hidden shadow-soft-elevation">
+              <LeftSidebarPanel
+                preRollSec={preRollSec}
+                onPreRollSecChange={setPreRollSec}
+                onUndo={handleUndo}
+                onResetDemo={handleResetDemo}
+                onClearRink={handleClearRink}
+                onOpenAudioStudio={() => setActiveView('studio')}
+              />
+            </aside>
 
         {/* ── MOBILE / TABLET LANDSCAPE TOOLBAR (Figma Style Sidebar) ── */}
         <nav
@@ -860,6 +919,7 @@ export function App() {
               onUndo={handleUndo}
               onResetDemo={handleResetDemo}
               onClearRink={handleClearRink}
+              onOpenAudioStudio={() => { setDrawerOpen(false); setActiveView('studio'); }}
               showHeader={false}
               isMobileModal={true}
             />
@@ -1088,6 +1148,8 @@ export function App() {
           <span className="truncate-safe max-w-[56px] text-center">Inspector</span>
         </button>
       </nav>
+      </>
+      )}
 
       {/* ═══════════════════════════════════════════════
           FOOTER — Atribución Oficial AlsisTech

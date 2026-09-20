@@ -2,8 +2,15 @@ import { create } from 'zustand';
 import { ChoreographyPoint, ChoreographyPathPoint, ControlPoint, SkaterGender } from '../types/choreography';
 import { ChoreographyPhase } from '../core/canvas/RinkRenderer';
 import { CategoriaReglamento, EficienciaReglamento, getCategoriaByEdad } from '../constants/reglamento';
+import { AudioTimeNode } from '../types/audioStudio';
 
 export interface ChoreographyStoreState {
+  // Bandeja de Nodos de Audio (UI Tray recibida desde el Estudio de Audio)
+  unplacedNodes: AudioTimeNode[];
+  activeTrayNodeIndex: number;
+  setUnplacedNodes: (nodes: AudioTimeNode[]) => void;
+  placeTrayNode: (nodeId: string, x: number, y: number) => ChoreographyPoint | null;
+  clearUnplacedNodes: () => void;
   // Puntos Coreográficos Unificados (Fuente Única de Verdad)
   points: ChoreographyPoint[];
   selectedPointId: string | null;
@@ -585,6 +592,69 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
 
   // ── Visualización y Trazado Dinámico ───────────────────────
   showFullTrailOverride: false,
-  setShowFullTrailOverride: (show: boolean) => set({ showFullTrailOverride: show })
+  setShowFullTrailOverride: (show: boolean) => set({ showFullTrailOverride: show }),
+
+  // ── Bandeja de Nodos de Audio (UI Tray) ───────────────────
+  unplacedNodes: [],
+  activeTrayNodeIndex: 0,
+
+  setUnplacedNodes: (nodes: AudioTimeNode[]) => {
+    const sorted = [...nodes].sort((a, b) => a.timestampSec - b.timestampSec);
+    set({
+      unplacedNodes: sorted,
+      activeTrayNodeIndex: 0,
+    });
+  },
+
+  placeTrayNode: (nodeId: string, x: number, y: number) => {
+    const { unplacedNodes, activeTrayNodeIndex, points, pushHistory } = get();
+    const currentNode = unplacedNodes[activeTrayNodeIndex];
+
+    // Restricción de Orden Estricto: solo se puede ubicar el nodo activo actual
+    if (!currentNode || currentNode.id !== nodeId) {
+      console.warn(`[ChoreographyStore] Bloqueo de orden: No se puede ubicar ${nodeId} antes del nodo activo actual`);
+      return null;
+    }
+
+    pushHistory();
+    const timeMs = Math.round(currentNode.timestampSec * 1000);
+    const newPointId = currentNode.id;
+    const label = currentNode.label || `Nodo ${currentNode.numeroSecuencial}`;
+
+    const newPoint: ChoreographyPoint = {
+      id: newPointId,
+      x: Math.round(x * 100) / 100,
+      y: Math.round(y * 100) / 100,
+      time_ms: timeMs,
+      timestamp: timeMs,
+      type: 'Step',
+      label,
+      isMainNode: true,
+      controlPoint1: { x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100 },
+      controlPoint2: { x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100 },
+      cp1x: Math.round(x * 100) / 100,
+      cp1y: Math.round(y * 100) / 100,
+      cp2x: Math.round(x * 100) / 100,
+      cp2y: Math.round(y * 100) / 100,
+    };
+
+    const newPoints = [...points, newPoint].sort((a, b) => a.time_ms - b.time_ms);
+    const nextIndex = activeTrayNodeIndex + 1;
+
+    set({
+      points: newPoints,
+      selectedPointId: newPointId,
+      activeTrayNodeIndex: nextIndex,
+      // Si ya se ubicaron todos los nodos de la bandeja, se limpia
+      unplacedNodes: nextIndex >= unplacedNodes.length ? [] : unplacedNodes,
+      phase: newPoints.length >= 2 ? 'curve' : get().phase,
+    });
+
+    return newPoint;
+  },
+
+  clearUnplacedNodes: () => {
+    set({ unplacedNodes: [], activeTrayNodeIndex: 0 });
+  },
 }));
 

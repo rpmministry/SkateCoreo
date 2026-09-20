@@ -31,6 +31,7 @@ interface LeftSidebarPanelProps {
   onUndo: () => void;
   onResetDemo: () => void;
   onClearRink?: () => void;
+  onOpenAudioStudio?: () => void;
   showHeader?: boolean;
   isMobileModal?: boolean;
 }
@@ -46,6 +47,7 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
   onUndo,
   onResetDemo,
   onClearRink,
+  onOpenAudioStudio,
   showHeader = true,
   isMobileModal = false,
 }) => {
@@ -166,10 +168,32 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
 
         {/* ═══ 2. Audio mixer ═══════════════════════════════ */}
         <section className="px-4 py-3.5 space-y-3">
-          <h3 className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-            <Music className="w-3.5 h-3.5 text-cyan" />
-            Mezclador de Audio
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+              <Music className="w-3.5 h-3.5 text-cyan" />
+              Mezclador de Audio
+            </h3>
+            {onOpenAudioStudio && (
+              <button
+                type="button"
+                onClick={onOpenAudioStudio}
+                className="text-[10px] font-bold text-cyan hover:underline flex items-center gap-1"
+                title="Abrir Estudio de Audio completo"
+              >
+                <span>Abrir DAW →</span>
+              </button>
+            )}
+          </div>
+
+          {onOpenAudioStudio && (
+            <button
+              type="button"
+              onClick={onOpenAudioStudio}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/30 text-xs font-bold transition-all interactive-tap shadow-soft-elevation"
+            >
+              <span>🎛️ Abrir Estudio de Audio (DAW)</span>
+            </button>
+          )}
 
           {/* Channel routing */}
           <div className="space-y-1.5">
