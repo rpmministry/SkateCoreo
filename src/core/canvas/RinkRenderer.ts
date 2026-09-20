@@ -167,46 +167,158 @@ export class RinkRenderer {
       const p0 = sorted[i];
       const p1 = sorted[i + 1];
 
-      const pt0 = RinkMath.metersToPixels(p0.x, p0.y, metrics);
-      const pt1 = RinkMath.metersToPixels(p1.x, p1.y, metrics);
-      const { cp1: cp1M, cp2: cp2M } = RinkMath.getSegmentControlPoints(p0, p1);
-      const cp1 = RinkMath.metersToPixels(cp1M.x, cp1M.y, metrics);
-      const cp2 = RinkMath.metersToPixels(cp2M.x, cp2M.y, metrics);
-
       const isSegmentSelected = options.selectedPointId === p0.id || options.selectedPointId === p1.id;
+      const hasSplinePath = Boolean(p0.path && p0.path.length >= 2);
 
       ctx.save();
+
+      const strokeCurve = () => {
+        ctx.beginPath();
+        if (hasSplinePath) {
+          RinkRenderer.traceSplinePath(ctx, p0.path!, metrics);
+        } else {
+          const pt0 = RinkMath.metersToPixels(p0.x, p0.y, metrics);
+          const pt1 = RinkMath.metersToPixels(p1.x, p1.y, metrics);
+          const { cp1: cp1M, cp2: cp2M } = RinkMath.getSegmentControlPoints(p0, p1);
+          const cp1 = RinkMath.metersToPixels(cp1M.x, cp1M.y, metrics);
+          const cp2 = RinkMath.metersToPixels(cp2M.x, cp2M.y, metrics);
+          ctx.moveTo(pt0.px, pt0.py);
+          ctx.bezierCurveTo(cp1.px, cp1.py, cp2.px, cp2.py, pt1.px, pt1.py);
+        }
+        ctx.stroke();
+      };
 
       if (showFullTrailOverride) {
         // Modo Didáctico Iluminado: Alto contraste
         ctx.strokeStyle = isSegmentSelected ? 'rgba(0, 210, 255, 0.6)' : 'rgba(0, 210, 255, 0.35)';
         ctx.lineWidth = isSegmentSelected ? 8 : 5;
-        ctx.beginPath();
-        ctx.moveTo(pt0.px, pt0.py);
-        ctx.bezierCurveTo(cp1.px, cp1.py, cp2.px, cp2.py, pt1.px, pt1.py);
-        ctx.stroke();
+        strokeCurve();
 
         ctx.strokeStyle = isSegmentSelected ? '#67E8F9' : '#00D2FF';
         ctx.lineWidth = isSegmentSelected ? 3 : 2;
-        ctx.beginPath();
-        ctx.moveTo(pt0.px, pt0.py);
-        ctx.bezierCurveTo(cp1.px, cp1.py, cp2.px, cp2.py, pt1.px, pt1.py);
-        ctx.stroke();
+        strokeCurve();
       } else {
         // Guía inicial visual suave (no invasiva)
         ctx.setLineDash([5, 5]);
         ctx.strokeStyle = isSegmentSelected ? 'rgba(0, 210, 255, 0.7)' : 'rgba(56, 189, 248, 0.35)';
         ctx.lineWidth = isSegmentSelected ? 2.5 : 1.5;
-        ctx.beginPath();
-        ctx.moveTo(pt0.px, pt0.py);
-        ctx.bezierCurveTo(cp1.px, cp1.py, cp2.px, cp2.py, pt1.px, pt1.py);
-        ctx.stroke();
+        strokeCurve();
       }
 
       ctx.restore();
     }
 
     ctx.restore();
+  }
+
+  /**
+   * Traza una curva continua a través de todos los puntos de la huella utilizando Catmull-Rom a Bézier cúbico.
+   */
+  public static traceSplinePath(
+    ctx: CanvasRenderingContext2D,
+    path: Array<{ x: number; y: number }>,
+    metrics: CanvasViewportMetrics
+  ) {
+    if (path.length < 2) return;
+    const n = path.length;
+
+    const pt0 = RinkMath.metersToPixels(path[0].x, path[0].y, metrics);
+    ctx.moveTo(pt0.px, pt0.py);
+
+    if (n === 2) {
+      const pt1 = RinkMath.metersToPixels(path[1].x, path[1].y, metrics);
+      ctx.lineTo(pt1.px, pt1.py);
+      return;
+    }
+
+    const factor = 1 / 6;
+    for (let i = 0; i < n - 1; i++) {
+      const p0 = path[i];
+      const p1 = path[i + 1];
+      const pPrev = i > 0 ? path[i - 1] : { x: 2 * p0.x - p1.x, y: 2 * p0.y - p1.y };
+      const pNext = i < n - 2 ? path[i + 2] : { x: 2 * p1.x - p0.x, y: 2 * p1.y - p0.y };
+
+      const cp1M = {
+        x: p0.x + (p1.x - pPrev.x) * factor,
+        y: p0.y + (p1.y - pPrev.y) * factor
+      };
+      const cp2M = {
+        x: p1.x - (pNext.x - p0.x) * factor,
+        y: p1.y - (pNext.y - p0.y) * factor
+      };
+
+      const cp1 = RinkMath.metersToPixels(cp1M.x, cp1M.y, metrics);
+      const cp2 = RinkMath.metersToPixels(cp2M.x, cp2M.y, metrics);
+      const pt1 = RinkMath.metersToPixels(p1.x, p1.y, metrics);
+
+      ctx.bezierCurveTo(cp1.px, cp1.py, cp2.px, cp2.py, pt1.px, pt1.py);
+    }
+  }
+
+  /**
+   * Traza una curva continua parcial a través de la huella hasta el parámetro t (0 <= t <= 1).
+   */
+  public static tracePartialSplinePath(
+    ctx: CanvasRenderingContext2D,
+    path: Array<{ x: number; y: number }>,
+    t: number,
+    metrics: CanvasViewportMetrics
+  ) {
+    if (path.length < 2) return;
+    const clampedT = Math.max(0, Math.min(1, t));
+    const n = path.length;
+
+    const dists: number[] = [0];
+    for (let i = 1; i < n; i++) {
+      dists.push(dists[i - 1] + Math.hypot(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y));
+    }
+    const totalDist = dists[n - 1];
+    if (totalDist === 0) return;
+
+    const targetDist = clampedT * totalDist;
+    const pt0 = RinkMath.metersToPixels(path[0].x, path[0].y, metrics);
+    ctx.moveTo(pt0.px, pt0.py);
+
+    const factor = 1 / 6;
+    for (let i = 0; i < n - 1; i++) {
+      if (dists[i] >= targetDist) break;
+
+      const p0 = path[i];
+      const p1 = path[i + 1];
+      const pPrev = i > 0 ? path[i - 1] : { x: 2 * p0.x - p1.x, y: 2 * p0.y - p1.y };
+      const pNext = i < n - 2 ? path[i + 2] : { x: 2 * p1.x - p0.x, y: 2 * p1.y - p0.y };
+
+      const segLen = dists[i + 1] - dists[i];
+      const isLastSeg = targetDist <= dists[i + 1];
+
+      const cp1M = {
+        x: p0.x + (p1.x - pPrev.x) * factor,
+        y: p0.y + (p1.y - pPrev.y) * factor
+      };
+      const cp2M = {
+        x: p1.x - (pNext.x - p0.x) * factor,
+        y: p1.y - (pNext.y - p0.y) * factor
+      };
+
+      if (!isLastSeg) {
+        const cp1 = RinkMath.metersToPixels(cp1M.x, cp1M.y, metrics);
+        const cp2 = RinkMath.metersToPixels(cp2M.x, cp2M.y, metrics);
+        const pt1 = RinkMath.metersToPixels(p1.x, p1.y, metrics);
+        ctx.bezierCurveTo(cp1.px, cp1.py, cp2.px, cp2.py, pt1.px, pt1.py);
+      } else {
+        const u = segLen > 0 ? (targetDist - dists[i]) / segLen : 0;
+        const q0 = { x: (1 - u) * p0.x + u * cp1M.x, y: (1 - u) * p0.y + u * cp1M.y };
+        const q1 = { x: (1 - u) * cp1M.x + u * cp2M.x, y: (1 - u) * cp1M.y + u * cp2M.y };
+        const r0 = { x: (1 - u) * q0.x + u * q1.x, y: (1 - u) * q0.y + u * q1.y };
+        const endPt = RinkMath.evaluateCubicBezier(p0, cp1M, cp2M, p1, u);
+
+        const subCp1 = RinkMath.metersToPixels(q0.x, q0.y, metrics);
+        const subCp2 = RinkMath.metersToPixels(r0.x, r0.y, metrics);
+        const subEnd = RinkMath.metersToPixels(endPt.x, endPt.y, metrics);
+        ctx.bezierCurveTo(subCp1.px, subCp1.py, subCp2.px, subCp2.py, subEnd.px, subEnd.py);
+        break;
+      }
+    }
   }
 
   /**
@@ -256,64 +368,65 @@ export class RinkRenderer {
     const totalTimeMs = p1.time_ms - p0.time_ms;
     const t = totalTimeMs > 0 ? Math.min(1, Math.max(0, (currentTimeMs - p0.time_ms) / totalTimeMs)) : 1;
 
-    const { cp1: cp1M, cp2: cp2M } = RinkMath.getSegmentControlPoints(p0, p1);
-
     // 2. Efecto Estela / Fade-Out del Segmento Anterior (evita corte seco visual)
     if (activeSegIdx > 0) {
       const prevP0 = sortedPoints[activeSegIdx - 1];
       const prevP1 = sortedPoints[activeSegIdx];
-      const { cp1: pCp1M, cp2: pCp2M } = RinkMath.getSegmentControlPoints(prevP0, prevP1);
-
-      const ptPrev0 = RinkMath.metersToPixels(prevP0.x, prevP0.y, metrics);
-      const ptPrev1 = RinkMath.metersToPixels(prevP1.x, prevP1.y, metrics);
-      const cpPrev1 = RinkMath.metersToPixels(pCp1M.x, pCp1M.y, metrics);
-      const cpPrev2 = RinkMath.metersToPixels(pCp2M.x, pCp2M.y, metrics);
-
-      // Desvanecimiento suave en función de cuánto ha avanzado el avatar en el tramo actual
       const fadeAlpha = Math.max(0, 0.45 * (1 - t));
       if (fadeAlpha > 0.02) {
         ctx.save();
         ctx.strokeStyle = `rgba(0, 210, 255, ${fadeAlpha})`;
         ctx.lineWidth = 2.5;
         ctx.beginPath();
-        ctx.moveTo(ptPrev0.px, ptPrev0.py);
-        ctx.bezierCurveTo(cpPrev1.px, cpPrev1.py, cpPrev2.px, cpPrev2.py, ptPrev1.px, ptPrev1.py);
+        if (prevP0.path && prevP0.path.length >= 2) {
+          RinkRenderer.traceSplinePath(ctx, prevP0.path, metrics);
+        } else {
+          const { cp1: pCp1M, cp2: pCp2M } = RinkMath.getSegmentControlPoints(prevP0, prevP1);
+          const ptPrev0 = RinkMath.metersToPixels(prevP0.x, prevP0.y, metrics);
+          const ptPrev1 = RinkMath.metersToPixels(prevP1.x, prevP1.y, metrics);
+          const cpPrev1 = RinkMath.metersToPixels(pCp1M.x, pCp1M.y, metrics);
+          const cpPrev2 = RinkMath.metersToPixels(pCp2M.x, pCp2M.y, metrics);
+          ctx.moveTo(ptPrev0.px, ptPrev0.py);
+          ctx.bezierCurveTo(cpPrev1.px, cpPrev1.py, cpPrev2.px, cpPrev2.py, ptPrev1.px, ptPrev1.py);
+        }
         ctx.stroke();
         ctx.restore();
       }
     }
 
     // 3. Trazado Dinámico Activo: desde p0 hasta la posición actual del avatar (t)
-    const pt0 = RinkMath.metersToPixels(p0.x, p0.y, metrics);
     const avatarPx = RinkMath.metersToPixels(avatar.x, avatar.y, metrics);
 
-    // Subdividir curva de Bezier hasta t mediante algoritmo de de Casteljau
-    const q1x = (1 - t) * p0.x + t * cp1M.x;
-    const q1y = (1 - t) * p0.y + t * cp1M.y;
-    const q2x = (1 - t) * cp1M.x + t * cp2M.x;
-    const q2y = (1 - t) * cp1M.y + t * cp2M.y;
-    const r1x = (1 - t) * q1x + t * q2x;
-    const r1y = (1 - t) * q1y + t * q2y;
-
-    const subCp1 = RinkMath.metersToPixels(q1x, q1y, metrics);
-    const subCp2 = RinkMath.metersToPixels(r1x, r1y, metrics);
-
     ctx.save();
+
+    const traceActive = () => {
+      ctx.beginPath();
+      if (p0.path && p0.path.length >= 2) {
+        RinkRenderer.tracePartialSplinePath(ctx, p0.path, t, metrics);
+      } else {
+        const { cp1: cp1M, cp2: cp2M } = RinkMath.getSegmentControlPoints(p0, p1);
+        const pt0 = RinkMath.metersToPixels(p0.x, p0.y, metrics);
+        const q1x = (1 - t) * p0.x + t * cp1M.x;
+        const q1y = (1 - t) * p0.y + t * cp1M.y;
+        const q2x = (1 - t) * cp1M.x + t * cp2M.x;
+        const q2y = (1 - t) * cp1M.y + t * cp2M.y;
+        const subCp1 = RinkMath.metersToPixels(q1x, q1y, metrics);
+        const subCp2 = RinkMath.metersToPixels(q2x, q2y, metrics);
+        ctx.moveTo(pt0.px, pt0.py);
+        ctx.bezierCurveTo(subCp1.px, subCp1.py, subCp2.px, subCp2.py, avatarPx.px, avatarPx.py);
+      }
+      ctx.stroke();
+    };
+
     // Resplandor Neón exterior de la cuchilla
     ctx.strokeStyle = 'rgba(0, 210, 255, 0.65)';
     ctx.lineWidth = 8;
-    ctx.beginPath();
-    ctx.moveTo(pt0.px, pt0.py);
-    ctx.bezierCurveTo(subCp1.px, subCp1.py, subCp2.px, subCp2.py, avatarPx.px, avatarPx.py);
-    ctx.stroke();
+    traceActive();
 
     // Línea sólida de trazado dinámico
     ctx.strokeStyle = '#00D2FF';
     ctx.lineWidth = 3.5;
-    ctx.beginPath();
-    ctx.moveTo(pt0.px, pt0.py);
-    ctx.bezierCurveTo(subCp1.px, subCp1.py, subCp2.px, subCp2.py, avatarPx.px, avatarPx.py);
-    ctx.stroke();
+    traceActive();
 
     // Chispazo luminoso sutil en la cuchilla de la patinadora
     ctx.fillStyle = '#FFFFFF';

@@ -267,6 +267,76 @@ export class RinkMath {
   }
 
   /**
+   * Calcula la longitud acumulada de una polilínea o trazado
+   */
+  public static getPathLength(path: Array<{ x: number; y: number }>): number {
+    let len = 0;
+    for (let i = 1; i < path.length; i++) {
+      len += Math.hypot(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y);
+    }
+    return len;
+  }
+
+  /**
+   * Evalúa la posición (x, y) y la orientación cinemática (angleRad) a lo largo de un Catmull-Rom Spline
+   * de múltiples puntos en el parámetro normalizado t (0 <= t <= 1)
+   */
+  public static evaluateSplinePath(
+    path: Array<{ x: number; y: number }>,
+    t: number
+  ): { x: number; y: number; angleRad: number } {
+    if (path.length === 0) return { x: 0, y: 0, angleRad: 0 };
+    if (path.length === 1) return { x: path[0].x, y: path[0].y, angleRad: 0 };
+
+    const clampedT = Math.max(0, Math.min(1, t));
+    const n = path.length;
+
+    // Calcular distancias acumuladas
+    const dists: number[] = [0];
+    for (let i = 1; i < n; i++) {
+      dists.push(dists[i - 1] + Math.hypot(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y));
+    }
+    const totalDist = dists[n - 1];
+    if (totalDist === 0) {
+      return { x: path[0].x, y: path[0].y, angleRad: 0 };
+    }
+
+    const targetDist = clampedT * totalDist;
+
+    // Localizar el segmento correspondiente
+    let segIdx = 0;
+    for (let i = 0; i < n - 1; i++) {
+      if (targetDist >= dists[i] && targetDist <= dists[i + 1]) {
+        segIdx = i;
+        break;
+      }
+      if (i === n - 2) segIdx = n - 2;
+    }
+
+    const segLen = dists[segIdx + 1] - dists[segIdx];
+    const u = segLen > 0 ? (targetDist - dists[segIdx]) / segLen : 0;
+
+    // Puntos de control para Catmull-Rom: pPrev, p0, p1, pNext
+    const p0 = path[segIdx];
+    const p1 = path[segIdx + 1];
+    const pPrev = segIdx > 0 ? path[segIdx - 1] : { x: 2 * p0.x - p1.x, y: 2 * p0.y - p1.y };
+    const pNext = segIdx < n - 2 ? path[segIdx + 2] : { x: 2 * p1.x - p0.x, y: 2 * p1.y - p0.y };
+
+    // Convertir Catmull-Rom a Bézier cúbico (tensión = 0.5)
+    const factor = 1 / 6;
+    const cp1 = {
+      x: p0.x + (p1.x - pPrev.x) * factor,
+      y: p0.y + (p1.y - pPrev.y) * factor
+    };
+    const cp2 = {
+      x: p1.x - (pNext.x - p0.x) * factor,
+      y: p1.y - (pNext.y - p0.y) * factor
+    };
+
+    return this.evaluateCubicBezier(p0, cp1, cp2, p1, u);
+  }
+
+  /**
    * Calcula la posición e inclinación cinemática del patinador en un instante de tiempo
    */
   public static interpolateSkaterPosition(
@@ -307,6 +377,23 @@ export class RinkMath {
       if (currentTimeMs >= p0.time_ms && currentTimeMs <= p1.time_ms) {
         const timeSpanMs = p1.time_ms - p0.time_ms;
         const t = timeSpanMs > 0 ? (currentTimeMs - p0.time_ms) / timeSpanMs : 0;
+
+        // Si el segmento posee huella de alta fidelidad (Catmull-Rom Spline), seguir la curva compleja
+        if (p0.path && p0.path.length >= 2) {
+          const splinePt = this.evaluateSplinePath(p0.path, t);
+          const totalDist = this.getPathLength(p0.path);
+          const speedMps = timeSpanMs > 0 ? (totalDist / (timeSpanMs / 1000)) : 0;
+
+          return {
+            x: splinePt.x,
+            y: splinePt.y,
+            angleRad: splinePt.angleRad,
+            speedMps: Math.round(speedMps * 10) / 10,
+            activeElement: null,
+            activePointIndex: i
+          };
+        }
+
         const { cp1, cp2 } = this.getSegmentControlPoints(p0, p1);
         const { x, y, angleRad } = this.evaluateCubicBezier(p0, cp1, cp2, p1, t);
 
@@ -334,7 +421,6 @@ export class RinkMath {
     };
   }
 
-
   /**
    * Encuentra el punto más cercano sobre la trayectoria Bézier para inserción en Modo Libre
    * o división de tramos por doble clic. Muestrea 48 puntos por tramo para máxima fidelidad.
@@ -360,25 +446,43 @@ export class RinkMath {
     for (let i = 0; i < sorted.length - 1; i++) {
       const p0 = sorted[i];
       const p1 = sorted[i + 1];
-      const { cp1, cp2 } = this.getSegmentControlPoints(p0, p1);
       const totalTimeMs = p1.time_ms - p0.time_ms;
-
-      // Muestrear 48 puntos a lo largo de la curva Bézier para detección precisa a nivel de píxel
       const SAMPLES = 48;
-      for (let s = 0; s <= SAMPLES; s++) {
-        const t = s / SAMPLES;
-        const { x, y } = this.evaluateCubicBezier(p0, cp1, cp2, p1, t);
-        const dist = Math.hypot(x - targetMetersX, y - targetMetersY);
-        if (dist < bestDist) {
-          bestDist = dist;
-          bestPoint = {
-            x: Math.round(x * 10) / 10,
-            y: Math.round(y * 10) / 10,
-            time_ms: Math.round(p0.time_ms + t * totalTimeMs),
-            segmentIndex: i,
-            t,
-            distanceMeters: dist
-          };
+
+      if (p0.path && p0.path.length >= 2) {
+        for (let s = 0; s <= SAMPLES; s++) {
+          const t = s / SAMPLES;
+          const { x, y } = this.evaluateSplinePath(p0.path, t);
+          const dist = Math.hypot(x - targetMetersX, y - targetMetersY);
+          if (dist < bestDist) {
+            bestDist = dist;
+            bestPoint = {
+              x: Math.round(x * 10) / 10,
+              y: Math.round(y * 10) / 10,
+              time_ms: Math.round(p0.time_ms + t * totalTimeMs),
+              segmentIndex: i,
+              t,
+              distanceMeters: dist
+            };
+          }
+        }
+      } else {
+        const { cp1, cp2 } = this.getSegmentControlPoints(p0, p1);
+        for (let s = 0; s <= SAMPLES; s++) {
+          const t = s / SAMPLES;
+          const { x, y } = this.evaluateCubicBezier(p0, cp1, cp2, p1, t);
+          const dist = Math.hypot(x - targetMetersX, y - targetMetersY);
+          if (dist < bestDist) {
+            bestDist = dist;
+            bestPoint = {
+              x: Math.round(x * 10) / 10,
+              y: Math.round(y * 10) / 10,
+              time_ms: Math.round(p0.time_ms + t * totalTimeMs),
+              segmentIndex: i,
+              t,
+              distanceMeters: dist
+            };
+          }
         }
       }
     }

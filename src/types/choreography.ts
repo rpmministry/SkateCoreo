@@ -41,6 +41,7 @@ export interface ChoreographyPathPoint {
   label?: string;    // Technical figure or note
   element_id?: string;
   isMainNode?: boolean; // Indicador explícito de Nodo Principal / Maestro
+  path?: Array<{ x: number; y: number }>; // Huella de alta fidelidad (Catmull-Rom Spline) conectando este nodo con el siguiente
 }
 
 export interface ChoreographyPoint extends ChoreographyPathPoint {

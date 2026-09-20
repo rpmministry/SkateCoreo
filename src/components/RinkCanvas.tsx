@@ -825,6 +825,28 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     const startNode = strokeStartNodeRef.current;
     strokeStartNodeRef.current = null;
 
+    // Coordenada exacta de liberación táctil (Touch End)
+    let touchEndM: { mX: number; mY: number } | null = null;
+    if (canvas) {
+      const metrics = getMetrics();
+      const { x: worldPx, y: worldPy } = screenToWorld(e.clientX, e.clientY, canvas);
+      touchEndM = RinkMath.pixelsToMeters(worldPx, worldPy, metrics, DEFAULT_RINK_DIMENSIONS);
+    }
+
+    if (rawStroke.length > 0 && touchEndM) {
+      const clampedEndM = {
+        x: Math.max(0.2, Math.min(DEFAULT_RINK_DIMENSIONS.lengthMeters - 0.2, touchEndM.mX)),
+        y: Math.max(0.2, Math.min(DEFAULT_RINK_DIMENSIONS.widthMeters - 0.2, touchEndM.mY)),
+      };
+      // Forzar que el último punto del trazo coincida exactamente con la coordenada donde se levantó el dedo
+      rawStroke[rawStroke.length - 1] = clampedEndM;
+    }
+
+    if (startNode && rawStroke.length > 0) {
+      // Forzar que el primer punto coincida exactamente con el nodo de origen
+      rawStroke[0] = { x: startNode.x, y: startNode.y };
+    }
+
     let totalStrokeLength = 0;
     for (let i = 1; i < rawStroke.length; i++) {
       totalStrokeLength += Math.hypot(rawStroke[i].x - rawStroke[i - 1].x, rawStroke[i].y - rawStroke[i - 1].y);
@@ -842,7 +864,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
         baseTime = audio.currentTimeMs > 0 ? audio.currentTimeMs : 0;
       }
 
-      // Convertir el gesto libre en Béziers matemáticamente fluidos y Nodos Maestros
+      // Convertir el gesto libre preservando la huella geométrica (loops, círculos, ochos) y Nodos Maestros
       const generated = FreehandPathEngine.convertStrokeToChoreographyPoints(rawStroke, baseTime);
 
       if (generated.length >= 2) {
@@ -850,8 +872,8 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
         let finalPoints: ChoreographyPoint[] = [];
 
         if (startNode) {
-          // Conectar al Nodo Maestro existente (Nodo 1 -> Curva -> Nodo 2)
-          // Actualiza puntos de control Bézier en startNode SIN duplicarlo
+          // Conectar al Nodo Maestro existente (Nodo 1 -> Curva / Loop / Spline -> Nodo 2)
+          // Asigna la huella de alta fidelidad y tiradores de respaldo al nodo de inicio
           const updatedExisting: ChoreographyPoint[] = points.map((p) => {
             if (p.id === startNode.id) {
               const cp1 = generated[0].controlPoint1 || { x: generated[0].x, y: generated[0].y };
@@ -864,6 +886,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
                 cp2y: cp2.y,
                 controlPoint1: cp1,
                 controlPoint2: cp2,
+                path: generated[0].path, // Huella geométrica completa del trazo
               };
             }
             return p;

@@ -117,6 +117,40 @@ assert.equal(finalChoreography.length, 2, 'Total de nodos debe ser exactamente 2
 assert.equal(finalChoreography[0].id, 'node-1-unique', 'Nodo 1 conserva su ID original sin reemplazo');
 assert.equal(finalChoreography[1].isMainNode, true, 'Nodo 2 final debe ser Nodo Maestro');
 assert.ok(finalChoreography[1].time_ms > 0, 'Nodo 2 tiene timestamp posterior al Nodo 1');
-console.log('✓ Flujo 2: Enlace Nodo 1 -> Nodo 2 verificado con éxito: exactamente 1 nuevo nodo y cero duplicados');
+// 6. Test Preservación de Bucles (Loops) y Figuras Complejas (Círculos 360° / Ochos)
+const loopStroke: Point2D[] = [];
+// Patinadora dibuja un bucle (Loop): círculo completo con entrada y salida que se auto-intercepta
+for (let i = 0; i <= 60; i++) {
+  const theta = (i / 60) * 2 * Math.PI;
+  // Ecuación paramétrica de loop: x(t) = t + 2*sin(t), y(t) = 2*cos(t)
+  const t = theta - Math.PI;
+  loopStroke.push({
+    x: 25 + (t * 1.5 + 2 * Math.sin(t)),
+    y: 12.5 + (2 * Math.cos(t)),
+  });
+}
+
+const loopPoints = FreehandPathEngine.convertStrokeToChoreographyPoints(loopStroke, 2000, 3.5);
+assert.equal(loopPoints.length, 2, 'Debe generar exactamente 2 Nodos Maestros (inicio y fin) para evitar Node Spam');
+assert.ok(loopPoints[0].path, 'El nodo de inicio debe contener la huella (path) completa del trazo');
+assert.ok(loopPoints[0].path!.length >= 10, 'El trazo del loop debe conservar suficientes puntos para no colapsar la figura');
+assert.equal(loopPoints[0].path![0].x, loopPoints[0].x, 'El primer punto de path coincide exactamente con Nodo 1');
+assert.equal(loopPoints[0].path![loopPoints[0].path!.length - 1].x, loopPoints[1].x, 'El último punto de path coincide con Nodo 2');
+console.log('✓ Preservación de Bucle (Loop) y Círculo 360° en huella path verificada');
+
+// 7. Test Preservación de Figura en Ocho (Figure-8)
+const figureEightStroke: Point2D[] = [];
+for (let i = 0; i <= 80; i++) {
+  const t = (i / 80) * 2 * Math.PI;
+  // Curva de Gerono / lemniscata: x = sin(t), y = sin(t)*cos(t)
+  figureEightStroke.push({
+    x: 20 + 6 * Math.sin(t),
+    y: 12.5 + 4 * Math.sin(t) * Math.cos(t),
+  });
+}
+const eightPoints = FreehandPathEngine.convertStrokeToChoreographyPoints(figureEightStroke, 5000, 3.5);
+assert.equal(eightPoints.length, 2, 'Figura en ocho genera estrictamente 2 Nodos Maestros');
+assert.ok(eightPoints[0].path && eightPoints[0].path.length >= 12, 'La huella del ocho preserva ambos lóbulos completos');
+console.log('✓ Preservación de Figura en Ocho (Figure-8) en huella path verificada');
 
 console.log('All FreehandPathEngine tests passed successfully!');
