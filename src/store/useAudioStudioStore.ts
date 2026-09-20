@@ -800,10 +800,10 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
       );
 
       // Inyectar el AudioBuffer combinado directamente en AudioEngine (Pista 2D)
-      audioEngine.setAudioBuffer(result.buffer, 'mezcla_skateart_master.wav');
+      audioEngine.setAudioBuffer(result.buffer, 'mezcla_skatecoreo_master.wav');
 
       // Actualizar también la pista de música del estudio con la mezcla unificada
-      get().setTrackBuffer('music', result.buffer, 'mezcla_skateart_master.wav');
+      get().setTrackBuffer('music', result.buffer, 'mezcla_skatecoreo_master.wav');
 
       // Enviar nodos temporales a la bandeja lateral de la Pista 2D
       useChoreographyStore.getState().setUnplacedNodes(state.audioNodes);

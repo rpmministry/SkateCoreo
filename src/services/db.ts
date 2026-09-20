@@ -1,6 +1,6 @@
 import { Skater, Program, ElementLog } from '../types';
 
-const DB_NAME = 'SkateArtDB';
+const DB_NAME = 'SkateCoreoDB';
 const DB_VERSION = 2;
 
 export interface OfflineSessionRecord {
@@ -251,7 +251,7 @@ class IndexedDBService {
     const exportBundle = {
       version: '1.0.0',
       exported_at: Date.now(),
-      system: 'RollArt SkateArt PWA',
+      system: 'RollArt SkateCoreo PWA',
       skaters,
       programs: sanitizedPrograms,
       elements

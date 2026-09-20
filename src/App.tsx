@@ -346,7 +346,7 @@ export function App() {
           ═══════════════════════════════════════════════ */}
       <header className="min-h-12 h-auto py-1 sm:py-0 landscape-compact-header shrink-0 flex items-center justify-between px-2 sm:px-4 bg-neon-surface/95 backdrop-blur-md border-b border-white/10 z-20 flex-wrap gap-1.5 sm:gap-2">
 
-        {/* ── ZONA 1 (Izquierda): Identidad SkateArt + Contexto Atleta ── */}
+        {/* ── ZONA 1 (Izquierda): Identidad SkateCoreo + Contexto Atleta ── */}
         <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
           <button
             type="button"
@@ -360,7 +360,7 @@ export function App() {
           <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
             <div className="flex items-center gap-1.5 shrink-0">
               <span className="w-2.5 h-2.5 rounded-full bg-cyan shadow-glow-cyan" />
-              <span className="text-[13px] font-black uppercase tracking-wider text-white">SkateArt</span>
+              <span className="text-[13px] font-black uppercase tracking-wider text-white">SkateCoreo</span>
             </div>
             <span className="text-slate-600 text-xs hidden md:inline">·</span>
             <span className="text-[11px] text-slate-400 font-medium hidden md:inline truncate">

@@ -1,5 +1,5 @@
 /**
- * supabase.ts — Cliente oficial de Supabase para SkateArt PWA
+ * supabase.ts — Cliente oficial de Supabase para SkateCoreo PWA
  *
  * Lee de variables de entorno (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY).
  * Si no están configuradas, proporciona un cliente dummy seguro para no romper la app.

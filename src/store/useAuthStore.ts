@@ -66,7 +66,7 @@ export interface AuthStoreState {
   getFormattedExpiration: () => string | null;
 }
 
-const STORAGE_KEY = 'skateart_saas_auth_session';
+const STORAGE_KEY = 'skatecoreo_saas_auth_session';
 
 const SUPERUSER_EMAILS = [
   'recursosparaministerios@gmail.com',
@@ -83,6 +83,7 @@ export const isOwnerOrAdmin = (email?: string): boolean => {
   if (SUPERUSER_EMAILS.includes(clean)) return true;
   return (
     clean.includes('alsiztech') ||
+    clean.includes('admin@skatecoreo') ||
     clean.includes('admin@skateart') ||
     clean.includes('mauricio')
   );
@@ -97,7 +98,7 @@ const loadSavedSession = (): {
   access_expires_at: string | null;
 } => {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('skateart_saas_auth_session');
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed.user) {

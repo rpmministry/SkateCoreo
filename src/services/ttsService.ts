@@ -53,11 +53,11 @@ export class TTSService {
     this.resolveApiKey();
 
     if (typeof localStorage !== 'undefined') {
-      const savedGender = localStorage.getItem('skateart_voice_gender') as VoiceGender;
+      const savedGender = (localStorage.getItem('skatecoreo_voice_gender') || localStorage.getItem('skateart_voice_gender')) as VoiceGender;
       if (savedGender === 'female' || savedGender === 'male') {
         this.voiceGender = savedGender;
       }
-      const savedLang = localStorage.getItem('skateart_voice_lang') as 'es' | 'en';
+      const savedLang = (localStorage.getItem('skatecoreo_voice_lang') || localStorage.getItem('skateart_voice_lang')) as 'es' | 'en';
       if (savedLang === 'es' || savedLang === 'en') {
         this.language = savedLang;
       }
@@ -75,7 +75,7 @@ export class TTSService {
 
     this.dbPromise = new Promise((resolve) => {
       try {
-        const req = window.indexedDB.open('skateart_tts_cache_db', 1);
+        const req = window.indexedDB.open('skatecoreo_tts_cache_db', 1);
         req.onupgradeneeded = () => {
           const db = req.result;
           if (!db.objectStoreNames.contains('tts_cache')) {
@@ -201,9 +201,9 @@ export class TTSService {
 
     // 3. Fallback a clave guardada si existiera previamente
     if (typeof localStorage !== 'undefined') {
-      const legacyKey = localStorage.getItem('skateart_google_tts_key');
-      if (legacyKey) {
-        this.apiKey = legacyKey.trim();
+      const savedKey = localStorage.getItem('skatecoreo_google_tts_key') || localStorage.getItem('skateart_google_tts_key');
+      if (savedKey) {
+        this.apiKey = savedKey.trim();
       }
     }
   }
@@ -244,7 +244,7 @@ export class TTSService {
   public setVoiceGender(gender: VoiceGender) {
     this.voiceGender = gender;
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('skateart_voice_gender', gender);
+      localStorage.setItem('skatecoreo_voice_gender', gender);
     }
   }
 
@@ -255,7 +255,7 @@ export class TTSService {
   public setLanguage(lang: 'es' | 'en') {
     this.language = lang;
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('skateart_voice_lang', lang);
+      localStorage.setItem('skatecoreo_voice_lang', lang);
     }
   }
 

@@ -53,7 +53,7 @@ export class PdfTemplateGenerator {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(14);
     doc.setTextColor(0, 240, 255); // Cyan eléctrico
-    doc.text('SKATEART · PLANTILLA REGLAMENTARIA DE COREOGRAFÍA', 14, 18);
+    doc.text('SKATECOREO · PLANTILLA REGLAMENTARIA DE COREOGRAFÍA', 14, 18);
 
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
@@ -198,7 +198,7 @@ export class PdfTemplateGenerator {
     doc.text('1. DIBUJO DE TRAZOS: Dibuje las trayectorias de desplazamiento sobre la pista con un marcador o bolígrafo de tinta oscura (negro o azul).', 14, footY + 12);
     doc.text('2. NUMERACIÓN DE NODOS: Escriba números claros dentro de pequeños círculos ( 1 , 2 , 3 ...) para indicar la secuencia temporal exacta.', 14, footY + 17);
     doc.text('3. CAPTURA DE FOTO: Tome una foto iluminada de la hoja completa. Asegúrese de que las 4 marcas de esquina ( ⊕ ) sean claramente visibles.', 14, footY + 22);
-    doc.text('4. DIGITALIZACIÓN: En la app SkateArt, seleccione "Digitalizar Papel" y suba la foto. El sistema corregirá la perspectiva y cargará sus nodos.', 14, footY + 27);
+    doc.text('4. DIGITALIZACIÓN: En la app SkateCoreo, seleccione "Digitalizar Papel" y suba la foto. El sistema corregirá la perspectiva y cargará sus nodos.', 14, footY + 27);
 
     // Indicador de escala en esquina derecha
     doc.setFont('helvetica', 'bold');
@@ -261,7 +261,7 @@ export class PdfTemplateGenerator {
    */
   public static downloadTemplate(metadata: TemplateMetadata = {}): void {
     const doc = this.generateTemplate(metadata);
-    const fileName = `SkateArt_Plantilla_${(metadata.title || 'Coreografia').replace(/\s+/g, '_')}_A4.pdf`;
+    const fileName = `SkateCoreo_Plantilla_${(metadata.title || 'Coreografia').replace(/\s+/g, '_')}_A4.pdf`;
     doc.save(fileName);
   }
 }

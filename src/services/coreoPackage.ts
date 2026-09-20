@@ -10,7 +10,7 @@ import { ttsService } from './ttsService';
 import { isSpeakableFigure } from '../core/audio/VoiceCueEngine';
 
 export interface CoreoManifest {
-  format: 'SKATEART_COREO';
+  format: 'SKATECOREO_BUNDLE' | 'SKATEART_COREO';
   version: '1.1.0';
   appVersion: '2.0.0';
   createdAt: number;
@@ -89,7 +89,7 @@ export async function exportCoreoProject(
 
   // 2. Crear manifiesto del proyecto
   const manifest: CoreoManifest = {
-    format: 'SKATEART_COREO',
+    format: 'SKATECOREO_BUNDLE',
     version: '1.1.0',
     appVersion: '2.0.0',
     createdAt: Date.now(),

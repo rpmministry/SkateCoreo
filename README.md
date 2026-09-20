@@ -1,4 +1,4 @@
-# SkateArt - Ecosistema Digital PWA para Patinaje Artístico (Sistema RollArt)
+# SkateCoreo - Ecosistema Digital PWA para Patinaje Artístico (Sistema RollArt)
 
 Plataforma Web Progresiva (PWA) de alto rendimiento orientada a jueces, panel técnico y entrenadores de patinaje artístico sobre ruedas, alineada estrictamente con las normativas oficiales de la **World Skate Artistic Technical Commission**.
 
@@ -67,7 +67,7 @@ npm run preview
 ## 📂 Estructura del Proyecto
 
 ```
-SkateArt/
+SkateCoreo/
 ├── Especificaciones 1.txt        # PRD Original (Fase MVP v1.0)
 ├── Informa de investigacion.txt   # Informe Técnico y UX
 ├── index.html                    # Shell HTML con audio sink invisible

@@ -38,7 +38,7 @@ function runPdfTemplateTests() {
     title: 'Rutina Libre Senior 2026',
     athleteName: 'María José Andrade',
     coachName: 'Mauricio Andrade Luna',
-    clubName: 'Club SkateArt Ecuador',
+    clubName: 'Club SkateCoreo Ecuador',
     category: 'Senior Internacional',
     bpm: 128,
     durationSec: 195,

@@ -1,6 +1,6 @@
 {
-  "name": "SkateArt - Digital Ecosystem",
-  "short_name": "SkateArt",
+  "name": "SkateCoreo - Digital Ecosystem",
+  "short_name": "SkateCoreo",
   "description": "Ecosistema Digital PWA para Patinaje Artístico",
   "start_url": "./",
   "scope": "./",

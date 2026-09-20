@@ -89,7 +89,7 @@ export const paypalService = {
           success: true,
           message: '¡Pago verificado con éxito en modo local!',
           orderID,
-          payer_email: 'demo@skateart.app',
+          payer_email: 'demo@skatecoreo.app',
           payer_name: 'Patinador Demo',
           amount: 20.00,
           currency: 'USD',

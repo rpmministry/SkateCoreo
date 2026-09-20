@@ -1,5 +1,5 @@
 /**
- * deviceDetector.ts — Hardware Fingerprinting y Detección de Dispositivos para SkateArt
+ * deviceDetector.ts — Hardware Fingerprinting y Detección de Dispositivos para SkateCoreo
  *
  * Implementa la regla estricta anti-piratería:
  *  - Máx. 1 Celular ('mobile')
@@ -10,14 +10,14 @@
 
 export type DeviceType = 'mobile' | 'tablet' | 'desktop';
 
-const DEVICE_ID_KEY = 'skateart_device_id';
+const DEVICE_ID_KEY = 'skatecoreo_device_id';
 
 /**
  * Obtiene o crea un UUID único y persistente para este dispositivo en localStorage.
  */
 export function getDeviceId(): string {
   try {
-    let deviceId = localStorage.getItem(DEVICE_ID_KEY);
+    let deviceId = localStorage.getItem(DEVICE_ID_KEY) || localStorage.getItem('skateart_device_id');
     if (!deviceId) {
       if (typeof crypto !== 'undefined' && crypto.randomUUID) {
         deviceId = crypto.randomUUID();

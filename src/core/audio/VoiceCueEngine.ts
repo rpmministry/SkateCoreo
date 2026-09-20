@@ -138,15 +138,15 @@ export class VoiceCueEngine {
 
   constructor(config?: Partial<VoiceCueConfig>) {
     if (typeof localStorage !== 'undefined') {
-      const savedEngine = localStorage.getItem('skateart_tts_engine');
+      const savedEngine = localStorage.getItem('skatecoreo_tts_engine') || localStorage.getItem('skateart_tts_engine');
       if (savedEngine === 'browser' || savedEngine === 'google-cloud') {
         this.config.ttsEngine = savedEngine;
       }
-      const savedApiKey = localStorage.getItem('skateart_google_tts_key');
+      const savedApiKey = localStorage.getItem('skatecoreo_google_tts_key') || localStorage.getItem('skateart_google_tts_key');
       if (savedApiKey) {
         this.config.googleApiKey = savedApiKey;
       }
-      const savedGoogleVoice = localStorage.getItem('skateart_google_voice');
+      const savedGoogleVoice = localStorage.getItem('skatecoreo_google_voice') || localStorage.getItem('skateart_google_voice');
       if (savedGoogleVoice) {
         this.config.googleVoiceName = savedGoogleVoice;
       }
@@ -168,7 +168,7 @@ export class VoiceCueEngine {
             
             // Restore saved voice preference from localStorage if available
             if (!this.config.selectedVoiceURI && typeof localStorage !== 'undefined') {
-              const saved = localStorage.getItem('skateart_voice_uri');
+              const saved = localStorage.getItem('skatecoreo_voice_uri') || localStorage.getItem('skateart_voice_uri');
               if (saved && list.some(v => v.voiceURI === saved)) {
                 this.config.selectedVoiceURI = saved;
               }
@@ -207,14 +207,14 @@ export class VoiceCueEngine {
   public setSelectedVoice(voiceURI: string | null) {
     this.config.selectedVoiceURI = voiceURI;
     if (typeof localStorage !== 'undefined' && voiceURI) {
-      localStorage.setItem('skateart_voice_uri', voiceURI);
+      localStorage.setItem('skatecoreo_voice_uri', voiceURI);
     }
   }
 
   public setTtsEngine(engine: TTSEngineType) {
     this.config.ttsEngine = engine;
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('skateart_tts_engine', engine);
+      localStorage.setItem('skatecoreo_tts_engine', engine);
     }
   }
 
@@ -225,8 +225,9 @@ export class VoiceCueEngine {
     }
     if (typeof localStorage !== 'undefined') {
       if (this.config.googleApiKey) {
-        localStorage.setItem('skateart_google_tts_key', this.config.googleApiKey);
+        localStorage.setItem('skatecoreo_google_tts_key', this.config.googleApiKey);
       } else {
+        localStorage.removeItem('skatecoreo_google_tts_key');
         localStorage.removeItem('skateart_google_tts_key');
       }
     }
@@ -235,7 +236,7 @@ export class VoiceCueEngine {
   public setGoogleVoiceName(voiceName: string) {
     this.config.googleVoiceName = voiceName;
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('skateart_google_voice', voiceName);
+      localStorage.setItem('skatecoreo_google_voice', voiceName);
     }
   }
 

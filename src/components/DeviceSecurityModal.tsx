@@ -64,7 +64,7 @@ export const DeviceSecurityModal: React.FC<DeviceSecurityModalProps> = ({ isOpen
   const desktopDevice = devices.find((d) => d.device_type === 'desktop' && d.is_active);
 
   const handleUnlink = async (deviceIdToUnlink: string, label: string) => {
-    if (!window.confirm(`¿Seguro que deseas desvincular este ${label}? Deberá volver a iniciar sesión para usar SkateArt.`)) {
+    if (!window.confirm(`¿Seguro que deseas desvincular este ${label}? Deberá volver a iniciar sesión para usar SkateCoreo.`)) {
       return;
     }
 

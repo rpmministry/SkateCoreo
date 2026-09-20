@@ -338,7 +338,7 @@ export const AudioStudio: React.FC<AudioStudioProps> = ({
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = (audioState.fileName?.replace(/\.[^/.]+$/, '') || 'programa_skateart') + '.wav';
+      a.download = (audioState.fileName?.replace(/\.[^/.]+$/, '') || 'programa_skatecoreo') + '.wav';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -360,7 +360,7 @@ export const AudioStudio: React.FC<AudioStudioProps> = ({
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = (audioState.fileName?.replace(/\.[^/.]+$/, '') || 'programa_skateart') + '_mezcla_LR_coach.wav';
+      a.download = (audioState.fileName?.replace(/\.[^/.]+$/, '') || 'programa_skatecoreo') + '_mezcla_LR_coach.wav';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -381,7 +381,7 @@ export const AudioStudio: React.FC<AudioStudioProps> = ({
       const store = useChoreographyStore.getState();
       const rawBlob = audioEngine.getRawAudioBlob() || (audioState.hasAudioLoaded ? audioEngine.exportBufferToWav() : null);
       const blob = await exportCoreoProject(
-        currentProgram?.title || 'Programa Coreográfico SkateArt',
+        currentProgram?.title || 'Programa Coreográfico SkateCoreo',
         'Standard',
         store.skaterGender,
         store.points,
@@ -395,7 +395,7 @@ export const AudioStudio: React.FC<AudioStudioProps> = ({
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = (currentProgram?.title || audioState.fileName?.replace(/\.[^/.]+$/, '') || 'programa_skateart') + '.coreo';
+      a.download = (currentProgram?.title || audioState.fileName?.replace(/\.[^/.]+$/, '') || 'programa_skatecoreo') + '.coreo';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

@@ -1,5 +1,5 @@
 /**
- * AuthModal.tsx — Pantalla de Inicio Dual (Landing & Auth) de Alto Impacto Visual en SkateArt
+ * AuthModal.tsx — Pantalla de Inicio Dual (Landing & Auth) de Alto Impacto Visual en SkateCoreo
  *
  * Inspirada en Carbon Design System (minimalista, alto contraste, estructurada).
  * Tarjeta 1: Adquirir Acceso (Nuevos Usuarios / PayPal con email obligatorio previo).
@@ -201,11 +201,11 @@ export const AuthModal: React.FC = () => {
               onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
             />
             <span className="text-[10px] font-mono font-bold tracking-widest text-cyan uppercase">
-              ALSIZTECH · SKATEART SAAS
+              ALSIZTECH · SKATECOREO SAAS
             </span>
           </div>
           <h1 className="text-2xl sm:text-4xl font-black tracking-tight text-white">
-            SkateArt <span className="text-coral">Pro 2026</span>
+            SkateCoreo <span className="text-coral">Pro 2026</span>
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-xl mx-auto">
             Plataforma Profesional de Trazado Coreográfico y Catálogo Oficial de Figuras
@@ -329,7 +329,7 @@ export const AuthModal: React.FC = () => {
                   ¿Clubes o múltiples licencias?
                 </span>
                 <a
-                  href="https://wa.me/593979376810?text=Hola%20AlsizTech,%20deseo%20información%20sobre%20la%20Licencia%20Club%20de%20SkateArt"
+                  href="https://wa.me/593979376810?text=Hola%20AlsizTech,%20deseo%20información%20sobre%20la%20Licencia%20Club%20de%20SkateCoreo"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-mint hover:underline font-bold"
@@ -362,7 +362,7 @@ export const AuthModal: React.FC = () => {
 
               <div className="mt-4">
                 <h2 className="text-lg sm:text-xl font-black text-white">
-                  Acceder a SkateArt
+                  Acceder a SkateCoreo
                 </h2>
                 <p className="text-xs text-slate-400 mt-0.5">
                   Ingresa con tu correo y contraseña registrados
@@ -418,7 +418,7 @@ export const AuthModal: React.FC = () => {
                   disabled={isLoading}
                   className="w-full min-h-[48px] px-4 py-3 rounded-2xl bg-cyan hover:bg-cyan/90 text-slate-950 font-black text-xs tracking-wide shadow-lg shadow-cyan/20 active:scale-[0.99] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  <span>{isLoading ? 'Comprobando dispositivo...' : 'Entrar a SkateArt'}</span>
+                  <span>{isLoading ? 'Comprobando dispositivo...' : 'Entrar a SkateCoreo'}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </form>
@@ -525,7 +525,7 @@ export const AuthModal: React.FC = () => {
 
         {/* ── Footer ── */}
         <div className="text-center mt-5 text-[11px] text-slate-500 space-x-3">
-          <span>SkateArt Pro v2.6</span>
+          <span>SkateCoreo Pro v2.6</span>
           <span>•</span>
           <a
             href="https://alsiztech.com"
@@ -628,7 +628,7 @@ export const AuthModal: React.FC = () => {
                 disabled={postRegLoading}
                 className="w-full min-h-[46px] mt-2 rounded-2xl bg-mint text-slate-950 font-black text-xs hover:bg-mint/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
-                <span>{postRegLoading ? 'Creando cuenta...' : 'Finalizar Registro y Entrar a SkateArt'}</span>
+                <span>{postRegLoading ? 'Creando cuenta...' : 'Finalizar Registro y Entrar a SkateCoreo'}</span>
                 <Sparkles className="w-4 h-4" />
               </button>
             </form>

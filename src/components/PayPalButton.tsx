@@ -69,7 +69,7 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
               purchase_units: [
                 {
                   custom_id: cleanEmail,
-                  description: 'SkateArt Pro - Licencia Anual 2026 (1 Año / 365 días)',
+                  description: 'SkateCoreo Pro - Licencia Anual 2026 (1 Año / 365 días)',
                   amount: {
                     currency_code: currency,
                     value: amount,

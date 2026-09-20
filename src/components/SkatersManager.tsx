@@ -109,7 +109,7 @@ export const SkatersManager: React.FC<SkatersManagerProps> = ({
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `SkateArt_Backup_${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = `SkateCoreo_Backup_${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
       setStatusMessage({ text: 'Copia de seguridad exportada con éxito' });
