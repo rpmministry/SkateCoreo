@@ -3,7 +3,20 @@ import { useChoreographyStore } from '../store/useChoreographyStore';
 import { useAudioStudioStore } from '../store/useAudioStudioStore';
 import { audioEngine } from '../core/audio/AudioEngine';
 import { ChoreographyPoint, isMainNode } from '../types/choreography';
-import { Clock, Music, Sparkles, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { 
+  Clock, 
+  Music, 
+  Sparkles, 
+  ZoomIn, 
+  ZoomOut, 
+  RotateCcw,
+  Sliders,
+  Volume2,
+  VolumeX,
+  Bell,
+  Mic,
+  X
+} from 'lucide-react';
 import { useAudioZoomPan } from '../hooks/useAudioZoomPan';
 
 interface InteractiveWaveformProps {
@@ -35,6 +48,42 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
   const [wavePeaks, setWavePeaks] = useState<number[]>([]);
   const [draggedPinId, setDraggedPinId] = useState<string | null>(null);
   const [hoveredPinId, setHoveredPinId] = useState<string | null>(null);
+  const [isMiniMixerOpen, setIsMiniMixerOpen] = useState(false);
+
+  // Store de Audio Studio para sincronización de 3 canales principales
+  const tracks = useAudioStudioStore((s) => s.tracks);
+  const setTrackVolume = useAudioStudioStore((s) => s.setTrackVolume);
+  const toggleTrackMute = useAudioStudioStore((s) => s.toggleTrackMute);
+
+  const globalControls = useAudioStudioStore((s) => s.globalControls);
+  const setMetronomeVolume = useAudioStudioStore((s) => s.setMetronomeVolume);
+  const toggleMetronomeMute = useAudioStudioStore((s) => s.toggleMetronomeMute);
+  const setVoiceGuideVolume = useAudioStudioStore((s) => s.setVoiceGuideVolume);
+  const toggleVoiceGuideMute = useAudioStudioStore((s) => s.toggleVoiceGuideMute);
+
+  const masterTrack = tracks.music;
+  const musicVolume = masterTrack?.volume ?? 1.0;
+  const musicMuted = masterTrack?.muted ?? false;
+
+  const metronomeVolume = globalControls.metronome.volume;
+  const metronomeMuted = globalControls.metronome.muted;
+
+  const voiceVolume = globalControls.voiceGuide.volume;
+  const voiceMuted = globalControls.voiceGuide.muted;
+
+  const handleMusicVolumeChange = (vol: number) => {
+    setTrackVolume('music', vol);
+    audioEngine.setMusicVolume(vol);
+  };
+
+  const handleMusicMuteToggle = () => {
+    toggleTrackMute('music');
+    if (!musicMuted) {
+      audioEngine.setMusicVolume(0);
+    } else {
+      audioEngine.setMusicVolume(musicVolume);
+    }
+  };
 
   // Radio seguro de marcadores en px
   const PIN_RADIUS = 18;
@@ -451,6 +500,26 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
 
         {/* Controles de Zoom & Telemetría */}
         <div className="flex items-center gap-2 font-mono text-[11px] shrink-0">
+          {/* Botón Desplegable Mini-Mezclador */}
+          <button
+            type="button"
+            onClick={() => setIsMiniMixerOpen((prev) => !prev)}
+            className={`px-2 py-0.5 rounded-subtle flex items-center gap-1.5 font-sans text-[11px] font-bold transition-all ${
+              isMiniMixerOpen
+                ? 'bg-cyan/20 text-cyan border border-cyan/40 shadow-sm shadow-cyan/20'
+                : 'bg-surface-hover/80 hover:bg-surface-active text-text-secondary hover:text-text-primary border border-border-subtle'
+            }`}
+            title="Ajustar volúmenes independientes (Música Master, Metrónomo, Voces Guía)"
+          >
+            <Sliders className="w-3 h-3 text-cyan" />
+            <span className="hidden sm:inline">Mezcla</span>
+            <div className="flex items-center gap-1 font-mono text-[9px] text-text-tertiary">
+              <span className={musicMuted ? 'text-rose-400 line-through' : 'text-cyan font-bold'}>M:{musicMuted ? 'M' : `${Math.round(musicVolume * 100)}%`}</span>
+              <span className={metronomeMuted ? 'text-rose-400 line-through' : 'text-amber-400 font-semibold'}>🔔</span>
+              <span className={voiceMuted ? 'text-rose-400 line-through' : 'text-fuchsia-400 font-semibold'}>🗣️</span>
+            </div>
+          </button>
+
           {/* Botones de Zoom In / Zoom Out / Reset */}
           <div className="flex items-center gap-1 bg-surface-hover/80 p-0.5 rounded-subtle border border-border-subtle">
             <button
@@ -650,6 +719,110 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
             : 'Ctrl + Rueda o Pellizco para Zoom · Arrastra marcadores para sincronizar'}
         </div>
       </div>
+
+      {/* ── Popover Mini-Mezclador 3 Canales (Master, Voces, Metrónomo) ── */}
+      {isMiniMixerOpen && (
+        <div 
+          className="absolute top-10 left-3 sm:left-4 z-50 w-72 sm:w-80 rounded-2xl bg-zinc-950/98 border border-cyan/40 shadow-2xl shadow-black/80 backdrop-blur-xl p-3 flex flex-col gap-2.5 animate-in fade-in zoom-in-95 duration-100 font-sans"
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between pb-1 border-b border-white/10">
+            <div className="flex items-center gap-1.5">
+              <Sliders className="w-3.5 h-3.5 text-cyan" />
+              <span className="text-xs font-bold text-white uppercase tracking-wider">Mezcla Pista 2D</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsMiniMixerOpen(false)}
+              className="w-5 h-5 rounded-md flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10"
+              title="Cerrar mezclador"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Canal 1: Música Master */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleMusicMuteToggle}
+              className={`w-6 h-6 rounded-lg flex items-center justify-center transition-colors ${
+                musicMuted ? 'bg-rose-500/20 text-rose-400' : 'bg-cyan/15 text-cyan'
+              }`}
+              title={musicMuted ? 'Desmutear Música Master' : 'Silenciar Música Master'}
+            >
+              {musicMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+            </button>
+            <span className="text-[11px] font-bold text-slate-200 w-14 shrink-0">Master</span>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={musicMuted ? 0 : musicVolume}
+              onChange={(e) => handleMusicVolumeChange(parseFloat(e.target.value))}
+              className="flex-1 accent-cyan h-1.5 rounded-lg bg-zinc-800 cursor-pointer"
+            />
+            <span className="font-mono text-[10px] text-cyan w-9 text-right shrink-0">
+              {musicMuted ? 'MUTE' : `${Math.round(musicVolume * 100)}%`}
+            </span>
+          </div>
+
+          {/* Canal 2: Voces Guía (Cues Técnicos) */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleVoiceGuideMute}
+              className={`w-6 h-6 rounded-lg flex items-center justify-center transition-colors ${
+                voiceMuted ? 'bg-rose-500/20 text-rose-400' : 'bg-fuchsia-500/15 text-fuchsia-400'
+              }`}
+              title={voiceMuted ? 'Desmutear Voces Guía' : 'Silenciar Voces Guía'}
+            >
+              {voiceMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+            </button>
+            <span className="text-[11px] font-bold text-slate-200 w-14 shrink-0">Cues</span>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={voiceMuted ? 0 : voiceVolume}
+              onChange={(e) => setVoiceGuideVolume(parseFloat(e.target.value))}
+              className="flex-1 accent-fuchsia-400 h-1.5 rounded-lg bg-zinc-800 cursor-pointer"
+            />
+            <span className="font-mono text-[10px] text-fuchsia-400 w-9 text-right shrink-0">
+              {voiceMuted ? 'MUTE' : `${Math.round(voiceVolume * 100)}%`}
+            </span>
+          </div>
+
+          {/* Canal 3: Metrónomo */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleMetronomeMute}
+              className={`w-6 h-6 rounded-lg flex items-center justify-center transition-colors ${
+                metronomeMuted ? 'bg-rose-500/20 text-rose-400' : 'bg-amber-500/15 text-amber-400'
+              }`}
+              title={metronomeMuted ? 'Desmutear Metrónomo' : 'Silenciar Metrónomo'}
+            >
+              {metronomeMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Bell className="w-3.5 h-3.5" />}
+            </button>
+            <span className="text-[11px] font-bold text-slate-200 w-14 shrink-0">Metrón.</span>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              value={metronomeMuted ? 0 : metronomeVolume}
+              onChange={(e) => setMetronomeVolume(parseFloat(e.target.value))}
+              className="flex-1 accent-amber-400 h-1.5 rounded-lg bg-zinc-800 cursor-pointer"
+            />
+            <span className="font-mono text-[10px] text-amber-400 w-9 text-right shrink-0">
+              {metronomeMuted ? 'MUTE' : `${Math.round(metronomeVolume * 100)}%`}
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

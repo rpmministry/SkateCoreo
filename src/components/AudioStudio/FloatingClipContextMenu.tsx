@@ -27,27 +27,43 @@ export const FloatingClipContextMenu: React.FC = () => {
         closeContextMenu();
       }
     };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeContextMenu();
+    };
     document.addEventListener('pointerdown', handleOutsideClick);
-    return () => document.removeEventListener('pointerdown', handleOutsideClick);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handleOutsideClick);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, [closeContextMenu]);
 
   if (!contextMenu || !contextMenu.isOpen) return null;
 
   const { x, y, trackId, clipId } = contextMenu;
 
-  // Ajustar posición para no desbordar viewport en landscape (altura típica 360px-420px)
-  const menuWidth = 240;
-  const menuHeight = 44;
-  const clampedX = Math.max(10, Math.min(window.innerWidth - menuWidth - 10, x - menuWidth / 2));
-  const clampedY = Math.max(45, Math.min(window.innerHeight - menuHeight - 15, y - menuHeight - 12));
+  // Anclaje dinámico como barra de herramientas flotante compacta
+  // Asegura que la onda de audio permanezca 100% visible sin obstrucción
+  const menuWidth = 320;
+  const menuHeight = 36;
+  const clampedX = Math.max(12, Math.min(window.innerWidth - menuWidth - 12, x - menuWidth / 2));
+  
+  // Si hay espacio superior libre (>= 50px de margen respecto a la cabecera), flotar arriba del clip
+  // De lo contrario, flotar debajo del clip (y + 64px) para no quedar tapado ni tapar la onda
+  const hasSpaceAbove = y >= 52;
+  const clampedY = hasSpaceAbove 
+    ? Math.max(8, y - menuHeight - 8) 
+    : Math.min(window.innerHeight - menuHeight - 10, y + 64);
 
   const handleSelect = () => {
     setSelectedClipId(clipId);
+    useAudioStudioStore.getState().setActiveTrackId(trackId);
     closeContextMenu();
   };
 
   const handleCopy = () => {
     setSelectedClipId(clipId);
+    useAudioStudioStore.getState().setActiveTrackId(trackId);
     copyClip();
     closeContextMenu();
   };
@@ -70,7 +86,7 @@ export const FloatingClipContextMenu: React.FC = () => {
   return (
     <div
       ref={menuRef}
-      className="fixed z-50 flex items-center gap-0.5 p-1 rounded-full bg-zinc-900/95 border border-white/20 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100"
+      className="fixed z-50 flex items-center gap-0.5 p-1 rounded-full bg-zinc-950/95 border border-cyan/40 shadow-2xl shadow-cyan/20 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100"
       style={{
         left: `${clampedX}px`,
         top: `${clampedY}px`,

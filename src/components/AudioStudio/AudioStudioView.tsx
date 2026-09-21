@@ -220,11 +220,13 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           setTimeout(() => setExportNotice(null), 2500);
         }
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
-        const clipboard = useAudioStudioStore.getState().audioClipboard;
+        const store = useAudioStudioStore.getState();
+        const clipboard = store.audioClipboard || store.clipboardClip;
         if (clipboard) {
           e.preventDefault();
-          useAudioStudioStore.getState().pasteClip(tracks.music.id, currentTimeSec);
-          setExportNotice('✂️ Clip pegado con éxito en la Pista Master');
+          const targetTrack = arrangementTracks.find((t) => t.id === store.activeTrackId) || tracks.music;
+          store.pasteClip(targetTrack.id, currentTimeSec);
+          setExportNotice(`✂️ Clip pegado en "${targetTrack.name}" a los ${currentTimeSec.toFixed(1)}s`);
           setTimeout(() => setExportNotice(null), 2500);
         }
       } else if (e.key === 'Delete' || e.key === 'Backspace') {

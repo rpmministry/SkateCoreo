@@ -176,7 +176,6 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
     },
     {
       filterTaps: true,
-      delay: 220,
       threshold: 4,
     }
   );
@@ -184,7 +183,14 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     setSelectedClipId(clip.id);
-    openContextMenu(trackId, clip.id, e.clientX, e.clientY);
+    useAudioStudioStore.getState().setActiveTrackId(trackId);
+    if (clipRef.current) {
+      const rect = clipRef.current.getBoundingClientRect();
+      // Anclar el menú en el centro superior del clip
+      openContextMenu(trackId, clip.id, rect.left + rect.width / 2, rect.top);
+    } else {
+      openContextMenu(trackId, clip.id, e.clientX, e.clientY);
+    }
   };
 
   const handleFadeInPointerDown = (e: React.PointerEvent) => {

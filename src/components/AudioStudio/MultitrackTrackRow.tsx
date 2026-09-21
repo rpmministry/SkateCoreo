@@ -44,12 +44,16 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const laneRef = useRef<HTMLDivElement | null>(null);
 
+  const activeTrackId = useAudioStudioStore((s) => s.activeTrackId);
+  const setActiveTrackId = useAudioStudioStore((s) => s.setActiveTrackId);
   const pasteClip = useAudioStudioStore((s) => s.pasteClip);
   const audioClipboard = useAudioStudioStore((s) => s.audioClipboard);
 
   const [showTrackMenu, setShowTrackMenu] = useState(false);
 
   const isMasterTrack = trackIndex === 0 || track.type === 'music';
+  const isActive = activeTrackId === track.id || (isMasterTrack && (activeTrackId === 'music' || activeTrackId === 'track-music' || activeTrackId === 'master'));
+  const displayName = isMasterTrack ? 'Master' : track.name;
 
   // Icono dinámico según la pista estilo BandLab
   const getTrackIcon = () => {
@@ -70,6 +74,7 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
   };
 
   const handleLaneClick = (e: React.MouseEvent) => {
+    setActiveTrackId(track.id);
     if (e.target === laneRef.current) {
       const rect = laneRef.current.getBoundingClientRect();
       const clickX = e.clientX - rect.left;
@@ -82,35 +87,58 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
     }
   };
 
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setActiveTrackId(track.id);
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.type.startsWith('audio/')) {
+      onUploadFile(file);
+    }
+  };
+
   return (
     <>
       <div 
-        className="relative flex items-stretch border-b border-white/5 bg-black/60 hover:bg-black/80 transition-colors"
+        className={`relative flex items-stretch border-b border-white/5 transition-colors ${
+          isActive ? 'bg-zinc-950/80 ring-1 ring-inset ring-cyan/30' : 'bg-black/60 hover:bg-black/80'
+        }`}
         style={{ height: `${trackLaneHeight}px` }}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={handleDrop}
       >
-        {/* ── CABECERA DE PISTA (Estilo BandLab: Icono circular + Nombre + Fx tag) ── */}
+        {/* ── CABECERA DE PISTA (Estilo BandLab: Icono circular + Nombre + Fx tag + Indicador Activa) ── */}
         <div 
-          onClick={() => setShowTrackMenu(true)}
-          className="relative z-20 shrink-0 w-24 sm:w-28 border-r border-white/10 flex items-center justify-between px-2 py-1 bg-zinc-950/90 hover:bg-zinc-900 cursor-pointer select-none transition-colors group"
+          onClick={() => {
+            setActiveTrackId(track.id);
+            setShowTrackMenu(true);
+          }}
+          className={`relative z-20 shrink-0 w-24 sm:w-28 border-r border-white/10 flex items-center justify-between px-2 py-1 cursor-pointer select-none transition-colors group ${
+            isActive ? 'bg-zinc-900' : 'bg-zinc-950/90 hover:bg-zinc-900'
+          }`}
           style={{ borderLeft: `3.5px solid ${track.color}` }}
-          title="Toca para abrir opciones de pista (Volumen, Mute, Pan, Reemplazar audio)"
+          title={`Pista: ${displayName} (Toca para opciones de pista)`}
         >
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
             {/* Círculo de Icono con color de pista */}
             <div 
-              className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 shadow-sm"
+              className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 shadow-sm relative"
               style={{ backgroundColor: `${track.color}25`, color: track.color }}
             >
               <IconComponent className="w-3.5 h-3.5" />
+              {isActive && (
+                <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-cyan ring-1 ring-black animate-pulse" />
+              )}
             </div>
 
             {/* Nombre y Tag */}
             <div className="flex flex-col min-w-0">
-              <span className="text-[11px] font-bold text-white truncate leading-tight">
-                {track.name}
-              </span>
-              <span className="text-[9px] font-mono text-slate-400 truncate">
-                {isMasterTrack ? 'Master' : '+ Fx'}
+              <div className="flex items-center gap-1">
+                <span className="text-[11px] font-bold text-white truncate leading-tight">
+                  {displayName}
+                </span>
+              </div>
+              <span className={`text-[8.5px] font-mono truncate ${isActive ? 'text-cyan font-bold' : 'text-slate-400'}`}>
+                {isActive ? '● Activa' : (isMasterTrack ? 'Master' : '+ Fx')}
               </span>
             </div>
           </div>
@@ -131,7 +159,7 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
           </div>
         </div>
 
-        {/* ── CARRIL DE CLIPS (Timeline Lane) ── */}
+        {/* ── CARRIL DE CLIPS (Timeline Lane / Drop Zone) ── */}
         <div 
           ref={laneRef}
           onClick={handleLaneClick}

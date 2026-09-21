@@ -49,6 +49,8 @@ export interface AudioStudioStoreState {
   // Herramientas de Edición Mini-DAW
   activeTool: StudioTool;
   setActiveTool: (tool: StudioTool) => void;
+  activeTrackId: string;
+  setActiveTrackId: (trackId: string) => void;
   selectedClipId: string | null;
   setSelectedClipId: (clipId: string | null) => void;
   clipboardClip: AudioClip | null;
@@ -170,10 +172,12 @@ const buildManifest = (
   };
 };
 
+const isMasterId = (id: string) => id === 'music' || id === 'track-music' || id === 'master';
+
 const initialTracks = {
   music: {
     id: 'track-music',
-    name: 'Música Principal',
+    name: 'Master',
     color: CARBON_TRACK_COLORS[0], // Cyan Eléctrico
     type: 'music' as const,
     buffer: null,
@@ -366,6 +370,8 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
 
   activeTool: 'select',
   setActiveTool: (tool) => set({ activeTool: tool }),
+  activeTrackId: 'music',
+  setActiveTrackId: (trackId) => set({ activeTrackId: trackId }),
   selectedClipId: null,
   setSelectedClipId: (clipId) => set({ selectedClipId: clipId }),
   clipboardClip: null,
@@ -413,9 +419,12 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         };
       };
 
-      const updatedTracks = state.tracks[trackId]
-        ? { ...state.tracks, [trackId]: updateClips(state.tracks[trackId]) }
-        : state.tracks;
+      const trackIsMaster = isMasterId(trackId);
+      const updatedTracks = trackIsMaster
+        ? { ...state.tracks, music: updateClips(state.tracks.music) }
+        : state.tracks[trackId]
+          ? { ...state.tracks, [trackId]: updateClips(state.tracks[trackId]) }
+          : state.tracks;
 
       const updatedAdditional = state.additionalTracks.map((t) =>
         t.id === trackId ? updateClips(t) : t
@@ -442,9 +451,12 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         ),
       });
 
-      const updatedTracks = state.tracks[trackId]
-        ? { ...state.tracks, [trackId]: updateClips(state.tracks[trackId]) }
-        : state.tracks;
+      const trackIsMaster = isMasterId(trackId);
+      const updatedTracks = trackIsMaster
+        ? { ...state.tracks, music: updateClips(state.tracks.music) }
+        : state.tracks[trackId]
+          ? { ...state.tracks, [trackId]: updateClips(state.tracks[trackId]) }
+          : state.tracks;
 
       const updatedAdditional = state.additionalTracks.map((t) =>
         t.id === trackId ? updateClips(t) : t
@@ -473,9 +485,12 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         };
       };
 
-      const intermediateTracks = state.tracks[fromTrackId]
-        ? { ...state.tracks, [fromTrackId]: removeClipFrom(state.tracks[fromTrackId]) }
-        : state.tracks;
+      const fromIsMaster = isMasterId(fromTrackId);
+      const intermediateTracks = fromIsMaster
+        ? { ...state.tracks, music: removeClipFrom(state.tracks.music) }
+        : state.tracks[fromTrackId]
+          ? { ...state.tracks, [fromTrackId]: removeClipFrom(state.tracks[fromTrackId]) }
+          : state.tracks;
 
       const intermediateAdditional = state.additionalTracks.map((t) =>
         t.id === fromTrackId ? removeClipFrom(t) : t
@@ -489,9 +504,12 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         clips: [...track.clips, movedClip!],
       });
 
-      const finalTracks = intermediateTracks[toTrackId]
-        ? { ...intermediateTracks, [toTrackId]: insertClipInto(intermediateTracks[toTrackId]) }
-        : intermediateTracks;
+      const toIsMaster = isMasterId(toTrackId);
+      const finalTracks = toIsMaster
+        ? { ...intermediateTracks, music: insertClipInto(intermediateTracks.music) }
+        : intermediateTracks[toTrackId]
+          ? { ...intermediateTracks, [toTrackId]: insertClipInto(intermediateTracks[toTrackId]) }
+          : intermediateTracks;
 
       const finalAdditional = intermediateAdditional.map((t) =>
         t.id === toTrackId ? insertClipInto(t) : t
@@ -511,7 +529,10 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
     const clampedOffset = Math.max(0, Math.round(newStartOffsetSec * 100) / 100);
 
     // Buscar clip original
-    const fromTrack = state.tracks[fromTrackId] || state.additionalTracks.find((t) => t.id === fromTrackId);
+    const fromIsMaster = isMasterId(fromTrackId);
+    const fromTrack = fromIsMaster
+      ? state.tracks.music
+      : (state.tracks[fromTrackId] || state.additionalTracks.find((t) => t.id === fromTrackId));
     const sourceClip = fromTrack?.clips.find((c) => c.id === clipId);
     if (!sourceClip) return null;
 
@@ -527,9 +548,12 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         clips: [...track.clips, duplicatedClip],
       });
 
-      const updatedTracks = currState.tracks[toTrackId]
-        ? { ...currState.tracks, [toTrackId]: addClip(currState.tracks[toTrackId]) }
-        : currState.tracks;
+      const toIsMaster = isMasterId(toTrackId);
+      const updatedTracks = toIsMaster
+        ? { ...currState.tracks, music: addClip(currState.tracks.music) }
+        : currState.tracks[toTrackId]
+          ? { ...currState.tracks, [toTrackId]: addClip(currState.tracks[toTrackId]) }
+          : currState.tracks;
 
       const updatedAdditional = currState.additionalTracks.map((t) =>
         t.id === toTrackId ? addClip(t) : t
@@ -559,7 +583,9 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
       let updatedTracks = { ...state.tracks };
       let updatedAdditional = state.additionalTracks.map((t) => updateClips(t));
 
-      if (trackId && updatedTracks[trackId]) {
+      if (trackId && isMasterId(trackId)) {
+        updatedTracks.music = updateClips(updatedTracks.music);
+      } else if (trackId && updatedTracks[trackId]) {
         updatedTracks[trackId] = updateClips(updatedTracks[trackId]);
       } else {
         for (const k of Object.keys(updatedTracks)) {
@@ -586,27 +612,43 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
       return;
     }
     const state = get();
-    if (!state.selectedClipId) return;
-    const allTracks = [state.tracks.music, state.tracks.voice, ...state.additionalTracks];
-    for (const t of allTracks) {
-      const found = t.clips.find((c) => c.id === state.selectedClipId);
+    // 1. Si hay selectedClipId
+    if (state.selectedClipId) {
+      const allTracks = [state.tracks.music, state.tracks.voice, ...state.additionalTracks];
+      for (const t of allTracks) {
+        const found = t.clips.find((c) => c.id === state.selectedClipId);
+        if (found) {
+          set({ clipboardClip: { ...found }, audioClipboard: { ...found } });
+          return;
+        }
+      }
+    }
+    // 2. Si no hay selectedClipId pero hay un clip bajo el cabezal en activeTrackId
+    const activeTrack = isMasterId(state.activeTrackId)
+      ? state.tracks.music
+      : (state.tracks[state.activeTrackId] || state.additionalTracks.find((t) => t.id === state.activeTrackId));
+    if (activeTrack) {
+      const found = activeTrack.clips.find(
+        (c) => state.currentTimeSec >= c.startOffsetSec && state.currentTimeSec <= c.startOffsetSec + (c.trimEndSec - c.trimStartSec)
+      );
       if (found) {
-        set({ clipboardClip: { ...found }, audioClipboard: { ...found } });
+        set({ clipboardClip: { ...found }, audioClipboard: { ...found }, selectedClipId: found.id });
         return;
       }
     }
   },
 
   pasteClip: (trackId, atTimeSec) => {
-    const { clipboardClip, currentTimeSec } = get();
-    if (!clipboardClip) return null;
+    const { clipboardClip, audioClipboard, currentTimeSec, activeTrackId } = get();
+    const clipToPaste = clipboardClip || audioClipboard;
+    if (!clipToPaste) return null;
 
-    // Si no se especifica pista, pegar en la pista principal de música
-    const targetTrackId = trackId || 'music';
+    // Si no se especifica pista, pegar en la pista activa o master
+    const targetTrackId = trackId || activeTrackId || 'music';
     const targetTime = atTimeSec !== undefined ? atTimeSec : currentTimeSec;
 
     const newClip: AudioClip = {
-      ...clipboardClip,
+      ...clipToPaste,
       id: `clip-paste-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       startOffsetSec: Math.max(0, targetTime),
     };
@@ -617,9 +659,12 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         clips: [...track.clips, newClip],
       });
 
-      const updatedTracks = state.tracks[targetTrackId]
-        ? { ...state.tracks, [targetTrackId]: addClip(state.tracks[targetTrackId]) }
-        : state.tracks;
+      const targetIsMaster = isMasterId(targetTrackId);
+      const updatedTracks = targetIsMaster
+        ? { ...state.tracks, music: addClip(state.tracks.music) }
+        : state.tracks[targetTrackId]
+          ? { ...state.tracks, [targetTrackId]: addClip(state.tracks[targetTrackId]) }
+          : state.tracks;
 
       const updatedAdditional = state.additionalTracks.map((t) =>
         t.id === targetTrackId ? addClip(t) : t
@@ -648,9 +693,12 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         ),
       });
 
-      const updatedTracks = state.tracks[trackId]
-        ? { ...state.tracks, [trackId]: updateClips(state.tracks[trackId]) }
-        : state.tracks;
+      const trackIsMaster = isMasterId(trackId);
+      const updatedTracks = trackIsMaster
+        ? { ...state.tracks, music: updateClips(state.tracks.music) }
+        : state.tracks[trackId]
+          ? { ...state.tracks, [trackId]: updateClips(state.tracks[trackId]) }
+          : state.tracks;
 
       const updatedAdditional = state.additionalTracks.map((t) =>
         t.id === trackId ? updateClips(t) : t
@@ -747,14 +795,15 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
 
   setTrackBuffer: (trackKey, buffer, fileName) => {
     const duration = buffer.duration;
+    const resolvedKey = isMasterId(trackKey) ? 'music' : trackKey;
     set((state) => {
-      const isCore = !!state.tracks[trackKey];
+      const isCore = !!state.tracks[resolvedKey];
       const updatedTracks = { ...state.tracks };
       let updatedAdditional = [...state.additionalTracks];
 
       const initialClip: AudioClip = {
-        id: `clip-${trackKey}-${Date.now()}`,
-        name: fileName || (isCore ? updatedTracks[trackKey]?.name : 'Audio') || 'Audio',
+        id: `clip-${resolvedKey}-${Date.now()}`,
+        name: fileName || (isCore ? updatedTracks[resolvedKey]?.name : 'Audio') || 'Audio',
         buffer,
         startOffsetSec: 0,
         trimStartSec: 0,
@@ -764,21 +813,21 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
       };
 
       if (isCore) {
-        updatedTracks[trackKey] = {
-          ...updatedTracks[trackKey],
+        updatedTracks[resolvedKey] = {
+          ...updatedTracks[resolvedKey],
           buffer,
           clips: [initialClip],
           trimEndSec: duration,
-          fileName: fileName || state.tracks[trackKey].fileName,
+          fileName: fileName || state.tracks[resolvedKey].fileName,
         };
 
         // Si es la pista principal, sincronizar con AudioEngine de la Pista 2D
-        if (trackKey === 'music') {
+        if (resolvedKey === 'music') {
           audioEngine.setAudioBuffer(buffer, fileName || 'musica_master.wav');
         }
       } else {
         updatedAdditional = updatedAdditional.map((t) => {
-          if (t.id === trackKey) {
+          if (t.id === resolvedKey) {
             return {
               ...t,
               buffer,
@@ -810,18 +859,19 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
 
   setTrackVolume: (trackKey, volume) => {
     const clamped = Math.max(0, Math.min(1, volume));
+    const resolvedKey = isMasterId(trackKey) ? 'music' : trackKey;
     set((state) => {
       let updatedTracks = { ...state.tracks };
       let updatedAdditional = [...state.additionalTracks];
 
-      if (updatedTracks[trackKey]) {
-        updatedTracks[trackKey] = {
-          ...updatedTracks[trackKey],
+      if (updatedTracks[resolvedKey]) {
+        updatedTracks[resolvedKey] = {
+          ...updatedTracks[resolvedKey],
           volume: clamped,
         };
       } else {
         updatedAdditional = updatedAdditional.map((t) =>
-          t.id === trackKey ? { ...t, volume: clamped } : t
+          t.id === resolvedKey ? { ...t, volume: clamped } : t
         );
       }
 
@@ -833,38 +883,39 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
     });
 
     // Sincronizar con AudioEngine
-    if (trackKey === 'music') {
+    if (resolvedKey === 'music') {
       audioEngine.setMusicVolume(clamped);
-    } else if (trackKey === 'metronome') {
+    } else if (resolvedKey === 'metronome') {
       audioEngine.metronome.setVolume(clamped);
-    } else if (trackKey === 'voice') {
+    } else if (resolvedKey === 'voice') {
       audioEngine.voiceCueEngine.setVolume(clamped);
     }
   },
 
   toggleTrackMute: (trackKey) => {
+    const resolvedKey = isMasterId(trackKey) ? 'music' : trackKey;
     set((state) => {
       let updatedTracks = { ...state.tracks };
       let updatedAdditional = [...state.additionalTracks];
 
-      if (updatedTracks[trackKey]) {
-        const newMuted = !updatedTracks[trackKey].muted;
+      if (updatedTracks[resolvedKey]) {
+        const newMuted = !updatedTracks[resolvedKey].muted;
         const updatedTrack = {
-          ...updatedTracks[trackKey],
+          ...updatedTracks[resolvedKey],
           muted: newMuted,
         };
-        updatedTracks[trackKey] = updatedTrack;
+        updatedTracks[resolvedKey] = updatedTrack;
 
-        if (trackKey === 'music') {
+        if (resolvedKey === 'music') {
           audioEngine.setMusicVolume(newMuted ? 0 : updatedTrack.volume);
-        } else if (trackKey === 'metronome') {
+        } else if (resolvedKey === 'metronome') {
           audioEngine.metronome.setEnabled(!newMuted && state.metronomeConfig.enabled);
-        } else if (trackKey === 'voice') {
+        } else if (resolvedKey === 'voice') {
           audioEngine.voiceCueEngine.setConfig({ enabled: !newMuted });
         }
       } else {
         updatedAdditional = updatedAdditional.map((t) =>
-          t.id === trackKey ? { ...t, muted: !t.muted } : t
+          t.id === resolvedKey ? { ...t, muted: !t.muted } : t
         );
       }
 
@@ -877,19 +928,20 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   },
 
   toggleTrackSolo: (trackKey) => {
+    const resolvedKey = isMasterId(trackKey) ? 'music' : trackKey;
     set((state) => {
       let updatedTracks = { ...state.tracks };
       let updatedAdditional = [...state.additionalTracks];
 
-      if (updatedTracks[trackKey]) {
-        const newSolo = !updatedTracks[trackKey].solo;
-        updatedTracks[trackKey] = {
-          ...updatedTracks[trackKey],
+      if (updatedTracks[resolvedKey]) {
+        const newSolo = !updatedTracks[resolvedKey].solo;
+        updatedTracks[resolvedKey] = {
+          ...updatedTracks[resolvedKey],
           solo: newSolo,
         };
       } else {
         updatedAdditional = updatedAdditional.map((t) =>
-          t.id === trackKey ? { ...t, solo: !t.solo } : t
+          t.id === resolvedKey ? { ...t, solo: !t.solo } : t
         );
       }
 

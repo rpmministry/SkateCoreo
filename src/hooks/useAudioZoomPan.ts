@@ -171,7 +171,7 @@ export function useAudioZoomPan(options: UseAudioZoomPanOptions = {}): UseAudioZ
         e.stopPropagation();
 
         const rect = container.getBoundingClientRect();
-        const focalX = e.clientX - rect.left;
+        const focalX = Math.max(0, e.clientX - rect.left - widthOffset);
 
         // Sensibilidad suave de zoom según la intensidad del scroll
         const intensity = Math.min(Math.abs(e.deltaY) / 100, 2);
