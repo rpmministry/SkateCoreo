@@ -27,3 +27,4 @@ dist-ssr
 *.sw?
 .kilo/
 supabase/.temp/
+logos SkateCoreo/*.zip

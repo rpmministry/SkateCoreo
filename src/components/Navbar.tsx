@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
-  Trophy, 
   Activity, 
   Music, 
   MapPin, 
@@ -12,6 +11,7 @@ import {
   Globe
 } from 'lucide-react';
 import { dbService } from '../services/db';
+import { SkateCoreoBrand } from './brand/SkateCoreoBrand';
 
 interface NavbarProps {
   activeTab: 'panel' | 'rink' | 'audio' | 'skaters';
@@ -73,22 +73,8 @@ export const Navbar: React.FC<NavbarProps> = ({
       <header className="bg-zinc-950/95 backdrop-blur-md border-b border-zinc-800/80 sticky top-0 z-40 px-3 py-2 sm:px-6">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           
-          {/* Logo & Title */}
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-teal-400 to-emerald-600 flex items-center justify-center shadow-lg shadow-teal-500/20 active:scale-95 transition-transform">
-              <Trophy className="w-4.5 h-4.5 text-zinc-950 font-black" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg font-extrabold tracking-tight text-white flex items-center gap-1">
-                  Skate<span className="text-teal-400 font-black">Art</span>
-                </h1>
-              </div>
-              <p className="text-[11px] text-zinc-400 hidden sm:block">
-                {t('app.subtitle', 'Entrenamiento Coreográfico & Sincronización de Audio')}
-              </p>
-            </div>
-          </div>
+          {/* Logo & Brand Identity (Responsive) */}
+          <SkateCoreoBrand />
 
           {/* Navigation Tabs */}
           <nav className="flex items-center gap-1 bg-zinc-900/90 p-1 rounded-xl border border-zinc-800/80">

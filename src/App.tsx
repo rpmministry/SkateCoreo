@@ -21,6 +21,7 @@ import { Skater, Program, ElementLog, AudioEngineState } from './types';
 import { RinkCanvas } from './components/RinkCanvas';
 import { InteractiveWaveform } from './components/InteractiveWaveform';
 import { LeftSidebarPanel } from './components/LeftSidebarPanel';
+import { SkateCoreoBrand } from './components/brand/SkateCoreoBrand';
 import { RightInspectorPanel } from './components/RightInspectorPanel';
 import { SkatersManager } from './components/SkatersManager';
 import { dbService, OfflineSessionRecord } from './services/db';
@@ -357,24 +358,8 @@ export function App() {
             <Menu className="w-5 h-5 stroke-[1.75]" />
           </button>
 
-          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-            <div className="flex items-center gap-1.5 shrink-0">
-              <span className="w-2.5 h-2.5 rounded-full bg-cyan shadow-glow-cyan" />
-              <span className="text-[13px] font-black uppercase tracking-wider text-white">SkateCoreo</span>
-            </div>
-            <span className="text-slate-600 text-xs hidden md:inline">·</span>
-            <span className="text-[11px] text-slate-400 font-medium hidden md:inline truncate">
-              por{' '}
-              <a
-                href="https://www.alsiztech.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-slate-300 hover:text-cyan hover:underline transition-colors"
-              >
-                AlsisTech
-              </a>
-            </span>
-          </div>
+          {/* Contenedor de Marca Responsive con margen derecho para no apiñar herramientas */}
+          <SkateCoreoBrand />
 
           {/* Contexto del Atleta Activo */}
           <div className="hidden lg:flex items-center gap-1.5 pl-3 border-l border-white/10 text-xs min-w-0">
@@ -1155,18 +1140,18 @@ export function App() {
       </div>
 
       {/* ═══════════════════════════════════════════════
-          FOOTER — Atribución Oficial AlsisTech
+          FOOTER — Atribución Oficial (Carbon Design System)
           ═══════════════════════════════════════════════ */}
-      <footer className="h-6 shrink-0 flex items-center justify-between px-3 bg-neon-surface/85 border-t border-white/5 text-[12px] text-slate-400 select-none z-20">
+      <footer className="h-6 shrink-0 flex items-center justify-between px-3 bg-neon-surface/85 border-t border-white/5 text-xs text-gray-500 select-none z-20">
         <span className="truncate-safe font-normal">
-          Desarrollado por{' '}
+          Desarrollado por Mauricio Andrade Luna | Diseñada por:{' '}
           <a
-            href="https://www.alsiztech.com"
+            href="http://www.alsitech.com"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-slate-300 font-medium hover:text-cyan hover:underline transition-colors"
+            className="text-blue-500 hover:underline hover:text-blue-400 transition-colors font-medium"
           >
-            AlsisTech
+            AlsizTech
           </a>
         </span>
       </footer>

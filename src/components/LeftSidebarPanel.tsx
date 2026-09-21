@@ -557,17 +557,17 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
           </div>
         </section>
 
-        {/* ═══ Footer Attribution ═════════════════════════ */}
+        {/* ═══ Footer Attribution (Carbon Design System) ═════════════════════════ */}
         <section className="px-4 py-3 bg-white/[0.01] border-t border-white/5 text-center">
-          <p className="text-[12px] text-slate-400 font-normal truncate-safe">
-            Desarrollado por{' '}
+          <p className="text-xs text-gray-500 font-normal leading-relaxed">
+            Desarrollado por Mauricio Andrade Luna | Diseñada por:{' '}
             <a
-              href="https://www.alsiztech.com"
+              href="http://www.alsitech.com"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-slate-300 font-medium hover:text-cyan hover:underline transition-colors"
+              className="text-blue-500 hover:underline hover:text-blue-400 transition-colors font-medium"
             >
-              AlsisTech
+              AlsizTech
             </a>
           </p>
         </section>

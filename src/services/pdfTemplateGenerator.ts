@@ -9,6 +9,7 @@
 import { jsPDF } from 'jspdf';
 import { RinkDimensions } from '../types/choreography';
 import { DEFAULT_RINK_DIMENSIONS } from '../core/canvas/RinkMath';
+import { SKATECOREO_LOGO_REVERSO_PNG } from '../constants/brand/logoDataUri';
 
 export interface TemplateMetadata {
   title?: string;
@@ -46,19 +47,39 @@ export class PdfTemplateGenerator {
     const scaleMmPerMeter = RINK_W / rink.lengthMeters; // 4.8 mm/metro
     const cornerRadiusMm = rink.cornerRoundsMeters * scaleMmPerMeter; // 16.8 mm
 
-    // ── 1. ENCABEZADO INSTITUCIONAL & METADATOS ──
-    doc.setFillColor(15, 23, 42); // slate-900
+    // ── 1. ENCABEZADO INSTITUCIONAL & IDENTIDAD VISUAL SKATECOREO ──
+    doc.setFillColor(15, 23, 42); // slate-900 (Carbon Dark aesthetic)
     doc.rect(10, 10, PAGE_W - 20, 26, 'F');
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(14);
-    doc.setTextColor(0, 240, 255); // Cyan eléctrico
-    doc.text('SKATECOREO · PLANTILLA REGLAMENTARIA DE COREOGRAFÍA', 14, 18);
+    // Inyección del Logotipo completo SkateCoreo (Símbolo S + tipografía oficial)
+    // Coordenadas calculadas: X=14mm, Y=12.5mm, Ancho=48mm, Alto=8.1mm
+    // Margen de seguridad: El borde inferior del logo (20.6mm) dista 16.9mm de la marca fiducial TL (37.5mm)
+    // y 23.4mm del área activa de la pista (44mm). 100% libre de colisiones e interferencias OCR.
+    try {
+      doc.addImage(SKATECOREO_LOGO_REVERSO_PNG, 'PNG', 14, 12.5, 48, 8.1);
+    } catch {
+      // Resiliencia visual en entornos restringidos
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.setTextColor(255, 255, 255);
+      doc.text('SKATECOREO', 14, 18);
+    }
 
-    doc.setFontSize(8);
+    // Línea divisoria vertical sutil (Carbon UI separator)
+    doc.setDrawColor(51, 65, 85); // slate-700
+    doc.setLineWidth(0.3);
+    doc.line(65, 12.5, 65, 23);
+
+    // Título descriptivo reglamentario y subtítulo normativo
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10.5);
+    doc.setTextColor(0, 240, 255); // Cyan eléctrico SkateCoreo
+    doc.text('PLANTILLA REGLAMENTARIA DE COREOGRAFÍA', 69, 17.5);
+
+    doc.setFontSize(7.5);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(148, 163, 184); // slate-400
-    doc.text('Normativa World Skate & FEP · Escala 50x25m (Proporción 2:1) · Sistema Paper-to-Digital', 14, 23);
+    doc.text('Normativa World Skate & FEP · Escala 50x25m (Proporción 2:1) · Sistema Paper-to-Digital', 69, 22.5);
 
     // Campos de metadatos
     doc.setFontSize(8);

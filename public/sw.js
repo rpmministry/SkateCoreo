@@ -2,8 +2,11 @@ const CACHE_NAME = 'skatecoreo-v1';
 const STATIC_ASSETS = [
   './',
   './index.html',
-  './manifest.webmanifest',
-  './icon.svg'
+  './favicon.ico',
+  './favicon.svg',
+  './apple-touch-icon.png',
+  './site.webmanifest',
+  './manifest.webmanifest'
 ];
 
 self.addEventListener('install', (event) => {

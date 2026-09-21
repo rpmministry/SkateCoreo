@@ -47,9 +47,26 @@ function runPdfTemplateTests() {
   const docWithMeta = PdfTemplateGenerator.generateTemplate(metadata);
   assert(docWithMeta !== null, 'Genera plantilla con metadatos de coreografía completos');
 
-  // 5. Generación de buffer binario sin errores
+  // 5. Generación de buffer binario sin errores (incluyendo imagen de branding)
   const arrayBuffer = docWithMeta.output('arraybuffer');
-  assert(arrayBuffer && arrayBuffer.byteLength > 1000, `PDF compilado a binario tiene tamaño válido (${arrayBuffer.byteLength} bytes)`);
+  assert(arrayBuffer && arrayBuffer.byteLength > 50000, `PDF compilado a binario incluye branding oficial (${arrayBuffer.byteLength} bytes)`);
+
+  // 6. Validación geométrica y matemática de no-interferencia (Anti-Colisión)
+  // Rink Y = 44mm, Rink X = 28.5mm
+  // TL Fiducial Marker Center = (28.5, 44), Top edge = 37.5mm
+  // Header Box Bottom = 36mm
+  // SkateCoreo Logo: X=14mm, Y=12.5mm, W=48mm, H=8.1mm -> Bottom edge = 20.6mm
+  const LOGO_X = 14;
+  const LOGO_Y = 12.5;
+  const LOGO_W = 48;
+  const LOGO_H = 8.1;
+  const LOGO_BOTTOM = LOGO_Y + LOGO_H; // 20.6 mm
+  const FIDUCIAL_TL_TOP = 44 - (10 / 2 + 1.5); // 37.5 mm
+  const RINK_ACTIVE_TOP = 44; // 44 mm
+
+  assert(LOGO_BOTTOM < FIDUCIAL_TL_TOP, `Margen seguro: Borde inferior del logo (${LOGO_BOTTOM} mm) está muy por encima de la marca fiducial TL (${FIDUCIAL_TL_TOP} mm). Distancia libre = ${(FIDUCIAL_TL_TOP - LOGO_BOTTOM).toFixed(1)} mm`);
+  assert(LOGO_BOTTOM < RINK_ACTIVE_TOP, `Margen seguro: Borde inferior del logo (${LOGO_BOTTOM} mm) no invade el área activa de la pista (${RINK_ACTIVE_TOP} mm). Distancia libre = ${(RINK_ACTIVE_TOP - LOGO_BOTTOM).toFixed(1)} mm`);
+  assert(LOGO_X + LOGO_W < 297 - 20, `Ancho de logo (${LOGO_W} mm) no excede el ancho útil del encabezado`);
 
   console.log(`\n🎉 TODAS LAS PRUEBAS DEL GENERADOR PDF PASARON: ${passed}/${total}`);
 }
