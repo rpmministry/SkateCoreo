@@ -6,6 +6,7 @@ export interface UseAudioZoomPanOptions {
   initialZoom?: number;
   enableWheelPan?: boolean;
   widthOffset?: number;
+  overscrollPx?: number;
   onZoomChange?: (zoom: number) => void;
   onScroll?: (scrollLeft: number) => void;
 }
@@ -15,6 +16,7 @@ export interface UseAudioZoomPanReturn {
   containerRef: React.RefObject<HTMLDivElement>;
   containerWidth: number;
   contentWidth: number;
+  overscrollPx: number;
   zoomIn: (focalX?: number) => void;
   zoomOut: (focalX?: number) => void;
   resetZoom: () => void;
@@ -27,12 +29,11 @@ export interface UseAudioZoomPanReturn {
  * useAudioZoomPan — Motor de Zoom y Paneo Dinámico Multidispositivo
  *
  * Interacciones soportadas:
- * - Desktop: Ctrl/Cmd + Rueda del ratón = Zoom In / Zoom Out centrado en cursor.
+ * - Desktop: Ctrl/Cmd + Rueda del ratón = Zoom In / Zoom Out centrado en cursor con prevención nativa.
  * - Desktop: Rueda vertical normal = Paneo horizontal fluido.
- * - Móvil: 1 dedo = Scroll horizontal nativo (-webkit-overflow-scrolling: touch).
- * - Móvil: 2 dedos (Pinch) = Zoom In / Out centrado en el punto medio de los dedos.
- * - Prevención de Conflicto: e.preventDefault() con { passive: false } EXCLUSIVAMENTE en el contenedor.
- * - Cero CSS scaleX: El zoom escala la geometría matemática y píxeles por segundo.
+ * - Móvil: 1 dedo = Scroll horizontal nativo fluido (-webkit-overflow-scrolling: touch).
+ * - Móvil: 2 dedos (Pinch) = Zoom In / Out centrado matemáticamente entre los dedos con touch-action: none.
+ * - Overscroll: Margen continuo de espacio vacío al final para arrastre y ensamblaje libre.
  */
 export function useAudioZoomPan(options: UseAudioZoomPanOptions = {}): UseAudioZoomPanReturn {
   const {
@@ -41,6 +42,7 @@ export function useAudioZoomPan(options: UseAudioZoomPanOptions = {}): UseAudioZ
     initialZoom = 1.0,
     enableWheelPan = true,
     widthOffset = 0,
+    overscrollPx = 0,
     onZoomChange,
     onScroll,
   } = options;
@@ -198,14 +200,15 @@ export function useAudioZoomPan(options: UseAudioZoomPanOptions = {}): UseAudioZ
       }
     };
 
-    // 2. Móviles y Tablets: Pinch-to-Zoom con 2 Dedos
+    // 2. Móviles y Tablets: Manejo Matemático Preciso de Pinch-to-Zoom con 2 Dedos
     const handleTouchStart = (e: TouchEvent) => {
       if (e.touches.length === 2) {
+        container.style.touchAction = 'none';
         const t1 = e.touches[0];
         const t2 = e.touches[1];
         const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
         const rect = container.getBoundingClientRect();
-        const focalX = (t1.clientX + t2.clientX) / 2 - rect.left;
+        const focalX = Math.max(0, (t1.clientX + t2.clientX) / 2 - rect.left - widthOffset);
 
         touchPinchRef.current = {
           initialDist: dist,
@@ -213,6 +216,7 @@ export function useAudioZoomPan(options: UseAudioZoomPanOptions = {}): UseAudioZ
           focalX,
         };
       } else {
+        container.style.touchAction = 'pan-x';
         touchPinchRef.current = null;
       }
     };
@@ -226,12 +230,15 @@ export function useAudioZoomPan(options: UseAudioZoomPanOptions = {}): UseAudioZ
         const t1 = e.touches[0];
         const t2 = e.touches[1];
         const currentDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
-        const { lastDist, focalX } = touchPinchRef.current;
+        const rect = container.getBoundingClientRect();
+        const currentFocalX = Math.max(0, (t1.clientX + t2.clientX) / 2 - rect.left - widthOffset);
+        const { lastDist } = touchPinchRef.current;
 
-        if (lastDist > 10 && currentDist > 10) {
+        if (lastDist > 8 && currentDist > 8) {
           const ratio = currentDist / lastDist;
           touchPinchRef.current.lastDist = currentDist;
-          applyZoom(ratio, focalX, false);
+          touchPinchRef.current.focalX = currentFocalX;
+          applyZoom(ratio, currentFocalX, false);
         }
       }
     };
@@ -239,6 +246,7 @@ export function useAudioZoomPan(options: UseAudioZoomPanOptions = {}): UseAudioZ
     const handleTouchEnd = (e: TouchEvent) => {
       if (e.touches.length < 2) {
         touchPinchRef.current = null;
+        container.style.touchAction = 'pan-x';
       }
     };
 
@@ -262,7 +270,7 @@ export function useAudioZoomPan(options: UseAudioZoomPanOptions = {}): UseAudioZ
       container.removeEventListener('touchcancel', handleTouchEnd);
       container.removeEventListener('scroll', handleNativeScroll);
     };
-  }, [applyZoom, enableWheelPan, onScroll]);
+  }, [applyZoom, enableWheelPan, onScroll, widthOffset]);
 
   // Helpers de Proyección Matemática (Sin CSS scaleX)
   const timeToPx = useCallback(
@@ -279,8 +287,8 @@ export function useAudioZoomPan(options: UseAudioZoomPanOptions = {}): UseAudioZ
     (px: number, totalDurationSec: number, padPx: number = 0): number => {
       const dur = Math.max(1, totalDurationSec);
       const availableW = Math.max(1, contentWidth - padPx * 2);
-      const clampedPx = Math.max(0, Math.min(availableW, px - padPx));
-      return (clampedPx / availableW) * dur;
+      const offsetPx = Math.max(0, px - padPx);
+      return (offsetPx / availableW) * dur;
     },
     [contentWidth]
   );
@@ -290,6 +298,7 @@ export function useAudioZoomPan(options: UseAudioZoomPanOptions = {}): UseAudioZ
     containerRef,
     containerWidth,
     contentWidth,
+    overscrollPx,
     zoomIn,
     zoomOut,
     resetZoom,

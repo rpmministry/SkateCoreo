@@ -18,6 +18,7 @@ interface MultitrackTrackRowProps {
   totalTracks: number;
   totalDurationSec: number;
   contentWidth: number;
+  overscrollPx?: number;
   trackLaneHeight?: number;
   onUploadFile: (file: File) => void;
   onTrackHop?: (fromTrackId: string, toTrackIndex: number, clipId: string, newOffsetSec: number) => void;
@@ -33,6 +34,7 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
   totalTracks,
   totalDurationSec,
   contentWidth,
+  overscrollPx = 0,
   trackLaneHeight = 64,
   onUploadFile,
   onTrackHop,
@@ -82,7 +84,7 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
       const rect = laneRef.current.getBoundingClientRect();
       const clickX = e.clientX - rect.left;
       const safeDuration = Math.max(10, totalDurationSec);
-      const clickedTimeSec = (clickX / contentWidth) * safeDuration;
+      const clickedTimeSec = Math.max(0, (clickX / contentWidth) * safeDuration);
 
       if (audioClipboard && e.detail === 2) {
         pasteClip(track.id, clickedTimeSec);
@@ -98,6 +100,8 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
       onUploadFile(file);
     }
   };
+
+  const totalLaneWidth = contentWidth + overscrollPx;
 
   return (
     <>
@@ -140,13 +144,11 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
             </div>
 
             {/* Nombre y Tag */}
-            <div className="flex flex-col min-w-0">
-              <div className="flex items-center gap-1">
-                <span className="text-[11px] font-bold text-white truncate leading-tight">
-                  {displayName}
-                </span>
-              </div>
-              <span className={`text-[8.5px] font-mono truncate ${isActive ? 'text-cyan font-bold' : 'text-slate-400'}`}>
+            <div className="flex flex-col min-w-0 leading-tight">
+              <span className="font-bold text-xs text-white truncate max-w-[55px] sm:max-w-[70px]">
+                {displayName}
+              </span>
+              <span className="text-[9px] text-slate-400 font-mono">
                 {isActive ? '● Activa' : (isMasterTrack ? 'Master' : '+ Fx')}
               </span>
             </div>
@@ -164,17 +166,32 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
                 S
               </span>
             )}
-            <MoreVertical className="w-3 h-3 text-slate-500 group-hover:text-white transition-colors" />
+            <MoreVertical className="w-3.5 h-3.5 text-slate-500 group-hover:text-white transition-colors" />
           </div>
         </div>
 
-        {/* ── CARRIL DE CLIPS (Timeline Lane / Drop Zone) ── */}
+        {/* ── CARRIL DE CLIPS (Timeline Lane / Drop Zone con Overscroll) ── */}
         <div 
           ref={laneRef}
           onClick={handleLaneClick}
           className="relative flex-1 overflow-hidden"
-          style={{ width: `${contentWidth}px` }}
+          style={{ width: `${totalLaneWidth}px` }}
         >
+          {/* Zona de Espacio Vacío Continuo (Overscroll / Canvas de Ensamblaje Libre) */}
+          {overscrollPx > 0 && (
+            <div 
+              className="absolute top-0 bottom-0 pointer-events-none border-l border-dashed border-white/10 bg-white/[0.015] flex items-center justify-start pl-3 select-none z-0"
+              style={{
+                left: `${contentWidth}px`,
+                width: `${overscrollPx}px`,
+              }}
+            >
+              <span className="text-[10px] font-mono text-slate-600 uppercase tracking-widest">
+                + Área Libre
+              </span>
+            </div>
+          )}
+
           {/* Indicador visual de Zona de Caída Activa */}
           {isDropTarget && (
             <div className={`absolute inset-0 z-30 pointer-events-none border-2 border-dashed flex items-center justify-center transition-all ${

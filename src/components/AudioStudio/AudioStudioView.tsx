@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { usePinch } from '@use-gesture/react';
 import {
   ZoomIn,
   ZoomOut,
@@ -62,18 +61,19 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   const [exportNotice, setExportNotice] = useState<string | null>(null);
   const [showMixerDrawer, setShowMixerDrawer] = useState(false);
 
-  // Ancho de cabecera de pista BandLab (100px)
+  // Ancho de cabecera de pista BandLab (100px) y Espacio Vacío Continuo de Ensamblaje (450px)
   const headerWidth = 100;
+  const OVERSCROLL_PX = 450;
   const playheadLineRef = useRef<HTMLDivElement | null>(null);
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const addTrackFileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Motor de Zoom y Paneo
+  // Motor de Zoom y Paneo Dinámico con matemática touch precisa y overscroll continuo
   const {
     zoom,
-    setZoomExplicit,
     containerRef: timelineContainerRef,
     contentWidth,
+    overscrollPx,
     zoomIn,
     zoomOut,
     resetZoom,
@@ -82,6 +82,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     maxZoom: 35.0,
     initialZoom: 1.0,
     widthOffset: headerWidth,
+    overscrollPx: OVERSCROLL_PX,
     enableWheelPan: true,
     onZoomChange: (z) => useAudioStudioStore.getState().setZoom(z),
   });
@@ -106,7 +107,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     const rect = container.getBoundingClientRect();
     const clickX = e.clientX - rect.left + container.scrollLeft - headerWidth;
     const dur = Math.max(10, totalDurationSec);
-    const ratio = Math.max(0, Math.min(1, clickX / contentWidth));
+    const ratio = Math.max(0, clickX / contentWidth);
     const targetTimeSec = Math.round(ratio * dur * 100) / 100;
 
     setCurrentTimeSec(targetTimeSec);
@@ -124,20 +125,6 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
       } catch (err) {}
     }
   };
-
-  // Gesto Pinch-to-Zoom con dos dedos sobre el timeline
-  usePinch(
-    ({ offset: [d], first, memo }) => {
-      const initialZoom = first ? zoom : ((memo as number) || zoom);
-      const newZoom = Math.max(1.0, Math.min(35.0, initialZoom * d));
-      setZoomExplicit(newZoom);
-      return initialZoom;
-    },
-    {
-      target: workspaceRef,
-      eventOptions: { passive: false },
-    }
-  );
 
   // Auto-scroll durante reproducción
   useEffect(() => {
@@ -442,7 +429,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
       const rect = container.getBoundingClientRect();
       const clickX = clientX - rect.left + container.scrollLeft - headerWidth;
       const dur = Math.max(10, totalDurationSec);
-      const ratio = Math.max(0, Math.min(1, clickX / contentWidth));
+      const ratio = Math.max(0, clickX / contentWidth);
       const targetTimeSec = Math.round(ratio * dur * 100) / 100;
       
       setCurrentTimeSec(targetTimeSec);
@@ -480,7 +467,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
         isExporting={isExporting}
       />
 
-      {/* ── 2. LIENZO CENTRAL DE ARREGLOS (BandLab Arrangement View) ── */}
+      {/* ── 2. LIENZO CENTRAL DE ARREGLOS (BandLab Arrangement View con Overscroll) ── */}
       <div 
         ref={timelineContainerRef}
         onPointerDown={handleWorkspacePointerDown}
@@ -495,7 +482,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
         <div 
           ref={workspaceRef}
           className="relative min-h-full flex flex-col"
-          style={{ width: `${headerWidth + contentWidth}px` }}
+          style={{ width: `${headerWidth + contentWidth + overscrollPx}px` }}
         >
           {/* Regla de tiempo superior */}
           <div className="sticky top-0 z-30 flex items-stretch bg-zinc-950/95 border-b border-white/10 backdrop-blur-md">
@@ -510,6 +497,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
                 totalDurationSec={totalDurationSec}
                 currentTimeSec={currentTimeSec}
                 contentWidth={contentWidth}
+                overscrollPx={overscrollPx}
                 onSeek={(sec) => {
                   setCurrentTimeSec(sec);
                   audioEngine.seek(sec * 1000);
@@ -519,7 +507,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             </div>
           </div>
 
-          {/* Carriles de Pistas (Arrangement Track Rows) */}
+          {/* Carriles de Pistas (Arrangement Track Rows con Overscroll y Drop Zone) */}
           <div className="flex-1 flex flex-col">
             {arrangementTracks.map((track, index) => (
               <MultitrackTrackRow
@@ -529,6 +517,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
                 totalTracks={arrangementTracks.length}
                 totalDurationSec={totalDurationSec}
                 contentWidth={contentWidth}
+                overscrollPx={overscrollPx}
                 trackLaneHeight={trackLaneHeight}
                 onUploadFile={(file) => handleUploadFile(track.id, file)}
                 onTrackHop={(fromTrackId, targetIndex, clipId, newOffsetSec) => {
@@ -545,7 +534,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             {arrangementTracks.length < 5 && (
               <div 
                 className="p-3 border-b border-white/5 flex items-center gap-3"
-                style={{ width: `${headerWidth + contentWidth}px` }}
+                style={{ width: `${headerWidth + contentWidth + overscrollPx}px` }}
               >
                 <label 
                   htmlFor="add-track-input"
@@ -609,9 +598,9 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
       </div>
 
       {/* ── 3. BARRA INFERIOR DE TRANSPORTE BANDLAB (BandLab Bottom Dock) ── */}
-      <footer className="min-h-16 h-auto py-2 sm:py-0 shrink-0 flex items-center justify-between px-3 sm:px-6 bg-zinc-950 border-t border-white/10 text-xs z-30 select-none pb-safe px-safe flex-wrap gap-2">
+      <footer className="min-h-16 h-16 shrink-0 flex items-center justify-between px-3 sm:px-6 bg-zinc-950 border-t border-white/10 text-xs z-30 select-none pb-safe px-safe overflow-x-auto no-scrollbar gap-2 sm:gap-4">
         {/* Izquierda: Mezclador + Rewind + Stop + Tijeras */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {/* Botón Mezclador (Abre BandLabMixerDrawer) */}
           <button
             type="button"
@@ -664,7 +653,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
         </div>
 
         {/* Centro: BOTÓN CIRCULAR PRINCIPAL (BandLab Big Action Centerpiece) */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 shrink-0">
           <button
             type="button"
             onClick={handlePlayToggle}
@@ -684,7 +673,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
         </div>
 
         {/* Derecha: Metrónomo + Marcador + Zoom */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {/* Toggle Metrónomo rápido */}
           <button
             type="button"

@@ -67,7 +67,7 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
   // Px por segundo actual para calcular arrastres
   const pxPerSec = contentWidth / safeTotalDuration;
 
-  // ── Renderizado Canvas 2D de Onda Sonora (Estilo BandLab: Forma de onda contrastada sobre bloque sólido) ──
+  // ── Renderizado Canvas 2D de Onda Sonora (Estilo BandLab: Forma de onda contrastada y nítida sobre bloque sólido) ──
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !clip.buffer) return;
@@ -75,12 +75,17 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const dpr = window.devicePixelRatio || 1;
-    const renderWidth = Math.floor(widthPx);
-    const renderHeight = Math.floor(trackLaneHeight - 8);
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const renderWidth = Math.max(1, Math.floor(widthPx));
+    const renderHeight = Math.max(1, Math.floor(trackLaneHeight - 8));
 
-    canvas.width = renderWidth * dpr;
-    canvas.height = renderHeight * dpr;
+    // Fijar dimensiones exactas en CSS y píxeles físicos multiplicados por DPR
+    canvas.style.width = `${renderWidth}px`;
+    canvas.style.height = `${renderHeight}px`;
+    canvas.width = Math.round(renderWidth * dpr);
+    canvas.height = Math.round(renderHeight * dpr);
+
+    ctx.save();
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, renderWidth, renderHeight);
 
@@ -93,21 +98,41 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
     const endSample = Math.floor(endRatio * channelData.length);
     const samplesInClip = Math.max(1, endSample - startSample);
 
-    const step = Math.max(1, Math.floor(samplesInClip / renderWidth));
     const midY = renderHeight / 2;
 
-    // 1. Dibujar Forma de Onda (Color contrastado oscuro/profundo como en BandLab)
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-    for (let x = 0; x < renderWidth; x++) {
-      const idx = startSample + x * step;
+    // Línea base central tenue
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.20)';
+    ctx.fillRect(0, midY - 0.5, renderWidth, 1);
+
+    // 1. Dibujar Forma de Onda Nítida HD (Barras verticales redondeadas con antialiasing)
+    const barWidth = 1.5;
+    const barGap = 1.0;
+    const step = barWidth + barGap;
+    const numBars = Math.max(1, Math.floor(renderWidth / step));
+
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.68)';
+    ctx.lineWidth = barWidth;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+
+    for (let i = 0; i < numBars; i++) {
+      const x = i * step + barWidth / 2;
+      const sampleStart = startSample + Math.floor((i / numBars) * samplesInClip);
+      const sampleEnd = startSample + Math.floor(((i + 1) / numBars) * samplesInClip);
+
       let maxPeak = 0;
-      for (let s = 0; s < step && idx + s < endSample; s++) {
-        const val = Math.abs(channelData[idx + s] || 0);
+      for (let s = sampleStart; s < sampleEnd && s < endSample; s++) {
+        const val = Math.abs(channelData[s] || 0);
         if (val > maxPeak) maxPeak = val;
       }
-      const barHeight = Math.max(3, maxPeak * (renderHeight * 0.72));
-      ctx.fillRect(x, midY - barHeight / 2, 1.5, barHeight);
+
+      const barHeight = Math.max(2.5, maxPeak * (renderHeight * 0.76));
+      const halfH = barHeight / 2;
+
+      ctx.moveTo(x, midY - halfH);
+      ctx.lineTo(x, midY + halfH);
     }
+    ctx.stroke();
 
     // 2. Dibujar envolvente visual de Fade In
     const fadeInWidth = (localFadeIn / clipDurationSec) * renderWidth;
@@ -149,6 +174,8 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
       ctx.lineTo(renderWidth, renderHeight);
       ctx.stroke();
     }
+
+    ctx.restore();
   }, [clip.buffer, clip.trimStartSec, clip.trimEndSec, widthPx, trackLaneHeight, localFadeIn, localFadeOut, clipDurationSec]);
 
   const getTargetTrackInfo = (targetIdx: number) => {

@@ -7,6 +7,7 @@ interface AudioTimeRulerProps {
   currentTimeSec: number;
   onSeek: (sec: number) => void;
   contentWidth?: number;
+  overscrollPx?: number;
   hidePlayhead?: boolean;
 }
 
@@ -15,6 +16,7 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
   currentTimeSec,
   onSeek,
   contentWidth,
+  overscrollPx = 0,
   hidePlayhead = false,
 }) => {
   const rulerRef = useRef<HTMLDivElement | null>(null);
@@ -30,6 +32,7 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
 
   const duration = Math.max(10, totalDurationSec);
   const effectiveWidth = contentWidth || 1000;
+  const totalRulerWidth = effectiveWidth + overscrollPx;
 
   // Scrubbing continuo con arrastre del ratón sobre la regla de tiempo
   const handleRulerPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -37,10 +40,8 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
     if (!rulerRef.current) return;
 
     const rect = rulerRef.current.getBoundingClientRect();
-    const w = contentWidth || rect.width;
     const px = e.clientX - rect.left;
-    const ratio = Math.max(0, Math.min(1, px / w));
-    const clickedSec = Math.round(ratio * duration * 100) / 100;
+    const clickedSec = Math.max(0, Math.round((px / effectiveWidth) * duration * 100) / 100);
 
     // Doble clic o Shift + clic crea marcador de nodo
     if (e.shiftKey || e.detail >= 2) {
@@ -58,10 +59,8 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
   const handleRulerPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isScrubbingRulerRef.current || !rulerRef.current) return;
     const rect = rulerRef.current.getBoundingClientRect();
-    const w = contentWidth || rect.width;
     const px = e.clientX - rect.left;
-    const ratio = Math.max(0, Math.min(1, px / w));
-    const newSec = Math.round(ratio * duration * 100) / 100;
+    const newSec = Math.max(0, Math.round((px / effectiveWidth) * duration * 100) / 100);
     onSeek(newSec);
   };
 
@@ -87,10 +86,8 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
   const handleNodePointerMove = (id: string, e: React.PointerEvent) => {
     if (draggingNodeId !== id || !rulerRef.current) return;
     const rect = rulerRef.current.getBoundingClientRect();
-    const w = contentWidth || rect.width;
     const px = e.clientX - rect.left;
-    const ratio = Math.max(0, Math.min(1, px / w));
-    const newSec = Math.round(ratio * duration * 100) / 100;
+    const newSec = Math.max(0, Math.round((px / effectiveWidth) * duration * 100) / 100);
     updateTimeNode(id, newSec);
     onSeek(newSec);
   };
@@ -132,17 +129,18 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
     subStepSec = 15;
   }
 
-  const majorTickCount = Math.floor(duration / majorStepSec);
+  const extendedDuration = duration + (overscrollPx > 0 ? (overscrollPx / pxPerSec) : 0);
+  const majorTickCount = Math.floor(extendedDuration / majorStepSec);
   const majorTicks = Array.from({ length: majorTickCount + 1 }, (_, i) => Math.round(i * majorStepSec * 100) / 100);
 
-  const subTickCount = Math.floor(duration / subStepSec);
+  const subTickCount = Math.floor(extendedDuration / subStepSec);
   const subTicks = Array.from({ length: subTickCount + 1 }, (_, i) => Math.round(i * subStepSec * 100) / 100);
 
-  const playheadPx = Math.max(0, Math.min(effectiveWidth, (currentTimeSec / duration) * effectiveWidth));
+  const playheadPx = Math.max(0, (currentTimeSec / duration) * effectiveWidth);
 
   return (
     <div
-      style={{ width: contentWidth ? `${contentWidth}px` : '100%' }}
+      style={{ width: `${totalRulerWidth}px` }}
       className="select-none bg-slate-950 border-b border-white/10 flex flex-col"
     >
       {/* ── Sub-header: Instrucción Rápida y Contador de Marcadores ── */}
@@ -168,7 +166,7 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
         onPointerMove={handleRulerPointerMove}
         onPointerUp={handleRulerPointerUp}
         onPointerCancel={handleRulerPointerUp}
-        style={{ width: contentWidth ? `${contentWidth}px` : '100%' }}
+        style={{ width: `${totalRulerWidth}px` }}
         className="relative h-12 cursor-pointer bg-[#060911] overflow-hidden select-none"
       >
         {/* Sub-ticks sutiles */}

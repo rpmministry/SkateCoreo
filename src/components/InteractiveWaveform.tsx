@@ -190,9 +190,12 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
     const width = contentWidth;
     const height = canvas.clientHeight || 90;
+
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
 
     if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
       canvas.width = Math.round(width * dpr);

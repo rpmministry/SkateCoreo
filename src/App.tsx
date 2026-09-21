@@ -117,6 +117,46 @@ export function App() {
     return () => { u1(); u2(); };
   }, []);
 
+  // ── Gesto Edge-Swipe para transicionar a Estudio de Audio desde la Pista 2D ──
+  useEffect(() => {
+    if (activeView !== 'rink') return;
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let isEdgeSwipe = false;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      const t = e.touches[0];
+      touchStartX = t.clientX;
+      touchStartY = t.clientY;
+      // Borde derecho (swipe hacia izquierda) o borde inferior (swipe hacia arriba en vertical)
+      isEdgeSwipe = touchStartX >= window.innerWidth - 50 || touchStartY >= window.innerHeight - 60;
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (!isEdgeSwipe || e.changedTouches.length !== 1) return;
+      const t = e.changedTouches[0];
+      const deltaX = t.clientX - touchStartX;
+      const deltaY = t.clientY - touchStartY;
+
+      const isSwipeLeft = touchStartX >= window.innerWidth - 50 && deltaX <= -75 && Math.abs(deltaY) < 60;
+      const isSwipeUp = touchStartY >= window.innerHeight - 60 && deltaY <= -75 && Math.abs(deltaX) < 60;
+
+      if (isSwipeLeft || isSwipeUp) {
+        if ('vibrate' in navigator) navigator.vibrate(15);
+        setActiveView('studio');
+      }
+      isEdgeSwipe = false;
+    };
+
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.addEventListener('touchend', handleTouchEnd, { passive: true });
+    return () => {
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [activeView]);
+
   // ── Handlers ──────────────────────────────────────────
   const handleSelectSkater = async (skater: Skater) => {
     setSelectedSkater(skater);
@@ -440,17 +480,17 @@ export function App() {
 
         {/* ── ZONA 3 (Derecha): CTA Principal & Menú de Desbordamiento Carbon ── */}
         <div className="flex items-center gap-2 shrink-0">
-          {/* Botón Estudio de Audio (DAW Lite) */}
+          {/* Botón Estudio de Audio (DAW Lite) - Etiqueta clara y explícita que nunca colapsa */}
           <button
             type="button"
             onClick={() => setActiveView('studio')}
-            className="min-h-touch min-w-[48px] flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all interactive-tap shadow-soft-elevation border bg-white/[0.04] hover:bg-white/10 text-cyan border-cyan/30"
-            title="Abrir Estudio de Audio (DAW Lite multipista)"
+            className="min-h-touch min-w-[48px] flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all interactive-tap shadow-soft-elevation border bg-cyan/15 hover:bg-cyan/25 text-cyan border-cyan/40"
+            title="Ir al Editor de Audio (DAW Lite multipista)"
           >
-            <span>🎛️</span>
-            <span className="hidden sm:inline">
-              Estudio de Audio
-            </span>
+            <span className="text-sm">🎛️</span>
+            <span className="hidden md:inline">Ir al Editor de Audio</span>
+            <span className="md:inline hidden"></span>
+            <span className="inline md:hidden whitespace-nowrap">Editor de Audio</span>
             {unplacedNodes.length > 0 && (
               <span className="w-4 h-4 rounded-full bg-amber-400 text-slate-950 text-[10px] font-black flex items-center justify-center animate-pulse">
                 {unplacedNodes.length}

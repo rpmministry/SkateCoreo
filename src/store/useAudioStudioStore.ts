@@ -558,11 +558,16 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   moveClip: (trackId, clipId, newStartOffsetSec) => {
     const clampedOffset = Math.max(0, Math.round(newStartOffsetSec * 100) / 100);
     set((state) => {
+      let clipEnd = 0;
       const updateClips = (track: AudioStudioTrack): AudioStudioTrack => ({
         ...track,
-        clips: track.clips.map((c) =>
-          c.id === clipId ? { ...c, startOffsetSec: clampedOffset } : c
-        ),
+        clips: track.clips.map((c) => {
+          if (c.id === clipId) {
+            clipEnd = clampedOffset + (c.trimEndSec - c.trimStartSec);
+            return { ...c, startOffsetSec: clampedOffset };
+          }
+          return c;
+        }),
       });
 
       const trackIsMaster = isMasterId(trackId);
@@ -576,10 +581,13 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         t.id === trackId ? updateClips(t) : t
       );
 
+      const newTotalDuration = Math.max(state.totalDurationSec, Math.ceil(clipEnd + 5));
+
       return {
         tracks: updatedTracks,
         additionalTracks: updatedAdditional,
-        mixManifest: buildManifest(updatedTracks, updatedAdditional, state.globalControls, state.totalDurationSec),
+        totalDurationSec: newTotalDuration,
+        mixManifest: buildManifest(updatedTracks, updatedAdditional, state.globalControls, newTotalDuration),
       };
     });
 
@@ -631,11 +639,16 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         t.id === toTrackId ? insertClipInto(t) : t
       );
 
+      const targetClip = movedClip as unknown as AudioClip;
+      const movedEnd = targetClip ? clampedOffset + (targetClip.trimEndSec - targetClip.trimStartSec) : 0;
+      const newTotalDuration = Math.max(state.totalDurationSec, Math.ceil(movedEnd + 5));
+
       return {
         tracks: finalTracks,
         additionalTracks: finalAdditional,
         selectedClipId: clipId,
-        mixManifest: buildManifest(finalTracks, finalAdditional, state.globalControls, state.totalDurationSec),
+        totalDurationSec: newTotalDuration,
+        mixManifest: buildManifest(finalTracks, finalAdditional, state.globalControls, newTotalDuration),
       };
     });
 
@@ -677,11 +690,15 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         t.id === toTrackId ? addClip(t) : t
       );
 
+      const dupEnd = clampedOffset + (duplicatedClip.trimEndSec - duplicatedClip.trimStartSec);
+      const newTotalDuration = Math.max(currState.totalDurationSec, Math.ceil(dupEnd + 5));
+
       return {
         tracks: updatedTracks,
         additionalTracks: updatedAdditional,
         selectedClipId: duplicatedClip.id,
-        mixManifest: buildManifest(updatedTracks, updatedAdditional, currState.globalControls, currState.totalDurationSec),
+        totalDurationSec: newTotalDuration,
+        mixManifest: buildManifest(updatedTracks, updatedAdditional, currState.globalControls, newTotalDuration),
       };
     });
 
@@ -791,12 +808,16 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         t.id === targetTrackId ? addClip(t) : t
       );
 
+      const pasteEnd = newClip.startOffsetSec + (newClip.trimEndSec - newClip.trimStartSec);
+      const newTotalDuration = Math.max(state.totalDurationSec, Math.ceil(pasteEnd + 5));
+
       return {
         tracks: updatedTracks,
         additionalTracks: updatedAdditional,
         selectedClipId: newClip.id,
         contextMenu: null,
-        mixManifest: buildManifest(updatedTracks, updatedAdditional, state.globalControls, state.totalDurationSec),
+        totalDurationSec: newTotalDuration,
+        mixManifest: buildManifest(updatedTracks, updatedAdditional, state.globalControls, newTotalDuration),
       };
     });
 

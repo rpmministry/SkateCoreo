@@ -85,25 +85,25 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
   return (
     <>
       <header 
-        className="relative z-40 min-h-12 h-auto py-1 sm:py-0 shrink-0 flex items-center justify-between px-2 sm:px-4 bg-black border-b border-white/10 text-white select-none backdrop-blur-md pt-safe px-safe flex-wrap gap-2"
+        className="relative z-40 h-12 shrink-0 flex items-center justify-between px-2 sm:px-4 bg-black border-b border-white/10 text-white select-none backdrop-blur-md pt-safe px-safe overflow-x-auto no-scrollbar gap-2 sm:gap-4"
       >
         {/* ── IZQUIERDA: Exit Studio (Estilo BandLab 2_Arrangement-View-1.webp) ── */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {onBackToRink && (
             <button
               type="button"
               onClick={onBackToRink}
-              className="h-10 min-h-touch px-3 rounded-full flex items-center gap-1.5 text-slate-200 hover:text-white bg-white/10 hover:bg-white/20 border border-white/15 transition-all active:scale-95 shadow-sm font-bold text-xs"
+              className="h-10 min-h-touch px-3 rounded-full flex items-center gap-1.5 text-slate-200 hover:text-white bg-white/10 hover:bg-white/20 border border-white/15 transition-all active:scale-95 shadow-sm font-bold text-xs shrink-0"
               title="Salir del Estudio y volver a la Pista 2D"
             >
               <ArrowLeft className="w-4 h-4 text-cyan shrink-0" />
               <span className="hidden sm:inline">← Volver a Pista 2D</span>
-              <span className="sm:hidden">Volver</span>
+              <span className="sm:hidden">Volver a Pista</span>
             </button>
           )}
 
           {/* Display Digital de Tiempo (BandLab 00:00.0) */}
-          <div className="flex items-center gap-1.5 font-mono text-xs font-black text-white pl-1">
+          <div className="flex items-center gap-1.5 font-mono text-xs font-black text-white pl-1 shrink-0">
             <span>{fmtTimeWithMs(currentTimeSec)}</span>
             <button
               type="button"
@@ -119,7 +119,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
         </div>
 
         {/* ── CENTRO: Cápsula Flotante Segmentada (BandLab Pill: Waveform / Notes / Settings) ── */}
-        <div className="flex items-center p-0.5 rounded-full bg-zinc-900 border border-white/10 shadow-inner">
+        <div className="flex items-center p-0.5 rounded-full bg-zinc-900 border border-white/10 shadow-inner shrink-0">
           {/* 1. Modo Vista de Arreglos (Arrangement View) */}
           <button
             type="button"
@@ -164,7 +164,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
         </div>
 
         {/* ── DERECHA: Cargar Audio + Guardar/Exportar a la Pista (BandLab Cloud Icon) ── */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {/* Botón Importar Archivo de Audio Directo */}
           <button
             type="button"
