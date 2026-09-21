@@ -1,5 +1,10 @@
 import { StrictVoiceCuePayload } from '../types/audio';
 import { sanitizeSpeechText } from '../core/audio/voiceCueSanitizer';
+import { voiceMatchesGender } from '../core/audio/voiceGender';
+import {
+  hasBuiltInGoogleTtsApiKey,
+  resolveGoogleTtsApiKey,
+} from '../core/audio/googleTtsKey';
 
 export type VoiceGender = 'female' | 'male';
 
@@ -9,6 +14,12 @@ export interface TTSOptions {
   speed?: number;
   pitch?: number;
   urgent?: boolean;
+  /**
+   * Nombre explícito de la voz Google Cloud (ej. `es-US-Neural2-B`).
+   * Tiene prioridad sobre el mapeo por género, para que la selección manual
+   * del usuario no se pierda al sintetizar.
+   */
+  voiceName?: string;
   /**
    * Omite el filtro de Voz Guía. Reservado exclusivamente a la prueba manual
    * de voz solicitada por el usuario desde Ajustes.
@@ -210,30 +221,18 @@ export class TTSService {
     });
   }
 
+  /**
+   * Resuelve la credencial desde la fuente única (`googleTtsKey`):
+   * primero la clave propia de la app (inyectada en el build / Vercel) y, solo
+   * si no existe, una clave local del usuario. El usuario final no configura nada.
+   */
   private resolveApiKey() {
-    // 1. Intentar Vite import.meta.env
-    try {
-      if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GOOGLE_TTS_API_KEY) {
-        this.apiKey = import.meta.env.VITE_GOOGLE_TTS_API_KEY.trim();
-        return;
-      }
-    } catch (e) {}
+    this.apiKey = resolveGoogleTtsApiKey();
+  }
 
-    // 2. Intentar process.env para entornos de pruebas en Node/tsx
-    try {
-      if (typeof process !== 'undefined' && process.env && process.env.VITE_GOOGLE_TTS_API_KEY) {
-        this.apiKey = process.env.VITE_GOOGLE_TTS_API_KEY.trim();
-        return;
-      }
-    } catch (e) {}
-
-    // 3. Fallback a clave guardada si existiera previamente
-    if (typeof localStorage !== 'undefined') {
-      const savedKey = localStorage.getItem('skatecoreo_google_tts_key') || localStorage.getItem('skateart_google_tts_key');
-      if (savedKey) {
-        this.apiKey = savedKey.trim();
-      }
-    }
+  /** ¿La credencial viene incluida en la app (sin intervención del usuario)? */
+  public isUsingBuiltInApiKey(): boolean {
+    return hasBuiltInGoogleTtsApiKey();
   }
 
   public static getInstance(): TTSService {
@@ -308,10 +307,16 @@ export class TTSService {
     // Detener locución previa si está activa
     this.stop();
 
-    // 1. Intentar síntesis con Google Cloud TTS (Neural2/Journey)
+    // 1. Intentar síntesis con Google Cloud TTS (Neural2/Wavenet/Journey)
     if (this.hasGoogleApiKey()) {
       try {
-        const audioBuffer = await this.synthesizeWithGoogleTTS(cleanText, gender, lang, options?.speed);
+        const audioBuffer = await this.synthesizeWithGoogleTTS(
+          cleanText,
+          gender,
+          lang,
+          options?.speed,
+          options?.voiceName
+        );
         if (audioBuffer) {
           this.playAudioBuffer(audioBuffer);
           return;
@@ -391,7 +396,7 @@ export class TTSService {
     const lang = options?.language || this.language;
     const speed = options?.speed || 1.05;
 
-    return this.synthesizeWithGoogleTTS(cleanText, gender, lang, speed);
+    return this.synthesizeWithGoogleTTS(cleanText, gender, lang, speed, options?.voiceName);
   }
 
   /**
@@ -415,9 +420,13 @@ export class TTSService {
     text: string,
     gender: VoiceGender,
     lang: 'es' | 'en',
-    speed: number = 1.05
+    speed: number = 1.05,
+    voiceNameOverride?: string
   ): Promise<AudioBuffer | null> {
-    const voiceName = GOOGLE_VOICES_CONFIG[lang]?.[gender] || GOOGLE_VOICES_CONFIG['es']['female'];
+    const voiceName =
+      voiceNameOverride ||
+      GOOGLE_VOICES_CONFIG[lang]?.[gender] ||
+      GOOGLE_VOICES_CONFIG['es']['female'];
     // Región latina (es-US) para el español; es-ES queda descartado por acento
     const languageCode = lang === 'es' ? 'es-US' : 'en-US';
     const wavenetFallback = GOOGLE_VOICES_WAVENET_FALLBACK[lang]?.[gender];
@@ -617,14 +626,19 @@ export class TTSService {
 
         const pool = latinVoices.length > 0 ? latinVoices : langVoices;
 
-        // 2. Dentro del pool, buscar coincidencia de género por nombre
-        const matched = pool.find((v) =>
-          gender === 'female'
-            ? /female|mujer|monica|mónica|helena|sabina|lucia|lucía|paulina|catalina|zira/i.test(v.name)
-            : /male|hombre|jorge|pablo|david|diego|carlos|andres|andres|juan/i.test(v.name)
-        );
+        // 2. Dentro del pool, priorizar la voz cuyo nombre declare el género pedido
+        const matched =
+          pool.find((v) => voiceMatchesGender(v.name, gender) === true) ||
+          pool.find((v) => voiceMatchesGender(v.name, gender) === null) ||
+          pool[0];
 
-        utterance.voice = matched || pool[0];
+        utterance.voice = matched;
+
+        // 3. Si la voz no declara su género, diferenciamos acústicamente el tono
+        //    para que la guía femenina y la masculina nunca suenen igual.
+        if (voiceMatchesGender(matched.name, gender) !== true) {
+          utterance.pitch = gender === 'male' ? 0.78 : 1.12;
+        }
       }
 
       window.speechSynthesis.speak(utterance);

@@ -224,7 +224,9 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
   const handleJumpToPrevPoint = useCallback(() => {
     if (points.length === 0) return;
     const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
-    const prev = [...sorted].reverse().find(p => p.time_ms < audio.currentTimeMs - 350);
+    // Tiempo de HARDWARE (el estado de React va con retraso respecto a la música)
+    const nowMs = audioEngine.getCurrentTimeMs();
+    const prev = [...sorted].reverse().find(p => p.time_ms < nowMs - 350);
     const target = prev || sorted[0];
     audio.seek(target.time_ms);
     setSelectedPointId(target.id);
@@ -234,7 +236,8 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
   const handleJumpToNextPoint = useCallback(() => {
     if (points.length === 0) return;
     const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
-    const next = sorted.find(p => p.time_ms > audio.currentTimeMs + 350);
+    const nowMs = audioEngine.getCurrentTimeMs();
+    const next = sorted.find(p => p.time_ms > nowMs + 350);
     const target = next || sorted[sorted.length - 1];
     audio.seek(target.time_ms);
     setSelectedPointId(target.id);
@@ -917,7 +920,8 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       } else if (sortedPts.length > 0) {
         baseTime = sortedPts[sortedPts.length - 1].time_ms + 1000;
       } else {
-        baseTime = audio.currentTimeMs > 0 ? audio.currentTimeMs : 0;
+        const liveMs = audioEngine.getCurrentTimeMs();
+        baseTime = liveMs > 0 ? liveMs : 0;
       }
 
       // Convertir el gesto libre preservando la huella geométrica (loops, círculos, ochos) y Nodos Maestros
@@ -1109,7 +1113,9 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
           if (phase === 'plot' || points.length === 0) {
             const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
             const lastTime = sorted.length > 0 ? sorted[sorted.length - 1].time_ms : 0;
-            const newTime = audio.currentTimeMs > 0 ? audio.currentTimeMs : (sorted.length === 0 ? 0 : lastTime + 3000);
+            // Colocación al instante exacto de la música (reloj de hardware)
+            const liveMs = audioEngine.getCurrentTimeMs();
+            const newTime = liveMs > 0 ? liveMs : (sorted.length === 0 ? 0 : lastTime + 3000);
             const newPt = addPointAtCanvas(mX, mY, newTime);
             setSelectedPointId(newPt.id);
             renderFrame();
@@ -1215,7 +1221,8 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     if (mX >= 0.5 && mX <= 49.5 && mY >= 0.5 && mY <= 24.5) {
       const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
       const lastTime = sorted.length > 0 ? sorted[sorted.length - 1].time_ms : 0;
-      const newTime = audio.currentTimeMs > 0 ? audio.currentTimeMs : lastTime + 10000;
+      const liveMs = audioEngine.getCurrentTimeMs();
+      const newTime = liveMs > 0 ? liveMs : lastTime + 10000;
       const newPt = addPointAtCanvas(mX, mY, newTime);
       setSelectedPointId(newPt.id);
       onNodeSelect?.(newPt.id);

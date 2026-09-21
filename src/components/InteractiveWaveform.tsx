@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useCallback, useRef, useEffect, useState } from 'react';
 import { useChoreographyStore } from '../store/useChoreographyStore';
 import { useAudioStudioStore } from '../store/useAudioStudioStore';
 import { audioEngine } from '../core/audio/AudioEngine';
@@ -11,6 +11,7 @@ import {
   Sliders,
 } from 'lucide-react';
 import { useAudioZoomPan } from '../hooks/useAudioZoomPan';
+import { usePlayheadSync } from '../hooks/usePlayheadSync';
 import { RinkAudioMixerDrawer } from './RinkAudioMixerDrawer';
 
 interface InteractiveWaveformProps {
@@ -149,24 +150,6 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     }
   }, []);
 
-  // Auto-scroll durante reproducción si hay zoom activo
-  useEffect(() => {
-    if (!isPlaying || zoom <= 1.05) return;
-    const track = trackRef.current;
-    if (!track) return;
-
-    const playheadRatio = Math.max(0, Math.min(1, currentTimeMs / effectiveDurationMs));
-    const availableW = Math.max(1, contentWidth - PIN_RADIUS * 2);
-    const playheadPx = PIN_RADIUS + playheadRatio * availableW;
-
-    const left = track.scrollLeft;
-    const right = left + track.clientWidth;
-
-    if (playheadPx > right - 80 || playheadPx < left + 20) {
-      track.scrollLeft = Math.max(0, playheadPx - track.clientWidth / 2);
-    }
-  }, [currentTimeMs, isPlaying, zoom, contentWidth, effectiveDurationMs]);
-
   // Formato mm:ss.S
   const formatTime = (ms: number): string => {
     const totalSec = Math.max(0, ms / 1000);
@@ -176,8 +159,15 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${tenths}`;
   };
 
-  // Render Loop del Waveform Canvas con escalado Retina y CERO transform: scaleX CSS
-  useEffect(() => {
+  /**
+   * Dibujo del Waveform en resolución nativa (Retina) con CERO transform: scaleX.
+   *
+   * `timeMs` llega SIEMPRE del reloj de hardware (`AudioContext.currentTime`),
+   * nunca del `currentTimeMs` de React (que se actualiza a ~12Hz y va con
+   * retraso). Así la aguja y el sombreado de progreso quedan clavados a la
+   * música al milisegundo, a 60fps, sin provocar un solo re-render.
+   */
+  const drawWaveform = useCallback((timeMs: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -214,8 +204,9 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     ctx.stroke();
 
     // 2. Proyección de Progreso de Reproducción con zona segura interna
+    //    Coma flotante pura: sin Math.round para no introducir micro-saltos
     const availableW = Math.max(1, width - PIN_RADIUS * 2);
-    const playheadRatio = Math.max(0, Math.min(1, currentTimeMs / effectiveDurationMs));
+    const playheadRatio = Math.max(0, Math.min(1, timeMs / effectiveDurationMs));
     const playheadPx = PIN_RADIUS + playheadRatio * availableW;
 
     // Área reproducida (sombreado sutil cian)
@@ -332,10 +323,10 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     }
 
     ctx.restore();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     contentWidth,
     wavePeaks,
-    currentTimeMs,
     effectiveDurationMs,
     timelineNodes,
     selectedPointId,
@@ -343,6 +334,43 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     hoverTimeMs,
     draggedPinId,
   ]);
+
+  /**
+   * Sincronización del lienzo con el reloj de hardware:
+   * - reproduciendo → un frame de rAF compartido (`PlaybackClock`) para toda la app;
+   *   se redibuja la onda y se auto-desplaza el scroll siguiendo la aguja.
+   * - en pausa / zoom / carga → una única escritura puntual con el tiempo real.
+   */
+  usePlayheadSync(
+    useCallback(
+      (timeMs: number) => {
+        drawWaveform(timeMs);
+
+        if (!isPlaying || zoom <= 1.05) return;
+        const track = trackRef.current;
+        if (!track) return;
+
+        const availableW = Math.max(1, contentWidth - PIN_RADIUS * 2);
+        const playheadPx =
+          PIN_RADIUS + Math.max(0, Math.min(1, timeMs / effectiveDurationMs)) * availableW;
+        const left = track.scrollLeft;
+        const right = left + track.clientWidth;
+        if (playheadPx > right - 80 || playheadPx < left + 20) {
+          track.scrollLeft = Math.max(0, playheadPx - track.clientWidth / 2);
+        }
+      },
+      [drawWaveform, isPlaying, zoom, contentWidth, effectiveDurationMs]
+    ),
+    {
+      // Mientras suena, el bucle de frames mueve la aguja.
+      active: Boolean(isPlaying),
+      // En pausa, cualquier cambio de tiempo (seek, scrub, rewind), geometría o
+      // marcadores provoca UNA escritura puntual con el tiempo real del motor.
+      refreshKey: `${contentWidth}|${effectiveDurationMs}|${wavePeaks.length}|${timelineNodes.length}|${zoom}|${
+        isPlaying ? '-' : Math.round(currentTimeMs / 50)
+      }`,
+    }
+  );
 
   // Gestores de Interacción Táctil y Puntero para los Marcadores DOM (Tamaño Fijo Rígido 36x36px)
   const handlePinPointerDown = (e: React.PointerEvent<HTMLDivElement>, point: ChoreographyPoint) => {

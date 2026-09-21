@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import {
   ZoomIn,
   ZoomOut,
@@ -17,6 +17,8 @@ import { useAudioStudioStore, flushPendingConsolidation } from '../../store/useA
 import { audioEngine } from '../../services/audioEngine';
 import { useAudioZoomPan } from '../../hooks/useAudioZoomPan';
 import { usePressAction } from '../../hooks/usePressAction';
+import { usePlayheadSync } from '../../hooks/usePlayheadSync';
+import { timeToPlayheadPx } from '../../core/audio/PlaybackClock';
 import { AudioStudioTrack } from '../../types/audioStudio';
 import { TopTransportBar } from './TopTransportBar';
 import { AudioTimeRuler } from './AudioTimeRuler';
@@ -120,12 +122,14 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     const rect = container.getBoundingClientRect();
     const clickX = e.clientX - rect.left + container.scrollLeft - headerWidth;
     const dur = Math.max(10, totalDurationSec);
-    const ratio = Math.max(0, clickX / contentWidth);
+    const ratio = Math.max(0, Math.min(1, clickX / contentWidth));
+    // Precisión de 1ms: el offset exacto se guarda y el motor lo usa al reanudar
     const targetTimeSec = Math.round(ratio * dur * 1000) / 1000;
 
     setCurrentTimeSec(targetTimeSec);
     audioEngine.seek(targetTimeSec * 1000);
     if (playheadLineRef.current) {
+      // Proyección en coma flotante, sin redondeo (evita micro-saltos)
       playheadLineRef.current.style.transform = `translateX(${headerWidth + ratio * contentWidth}px)`;
     }
   };
@@ -139,46 +143,55 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     }
   };
 
-  // Auto-scroll durante reproducción
-  useEffect(() => {
-    if (!isPlaying || zoom <= 1.05) return;
-    const container = timelineContainerRef.current;
-    if (!container) return;
+  /**
+   * Proyección tiempo → píxeles con coma flotante (sin redondeo).
+   * `headerWidth` es el ancho de la columna fija de nombres de pista; `contentWidth`
+   * es el ancho total de la línea de tiempo.
+   */
+  const playheadPxFor = useCallback(
+    (timeMs: number) =>
+      timeToPlayheadPx(
+        timeMs,
+        Math.max(10, totalDurationSec) * 1000,
+        headerWidth,
+        contentWidth
+      ),
+    [totalDurationSec, headerWidth, contentWidth]
+  );
 
-    const dur = Math.max(10, totalDurationSec);
-    const playheadRatio = Math.max(0, Math.min(1, currentTimeSec / dur));
-    const playheadPx = headerWidth + playheadRatio * contentWidth;
+  /**
+   * Escritura directa sobre el DOM: `transform: translateX(...)`.
+   * No hay `setState` aquí, así que ningún frame provoca re-render de React.
+   * El auto-scroll sigue al cabezal con el mismo reloj de hardware.
+   */
+  const applyPlayheadFromHardwareClock = useCallback(
+    (timeMs: number) => {
+      const px = playheadPxFor(timeMs);
 
-    const left = container.scrollLeft;
-    const right = left + container.clientWidth;
-
-    if (playheadPx > right - 80 || playheadPx < left + 100) {
-      container.scrollLeft = Math.max(0, playheadPx - container.clientWidth / 2);
-    }
-  }, [currentTimeSec, isPlaying, zoom, contentWidth, totalDurationSec, headerWidth, timelineContainerRef]);
-
-  // Actualización del cabezal a 60 FPS (pausado durante arrastre manual)
-  useEffect(() => {
-    let animId: number;
-    const updatePlayhead = () => {
-      if (playheadLineRef.current && !isDraggingPlayheadRef.current) {
-        const timeSec = isPlaying ? audioEngine.getCurrentTimeMs() / 1000 : currentTimeSec;
-        const dur = Math.max(10, totalDurationSec);
-        const ratio = Math.max(0, Math.min(1, timeSec / dur));
-        const leftPx = headerWidth + ratio * contentWidth;
-        playheadLineRef.current.style.transform = `translateX(${leftPx}px)`;
+      const line = playheadLineRef.current;
+      if (line && !isDraggingPlayheadRef.current) {
+        line.style.transform = `translateX(${px}px)`;
       }
-      if (isPlaying) {
-        animId = requestAnimationFrame(updatePlayhead);
-      }
-    };
 
-    updatePlayhead();
-    if (isPlaying) {
-      animId = requestAnimationFrame(updatePlayhead);
-    }
-    return () => cancelAnimationFrame(animId);
-  }, [isPlaying, currentTimeSec, totalDurationSec, contentWidth, headerWidth]);
+      const container = timelineContainerRef.current;
+      if (container && isPlaying && zoom > 1.05) {
+        const left = container.scrollLeft;
+        const right = left + container.clientWidth;
+        if (px > right - 80 || px < left + 100) {
+          container.scrollLeft = Math.max(0, px - container.clientWidth / 2);
+        }
+      }
+    },
+    [playheadPxFor, isPlaying, zoom]
+  );
+
+  // Playhead gobernado por el reloj de hardware (AudioContext.currentTime).
+  // Durante la reproducción: un frame de rAF compartido para toda la app.
+  // En pausa/seek/zoom: una única escritura puntual con el tiempo real.
+  usePlayheadSync(applyPlayheadFromHardwareClock, {
+    active: isPlaying,
+    refreshKey: `${contentWidth}|${totalDurationSec}|${headerWidth}|${zoom}`,
+  });
 
   // 1 Pista Principal (Música) + hasta 4 Pistas Adicionales (Total: hasta 5 pistas)
   const arrangementTracks: AudioStudioTrack[] = useMemo(() => {
@@ -243,8 +256,12 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
         if (clipboard) {
           e.preventDefault();
           const targetTrack = arrangementTracks.find((t) => t.id === store.activeTrackId) || tracks.music;
-          store.pasteClip(targetTrack.id, currentTimeSec);
-          setExportNotice(`✂️ Clip pegado en "${targetTrack.name}" a los ${currentTimeSec.toFixed(1)}s`);
+    // Tiempo de HARDWARE (no el estado de React, que va con retraso): el pegado
+    // cae exactamente bajo el cabezal visible.
+    const exactSec = audioEngine.getCurrentTimeMs() / 1000;
+      store.pasteClip(targetTrack.id, exactSec);
+      setCurrentTimeSec(exactSec);
+      setExportNotice(`✂️ Clip pegado en "${targetTrack.name}" a los ${exactSec.toFixed(3)}s`);
           setTimeout(() => setExportNotice(null), 2500);
         }
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -332,7 +349,9 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     const target = arrangementTracks.find((t) => t.clips.some((c) => c.id === clipId));
     if (!target) return;
 
-    const splitAtSec = currentTimeSec;
+    // Corte milimétrico: se usa el reloj de hardware, no el estado de React
+    // (que puede ir hasta ~80ms por detrás de la música).
+    const splitAtSec = audioEngine.getCurrentTimeMs() / 1000;
     const didSplit = splitClip(target.id, clipId, splitAtSec);
     if (didSplit) {
       setExportNotice(`✂️ Corte milimétrico a ${splitAtSec.toFixed(3)}s (sin clic)`);
@@ -428,7 +447,9 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
    */
   useEffect(() => {
     const unsubscribe = audioEngine.onStateChange((state) => {
-      setIsPlaying(state.isPlaying);
+      // El pre-inicio (3, 2, 1, ¡Ya!) mantiene la UI en estado "reproduciendo"
+      // aunque el buffer aún no suene: es la misma semántica que usa la Pista 2D.
+      setIsPlaying(state.isPlaying || state.isPreRollActive);
       if (!state.isPlaying) {
         // La reproducción terminó: aplicar cambios de mezcla diferidos
         flushPendingConsolidation();
@@ -452,9 +473,12 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
       return;
     }
 
-    // Re-render de la mezcla con los cambios pendientes antes de sonar
+    // Re-render de la mezcla con los cambios pendientes antes de sonar.
+    // El offset de arranque se toma del motor (offset de pausa/seek exacto),
+    // nunca del estado de React: así la reanudación no da saltos visuales.
+    const resumeFromMs = audioEngine.getCurrentTimeMs();
     void consolidateStudioAudio();
-    audioEngine.play(useAudioStudioStore.getState().currentTimeSec * 1000);
+    audioEngine.play(resumeFromMs);
     setIsPlaying(true);
   };
 
@@ -503,11 +527,13 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
       const rect = container.getBoundingClientRect();
       const clickX = clientX - rect.left + container.scrollLeft - headerWidth;
       const dur = Math.max(10, totalDurationSec);
-      const ratio = Math.max(0, clickX / contentWidth);
+      const ratio = Math.max(0, Math.min(1, clickX / contentWidth));
       const targetTimeSec = Math.round(ratio * dur * 1000) / 1000;
-      
+
       setCurrentTimeSec(targetTimeSec);
       audioEngine.seek(targetTimeSec * 1000);
+      // El clock de hardware escribe la línea en el mismo instante del seek
+      applyPlayheadFromHardwareClock(targetTimeSec * 1000);
       if ('vibrate' in navigator) navigator.vibrate(12);
     }, 280);
   };
@@ -589,6 +615,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
                   audioEngine.seek(sec * 1000);
                 }}
                 hidePlayhead={true}
+                isPlaying={isPlaying}
               />
             </div>
           </div>
@@ -770,7 +797,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           {/* + Marcador temporal */}
           <button
             type="button"
-            onClick={() => addTimeNode(currentTimeSec)}
+            onClick={() => addTimeNode(audioEngine.getCurrentTimeMs() / 1000)}
             className="press flex h-12 min-h-touch shrink-0 items-center gap-1.5 rounded-full border border-cyan/30 bg-cyan/15 px-2.5 text-xs font-bold text-cyan hover:bg-cyan/25 sm:px-3"
             title="Añadir marcador temporal"
           >

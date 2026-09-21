@@ -59,7 +59,10 @@ export function useAudioEngine(): UseAudioEngineReturn {
   const [audioState, setAudioState] = useState<AudioEngineState>(() => audioEngine.getState());
   const [currentTimeMs, setCurrentTimeMs] = useState<number>(0);
   const [metronomeConfig, setMetronomeConfig] = useState<MetronomeConfig>(() => audioEngine.metronome.getConfig());
-  const [voiceGender, setVoiceGenderState] = useState<VoiceGender>(() => ttsService.getVoiceGender());
+  // El motor de cues es la fuente de verdad (reconcilia género ↔ voz guardada)
+  const [voiceGender, setVoiceGenderState] = useState<VoiceGender>(() =>
+    audioEngine.getVoiceGender()
+  );
 
   // Suscripción al ciclo de eventos del AudioEngine
   useEffect(() => {
@@ -70,6 +73,9 @@ export function useAudioEngine(): UseAudioEngineReturn {
     const unsubState = audioEngine.onStateChange((state) => {
       setAudioState(state);
       setMetronomeConfig(audioEngine.metronome.getConfig());
+      // El motor de cues es la fuente de verdad del género: así la UI refleja
+      // cualquier cambio hecho desde otro punto (selector de modelo, etc.)
+      setVoiceGenderState(audioEngine.getVoiceGender());
     });
 
     return () => {
@@ -160,7 +166,11 @@ export function useAudioEngine(): UseAudioEngineReturn {
   }), [metronomeConfig, toggleMetronome, setMetronomeBpm, setMetronomeBeats, setMetronomeVolume]);
 
   // Control de Voz TTS Global
+  // Delegado en AudioEngine → VoiceCueEngine: así el género cambia también la
+  // voz de Google Cloud seleccionada y la voz del navegador activa, no solo el
+  // flag de ttsService (que era la causa de que ambas guías sonaran igual).
   const setVoiceGender = useCallback((gender: VoiceGender) => {
+    audioEngine.setVoiceGender(gender);
     ttsService.setVoiceGender(gender);
     setVoiceGenderState(gender);
   }, []);

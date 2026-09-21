@@ -1,6 +1,8 @@
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { useAudioStudioStore } from '../../store/useAudioStudioStore';
 import { Trash2 } from 'lucide-react';
+import { usePlayheadSync } from '../../hooks/usePlayheadSync';
+import { timeToPlayheadPx } from '../../core/audio/PlaybackClock';
 
 interface AudioTimeRulerProps {
   totalDurationSec: number;
@@ -9,6 +11,8 @@ interface AudioTimeRulerProps {
   contentWidth?: number;
   overscrollPx?: number;
   hidePlayhead?: boolean;
+  /** Habilita el bucle de frames del reloj de hardware para la aguja. */
+  isPlaying?: boolean;
 }
 
 export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
@@ -18,8 +22,10 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
   contentWidth,
   overscrollPx = 0,
   hidePlayhead = false,
+  isPlaying = false,
 }) => {
   const rulerRef = useRef<HTMLDivElement | null>(null);
+  const playheadRef = useRef<HTMLDivElement | null>(null);
   const audioNodes = useAudioStudioStore((s) => s.audioNodes);
   const addTimeNode = useAudioStudioStore((s) => s.addTimeNode);
   const updateTimeNode = useAudioStudioStore((s) => s.updateTimeNode);
@@ -136,7 +142,28 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
   const subTickCount = Math.floor(extendedDuration / subStepSec);
   const subTicks = Array.from({ length: subTickCount + 1 }, (_, i) => Math.round(i * subStepSec * 1000) / 1000);
 
-  const playheadPx = Math.max(0, (currentTimeSec / duration) * effectiveWidth);
+  /**
+   * Aguja movida por `transform: translateX()` (propiedad de composición, no de
+   * layout) desde el reloj de hardware. Cero `setState` por frame.
+   */
+  const applyPlayhead = useCallback(
+    (timeMs: number) => {
+      const el = playheadRef.current;
+      if (!el) return;
+      el.style.transform = `translateX(${timeToPlayheadPx(
+        timeMs,
+        duration * 1000,
+        0,
+        effectiveWidth
+      )}px)`;
+    },
+    [duration, effectiveWidth]
+  );
+
+  usePlayheadSync(applyPlayhead, {
+    active: isPlaying && !hidePlayhead,
+    refreshKey: `${effectiveWidth}|${duration}|${hidePlayhead ? '-' : Math.round(currentTimeSec / 50)}`,
+  });
 
   return (
     <div
@@ -191,11 +218,13 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
           );
         })}
 
-        {/* Aguja del Playhead (Línea Amarilla de Tiempo) */}
+        {/* Aguja del Playhead (Línea Amarilla de Tiempo).
+            Posicionada con transform (composición GPU) desde el reloj de hardware. */}
         {!hidePlayhead && (
           <div
-            className="absolute top-0 bottom-0 w-[2px] bg-amber-400 shadow-glow-amber pointer-events-none z-30 transition-none"
-            style={{ left: `${playheadPx}px` }}
+            ref={playheadRef}
+            className="absolute top-0 bottom-0 left-0 w-[2px] bg-amber-400 shadow-glow-amber pointer-events-none z-30 will-change-transform"
+            style={{ transform: 'translateX(0px)' }}
           >
             <div className="w-3 h-3 bg-amber-400 rotate-45 -translate-x-1.5 -translate-y-1 rounded-sm shadow-md" />
           </div>

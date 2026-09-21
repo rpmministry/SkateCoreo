@@ -20,10 +20,13 @@ import {
   Camera,
   FileDown,
   PenTool,
+  CheckCircle2,
 } from 'lucide-react';
 import { RinkContextTools } from './rink/RinkContextTools';
 import { audioEngine } from '../services/audioEngine';
 import { GOOGLE_TTS_VOICES, DEFAULT_LATIN_FEMALE_VOICE } from '../core/audio/VoiceCueEngine';
+import { detectGoogleVoiceGender } from '../core/audio/voiceGender';
+import { hasBuiltInGoogleTtsApiKey } from '../core/audio/googleTtsKey';
 import { useAudioEngine } from '../hooks/useAudioEngine';
 import { useChoreographyStore } from '../store/useChoreographyStore';
 import { useAuthStore } from '../store/useAuthStore';
@@ -95,9 +98,47 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
   const [googleVoiceName, setGoogleVoiceName] = React.useState<string>(
     () => audioEngine.voiceCueEngine.getConfig().googleVoiceName || DEFAULT_LATIN_FEMALE_VOICE
   );
+
+  // Motor de Voz Guía (Google Cloud = voces naturales | Navegador = offline)
+  const [ttsEngine, setTtsEngine] = React.useState(
+    () => audioEngine.voiceCueEngine.getConfig().ttsEngine
+  );
+  const [googleApiKey, setGoogleApiKey] = React.useState<string>(
+    () => audioEngine.voiceCueEngine.getConfig().googleApiKey || ''
+  );
+  const [apiKeyVisible, setApiKeyVisible] = React.useState(false);
+  // Si la app ya trae la credencial, no se pide nada al usuario.
+  const hasBuiltInKey = React.useMemo(() => hasBuiltInGoogleTtsApiKey(), []);
+
   const handleVoiceModelChange = (voiceName: string) => {
-    setGoogleVoiceName(voiceName);
     audioEngine.voiceCueEngine.setGoogleVoiceName(voiceName);
+    setGoogleVoiceName(voiceName);
+
+    // Mantener coherencia: si la voz elegida es de otro género, se actualiza el
+    // selector de género para que la UI no contradiga a la voz real.
+    const detected = detectGoogleVoiceGender(voiceName);
+    if (detected && detected !== audio.voiceGender) {
+      audio.setVoiceGender(detected);
+      setGoogleVoiceName(audioEngine.voiceCueEngine.getConfig().googleVoiceName);
+    }
+  };
+
+  const handleTtsEngineChange = (engine: 'browser' | 'google-cloud') => {
+    setTtsEngine(engine);
+    audioEngine.voiceCueEngine.setTtsEngine(engine);
+  };
+
+  const handleApiKeySave = () => {
+    audioEngine.voiceCueEngine.setGoogleApiKey(googleApiKey.trim() || null);
+  };
+
+  /**
+   * Cambio de género coherente: el motor re-selecciona la voz latina del mismo
+   * motor (Neural2/Wavenet/Journey) y aquí se refleja en el selector.
+   */
+  const handleVoiceGenderChange = (gender: 'female' | 'male') => {
+    audio.setVoiceGender(gender);
+    setGoogleVoiceName(audioEngine.voiceCueEngine.getConfig().googleVoiceName);
   };
 
   const content = (
@@ -362,9 +403,9 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
                 <button
                   key={gender}
                   type="button"
-                  onClick={() => audio.setVoiceGender(gender)}
+                  onClick={() => handleVoiceGenderChange(gender)}
                   className={[
-                    'flex-1 py-2 rounded-xl text-xs font-bold interactive-tap transition-all',
+                    'press min-h-touch flex-1 rounded-xl px-1 py-2 text-xs font-bold',
                     audio.voiceGender === gender
                       ? 'bg-cyan text-neon-canvas shadow-glow-cyan font-black'
                       : 'bg-neon-card text-slate-400 hover:text-white hover:bg-neon-hover shadow-soft-elevation',
@@ -374,6 +415,77 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Motor de Voz Guía: Google Cloud (natural) vs Navegador (offline) */}
+          <div className="space-y-1.5">
+            <label className="flex items-center gap-1 text-[10px] font-semibold text-slate-500">
+              <Sparkles className="w-3 h-3" />
+              Motor de Voz Guía
+            </label>
+            <select
+              value={ttsEngine}
+              onChange={(e) => handleTtsEngineChange(e.target.value as 'browser' | 'google-cloud')}
+              className="w-full rounded-xl border border-white/10 bg-neon-card px-2.5 py-2 text-[11px] font-semibold text-slate-200 outline-none focus:border-cyan/60"
+              title="Google Cloud ofrece voces Neural2/Wavenet naturales; el navegador funciona sin conexión"
+            >
+              <option value="google-cloud">
+                Google Cloud TTS · Voz natural{hasBuiltInKey ? ' (incluida)' : ''}
+              </option>
+              <option value="browser">Voz del navegador · Offline</option>
+            </select>
+
+            {/* La credencial viaja con la app: el usuario NO configura nada. */}
+            {hasBuiltInKey ? (
+              <p className="flex items-start gap-1.5 rounded-xl border border-mint/25 bg-mint/10 p-2 text-[10px] leading-snug text-mint">
+                <CheckCircle2 className="mt-[1px] h-3 w-3 shrink-0" />
+                <span>
+                  Voz natural activada de fábrica. La credencial de Google Cloud TTS ya
+                  viene incluida en la app: no tienes que configurar nada.
+                </span>
+              </p>
+            ) : (
+              ttsEngine === 'google-cloud' && (
+                <div className="space-y-1.5 rounded-xl border border-white/10 bg-black/25 p-2">
+                  <label className="flex items-center justify-between text-[10px] font-semibold text-slate-400">
+                    <span className="flex items-center gap-1">
+                      <ShieldCheck className="w-3 h-3 text-cyan" />
+                      API Key de Google Cloud (opcional)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setApiKeyVisible((v) => !v)}
+                      className="text-[10px] font-bold text-cyan hover:underline"
+                    >
+                      {apiKeyVisible ? 'Ocultar' : 'Mostrar'}
+                    </button>
+                  </label>
+                  <div className="flex gap-1.5">
+                    <input
+                      type={apiKeyVisible ? 'text' : 'password'}
+                      value={googleApiKey}
+                      onChange={(e) => setGoogleApiKey(e.target.value)}
+                      onBlur={handleApiKeySave}
+                      placeholder="AIza…"
+                      autoComplete="off"
+                      spellCheck={false}
+                      className="min-w-0 flex-1 rounded-lg border border-white/10 bg-neon-surface px-2 py-1.5 font-mono text-[11px] text-slate-200 outline-none focus:border-cyan/60"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleApiKeySave}
+                      className="press min-h-touch shrink-0 rounded-lg border border-cyan/30 bg-cyan/15 px-2.5 text-[10px] font-bold text-cyan hover:bg-cyan/25"
+                    >
+                      Guardar
+                    </button>
+                  </div>
+                  <p className="text-[10px] leading-snug text-slate-500">
+                    Esta compilación no incluye credencial propia. Puedes pegar una
+                    clave de Google Cloud TTS o usar la voz del navegador.
+                  </p>
+                </div>
+              )
+            )}
           </div>
 
           {/* Modelo de Voz Guía (voces latinas Neural2 / Wavenet) */}

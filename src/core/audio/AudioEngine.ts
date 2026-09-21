@@ -278,6 +278,21 @@ export class AudioEngine {
   }
 
   /**
+   * Cambia el género de la Voz Guía en TODA la cadena:
+   * selecciona la voz latina correspondiente en Google Cloud TTS, invalida la
+   * voz del navegador fijada y propaga el género a `ttsService`.
+   */
+  public setVoiceGender(gender: 'female' | 'male') {
+    this.voiceCueEngine.setVoiceGender(gender);
+    this.emitStateChange();
+  }
+
+  /** Género activo de la Voz Guía (fuente única: el motor de cues). */
+  public getVoiceGender(): 'female' | 'male' {
+    return this.voiceCueEngine.getVoiceGender();
+  }
+
+  /**
    * Sincroniza los puntos y figuras de la pista 2D con el secuenciador de alertas vocales (3, 2, 1, ¡Ya!)
    */
   public setNodes(nodes: ChoreographyPathPoint[]) {
@@ -849,6 +864,9 @@ export class AudioEngine {
     this.mediaSession.updatePlaybackState(true);
     this.mediaSession.updatePositionState(this.durationMs / 1000, clampedOffsetSec, this.playbackRate);
 
+    // Reinicia el throttle de notificación: la etiqueta de tiempo debe
+    // refrescarse en el primer frame tras reanudar.
+    this.lastTimeEmitMs = -1;
     this.startTracking();
     this.emitStateChange();
   }
@@ -873,6 +891,11 @@ export class AudioEngine {
     this.stopSource();
     this.isPlaying = false;
     this.stopTracking();
+    this.lastTimeEmitMs = -1;
+
+    // Notifica la posición final exacta de forma inmediata (sin esperar a
+    // reproducir) para que las etiquetas de tiempo queden clavadas al pausar.
+    this.emitTimeUpdate(this.pausedAtTime);
 
     this.mediaSession.updatePlaybackState(false);
     this.mediaSession.updatePositionState(this.durationMs / 1000, this.pausedAtTime / 1000, this.playbackRate);
@@ -948,12 +971,36 @@ export class AudioEngine {
     return Math.max(0, Math.min(currentMs, this.durationMs));
   }
 
+  /**
+   * Cadencia de notificación de tiempo hacia la UI (etiquetas numéricas).
+   *
+   * NO se emite a 60fps a propósito: cada emisión provoca re-renderizados en
+   * React (App y panel de preparación) que encolan trabajo en el hilo principal
+   * y retrasan el frame del playhead. El movimiento visual de la línea NO
+   * depende de estas emisiones: lo gobierna `PlaybackClock` con `transform`
+   * directo sobre el DOM.
+   */
+  private static readonly TIME_EMIT_INTERVAL_MS = 80; // ~12.5 Hz
+  private lastTimeEmitMs = 0;
+
   private startTracking() {
     const loop = () => {
       if (this.isPlaying) {
         const time = this.getCurrentTimeMs();
-        this.emitTimeUpdate(time);
+
+        // Los avisos de voz se evalúan en CADA frame de hardware para no perder
+        // precisión temporal en los cues (ventana de disparo estrecha).
         this.voiceCueEngine.checkPlaybackTime(time);
+
+        // La UI se notifica a ~12Hz y siempre que el tiempo retroceda (seek).
+        if (
+          time - this.lastTimeEmitMs >= AudioEngine.TIME_EMIT_INTERVAL_MS ||
+          time < this.lastTimeEmitMs
+        ) {
+          this.lastTimeEmitMs = time;
+          this.emitTimeUpdate(time);
+        }
+
         this.animationFrameId = requestAnimationFrame(loop);
       }
     };

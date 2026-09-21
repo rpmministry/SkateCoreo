@@ -47,6 +47,8 @@ export interface VoiceCueConfig {
   ttsEngine: TTSEngineType;
   googleApiKey: string | null;
   googleVoiceName: string;
+  /** Género de la Voz Guía: determina la voz latina (Neural2/Wavenet/Journey). */
+  voiceGender: 'female' | 'male';
 }
 
 // Tipado estricto para aislamiento de la voz guía (TTS)

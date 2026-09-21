@@ -5,6 +5,15 @@ import {
   cleanFigureNameForSpeech,
   sanitizeSpeechText,
 } from './voiceCueSanitizer';
+import {
+  detectGoogleVoiceGender,
+  voiceMatchesGender,
+  type VoiceGender,
+} from './voiceGender';
+import {
+  getBuiltInGoogleTtsApiKey,
+  hasBuiltInGoogleTtsApiKey,
+} from './googleTtsKey';
 
 // Re-export para mantener compatibilidad con los consumidores existentes
 export { cleanFigureNameForSpeech, sanitizeSpeechText };
@@ -109,8 +118,15 @@ export class VoiceCueEngine {
     selectedVoiceURI: null,
     ttsEngine: 'browser',
     googleApiKey: null,
-    googleVoiceName: DEFAULT_LATIN_FEMALE_VOICE
+    googleVoiceName: DEFAULT_LATIN_FEMALE_VOICE,
+    voiceGender: 'female'
   };
+
+  /**
+   * Caché de voces del navegador válidas por género (`es:female`).
+   * Evita re-escanear la lista en cada locución.
+   */
+  private browserVoiceCache: Map<string, SpeechSynthesisVoice> = new Map();
 
   private availableVoices: SpeechSynthesisVoice[] = [];
   private cues: VoiceCueEvent[] = [];
@@ -133,14 +149,30 @@ export class VoiceCueEngine {
   private onPreRollComplete: PreRollCompleteCallback | null = null;
 
   constructor(config?: Partial<VoiceCueConfig>) {
+    // ── Credencial propia de la app (build / Vercel) ──────────────
+    // El usuario final nunca introduce una API Key: la app ya viaja con ella.
+    const builtInApiKey = getBuiltInGoogleTtsApiKey();
+    const hasBuiltInKey = hasBuiltInGoogleTtsApiKey();
+    if (hasBuiltInKey) {
+      this.config.googleApiKey = builtInApiKey;
+      ttsService.setApiKey(builtInApiKey);
+    }
+
+    let hasSavedEnginePreference = false;
+
     if (typeof localStorage !== 'undefined') {
       const savedEngine = localStorage.getItem('skatecoreo_tts_engine') || localStorage.getItem('skateart_tts_engine');
       if (savedEngine === 'browser' || savedEngine === 'google-cloud') {
         this.config.ttsEngine = savedEngine;
+        hasSavedEnginePreference = true;
       }
-      const savedApiKey = localStorage.getItem('skatecoreo_google_tts_key') || localStorage.getItem('skateart_google_tts_key');
-      if (savedApiKey) {
-        this.config.googleApiKey = savedApiKey;
+
+      // Solo se admite clave manual cuando la app NO trae la suya (self-hosting).
+      if (!hasBuiltInKey) {
+        const savedApiKey = localStorage.getItem('skatecoreo_google_tts_key') || localStorage.getItem('skateart_google_tts_key');
+        if (savedApiKey) {
+          this.config.googleApiKey = savedApiKey;
+        }
       }
       const savedGoogleVoice = localStorage.getItem('skatecoreo_google_voice') || localStorage.getItem('skateart_google_voice');
       if (savedGoogleVoice) {
@@ -156,6 +188,33 @@ export class VoiceCueEngine {
           localStorage.setItem('skatecoreo_google_voice', DEFAULT_LATIN_FEMALE_VOICE);
         } catch (e) {}
       }
+
+      // El GÉNERO se deriva del nombre de voz guardado (fuente de verdad), no de
+      // un valor independiente que pudiera quedar desincronizado.
+      const savedGender = localStorage.getItem('skatecoreo_voice_gender') || localStorage.getItem('skateart_voice_gender');
+      const detectedFromVoice = detectGoogleVoiceGender(this.config.googleVoiceName);
+      if (detectedFromVoice) {
+        this.config.voiceGender = detectedFromVoice;
+      } else if (savedGender === 'female' || savedGender === 'male') {
+        this.config.voiceGender = savedGender;
+      }
+
+      // Limpieza: si la app ya trae credencial, se elimina cualquier clave manual
+      // antigua para que no queden dos fuentes de verdad.
+      if (hasBuiltInKey) {
+        try {
+          localStorage.removeItem('skatecoreo_google_tts_key');
+          localStorage.removeItem('skateart_google_tts_key');
+        } catch (e) {}
+      }
+    }
+
+    // Con credencial incluida y sin preferencia guardada del usuario, el motor
+    // natural de Google Cloud (voces latinas Neural2/Wavenet) es el de fábrica.
+    // Fuera del bloque de localStorage para que la decisión sea determinista en
+    // cualquier entorno (navegador, SSR y pruebas).
+    if (hasBuiltInKey && !hasSavedEnginePreference) {
+      this.config.ttsEngine = 'google-cloud';
     }
 
     if (config) {
@@ -197,26 +256,104 @@ export class VoiceCueEngine {
   }
 
   /**
-   * Elige la mejor voz del navegador para el idioma dado, priorizando acento
-   * latino (es-419 / es-US / es-MX / ...) sobre el castellano y las voces
-   * "neural/natural/premium" sobre las sintéticas básicas.
+   * Elige la mejor voz del navegador para el idioma Y EL GÉNERO pedidos.
+   *
+   * Prioriza, en este orden:
+   *  1. Género coincidente (si el nombre lo declara) — esto es lo que hace que
+   *     "Femenina" y "Masculina" suenen realmente distinto.
+   *  2. Acento latino (es-419 / es-US / es-MX / …) sobre castellano.
+   *  3. Voces "neural / natural / premium / enhanced" sobre las básicas.
+   *
+   * Si ninguna voz declara su género, se devuelve la mejor del idioma y el
+   * llamador aplica un ajuste de `pitch` para diferenciarlas acústicamente.
    */
   public pickBestBrowserVoice(
     voices: SpeechSynthesisVoice[],
-    lang: 'es' | 'en'
+    lang: 'es' | 'en',
+    gender: VoiceGender = this.config.voiceGender
   ): SpeechSynthesisVoice | null {
     if (!voices || voices.length === 0) return null;
 
-    let best: SpeechSynthesisVoice | null = null;
-    let bestScore = -1;
+    const cacheKey = `${lang}:${gender}`;
+    const cached = this.browserVoiceCache.get(cacheKey);
+    if (cached && voices.some((v) => v.voiceURI === cached.voiceURI)) return cached;
+
+    const genderMatched: Array<{ voice: SpeechSynthesisVoice; score: number }> = [];
+    const unknownGender: Array<{ voice: SpeechSynthesisVoice; score: number }> = [];
+    const mismatched: Array<{ voice: SpeechSynthesisVoice; score: number }> = [];
+
     for (const voice of voices) {
-      const score = scoreBrowserVoice(voice, lang);
-      if (score > bestScore) {
-        bestScore = score;
-        best = voice;
-      }
+      const baseScore = scoreBrowserVoice(voice, lang);
+      if (baseScore < 0) continue;
+
+      const match = voiceMatchesGender(voice.name, gender);
+      const entry = { voice, score: baseScore };
+      if (match === true) genderMatched.push(entry);
+      else if (match === null) unknownGender.push(entry);
+      else mismatched.push(entry);
     }
-    return bestScore >= 0 ? best : null;
+
+    const pool =
+      genderMatched.length > 0
+        ? genderMatched
+        : unknownGender.length > 0
+          ? unknownGender
+          : mismatched;
+
+    if (pool.length === 0) return null;
+
+    pool.sort((a, b) => b.score - a.score);
+    this.browserVoiceCache.set(cacheKey, pool[0].voice);
+    return pool[0].voice;
+  }
+
+  /** Género activo de la Voz Guía. */
+  public getVoiceGender(): VoiceGender {
+    return this.config.voiceGender;
+  }
+
+  /**
+   * Cambia el género de la Voz Guía de forma coherente en TODOS los motores.
+   *
+   * Antes este ajuste no tocaba el nombre de la voz de Google ni la voz del
+   * navegador fijada, así que la guía seguía sonando igual. Ahora:
+   *  - Selecciona la voz latina (es-US) del mismo motor (Neural2/Wavenet/Journey)
+   *    para el género pedido.
+   *  - Invalida la voz de navegador fijada para que se re-elija por género.
+   *  - Propaga el género a `ttsService` (API de Google Cloud).
+   */
+  public setVoiceGender(gender: VoiceGender) {
+    this.config.voiceGender = gender;
+    this.browserVoiceCache.clear();
+
+    // Voz del navegador: descartar la fijada si no coincide con el género
+    const pinned = this.config.selectedVoiceURI
+      ? this.getAvailableVoices().find((v) => v.voiceURI === this.config.selectedVoiceURI)
+      : null;
+    if (pinned && voiceMatchesGender(pinned.name, gender) === false) {
+      this.setSelectedVoice(null);
+    }
+
+    // Voz Google Cloud: misma familia (tier) y región latina, género pedido
+    const current = GOOGLE_TTS_VOICES.find((v) => v.name === this.config.googleVoiceName);
+    const region = current?.lang ?? 'es-US';
+    const tier = /wavenet/i.test(this.config.googleVoiceName)
+      ? 'wavenet'
+      : /journey/i.test(this.config.googleVoiceName)
+        ? 'journey'
+        : 'neural2';
+
+    const candidates = GOOGLE_TTS_VOICES.filter(
+      (v) => v.lang === region && v.gender === gender
+    );
+    const sameTier = candidates.find((v) => v.name.toLowerCase().includes(tier));
+    const fallback = candidates[0] ?? GOOGLE_TTS_VOICES.find((v) => v.gender === gender);
+
+    if (fallback) {
+      this.setGoogleVoiceName((sameTier ?? fallback).name);
+    }
+
+    ttsService.setVoiceGender(gender);
   }
 
   public init(ctx: AudioContext, outputNode: AudioNode) {
@@ -246,7 +383,23 @@ export class VoiceCueEngine {
     }
   }
 
+  /** ¿La credencial viene incluida en la app? (el usuario no configura nada) */
+  public hasBuiltInApiKey(): boolean {
+    return hasBuiltInGoogleTtsApiKey();
+  }
+
+  /**
+   * Sobrescribe la credencial manualmente.
+   * Cuando la app ya incluye la suya, la llamada es inocua: la credencial de la
+   * app es autoritativa y no puede quedar sobrescrita por una clave local.
+   */
   public setGoogleApiKey(key: string | null) {
+    if (this.hasBuiltInApiKey()) {
+      this.config.googleApiKey = getBuiltInGoogleTtsApiKey();
+      ttsService.setApiKey(this.config.googleApiKey);
+      return;
+    }
+
     this.config.googleApiKey = key ? key.trim() : null;
     if (key) {
       ttsService.setApiKey(key.trim());
@@ -780,7 +933,13 @@ export class VoiceCueEngine {
     if (!trimmed) return;
 
     if (ttsService.hasGoogleApiKey() || (this.config.ttsEngine === 'google-cloud' && this.config.googleApiKey)) {
-      ttsService.speak(trimmed, { speed: this.config.voiceSpeed, force: true });
+      ttsService.speak(trimmed, {
+        speed: this.config.voiceSpeed,
+        force: true,
+        gender: this.config.voiceGender,
+        language: this.config.language,
+        voiceName: this.config.googleVoiceName,
+      });
       return;
     }
 
@@ -942,29 +1101,39 @@ export class VoiceCueEngine {
         window.speechSynthesis.cancel();
 
         const utterance = new SpeechSynthesisUtterance(text);
-        
-        const voices = this.getAvailableVoices();
-        const matchedVoice =
-          this.config.selectedVoiceURI && voices.length > 0
-            ? voices.find((v) => v.voiceURI === this.config.selectedVoiceURI) || null
-            : null;
+        const gender = this.config.voiceGender;
 
-        if (matchedVoice) {
-          utterance.voice = matchedVoice;
-          utterance.lang = matchedVoice.lang;
+        const voices = this.getAvailableVoices();
+
+        // La voz fijada solo se respeta si COINCIDE con el género pedido; de lo
+        // contrario la guía femenina y la masculina sonaban idénticas.
+        const pinned = this.config.selectedVoiceURI
+          ? voices.find((v) => v.voiceURI === this.config.selectedVoiceURI) || null
+          : null;
+        const pinnedMatchesGender = pinned
+          ? voiceMatchesGender(pinned.name, gender) !== false
+          : false;
+
+        const chosen = pinnedMatchesGender
+          ? pinned
+          : this.pickBestBrowserVoice(voices, this.config.language, gender);
+
+        if (chosen) {
+          utterance.voice = chosen;
+          utterance.lang = chosen.lang;
         } else {
-          // Sin voz explícita: elegir la mejor disponible priorizando acento latino
-          const best = this.pickBestBrowserVoice(voices, this.config.language);
-          if (best) {
-            utterance.voice = best;
-            utterance.lang = best.lang;
-          } else {
-            utterance.lang = this.config.language === 'es' ? 'es-US' : 'en-US';
-          }
+          utterance.lang = this.config.language === 'es' ? 'es-US' : 'en-US';
         }
 
+        // Si la voz elegida no declara su género, diferenciamos acústicamente
+        // con el tono para que Femenina y Masculina nunca suenen igual.
+        const genderConfirmed = chosen
+          ? voiceMatchesGender(chosen.name, gender) === true
+          : false;
+        const pitchOffset = genderConfirmed ? 1 : gender === 'male' ? 0.78 : 1.12;
+
         utterance.rate = this.config.voiceSpeed;
-        utterance.pitch = this.config.voicePitch;
+        utterance.pitch = Math.max(0.1, Math.min(2, this.config.voicePitch * pitchOffset));
         utterance.volume = this.config.volume;
 
         setTimeout(() => {
