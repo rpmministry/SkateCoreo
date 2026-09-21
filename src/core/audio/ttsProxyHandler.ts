@@ -49,6 +49,57 @@ export interface TtsProxyHandlerOptions {
 const GOOGLE_TTS_ENDPOINT =
   'https://texttospeech.googleapis.com/v1/text:synthesize';
 
+/** Request de Node/Connect con lo mínimo que necesitamos para leer el cuerpo. */
+export interface NodeReadableRequestLike {
+  on?: (event: string, listener: (chunk?: unknown) => void) => void;
+  readableEnded?: boolean;
+  complete?: boolean;
+  destroyed?: boolean;
+}
+
+/**
+ * Lee el cuerpo crudo de un request de Node de forma que NUNCA cuelgue.
+ *
+ * Por qué existe (bug de producción real):
+ * En Vercel la plataforma ya ha consumido el stream antes de invocar la función.
+ * Si el request no trae cuerpo (por ejemplo abrir `GET /api/tts` en el
+ * navegador), añadir un listener de `'end'` no dispara jamás → la promesa nunca
+ * resuelve → la invocación se cuelga y Vercel responde
+ * `500 FUNCTION_INVOCATION_FAILED`.
+ *
+ * Tres defensas: (1) solo se llama para POST, (2) si el stream ya terminó se
+ * devuelve vacío de inmediato y (3) un temporizador de seguridad cierra la
+ * lectura pase lo que pase.
+ */
+export function readNodeRequestBody(
+  req: NodeReadableRequestLike,
+  timeoutMs: number = 1500
+): Promise<string> {
+  if (!req || typeof req.on !== 'function') return Promise.resolve('');
+  if (req.readableEnded || req.complete || req.destroyed) return Promise.resolve('');
+
+  return new Promise<string>((resolve) => {
+    let settled = false;
+    let data = '';
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const finish = (value: string) => {
+      if (settled) return;
+      settled = true;
+      if (timer !== null) clearTimeout(timer);
+      resolve(value);
+    };
+
+    timer = setTimeout(() => finish(data), timeoutMs);
+
+    req.on?.('data', (chunk) => {
+      data += typeof chunk === 'string' ? chunk : String(chunk);
+    });
+    req.on?.('end', () => finish(data));
+    req.on?.('error', () => finish(data));
+  });
+}
+
 /* ── Límite de tasa en memoria (best-effort) ─────────────────────
    Las instancias serverless son efímeras, así que esto solo frena ráfagas
    desde una misma instancia. Es una capa defensiva, no un WAF. */

@@ -1,6 +1,9 @@
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
-import { handleTtsProxyRequest } from './src/core/audio/ttsProxyHandler';
+import {
+  handleTtsProxyRequest,
+  readNodeRequestBody,
+} from './src/core/audio/ttsProxyHandler';
 
 /**
  * Middleware de desarrollo: expone `POST /api/tts` dentro del dev server de Vite
@@ -15,19 +18,22 @@ function ttsDevApi(apiKey: string | null): Plugin {
     apply: 'serve',
     configureServer(server) {
       server.middlewares.use('/api/tts', (req, res) => {
-        const method = req.method || 'GET';
-        const headers = req.headers as Record<string, string | undefined>;
-        const chunks: Buffer[] = [];
+        void (async () => {
+          const method = (req.method || 'GET').toUpperCase();
+          const headers = req.headers as Record<string, string | undefined>;
 
-        req.on('data', (chunk: Buffer) => chunks.push(chunk));
-        req.on('end', async () => {
-          const raw = Buffer.concat(chunks).toString('utf8');
+          // Mismo lector endurecido que usa la función de Vercel (nunca cuelga).
+          let body: unknown;
+          if (method === 'POST') {
+            const raw = await readNodeRequestBody(req);
+            body = raw || undefined;
+          }
 
           const result = await handleTtsProxyRequest(
             {
               method,
               headers,
-              body: raw || undefined,
+              body,
               clientIp: req.socket?.remoteAddress ?? undefined,
             },
             { apiKey }
@@ -37,8 +43,8 @@ function ttsDevApi(apiKey: string | null): Plugin {
           for (const [name, value] of Object.entries(result.headers)) {
             res.setHeader(name, value);
           }
-          res.end(result.body);
-        });
+          res.end(result.body as Uint8Array | string);
+        })();
       });
     },
   };

@@ -15,7 +15,10 @@
  * probarla con tests unitarios sin red.
  */
 
-import { handleTtsProxyRequest } from '../src/core/audio/ttsProxyHandler';
+import {
+  handleTtsProxyRequest,
+  readNodeRequestBody,
+} from '../src/core/audio/ttsProxyHandler';
 
 interface NodeRequestLike {
   method?: string;
@@ -45,20 +48,24 @@ function normalizeHeaders(
   return normalized;
 }
 
-/** Lee el cuerpo crudo cuando la plataforma no lo ha parseado. */
-function readRawBody(req: NodeRequestLike): Promise<string> {
-  return new Promise((resolve) => {
-    if (typeof req.on !== 'function') {
-      resolve('');
-      return;
+/**
+ * Normaliza el cuerpo: Vercel puede entregarlo ya parseado (objeto JSON), como
+ * texto o como Buffer. Todo lo que no sea un objeto JSON se convierte a texto
+ * para que la validación reciba siempre algo coherente.
+ */
+function normalizeBody(raw: unknown): unknown {
+  if (raw === undefined || raw === null || raw === '') return undefined;
+  if (typeof raw === 'string') return raw;
+  if (typeof raw === 'object') {
+    if (typeof Buffer !== 'undefined' && Buffer.isBuffer(raw)) {
+      return raw.toString('utf8');
     }
-    let data = '';
-    req.on('data', (chunk) => {
-      data += typeof chunk === 'string' ? chunk : String(chunk);
-    });
-    req.on('end', () => resolve(data));
-    req.on('error', () => resolve(''));
-  });
+    if (raw instanceof Uint8Array) {
+      return new TextDecoder().decode(raw);
+    }
+    return raw; // objeto JSON ya parseado
+  }
+  return String(raw);
 }
 
 /**
@@ -74,11 +81,14 @@ function resolveServerApiKey(): string | null {
 
 export default async function handler(req: NodeRequestLike, res: NodeResponseLike) {
   const headers = normalizeHeaders(req.headers || {});
+  const method = (req.method || 'POST').toUpperCase();
 
-  // Cuerpo: si la plataforma ya lo parseó se usa tal cual; si no, se lee el stream.
-  let body: unknown = req.body;
-  if (body === undefined || body === null || body === '') {
-    const raw = await readRawBody(req);
+  // Cuerpo: Vercel normalmente ya lo entrega parseado. Solo si falta Y el método
+  // trae cuerpo se lee el stream (con guardas anti-cuelgue). Leer el stream en un
+  // GET ya consumido colgaba la invocación → 500 FUNCTION_INVOCATION_FAILED.
+  let body: unknown = normalizeBody(req.body);
+  if (method === 'POST' && body === undefined) {
+    const raw = await readNodeRequestBody(req);
     body = raw || undefined;
   }
 
@@ -94,22 +104,32 @@ export default async function handler(req: NodeRequestLike, res: NodeResponseLik
       .filter(Boolean);
   })();
 
-  const result = await handleTtsProxyRequest(
-    {
-      method: req.method || 'POST',
-      headers,
-      body,
-      clientIp,
-    },
-    {
-      apiKey: resolveServerApiKey(),
-      extraAllowedOrigins,
-    }
-  );
+  try {
+    const result = await handleTtsProxyRequest(
+      {
+        method,
+        headers,
+        body,
+        clientIp,
+      },
+      {
+        apiKey: resolveServerApiKey(),
+        extraAllowedOrigins,
+      }
+    );
 
-  res.statusCode = result.status;
-  for (const [name, value] of Object.entries(result.headers)) {
-    res.setHeader(name, value);
+    res.statusCode = result.status;
+    for (const [name, value] of Object.entries(result.headers)) {
+      res.setHeader(name, value);
+    }
+    res.end(result.body);
+  } catch (err) {
+    // Red de seguridad: cualquier fallo imprevisto se devuelve como JSON
+    // controlado en lugar de un 500 FUNCTION_INVOCATION_FAILED sin diagnóstico.
+    console.error('[TTS Proxy] Error inesperado en la invocación:', err);
+    res.statusCode = 500;
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store');
+    res.end(JSON.stringify({ error: 'Error interno del servicio de voz' }));
   }
-  res.end(result.body);
 }

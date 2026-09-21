@@ -7,6 +7,7 @@
 
 import {
   handleTtsProxyRequest,
+  readNodeRequestBody,
   resetTtsProxyRateLimit,
 } from './ttsProxyHandler';
 import { TTS_PROXY_RATE_LIMIT } from './ttsProxyContract';
@@ -201,5 +202,67 @@ for (let i = 0; i < TTS_PROXY_RATE_LIMIT + 3; i++) {
   lastStatus = result.status;
 }
 assert(lastStatus === 429, `Aplica límite de tasa por IP (${lastStatus})`);
+
+// ── 11. Lector de cuerpo a prueba de cuelgues ────────────────────
+//  Regresión del bug de producción: en Vercel el stream llega YA consumido. Si
+//  se intentaba leer, `'end'` no disparaba nunca y la invocación se colgaba
+//  (500 FUNCTION_INVOCATION_FAILED). Abrir `GET /api/tts` era el disparador.
+resetTtsProxyRateLimit();
+
+const endedStream = {
+  readableEnded: true,
+  on: () => {
+    throw new Error('no debe suscribirse a un stream terminado');
+  },
+};
+assert(
+  (await readNodeRequestBody(endedStream as never)) === '',
+  'Stream ya consumido → resuelve vacío sin suscribirse (no cuelga)'
+);
+
+assert(
+  (await readNodeRequestBody({ complete: true } as never)) === '',
+  'Request completo sin consumir → resuelve vacío'
+);
+
+assert(
+  (await readNodeRequestBody({ destroyed: true } as never)) === '',
+  'Request destruido → resuelve vacío'
+);
+
+assert(
+  (await readNodeRequestBody({} as never)) === '',
+  'Request sin método on → resuelve vacío'
+);
+
+const liveStream = {
+  on(event: string, listener: (chunk?: unknown) => void) {
+    if (event === 'data') queueMicrotask(() => listener('{"text":"Salchow"}'));
+    if (event === 'end') queueMicrotask(() => listener());
+    return this;
+  },
+};
+assert(
+  (await readNodeRequestBody(liveStream as never)) === '{"text":"Salchow"}',
+  'Stream vivo → concatena el cuerpo correctamente'
+);
+
+const started = Date.now();
+const stuckStream = { on: () => {} };
+const stuckBody = await readNodeRequestBody(stuckStream as never, 30);
+assert(
+  stuckBody === '' && Date.now() - started < 1000,
+  'Stream que nunca termina → cierra por temporizador de seguridad'
+);
+
+// El GET debe responder 405 SIEMPRE (aunque el cuerpo nunca se lea)
+const getWithoutBody = await handleTtsProxyRequest(
+  { method: 'GET', headers: baseHeaders, body: undefined, clientIp: '10.0.0.50' },
+  { apiKey: APP_KEY, fetchImpl: okFetch() }
+);
+assert(
+  getWithoutBody.status === 405,
+  `GET sin cuerpo responde 405 de inmediato (${getWithoutBody.status})`
+);
 
 console.log('\n✅ TODAS LAS PRUEBAS DEL NÚCLEO DEL PROXY PASARON\n');
