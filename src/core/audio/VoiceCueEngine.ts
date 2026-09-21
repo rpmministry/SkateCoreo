@@ -11,9 +11,15 @@ import {
   type VoiceGender,
 } from './voiceGender';
 import {
-  getBuiltInGoogleTtsApiKey,
-  hasBuiltInGoogleTtsApiKey,
-} from './googleTtsKey';
+  DEFAULT_LATIN_FEMALE_VOICE,
+  findTtsVoice,
+  pickVoiceByGender,
+  getVoiceTier,
+} from '../../constants/ttsVoices';
+import {
+  getUserGoogleTtsApiKey,
+  hasNaturalVoiceBackend,
+} from './ttsBackend';
 
 // Re-export para mantener compatibilidad con los consumidores existentes
 export { cleanFigureNameForSpeech, sanitizeSpeechText };
@@ -21,46 +27,22 @@ export { cleanFigureNameForSpeech, sanitizeSpeechText };
 export type PreRollTickCallback = (remainingSec: number) => void;
 export type PreRollCompleteCallback = () => void;
 
-export interface GoogleTTSVoiceOption {
-  name: string;
-  lang: string;
-  label: string;
-  gender: 'female' | 'male';
-}
-
 /**
- * Catálogo de voces Google Cloud.
- *
- * Política de marca: se priorizan VOCES LATINAS (región es-US / es-419) en
- * variantes Neural2 y Wavenet, tanto femenina como masculina, porque el público
- * objetivo es latinoamericano. Las variantes es-ES quedan como alternativa.
+ * Re-export del catálogo canónico (`constants/ttsVoices`) para mantener la API
+ * pública histórica de este módulo. El catálogo vive en `constants/` porque lo
+ * comparte el servidor (`/api/tts`) sin arrastrar el stack de audio del cliente.
  */
-export const GOOGLE_TTS_VOICES: GoogleTTSVoiceOption[] = [
-  // ── Latinas (prioritarias) ──
-  { name: 'es-US-Neural2-C', lang: 'es-US', label: 'Latino (es-US) · Neural2 C — Femenina', gender: 'female' },
-  { name: 'es-US-Neural2-B', lang: 'es-US', label: 'Latino (es-US) · Neural2 B — Masculina', gender: 'male' },
-  { name: 'es-US-Neural2-A', lang: 'es-US', label: 'Latino (es-US) · Neural2 A — Femenina', gender: 'female' },
-  { name: 'es-US-Wavenet-C', lang: 'es-US', label: 'Latino (es-US) · Wavenet C — Femenina', gender: 'female' },
-  { name: 'es-US-Wavenet-D', lang: 'es-US', label: 'Latino (es-US) · Wavenet D — Masculina', gender: 'male' },
-  { name: 'es-US-Wavenet-A', lang: 'es-US', label: 'Latino (es-US) · Wavenet A — Femenina', gender: 'female' },
-  { name: 'es-US-Wavenet-B', lang: 'es-US', label: 'Latino (es-US) · Wavenet B — Masculina', gender: 'male' },
-  { name: 'es-US-Journey-F', lang: 'es-US', label: 'Latino (es-US) · Journey F — Ultra natural (F)', gender: 'female' },
-  { name: 'es-US-Journey-O', lang: 'es-US', label: 'Latino (es-US) · Journey O — Ultra natural (M)', gender: 'male' },
-  // ── Alternativas de España ──
-  { name: 'es-ES-Neural2-A', lang: 'es-ES', label: 'Español (ES) · Neural2 A — Femenina', gender: 'female' },
-  { name: 'es-ES-Neural2-B', lang: 'es-ES', label: 'Español (ES) · Neural2 B — Masculina', gender: 'male' },
-  { name: 'es-ES-Neural2-C', lang: 'es-ES', label: 'Español (ES) · Neural2 C — Femenina', gender: 'female' },
-  { name: 'es-ES-Neural2-F', lang: 'es-ES', label: 'Español (ES) · Neural2 F — Masculina', gender: 'male' },
-  // ── Inglés ──
-  { name: 'en-US-Neural2-F', lang: 'en-US', label: 'English (US) · Neural2 F — Female', gender: 'female' },
-  { name: 'en-US-Neural2-D', lang: 'en-US', label: 'English (US) · Neural2 D — Male', gender: 'male' },
-  { name: 'en-US-Journey-F', lang: 'en-US', label: 'English (US) · Journey F — Expressive', gender: 'female' },
-  { name: 'en-US-Journey-O', lang: 'en-US', label: 'English (US) · Journey O — Expressive', gender: 'male' }
-];
-
-/** Voz latina femenina por defecto y su contraparte masculina. */
-export const DEFAULT_LATIN_FEMALE_VOICE = 'es-US-Neural2-C';
-export const DEFAULT_LATIN_MALE_VOICE = 'es-US-Neural2-B';
+export type { GoogleTTSVoiceOption, TtsVoiceGender } from '../../constants/ttsVoices';
+export {
+  GOOGLE_TTS_VOICES,
+  DEFAULT_LATIN_FEMALE_VOICE,
+  DEFAULT_LATIN_MALE_VOICE,
+  DEFAULT_LATIN_LANGUAGE_CODE,
+  findTtsVoice,
+  pickWavenetFallbackVoice,
+  pickVoiceByGender,
+  getVoiceTier,
+} from '../../constants/ttsVoices';
 
 /** Códigos de región latinos preferidos al elegir una voz del navegador. */
 const LATIN_REGION_PRIORITY = ['es-419', 'es-us', 'es-mx', 'es-ar', 'es-co', 'es-cl', 'es-pe', 'es-ve', 'es-uy', 'es-do', 'es-ec', 'es-gt', 'es-pr'];
@@ -132,8 +114,7 @@ export class VoiceCueEngine {
   private cues: VoiceCueEvent[] = [];
   private triggeredCueIds: Set<string> = new Set();
   
-  // Google Cloud TTS Audio Cache and active node
-  private googleAudioCache: Map<string, AudioBuffer> = new Map();
+  // Nodo activo de reproducción de buffers de voz (cues con audio pre-sintetizado)
   private activeBufferSource: AudioBufferSourceNode | null = null;
 
   // Lookahead Web Audio Hardware Timeline Scheduler (Zero-Drift)
@@ -149,13 +130,12 @@ export class VoiceCueEngine {
   private onPreRollComplete: PreRollCompleteCallback | null = null;
 
   constructor(config?: Partial<VoiceCueConfig>) {
-    // ── Credencial propia de la app (build / Vercel) ──────────────
-    // El usuario final nunca introduce una API Key: la app ya viaja con ella.
-    const builtInApiKey = getBuiltInGoogleTtsApiKey();
-    const hasBuiltInKey = hasBuiltInGoogleTtsApiKey();
-    if (hasBuiltInKey) {
-      this.config.googleApiKey = builtInApiKey;
-      ttsService.setApiKey(builtInApiKey);
+    // ── Voz natural: endpoint propio o clave local del usuario ────
+    // Clave local del usuario (solo auto-hospedaje). La credencial de la app
+    // vive en el servidor (`POST /api/tts`) y nunca llega al cliente.
+    const userApiKey = getUserGoogleTtsApiKey();
+    if (userApiKey) {
+      this.config.googleApiKey = userApiKey;
     }
 
     let hasSavedEnginePreference = false;
@@ -167,13 +147,6 @@ export class VoiceCueEngine {
         hasSavedEnginePreference = true;
       }
 
-      // Solo se admite clave manual cuando la app NO trae la suya (self-hosting).
-      if (!hasBuiltInKey) {
-        const savedApiKey = localStorage.getItem('skatecoreo_google_tts_key') || localStorage.getItem('skateart_google_tts_key');
-        if (savedApiKey) {
-          this.config.googleApiKey = savedApiKey;
-        }
-      }
       const savedGoogleVoice = localStorage.getItem('skatecoreo_google_voice') || localStorage.getItem('skateart_google_voice');
       if (savedGoogleVoice) {
         this.config.googleVoiceName = savedGoogleVoice;
@@ -199,21 +172,13 @@ export class VoiceCueEngine {
         this.config.voiceGender = savedGender;
       }
 
-      // Limpieza: si la app ya trae credencial, se elimina cualquier clave manual
-      // antigua para que no queden dos fuentes de verdad.
-      if (hasBuiltInKey) {
-        try {
-          localStorage.removeItem('skatecoreo_google_tts_key');
-          localStorage.removeItem('skateart_google_tts_key');
-        } catch (e) {}
-      }
     }
 
-    // Con credencial incluida y sin preferencia guardada del usuario, el motor
-    // natural de Google Cloud (voces latinas Neural2/Wavenet) es el de fábrica.
+    // Si hay voz natural disponible (endpoint propio o clave del usuario) y el
+    // usuario nunca eligió motor, se usa el natural de fábrica.
     // Fuera del bloque de localStorage para que la decisión sea determinista en
     // cualquier entorno (navegador, SSR y pruebas).
-    if (hasBuiltInKey && !hasSavedEnginePreference) {
+    if (hasNaturalVoiceBackend() && !hasSavedEnginePreference) {
       this.config.ttsEngine = 'google-cloud';
     }
 
@@ -334,23 +299,14 @@ export class VoiceCueEngine {
       this.setSelectedVoice(null);
     }
 
-    // Voz Google Cloud: misma familia (tier) y región latina, género pedido
-    const current = GOOGLE_TTS_VOICES.find((v) => v.name === this.config.googleVoiceName);
-    const region = current?.lang ?? 'es-US';
-    const tier = /wavenet/i.test(this.config.googleVoiceName)
-      ? 'wavenet'
-      : /journey/i.test(this.config.googleVoiceName)
-        ? 'journey'
-        : 'neural2';
-
-    const candidates = GOOGLE_TTS_VOICES.filter(
-      (v) => v.lang === region && v.gender === gender
-    );
-    const sameTier = candidates.find((v) => v.name.toLowerCase().includes(tier));
-    const fallback = candidates[0] ?? GOOGLE_TTS_VOICES.find((v) => v.gender === gender);
-
-    if (fallback) {
-      this.setGoogleVoiceName((sameTier ?? fallback).name);
+    // Voz Google Cloud: misma familia (tier) y región, género pedido
+    const current = findTtsVoice(this.config.googleVoiceName);
+    const target = pickVoiceByGender(gender, {
+      region: current?.lang,
+      tier: getVoiceTier(this.config.googleVoiceName),
+    });
+    if (target) {
+      this.setGoogleVoiceName(target.name);
     }
 
     ttsService.setVoiceGender(gender);
@@ -383,23 +339,19 @@ export class VoiceCueEngine {
     }
   }
 
-  /** ¿La credencial viene incluida en la app? (el usuario no configura nada) */
-  public hasBuiltInApiKey(): boolean {
-    return hasBuiltInGoogleTtsApiKey();
+  /**
+   * ¿Hay voz natural disponible? Con el endpoint propio (producción) siempre sí,
+   * sin que el usuario configure nada.
+   */
+  public hasNaturalVoice(): boolean {
+    return hasNaturalVoiceBackend();
   }
 
   /**
-   * Sobrescribe la credencial manualmente.
-   * Cuando la app ya incluye la suya, la llamada es inocua: la credencial de la
-   * app es autoritativa y no puede quedar sobrescrita por una clave local.
+   * Guarda la credencial LOCAL del usuario (solo auto-hospedaje).
+   * En el despliegue oficial no se usa: el servidor custodia la suya.
    */
   public setGoogleApiKey(key: string | null) {
-    if (this.hasBuiltInApiKey()) {
-      this.config.googleApiKey = getBuiltInGoogleTtsApiKey();
-      ttsService.setApiKey(this.config.googleApiKey);
-      return;
-    }
-
     this.config.googleApiKey = key ? key.trim() : null;
     if (key) {
       ttsService.setApiKey(key.trim());
@@ -485,17 +437,17 @@ export class VoiceCueEngine {
    * Precalienta frases frecuentes para que suenen instantáneamente sin latencia de red
    */
   public async preloadGoogleTTS(phrases: string[]) {
-    if (this.config.ttsEngine !== 'google-cloud' || !this.config.googleApiKey || !this.ctx) return;
-    for (const phrase of phrases) {
-      const trimmed = phrase.trim();
-      if (!trimmed) continue;
-      const cacheKey = `${this.config.googleVoiceName}_${this.config.voiceSpeed}_${trimmed}`;
-      if (!this.googleAudioCache.has(cacheKey)) {
-        try {
-          await this.synthesizeWithGoogleTTS(trimmed);
-        } catch (e) {}
-      }
-    }
+    if (this.config.ttsEngine !== 'google-cloud') return;
+    if (!ttsService.hasNaturalVoice()) return;
+
+    // `ttsService` cachea en memoria + IndexedDB, así que el precalentamiento
+    // beneficia directamente a las locuciones posteriores.
+    await ttsService.preWarm(phrases, {
+      speed: this.config.voiceSpeed,
+      gender: this.config.voiceGender,
+      language: this.config.language,
+      voiceName: this.config.googleVoiceName,
+    });
   }
 
   /**
@@ -926,13 +878,19 @@ export class VoiceCueEngine {
     this.speakRaw(safeText);
   }
 
-  /** Reproducción sin filtro. Reservado a la prueba manual de voz. */
+  /**
+   * Reproducción sin filtro. Reservado a la prueba manual de voz.
+   *
+   * Toda la síntesis pasa por `ttsService`, que decide el back-end:
+   * `POST /api/tts` (credencial en el servidor) o clave local del usuario.
+   * Este motor ya NO guarda credenciales ni llama a Google por su cuenta.
+   */
   public speakRaw(text: string) {
     if (!this.config.enabled || this.config.volume <= 0) return;
     const trimmed = (text || '').trim();
     if (!trimmed) return;
 
-    if (ttsService.hasGoogleApiKey() || (this.config.ttsEngine === 'google-cloud' && this.config.googleApiKey)) {
+    if (this.config.ttsEngine === 'google-cloud') {
       ttsService.speak(trimmed, {
         speed: this.config.voiceSpeed,
         force: true,
@@ -943,109 +901,7 @@ export class VoiceCueEngine {
       return;
     }
 
-    if (this.config.ttsEngine === 'google-cloud') {
-      this.speakGoogleCloud(trimmed);
-      return;
-    }
-
     this.speakBrowser(trimmed);
-  }
-
-  /**
-   * Síntesis de voz ultra-natural con Google Cloud Text-to-Speech API
-   */
-  private speakGoogleCloud(text: string) {
-    const cacheKey = `${this.config.googleVoiceName}_${this.config.voiceSpeed}_${text.trim()}`;
-    const cachedBuffer = this.googleAudioCache.get(cacheKey);
-
-    if (cachedBuffer) {
-      this.playAudioBuffer(cachedBuffer);
-      return;
-    }
-
-    this.synthesizeWithGoogleTTS(text)
-      .then((buffer) => {
-        if (buffer) {
-          this.playAudioBuffer(buffer);
-        } else {
-          this.speakBrowser(text);
-        }
-      })
-      .catch((err) => {
-        console.warn('[VoiceCueEngine] Google Cloud TTS falló, usando navegador:', err);
-        this.speakBrowser(text);
-      });
-  }
-
-  /**
-   * Llama a la API REST de Google Cloud Text-to-Speech y devuelve un AudioBuffer de Web Audio
-   */
-  public async synthesizeWithGoogleTTS(text: string): Promise<AudioBuffer | null> {
-    if (!this.ctx || !this.config.googleApiKey) return null;
-
-    const cacheKey = `${this.config.googleVoiceName}_${this.config.voiceSpeed}_${text.trim()}`;
-    if (this.googleAudioCache.has(cacheKey)) {
-      return this.googleAudioCache.get(cacheKey)!;
-    }
-
-    try {
-      const voiceOption = GOOGLE_TTS_VOICES.find(v => v.name === this.config.googleVoiceName);
-      // Región latina por defecto (es-US) para todo el motor de voz guía
-      const langCode = voiceOption?.lang || (this.config.language === 'es' ? 'es-US' : 'en-US');
-
-      const pitchSemitones = (this.config.voicePitch - 1.0) * 4;
-      const clampedPitch = Math.max(-20, Math.min(20, pitchSemitones));
-
-      const payload = {
-        input: { text },
-        voice: {
-          languageCode: langCode,
-          name: this.config.googleVoiceName
-        },
-        audioConfig: {
-          audioEncoding: 'MP3',
-          speakingRate: Math.max(0.25, Math.min(4.0, this.config.voiceSpeed)),
-          pitch: clampedPitch
-        }
-      };
-
-      const url = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(this.config.googleApiKey.trim())}`;
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('[VoiceCueEngine] Error de Google Cloud TTS:', response.status, errorText);
-        return null;
-      }
-
-      const data = await response.json();
-      if (!data.audioContent) {
-        console.error('[VoiceCueEngine] Respuesta sin audioContent de Google Cloud TTS');
-        return null;
-      }
-
-      // Convertir Base64 a ArrayBuffer (compatible con browser y Node)
-      const binaryString = typeof Buffer !== 'undefined'
-        ? Buffer.from(data.audioContent, 'base64').toString('binary')
-        : window.atob(data.audioContent);
-
-      const len = binaryString.length;
-      const bytes = new Uint8Array(len);
-      for (let i = 0; i < len; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-
-      const audioBuffer = await this.ctx.decodeAudioData(bytes.buffer);
-      this.googleAudioCache.set(cacheKey, audioBuffer);
-      return audioBuffer;
-    } catch (err) {
-      console.error('[VoiceCueEngine] Excepción en llamada a Google Cloud TTS:', err);
-      return null;
-    }
   }
 
   /**

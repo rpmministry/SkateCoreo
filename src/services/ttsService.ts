@@ -2,9 +2,14 @@ import { StrictVoiceCuePayload } from '../types/audio';
 import { sanitizeSpeechText } from '../core/audio/voiceCueSanitizer';
 import { voiceMatchesGender } from '../core/audio/voiceGender';
 import {
-  hasBuiltInGoogleTtsApiKey,
-  resolveGoogleTtsApiKey,
-} from '../core/audio/googleTtsKey';
+  getTtsProxyUrl,
+  getUserGoogleTtsApiKey,
+  isTtsProxyEnabled,
+} from '../core/audio/ttsBackend';
+import {
+  base64ToBytes,
+  extractAudioContent,
+} from '../core/audio/ttsProxyContract';
 
 export type VoiceGender = 'female' | 'male';
 
@@ -222,17 +227,31 @@ export class TTSService {
   }
 
   /**
-   * Resuelve la credencial desde la fuente única (`googleTtsKey`):
-   * primero la clave propia de la app (inyectada en el build / Vercel) y, solo
-   * si no existe, una clave local del usuario. El usuario final no configura nada.
+   * Resuelve la clave LOCAL del usuario (solo auto-hospedaje).
+   *
+   * La credencial de la app NO se resuelve aquí: vive en el servidor y se
+   * consume a través de `POST /api/tts`. Así nunca entra en el bundle.
    */
   private resolveApiKey() {
-    this.apiKey = resolveGoogleTtsApiKey();
+    this.apiKey = getUserGoogleTtsApiKey();
   }
 
-  /** ¿La credencial viene incluida en la app (sin intervención del usuario)? */
-  public isUsingBuiltInApiKey(): boolean {
-    return hasBuiltInGoogleTtsApiKey();
+  /** ¿Se está usando el endpoint propio con la credencial del servidor? */
+  public isUsingTtsProxy(): boolean {
+    return isTtsProxyEnabled();
+  }
+
+  /** ¿El usuario aportó su propia clave (auto-hospedaje)? */
+  public isUsingUserApiKey(): boolean {
+    return this.hasGoogleApiKey();
+  }
+
+  /**
+   * ¿Hay voz natural disponible en este dispositivo?
+   * Con el endpoint propio siempre lo está; sin él, solo con clave del usuario.
+   */
+  public hasNaturalVoice(): boolean {
+    return isTtsProxyEnabled() || this.hasGoogleApiKey();
   }
 
   public static getInstance(): TTSService {
@@ -414,7 +433,155 @@ export class TTSService {
   }
 
   /**
-   * Síntesis con Google Cloud Text-to-Speech API con caching multinivel (Memoria + IndexedDB)
+   * Contexto de decodificación (se crea bajo demanda si aún no existe).
+   */
+  private ensureAudioContext(): AudioContext | null {
+    let ctx = this.audioContext;
+    if (!ctx && typeof window !== 'undefined') {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioContextClass) {
+        ctx = new AudioContextClass();
+        this.audioContext = ctx;
+      }
+    }
+    return ctx;
+  }
+
+  /**
+   * Obtiene los bytes MP3 del proxy propio (`POST /api/tts`).
+   *
+   * La credencial de Google Cloud vive en el servidor, así que el cliente nunca
+   * la manipula. El proxy aplica lista blanca de texto/voz y control de origen.
+   */
+  private async requestTtsBytesFromProxy(params: {
+    text: string;
+    voiceName: string;
+    speed: number;
+  }): Promise<ArrayBuffer | null> {
+    try {
+      const response = await fetch(getTtsProxyUrl(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: params.text,
+          voiceName: params.voiceName,
+          speed: params.speed,
+        }),
+      });
+
+      if (!response.ok) {
+        const detail = await response.text().catch(() => '');
+        console.warn('[TTSService] Proxy de voz respondió', response.status, detail);
+        return null;
+      }
+
+      const bytes = await response.arrayBuffer();
+      return bytes.byteLength > 0 ? bytes : null;
+    } catch (err) {
+      // Sin red o endpoint no desplegado: se intentará el respaldo local.
+      console.warn('[TTSService] Proxy de voz no disponible:', err);
+      return null;
+    }
+  }
+
+  /**
+   * Respaldo: llamada directa a Google Cloud con la clave del PROPIO usuario.
+   * Solo se usa en auto-hospedaje (cuando el proxy está desactivado o falla y el
+   * usuario aportó su credencial). En el despliegue oficial nunca se ejecuta.
+   */
+  private async requestTtsBytesFromGoogleDirect(params: {
+    text: string;
+    voiceName: string;
+    languageCode: string;
+    speed: number;
+    fallbackVoiceName?: string;
+  }): Promise<ArrayBuffer | null> {
+    if (!this.apiKey) return null;
+
+    const url = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(this.apiKey)}`;
+    const attempts = params.fallbackVoiceName
+      ? [params.voiceName, params.fallbackVoiceName]
+      : [params.voiceName];
+
+    for (const attemptVoice of attempts) {
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            input: { text: params.text },
+            voice: { languageCode: params.languageCode, name: attemptVoice },
+            audioConfig: {
+              audioEncoding: 'MP3',
+              speakingRate: Math.max(0.5, Math.min(2.0, params.speed)),
+            },
+          }),
+        });
+
+        if (!response.ok) {
+          const detail = await response.text().catch(() => '');
+          console.warn(
+            '[TTSService] Google TTS HTTP Error con voz',
+            attemptVoice,
+            response.status,
+            detail
+          );
+          continue;
+        }
+
+        const data = await response.json();
+        const audioContent = extractAudioContent(data);
+        if (!audioContent) continue;
+
+        const bytes = base64ToBytes(audioContent);
+        if (bytes.length === 0) continue;
+
+        return bytes.buffer.slice(
+          bytes.byteOffset,
+          bytes.byteOffset + bytes.byteLength
+        ) as ArrayBuffer;
+      } catch (err) {
+        console.warn('[TTSService] Error de red con Google TTS directo:', err);
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Obtiene los bytes MP3 priorizando el proxy propio y, si no está disponible,
+   * la clave local del usuario (auto-hospedaje).
+   */
+  private async requestTtsBytes(params: {
+    text: string;
+    voiceName: string;
+    languageCode: string;
+    speed: number;
+    fallbackVoiceName?: string;
+  }): Promise<ArrayBuffer | null> {
+    // El endpoint propio es same-origin: solo tiene sentido en un navegador.
+    // En entornos sin `window` (SSR, pruebas) se omite y se usa el respaldo.
+    if (isTtsProxyEnabled() && typeof window !== 'undefined') {
+      const viaProxy = await this.requestTtsBytesFromProxy({
+        text: params.text,
+        voiceName: params.voiceName,
+        speed: params.speed,
+      });
+      if (viaProxy) return viaProxy;
+    }
+
+    if (this.apiKey) {
+      return this.requestTtsBytesFromGoogleDirect(params);
+    }
+
+    return null;
+  }
+
+  /**
+   * Síntesis con voz natural y caching multinivel (Memoria + IndexedDB).
+   *
+   * Fuente del audio: endpoint propio `/api/tts` (la credencial vive en el
+   * servidor). No hay ninguna clave de la app en el bundle del cliente.
    */
   public async synthesizeWithGoogleTTS(
     text: string,
@@ -445,15 +612,9 @@ export class TTSService {
 
     const fetchPromise = (async () => {
       try {
-        let ctx = this.audioContext;
-        if (!ctx && typeof window !== 'undefined') {
-          const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-          if (AudioContextClass) {
-            ctx = new AudioContextClass();
-          }
-        }
+        const ctx = this.ensureAudioContext();
 
-        // 3. Revisar caché persistente IndexedDB antes de consumir cuota de Google Cloud
+        // 3. Caché persistente (IndexedDB): evita consumir cuota y funciona offline
         const cachedBytes = await this.getFromIDB(cacheKey);
         if (cachedBytes && ctx) {
           try {
@@ -465,70 +626,17 @@ export class TTSService {
           }
         }
 
-        // Si no hay API Key y no estaba en IndexedDB, no podemos llamar a la API
-        if (!this.hasGoogleApiKey()) {
-          return null;
-        }
+        // 4. Bytes desde el back-end propio (o clave local del usuario como respaldo)
+        const rawArrayBuffer = await this.requestTtsBytes({
+          text,
+          voiceName,
+          languageCode,
+          speed,
+          fallbackVoiceName: wavenetFallback,
+        });
+        if (!rawArrayBuffer) return null;
 
-        const url = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(this.apiKey)}`;
-
-        // Intento 1: voz Neural2 latina. Intento 2: respaldo Wavenet latino
-        // (por si el proyecto de Google Cloud no tiene Neural2 habilitada).
-        const voiceAttempts = wavenetFallback && wavenetFallback !== voiceName
-          ? [voiceName, wavenetFallback]
-          : [voiceName];
-
-        let data: any = null;
-        for (const attemptVoice of voiceAttempts) {
-          const payload = {
-            input: { text },
-            voice: {
-              languageCode,
-              name: attemptVoice
-            },
-            audioConfig: {
-              audioEncoding: 'MP3',
-              speakingRate: Math.max(0.5, Math.min(2.0, speed))
-            }
-          };
-
-          const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-
-          if (response.ok) {
-            data = await response.json();
-            if (attemptVoice !== voiceName) {
-              console.warn('[TTSService] Voz latina primaria no disponible; usando respaldo Wavenet:', attemptVoice);
-            }
-            break;
-          }
-
-          const errorDetail = await response.text();
-          console.warn('[TTSService] Google TTS HTTP Error con voz', attemptVoice, response.status, errorDetail);
-        }
-
-        if (!data) return null;
-        if (!data.audioContent) {
-          return null;
-        }
-
-        // Decodificar Base64 a ArrayBuffer binario
-        const binaryString = typeof Buffer !== 'undefined'
-          ? Buffer.from(data.audioContent, 'base64').toString('binary')
-          : window.atob(data.audioContent);
-
-        const len = binaryString.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-
-        const rawArrayBuffer = bytes.buffer.slice(0);
-
-        // Guardar en IndexedDB para disponibilidad offline permanente y zero-cost en el futuro
+        // 5. Persistir para disponibilidad offline permanente y coste cero futuro
         void this.saveToIDB(cacheKey, rawArrayBuffer, { text, voiceName, speed });
 
         if (ctx) {
@@ -539,7 +647,7 @@ export class TTSService {
 
         return null;
       } catch (err) {
-        console.warn('[TTSService] Error en síntesis de Google TTS:', err);
+        console.warn('[TTSService] Error en síntesis de voz natural:', err);
         return null;
       } finally {
         this.pendingFetchMap.delete(cacheKey);

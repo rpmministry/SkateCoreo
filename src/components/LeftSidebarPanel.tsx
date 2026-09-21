@@ -26,7 +26,10 @@ import { RinkContextTools } from './rink/RinkContextTools';
 import { audioEngine } from '../services/audioEngine';
 import { GOOGLE_TTS_VOICES, DEFAULT_LATIN_FEMALE_VOICE } from '../core/audio/VoiceCueEngine';
 import { detectGoogleVoiceGender } from '../core/audio/voiceGender';
-import { hasBuiltInGoogleTtsApiKey } from '../core/audio/googleTtsKey';
+import {
+  hasNaturalVoiceBackend,
+  isTtsProxyEnabled,
+} from '../core/audio/ttsBackend';
 import { useAudioEngine } from '../hooks/useAudioEngine';
 import { useChoreographyStore } from '../store/useChoreographyStore';
 import { useAuthStore } from '../store/useAuthStore';
@@ -107,8 +110,9 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
     () => audioEngine.voiceCueEngine.getConfig().googleApiKey || ''
   );
   const [apiKeyVisible, setApiKeyVisible] = React.useState(false);
-  // Si la app ya trae la credencial, no se pide nada al usuario.
-  const hasBuiltInKey = React.useMemo(() => hasBuiltInGoogleTtsApiKey(), []);
+  // Con el endpoint propio (producción) el usuario NO configura nada.
+  const proxyEnabled = React.useMemo(() => isTtsProxyEnabled(), []);
+  const naturalVoiceAvailable = React.useMemo(() => hasNaturalVoiceBackend(), []);
 
   const handleVoiceModelChange = (voiceName: string) => {
     audioEngine.voiceCueEngine.setGoogleVoiceName(voiceName);
@@ -430,18 +434,20 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
               title="Google Cloud ofrece voces Neural2/Wavenet naturales; el navegador funciona sin conexión"
             >
               <option value="google-cloud">
-                Google Cloud TTS · Voz natural{hasBuiltInKey ? ' (incluida)' : ''}
+                Google Cloud TTS · Voz natural{proxyEnabled ? ' (incluida)' : ''}
               </option>
               <option value="browser">Voz del navegador · Offline</option>
             </select>
 
-            {/* La credencial viaja con la app: el usuario NO configura nada. */}
-            {hasBuiltInKey ? (
+            {/* Con el proxy propio, el usuario NO configura nada: la credencial
+                se custodia en el servidor y nunca viaja al navegador. */}
+            {naturalVoiceAvailable ? (
               <p className="flex items-start gap-1.5 rounded-xl border border-mint/25 bg-mint/10 p-2 text-[10px] leading-snug text-mint">
                 <CheckCircle2 className="mt-[1px] h-3 w-3 shrink-0" />
                 <span>
-                  Voz natural activada de fábrica. La credencial de Google Cloud TTS ya
-                  viene incluida en la app: no tienes que configurar nada.
+                  Voz natural activada de fábrica. La credencial de Google Cloud TTS se
+                  gestiona de forma segura en el servidor de la app: no tienes que
+                  configurar nada.
                 </span>
               </p>
             ) : (
