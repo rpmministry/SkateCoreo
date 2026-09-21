@@ -28,6 +28,7 @@ export interface AudioStudioStoreState {
   selectedClipId: string | null;
   setSelectedClipId: (clipId: string | null) => void;
   clipboardClip: AudioClip | null;
+  audioClipboard: AudioClip | null;
 
   // Acciones de Clips
   splitClip: (trackId: string, clipId: string, splitTimeSec: number) => boolean;
@@ -148,6 +149,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   selectedClipId: null,
   setSelectedClipId: (clipId) => set({ selectedClipId: clipId }),
   clipboardClip: null,
+  audioClipboard: null,
 
   splitClip: (trackId, clipId, splitTimeSec) => {
     let wasSplit = false;
@@ -282,7 +284,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
 
   copyClip: (clip) => {
     if (clip) {
-      set({ clipboardClip: { ...clip } });
+      set({ clipboardClip: { ...clip }, audioClipboard: { ...clip } });
       return;
     }
     const state = get();
@@ -291,22 +293,18 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
     for (const t of allTracks) {
       const found = t.clips.find((c) => c.id === state.selectedClipId);
       if (found) {
-        set({ clipboardClip: { ...found } });
+        set({ clipboardClip: { ...found }, audioClipboard: { ...found } });
         return;
       }
     }
   },
 
   pasteClip: (trackId, atTimeSec) => {
-    const { clipboardClip, currentTimeSec, selectedClipId, tracks, additionalTracks } = get();
+    const { clipboardClip, currentTimeSec } = get();
     if (!clipboardClip) return null;
 
-    let targetTrackId = trackId;
-    if (!targetTrackId) {
-      const allTracks = [tracks.music, tracks.voice, ...additionalTracks];
-      const owner = allTracks.find((t) => t.clips.some((c) => c.id === selectedClipId));
-      targetTrackId = owner ? (owner.type === 'music' || owner.type === 'voice' ? owner.type : owner.id) : 'music';
-    }
+    // Arquitectura Master Track: Si no se especifica o por defecto, SIEMPRE pegar en 'music' (Pista 1 - Principal)
+    const targetTrackId = trackId || 'music';
 
     const targetTime = atTimeSec !== undefined ? atTimeSec : currentTimeSec;
     const newClip: AudioClip = {

@@ -29,6 +29,7 @@ import { audioEngine } from '../../services/audioEngine';
 import { useAudioZoomPan } from '../../hooks/useAudioZoomPan';
 import { AudioTimeRuler } from './AudioTimeRuler';
 import { MultitrackTrackRow } from './MultitrackTrackRow';
+import { SkateCoreoBrand } from '../brand/SkateCoreoBrand';
 
 interface AudioStudioViewProps {
   onExportToRink?: () => void;
@@ -89,7 +90,9 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-  const widthOffset = isMobile ? 64 : 224;
+  const widthOffset = isMobile ? 80 : 240;
+
+  const playheadLineRef = useRef<HTMLDivElement | null>(null);
 
   // Motor de Zoom y Paneo Dinámico Multidispositivo para el Estudio de Audio
   const {
@@ -123,7 +126,32 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     if (playheadPx > right - 120 || playheadPx < left + 240) {
       container.scrollLeft = Math.max(0, playheadPx - container.clientWidth / 2);
     }
-  }, [currentTimeSec, isPlaying, zoom, contentWidth, totalDurationSec]);
+  }, [currentTimeSec, isPlaying, zoom, contentWidth, totalDurationSec, widthOffset, timelineContainerRef]);
+
+  // Playhead continuo único que atraviesa regla y todas las pistas (Single Source of Truth a 60/120 fps)
+  useEffect(() => {
+    let animId: number;
+    const updatePlayhead = () => {
+      if (playheadLineRef.current) {
+        const timeSec = isPlaying ? audioEngine.getCurrentTimeMs() / 1000 : currentTimeSec;
+        const dur = Math.max(10, totalDurationSec);
+        const ratio = Math.max(0, Math.min(1, timeSec / dur));
+        const leftPx = widthOffset + ratio * contentWidth;
+        playheadLineRef.current.style.transform = `translateX(${leftPx}px)`;
+      }
+      if (isPlaying) {
+        animId = requestAnimationFrame(updatePlayhead);
+      }
+    };
+
+    updatePlayhead();
+    if (isPlaying) {
+      animId = requestAnimationFrame(updatePlayhead);
+    }
+    return () => {
+      if (animId) cancelAnimationFrame(animId);
+    };
+  }, [isPlaying, currentTimeSec, totalDurationSec, contentWidth, widthOffset]);
 
   // Sincronizar tiempo de AudioEngine con el store de AudioStudio
   useEffect(() => {
@@ -252,7 +280,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           HEADER: Barra de Transporte y Navegación DAW Lite
           ═══════════════════════════════════════════════ */}
       <header className="min-h-14 py-1.5 sm:py-0 shrink-0 bg-[#0E1322] border-b border-white/10 px-2.5 sm:px-4 flex items-center justify-between flex-wrap gap-2 z-20">
-        {/* Izquierda: Volver a la Pista + Menú Hamburguesa + Título */}
+        {/* Izquierda: Volver a la Pista + Menú Hamburguesa + Marca + Título */}
         <div className="flex items-center gap-2 sm:gap-3">
           {onOpenDrawer && (
             <button
@@ -264,6 +292,8 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
               <Menu className="w-4 h-4" />
             </button>
           )}
+
+          <SkateCoreoBrand />
 
           <button
             type="button"
@@ -416,9 +446,10 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
 
       {/* ═══════════════════════════════════════════════
           DAW EDITING TOOLBAR: Selector de Herramientas Táctiles (44x44px)
+          Adaptable a cualquier resolución sin desbordamientos
           ═══════════════════════════════════════════════ */}
-      <div className="min-h-12 py-1.5 bg-[#090D18] border-b border-white/10 px-2.5 sm:px-4 flex items-center justify-between overflow-x-auto gap-2 z-10">
-        <div className="flex items-center gap-1.5 sm:gap-2">
+      <div className="flex flex-wrap gap-2 justify-start items-center p-2 bg-[#090D18]/95 backdrop-blur z-50 sticky top-0 border-b border-white/10">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           {/* Herramienta 1: Seleccionar / Puntero */}
           <button
             type="button"
@@ -545,11 +576,24 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           touchAction: zoom > 1 ? 'pan-x' : 'none',
         }}
       >
-        <div style={{ width: `${contentWidth + widthOffset}px`, minWidth: '100%' }}>
+        <div className="relative" style={{ width: `${contentWidth + widthOffset}px`, minWidth: '100%' }}>
+          {/* Aguja Playhead Única y Continua (Single Source of Truth para todo el Multitrack) */}
+          <div
+            ref={playheadLineRef}
+            className="absolute top-0 bottom-0 w-[2px] bg-[#FACC15] pointer-events-none z-[100] transition-none shadow-[0_0_8px_rgba(250,204,21,0.85)]"
+            style={{
+              left: 0,
+              willChange: 'transform',
+            }}
+          >
+            {/* Cabezal de aguja superior en la regla */}
+            <div className="w-3.5 h-3.5 bg-[#FACC15] rotate-45 -translate-x-[6px] -translate-y-1 rounded-sm shadow-md" />
+          </div>
+
           {/* Fila de la Regla Graduada de Tiempo con esquina Sticky */}
           <div className="flex border-b border-white/10 bg-slate-950">
             {/* Esquina Sticky Izquierda: Controles de Zoom del Workspace */}
-            <div className="w-16 sm:w-56 shrink-0 bg-slate-950/95 border-r border-white/10 px-2 sm:px-3 py-1 flex items-center justify-between sticky left-0 z-30">
+            <div className="w-20 sm:w-60 shrink-0 bg-slate-950/95 border-r border-white/10 px-2 sm:px-3 py-1 flex items-center justify-between sticky left-0 z-30">
               <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-300">
                 <Sliders className="w-3.5 h-3.5 text-cyan shrink-0" />
                 <span className="hidden sm:inline">Pistas</span>
@@ -604,6 +648,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
                 totalDurationSec={totalDurationSec}
                 currentTimeSec={currentTimeSec}
                 contentWidth={contentWidth}
+                hidePlayhead={true}
                 onSeek={handleSeek}
               />
             </div>
@@ -613,6 +658,8 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           <div className="min-h-[40vh] overflow-y-auto divide-y divide-white/5">
             <MultitrackTrackRow
               track={tracks.music}
+              trackNumber={1}
+              isMasterTrack={true}
               totalDurationSec={totalDurationSec}
               currentTimeSec={currentTimeSec}
               contentWidth={contentWidth}
@@ -623,6 +670,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
 
             <MultitrackTrackRow
               track={tracks.voice}
+              trackNumber={2}
               totalDurationSec={totalDurationSec}
               currentTimeSec={currentTimeSec}
               contentWidth={contentWidth}
@@ -633,6 +681,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
 
             <MultitrackTrackRow
               track={tracks.metronome}
+              trackNumber={3}
               totalDurationSec={totalDurationSec}
               currentTimeSec={currentTimeSec}
               contentWidth={contentWidth}
@@ -641,10 +690,11 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             />
 
             {/* Pistas adicionales dinámicas */}
-            {additionalTracks.map((trk) => (
+            {additionalTracks.map((trk, index) => (
               <MultitrackTrackRow
                 key={trk.id}
                 track={trk}
+                trackNumber={4 + index}
                 totalDurationSec={totalDurationSec}
                 currentTimeSec={currentTimeSec}
                 contentWidth={contentWidth}

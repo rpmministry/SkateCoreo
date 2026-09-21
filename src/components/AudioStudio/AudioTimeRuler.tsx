@@ -7,6 +7,7 @@ interface AudioTimeRulerProps {
   currentTimeSec: number;
   onSeek: (sec: number) => void;
   contentWidth?: number;
+  hidePlayhead?: boolean;
 }
 
 export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
@@ -14,6 +15,7 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
   currentTimeSec,
   onSeek,
   contentWidth,
+  hidePlayhead = false,
 }) => {
   const rulerRef = useRef<HTMLDivElement | null>(null);
   const audioNodes = useAudioStudioStore((s) => s.audioNodes);
@@ -177,12 +179,14 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
         })}
 
         {/* Aguja del Playhead (Línea Amarilla de Tiempo) */}
-        <div
-          className="absolute top-0 bottom-0 w-[2px] bg-amber-400 shadow-glow-amber pointer-events-none z-30 transition-none"
-          style={{ left: `${playheadPx}px` }}
-        >
-          <div className="w-3 h-3 bg-amber-400 rotate-45 -translate-x-1.5 -translate-y-1 rounded-sm shadow-md" />
-        </div>
+        {!hidePlayhead && (
+          <div
+            className="absolute top-0 bottom-0 w-[2px] bg-amber-400 shadow-glow-amber pointer-events-none z-30 transition-none"
+            style={{ left: `${playheadPx}px` }}
+          >
+            <div className="w-3 h-3 bg-amber-400 rotate-45 -translate-x-1.5 -translate-y-1 rounded-sm shadow-md" />
+          </div>
+        )}
 
         {/* Marcadores de Nodos Temporales (Chips rígidos numerados 1, 2, 3... Sin deformación) */}
         {audioNodes.map((node) => {

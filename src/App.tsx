@@ -345,7 +345,8 @@ export function App() {
       {/* ═══════════════════════════════════════════════
           HEADER — Pro Dark Console (h-12 / landscape-compact-header)
           ═══════════════════════════════════════════════ */}
-      <header className="min-h-12 h-auto py-1 sm:py-0 landscape-compact-header shrink-0 flex items-center justify-between px-2 sm:px-4 bg-neon-surface/95 backdrop-blur-md border-b border-white/10 z-20 flex-wrap gap-1.5 sm:gap-2">
+      {activeView !== 'studio' && (
+        <header className="min-h-12 h-auto py-1 sm:py-0 landscape-compact-header shrink-0 flex items-center justify-between px-2 sm:px-4 bg-neon-surface/95 backdrop-blur-md border-b border-white/10 z-20 flex-wrap gap-1.5 sm:gap-2">
 
         {/* ── ZONA 1 (Izquierda): Identidad SkateCoreo + Contexto Atleta ── */}
         <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
@@ -481,19 +482,15 @@ export function App() {
           {/* Botón Estudio de Audio (DAW Lite) */}
           <button
             type="button"
-            onClick={() => setActiveView((v) => (v === 'studio' ? 'rink' : 'studio'))}
-            className={`min-h-[44px] flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all interactive-tap shadow-soft-elevation border ${
-              activeView === 'studio'
-                ? 'bg-cyan text-slate-950 border-white/20 shadow-glow-cyan font-black'
-                : 'bg-white/[0.04] hover:bg-white/10 text-cyan border-cyan/30'
-            }`}
+            onClick={() => setActiveView('studio')}
+            className="min-h-[44px] flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all interactive-tap shadow-soft-elevation border bg-white/[0.04] hover:bg-white/10 text-cyan border-cyan/30"
             title="Abrir Estudio de Audio (DAW Lite multipista)"
           >
             <span>🎛️</span>
             <span className="hidden sm:inline">
-              {activeView === 'studio' ? 'Ver Pista 2D' : 'Estudio de Audio'}
+              Estudio de Audio
             </span>
-            {unplacedNodes.length > 0 && activeView !== 'studio' && (
+            {unplacedNodes.length > 0 && (
               <span className="w-4 h-4 rounded-full bg-amber-400 text-slate-950 text-[10px] font-black flex items-center justify-center animate-pulse">
                 {unplacedNodes.length}
               </span>
@@ -535,17 +532,17 @@ export function App() {
                       type="button"
                       onClick={() => {
                         setShowExportMenu(false);
-                        setActiveView((v) => (v === 'studio' ? 'rink' : 'studio'));
+                        setActiveView('studio');
                       }}
                       className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-left hover:bg-white/5 text-slate-200 hover:text-white transition-all"
                     >
                       <Music className="w-4 h-4 text-cyan shrink-0 stroke-[1.75]" />
                       <div>
                         <p className="font-semibold leading-tight">
-                          {activeView === 'studio' ? 'Volver a Pista 2D' : 'Estudio de Audio (DAW)'}
+                          Estudio de Audio (DAW)
                         </p>
                         <p className="text-[10px] text-slate-400 font-normal">
-                          {activeView === 'studio' ? 'Ver lienzo y coreografía' : 'Editor multipista y marcadores'}
+                          Editor multipista y marcadores
                         </p>
                       </div>
                     </button>
@@ -635,6 +632,7 @@ export function App() {
           </div>
         </div>
       </header>
+      )}
 
       {/* ═══════════════════════════════════════════════
           BODY — Audio Studio (DAW Lite) vs Pista 2D Tri-Column

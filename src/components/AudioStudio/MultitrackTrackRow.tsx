@@ -15,6 +15,8 @@ import { useAudioStudioStore } from '../../store/useAudioStudioStore';
 
 interface MultitrackTrackRowProps {
   track: AudioStudioTrack;
+  trackNumber?: number;
+  isMasterTrack?: boolean;
   totalDurationSec: number;
   currentTimeSec: number;
   contentWidth?: number;
@@ -26,8 +28,10 @@ interface MultitrackTrackRowProps {
 
 export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
   track,
+  trackNumber,
+  isMasterTrack,
   totalDurationSec,
-  currentTimeSec,
+  currentTimeSec: _currentTimeSec,
   contentWidth,
   widthOffset,
   onUploadFile,
@@ -335,9 +339,7 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
     }
   };
 
-  const playheadPercent = Math.max(0, Math.min(100, (currentTimeSec / duration) * 100));
-  const playheadPx = Math.max(0, Math.min(effectiveWidth, (currentTimeSec / duration) * effectiveWidth));
-  const panelWidth = widthOffset !== undefined ? widthOffset : 224;
+  const panelWidth = widthOffset !== undefined ? widthOffset : 240;
 
   return (
     <div
@@ -376,11 +378,24 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
             )}
           </div>
 
-          {/* Columna 2: Nombre de pista y estado */}
+          {/* Columna 2: Nombre de pista y estado con numeración accesible */}
           <div className="min-w-0 flex flex-col">
-            <span className="text-xs font-bold text-slate-100 truncate" title={track.name}>
-              {track.name}
-            </span>
+            <div className="flex items-center gap-1.5 min-w-0">
+              {trackNumber !== undefined && (
+                <span
+                  className={`px-1.5 py-0.2 rounded text-[10px] font-black shrink-0 ${
+                    isMasterTrack
+                      ? 'bg-cyan text-slate-950 shadow-glow-cyan'
+                      : 'bg-white/10 text-slate-200 border border-white/10'
+                  }`}
+                >
+                  Pista {trackNumber}
+                </span>
+              )}
+              <span className="text-xs font-bold text-slate-100 truncate" title={track.name}>
+                {isMasterTrack ? `${track.name} (Principal)` : track.name}
+              </span>
+            </div>
             <span className="text-[10px] text-slate-400 truncate hidden sm:block">
               {track.fileName || (track.type === 'metronome' ? `${metronomeConfig.bpm} BPM` : 'Sin audio')}
             </span>
@@ -484,12 +499,6 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
             height: '100%',
           }}
           className="block pointer-events-none"
-        />
-
-        {/* Aguja del Playhead Global */}
-        <div
-          className="absolute top-0 bottom-0 w-[2px] bg-amber-400 shadow-glow-amber pointer-events-none z-20"
-          style={{ left: contentWidth ? `${playheadPx}px` : `${playheadPercent}%` }}
         />
 
         {/* ── OVERLAY INTERACTIVO DE CLIPS CORTABLES Y ARRASTRABLES ── */}
