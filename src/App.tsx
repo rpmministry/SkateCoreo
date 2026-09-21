@@ -14,7 +14,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Music,
   X, ChevronDown, MoreVertical,
-  Upload, Save, HardDrive, Trash2
+  Upload, Save, HardDrive, Trash2, LogOut
 } from 'lucide-react';
 import { Skater, Program, ElementLog, AudioEngineState } from './types';
 import { RinkCanvas } from './components/RinkCanvas';
@@ -27,6 +27,7 @@ import { dbService, OfflineSessionRecord } from './services/db';
 import { audioEngine } from './services/audioEngine';
 import { useChoreographyStore } from './store/useChoreographyStore';
 import { useAudioStudioStore } from './store/useAudioStudioStore';
+import { useAuthStore } from './store/useAuthStore';
 import { renderChoreographyMixdown } from './core/audio/audioMixdown';
 import { exportCoreoProject, importCoreoProject } from './services/coreoPackage';
 import { ProtectedLayout } from './components/ProtectedLayout';
@@ -52,6 +53,7 @@ export function App() {
   const [activeView, setActiveView] = useState<AppView>('home');
   const unplacedNodes = useChoreographyStore((s) => s.unplacedNodes);
   const studioBpm = useAudioStudioStore((s) => s.globalControls.bpm);
+  const logout = useAuthStore((s) => s.logout);
 
   // ── DB / domain state ──────────────────────────────────
   const [skaters, setSkaters] = useState<Skater[]>([]);
@@ -507,6 +509,17 @@ export function App() {
             <span className="hidden md:inline">Cargar Audio</span>
           </button>
 
+          {/* Botón de Salir / Cerrar Sesión (siempre visible en header) */}
+          <button
+            type="button"
+            onClick={() => logout()}
+            className="press flex h-12 w-12 min-h-touch min-w-touch items-center justify-center rounded-xl border border-coral/20 bg-coral/[0.06] text-slate-300 hover:bg-coral/15 hover:text-coral"
+            title="Cerrar sesión y salir de la aplicación"
+            aria-label="Cerrar sesión"
+          >
+            <LogOut className="w-5 h-5 stroke-[1.8]" />
+          </button>
+
           {/* Menú de Desbordamiento Unificado (...) */}
           <div className="relative">
             <button
@@ -580,6 +593,20 @@ export function App() {
                     <span>
                       <span className="block font-semibold leading-tight">{savedOfflineSuccess ? '¡Guardado!' : 'Modo Offline'}</span>
                       <span className="block text-[10px] font-normal text-slate-400">Guardar en el dispositivo para usar sin red</span>
+                    </span>
+                  </button>
+
+                  <span aria-hidden="true" className="my-1 h-px bg-white/5" />
+
+                  <button
+                    type="button"
+                    onClick={() => { setShowExportMenu(false); logout(); }}
+                    className="press flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-medium text-slate-200 hover:bg-coral/10 hover:text-coral"
+                  >
+                    <LogOut className="w-4 h-4 text-coral shrink-0 stroke-[1.75]" />
+                    <span>
+                      <span className="block font-semibold leading-tight">Cerrar Sesión</span>
+                      <span className="block text-[10px] font-normal text-slate-400">Salir de la aplicación de forma segura</span>
                     </span>
                   </button>
                 </div>

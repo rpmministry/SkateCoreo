@@ -1392,36 +1392,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
           </div>
         )}
 
-        {/* Floating Camera & Trail Control HUD (Safe Non-Obstructive Zone) */}
-        <div className="absolute bottom-2.5 right-2.5 z-30 flex items-center gap-1 bg-slate-950/70 backdrop-blur-md border border-white/10 px-1.5 py-1 rounded-xl shadow-soft-elevation select-none pointer-events-none">
-          <button
-            type="button"
-            onClick={() => zoomOut(canvasRef.current)}
-            className="press pointer-events-auto flex h-12 w-12 min-h-touch min-w-touch items-center justify-center rounded-lg border border-white/5 bg-slate-900/90 text-sm font-bold text-slate-200 hover:bg-slate-800"
-            title="Alejar (Zoom Out -10%)"
-            aria-label="Alejar vista"
-          >
-            −
-          </button>
-          <button
-            type="button"
-            onClick={resetCamera}
-            className="press pointer-events-auto flex h-12 min-h-touch min-w-touch items-center justify-center rounded-lg border border-white/5 bg-slate-900/90 px-2 font-mono text-[10px] font-bold text-cyan hover:bg-slate-800"
-            title="Restablecer Vista (100% y centrar)"
-            aria-label="Restablecer vista"
-          >
-            {Math.round(camera.zoom * 100)}%
-          </button>
-          <button
-            type="button"
-            onClick={() => zoomIn(canvasRef.current)}
-            className="press pointer-events-auto flex h-12 w-12 min-h-touch min-w-touch items-center justify-center rounded-lg border border-white/5 bg-slate-900/90 text-sm font-bold text-slate-200 hover:bg-slate-800"
-            title="Acercar (Zoom In +10%)"
-            aria-label="Acercar vista"
-          >
-            +
-          </button>
-        </div>
+        {/* Pista limpia sin overlays — el zoom se controla con gestos pinch-to-zoom y los botones de la barra de herramientas */}
 
         <canvas
           ref={canvasRef}
