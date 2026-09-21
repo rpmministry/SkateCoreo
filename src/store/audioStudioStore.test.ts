@@ -82,9 +82,9 @@ assert(useAudioStudioStore.getState().globalControls.voiceGuide.muted === true, 
 
 // 6. Límite de Pistas: 1 Master + hasta 4 adicionales (5 pistas en total)
 const t1 = useAudioStudioStore.getState().addAudioTrack('Pista 2');
-const t2 = useAudioStudioStore.getState().addAudioTrack('Pista 3');
-const t3 = useAudioStudioStore.getState().addAudioTrack('Pista 4');
-const t4 = useAudioStudioStore.getState().addAudioTrack('Pista 5');
+useAudioStudioStore.getState().addAudioTrack('Pista 3');
+useAudioStudioStore.getState().addAudioTrack('Pista 4');
+useAudioStudioStore.getState().addAudioTrack('Pista 5');
 assert(useAudioStudioStore.getState().additionalTracks.length === 4, 'Se crearon 4 pistas adicionales');
 
 // Intento de exceder el límite: no debe crear una 6ta pista
