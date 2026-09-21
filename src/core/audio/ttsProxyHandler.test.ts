@@ -1,16 +1,22 @@
 /**
- * Unit Tests: núcleo del proxy de voz (`handleTtsProxyRequest`).
+ * Unit Tests: función serverless REAL de Vercel (`api/tts.ts`).
  *
- * Todo se ejecuta sin red: `fetch` se inyecta como doble de prueba. Así se
- * valida el comportamiento real del endpoint que corre en Vercel.
+ * Se prueba el archivo que efectivamente se despliega, no una copia, para que
+ * ninguna diferencia entre el código probado y el código en producción pueda
+ * pasar desapercibida. Todo se ejecuta sin red: `fetch` se inyecta como doble.
  */
 
 import {
+  ALLOWED_FIGURES,
   handleTtsProxyRequest,
   readNodeRequestBody,
   resetTtsProxyRateLimit,
-} from './ttsProxyHandler';
-import { TTS_PROXY_RATE_LIMIT } from './ttsProxyContract';
+  sanitizeSpeechText as sanitizeServerSpeech,
+} from '../../../api/tts';
+import { sanitizeSpeechText as sanitizeClientSpeech, getAllowedFigureNames } from './voiceCueSanitizer';
+
+/** Mismo valor que usa la función desplegada (no se exporta a propósito). */
+const TTS_PROXY_RATE_LIMIT = 60;
 
 function assert(condition: boolean, msg: string) {
   if (!condition) {
@@ -264,5 +270,51 @@ assert(
   getWithoutBody.status === 405,
   `GET sin cuerpo responde 405 de inmediato (${getWithoutBody.status})`
 );
+
+// ── 12. Paridad función desplegada ↔ filtro del cliente ─────────
+//  La lista blanca está inlineada en `api/tts.ts` (el archivo debe ser
+//  autocontenido). Estas comprobaciones impiden que el catálogo evolucione en el
+//  cliente y la función desplegada se quede atrás en silencio.
+const clientFigures = getAllowedFigureNames();
+const serverFigures = new Set(ALLOWED_FIGURES);
+
+const missingOnServer = [...clientFigures].filter((name) => !serverFigures.has(name));
+assert(
+  missingOnServer.length === 0,
+  `La lista blanca desplegada cubre todo el catálogo del cliente${
+    missingOnServer.length ? ` (faltan: ${missingOnServer.join(', ')})` : ''
+  }`
+);
+
+const unknownOnClient = ALLOWED_FIGURES.filter((name) => !clientFigures.has(name));
+assert(
+  unknownOnClient.length === 0,
+  `No hay figuras desplegadas fuera del catálogo${
+    unknownOnClient.length ? ` (sobran: ${unknownOnClient.join(', ')})` : ''
+  }`
+);
+
+const paritySamples = [
+  'Salchow',
+  'Doble Axel',
+  'Figura 1 y 2, Grupo 1',
+  'tres',
+  'Nodo 3 (Papel)',
+  'nota: revisar',
+  'Pista_Musical.mp3',
+  'sit behind tortuga',
+  'curva de transición',
+  'Salchow en 3',
+];
+for (const sample of paritySamples) {
+  const client = sanitizeClientSpeech(sample);
+  const server = sanitizeServerSpeech(sample);
+  assert(
+    (client === null) === (server === null),
+    `Mismo veredicto cliente/servidor para "${sample}" (cliente: ${JSON.stringify(
+      client
+    )} · servidor: ${JSON.stringify(server)})`
+  );
+}
 
 console.log('\n✅ TODAS LAS PRUEBAS DEL NÚCLEO DEL PROXY PASARON\n');

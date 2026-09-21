@@ -1,9 +1,8 @@
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
-import {
-  handleTtsProxyRequest,
-  readNodeRequestBody,
-} from './src/core/audio/ttsProxyHandler';
+// Se importa EXACTAMENTE el mismo archivo que despliega Vercel, de modo que el
+// middleware de desarrollo y la función en producción no puedan divergir.
+import { handleTtsProxyRequest, readNodeRequestBody } from './api/tts';
 
 /**
  * Middleware de desarrollo: expone `POST /api/tts` dentro del dev server de Vite

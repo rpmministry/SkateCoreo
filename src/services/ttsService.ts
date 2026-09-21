@@ -9,7 +9,7 @@ import {
 import {
   base64ToBytes,
   extractAudioContent,
-} from '../core/audio/ttsProxyContract';
+} from '../core/audio/ttsAudioCodec';
 
 export type VoiceGender = 'female' | 'male';
 
