@@ -125,31 +125,32 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
             setActiveTrackId(track.id);
             setShowTrackMenu(true);
           }}
-          className={`relative z-20 shrink-0 w-24 sm:w-28 border-r border-white/10 flex items-center justify-between px-2 py-1 cursor-pointer select-none transition-colors group ${
+          className={`relative z-20 shrink-0 w-[90px] sm:w-28 border-r border-white/10 flex items-center justify-between px-1.5 sm:px-2 py-1 cursor-pointer select-none transition-colors group ${
             isActive ? 'bg-zinc-900' : 'bg-zinc-950/90 hover:bg-zinc-900'
           }`}
           style={{ borderLeft: `3.5px solid ${track.color}` }}
-          title={`Pista: ${displayName} (Toca para opciones de pista)`}
+          title={displayName}
         >
-          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+          <div className="flex items-center gap-1 sm:gap-2 min-w-0">
             {/* Círculo de Icono con color de pista */}
             <div 
-              className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 shadow-sm relative"
+              className="w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center shrink-0 shadow-sm relative"
               style={{ backgroundColor: `${track.color}25`, color: track.color }}
             >
-              <IconComponent className="w-3.5 h-3.5" />
+              <IconComponent className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
               {isActive && (
                 <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-cyan ring-1 ring-black animate-pulse" />
               )}
             </div>
 
-            {/* Nombre y Tag */}
+            {/* Nombre y Tag — tipografía adaptativa: se reduce en pantallas pequeñas sin perder legibilidad */}
             <div className="flex flex-col min-w-0 leading-tight">
-              <span className="font-bold text-xs text-white truncate max-w-[55px] sm:max-w-[70px]">
+              <span className="font-bold text-[10px] sm:text-xs text-white truncate max-w-[42px] sm:max-w-[60px]"
+                title={displayName}>
                 {displayName}
               </span>
-              <span className="text-[9px] text-slate-400 font-mono">
-                {isActive ? '● Activa' : (isMasterTrack ? 'Master' : '+ Fx')}
+              <span className="text-[8px] sm:text-[9px] text-slate-400 font-mono truncate">
+                {isActive ? 'Activa' : (isMasterTrack ? 'Master' : 'Fx')}
               </span>
             </div>
           </div>

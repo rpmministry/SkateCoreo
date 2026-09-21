@@ -76,8 +76,8 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   // Activación táctil inmediata sin doble disparo (evita el Play/Pausa fantasma)
   const press = usePressAction();
 
-  // Ancho de cabecera de pista BandLab (100px) y Espacio Vacío Continuo de Ensamblaje (450px)
-  const headerWidth = 100;
+  // Ancho de cabecera de pista BandLab (90px — sincronizado con MultitrackTrackRow) y Espacio Vacío Continuo de Ensamblaje (450px)
+  const headerWidth = 90;
   const OVERSCROLL_PX = 450;
   const playheadLineRef = useRef<HTMLDivElement | null>(null);
   const workspaceRef = useRef<HTMLDivElement | null>(null);

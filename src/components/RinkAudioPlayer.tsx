@@ -115,8 +115,8 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
   if (variant === 'compact') {
     return (
       <div className="flex w-full min-w-0 items-center gap-2">
-        {playButton('lg')}
-        {stopButton('lg')}
+        {playButton('md')}
+        {stopButton('md')}
 
         <div className="flex min-w-0 flex-1 flex-col justify-center">
           <div className="flex items-center justify-between gap-2 font-mono text-[11px] font-black leading-none">

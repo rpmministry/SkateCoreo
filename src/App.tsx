@@ -699,9 +699,9 @@ export function App() {
             />
           </div>
 
-          {/* Transporte compacto: exclusivo de portrait móvil/tablet,
-              donde el header no tiene ancho suficiente sin apiñar la marca. */}
-          <div className="shrink-0 border-t border-white/5 bg-neon-surface/60 px-2 py-1.5 pl-safe pr-safe lg:hidden">
+          {/* Transporte compacto: en landscape móvil/tablet se reduce para dar prioridad visual a la pista 2D.
+              En desktop (lg+) lo maneja el header. */}
+          <div className="shrink-0 border-t border-white/5 bg-neon-surface/60 px-2 py-1.5 pl-safe pr-safe landscape:py-0.5 landscape:px-1.5 lg:hidden">
             <RinkAudioPlayer
               variant="compact"
               currentTimeMs={currentTimeMs}
@@ -712,8 +712,8 @@ export function App() {
             />
           </div>
 
-          {/* Interactive Waveform Strip (Área Inferior del Visor de Música) */}
-          <div className="timeline-container landscape-compact-waveform h-[26%] max-h-[170px] min-h-[104px] shrink-0 border-t border-white/5 bg-neon-surface/40">
+          {/* Interactive Waveform Strip — en landscape se reduce para priorizar la pista 2D */}
+          <div className="timeline-container landscape-compact-waveform h-[26%] max-h-[170px] min-h-[104px] landscape:min-h-[80px] shrink-0 border-t border-white/5 bg-neon-surface/40">
             <InteractiveWaveform
               currentTimeMs={currentTimeMs}
               durationMs={audioState.durationMs}
