@@ -1,4 +1,6 @@
 /** @type {import('tailwindcss').Config} */
+import plugin from 'tailwindcss/plugin';
+
 export default {
   darkMode: 'class',
   content: [
@@ -142,5 +144,12 @@ export default {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    plugin(({ addVariant }) => {
+      addVariant('landscape', '@media (orientation: landscape)');
+      addVariant('portrait', '@media (orientation: portrait)');
+      addVariant('touch', '@media (hover: none) and (pointer: coarse)');
+      addVariant('stylus', '@media (hover: none) and (pointer: fine)');
+    }),
+  ],
 }

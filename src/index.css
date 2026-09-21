@@ -3,60 +3,150 @@
 @tailwind utilities;
 
 @layer base {
+  /* ═══════════════════════════════════════════════════════════════════
+     DESIGN TOKENS — Carbon-inspired layered system
+     ═══════════════════════════════════════════════════════════════════ */
+
+  :root {
+    /* ── Colors: Canvas depth (darkest → elevated) ── */
+    --color-canvas: #0B0F19;
+    --color-surface: #121826;
+    --color-card: #192234;
+    --color-hover: #222E46;
+    --color-active: #2B3B59;
+    --color-glass: rgba(18, 24, 38, 0.85);
+
+    /* ── Colors: Text (WCAG AA/AAA on --color-canvas) ── */
+    --color-text-primary: #FFFFFF;
+    --color-text-secondary: #94A3B8;
+    --color-text-tertiary: #64748B;
+    --color-text-disabled: #475569;
+
+    /* ── Colors: Interactive accent triad ── */
+    --color-accent-coral: #FF4C79;
+    --color-accent-coral-hover: #FF3366;
+    --color-accent-cyan: #00D2FF;
+    --color-accent-cyan-hover: #00B8E6;
+    --color-accent-mint: #10F49C;
+    --color-accent-mint-hover: #0DE08E;
+    --color-accent-amber: #F59E0B;
+
+    /* ── Colors: Semantic ── */
+    --color-danger: #EF4444;
+    --color-danger-hover: #DC2626;
+    --color-success: #10F49C;
+    --color-warning: #F59E0B;
+
+    /* ── Border radius scale ── */
+    --radius-xs: 6px;
+    --radius-sm: 10px;
+    --radius-md: 14px;
+    --radius-lg: 18px;
+    --radius-xl: 24px;
+    --radius-full: 9999px;
+
+    /* ── Spacing scale (8px base, Carbon-ish) ── */
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-5: 1.25rem;
+    --space-6: 1.5rem;
+    --space-8: 2rem;
+    --space-10: 2.5rem;
+    --space-12: 3rem;
+
+    /* ── Elevation shadows (layered depth) ── */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
+    --shadow-xl: 0 12px 36px -4px rgba(0, 0, 0, 0.65);
+
+    /* ── Typography scale (major third) ── */
+    --text-xs: 0.72rem;
+    --text-sm: 0.81rem;
+    --text-base: 0.9rem;
+    --text-md: 1.05rem;
+    --text-lg: 1.2rem;
+    --text-xl: 1.4rem;
+    --text-2xl: 1.7rem;
+
+    /* ── Layout ── */
+    --header-height: 54px;
+    --header-height-lg: 60px;
+    --header-height-landscape: 40px;
+    --bottom-nav-height: 56px;
+    --touch-target: 48px;
+    --sidebar-width: 272px;
+    --sidebar-width-xl: 288px;
+    --timeline-min-height: 104px;
+    --timeline-max-height: 170px;
+
+    /* ── Safe area insets ── */
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+
+    color-scheme: dark;
+  }
+
   *, *::before, *::after {
     box-sizing: border-box;
   }
 
-  :root, body {
-    color-scheme: dark;
-
-    /* Safe Area Variables */
-    --sat: env(safe-area-inset-top, 0px);
-    --sar: env(safe-area-inset-right, 0px);
-    --sab: env(safe-area-inset-bottom, 0px);
-    --sal: env(safe-area-inset-left, 0px);
-
-    /* ── Cyber-Athletic Dark Mode Neon Theme ── */
-    --neon-canvas: #0B0F19;
-    --neon-surface: #121826;
-    --neon-card: #192234;
-    --neon-hover: #222E46;
-
-    /* Textos WCAG AAA */
-    --text-primary: #FFFFFF;
-    --text-secondary: #94A3B8;
-    --text-tertiary: #64748B;
-
-    /* Acentos Neón */
-    --neon-coral: #FF4C79;
-    --neon-cyan: #00D2FF;
-    --neon-mint: #10F49C;
-  }
-
-  img, video {
+  img, video, canvas {
     max-width: 100%;
     height: auto;
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   BASE HTML + BODY
+   ═══════════════════════════════════════════════════════════════════ */
+
 html {
   height: 100%;
   overflow: hidden;
-  font-size: 16px; /* Base 16px (1rem) International Standard */
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  background-color: #0B0F19;
-  color: #FFFFFF;
+  background-color: var(--color-canvas);
+  color: var(--color-text-primary);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom Sports Console Scrollbar - Ultra Minimal */
+/* ═══════════════════════════════════════════════════════════════════
+   FOCUS-VISIBLE ACCESSIBILITY (WCAG 2.2)
+   Keyboard focus ring: visible, branded, non-intrusive on mouse
+   ═══════════════════════════════════════════════════════════════════ */
+
+:focus-visible {
+  outline: 2px solid var(--color-accent-cyan);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Suppress focus ring on inert containers but keep on interactive elements */
+[tabindex="-1"]:focus {
+  outline: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   SCROLLBARS — Minimal sports-console style
+   ═══════════════════════════════════════════════════════════════════ */
+
 ::-webkit-scrollbar {
   width: 5px;
   height: 5px;
@@ -65,151 +155,28 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #222E46;
-  border-radius: 9999px;
+  background: var(--color-hover);
+  border-radius: var(--radius-full);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #64748B;
+  background: var(--color-text-tertiary);
 }
 
-/* Ergonomía táctil para móviles */
-.touch-target {
-  min-height: 48px;
-  min-width: 48px;
-}
+/* ═══════════════════════════════════════════════════════════════════
+   UTILITY CLASSES — Truncation, scroll, touch, visual effects
+   ═══════════════════════════════════════════════════════════════════ */
 
-/* Truncamiento seguro contra desbordamientos (Overlaps prevention) */
 .truncate-safe {
   white-space: nowrap !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
 }
 
-/* Tipografía fluida con clamp() para responsividad matemática continua */
-.text-fluid-xs {
-  font-size: clamp(0.65rem, 1.8vw, 0.75rem);
-  line-height: 1.2;
+.wrap-anywhere {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
-.text-fluid-sm {
-  font-size: clamp(0.75rem, 2vw, 0.875rem);
-  line-height: 1.25;
-}
-
-.text-fluid-base {
-  font-size: clamp(0.875rem, 2.2vw, 1rem);
-  line-height: 1.3;
-}
-
-/* Micro-interacción Apple: feedback físico táctil */
-.interactive-tap {
-  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1), background-color 150ms ease, box-shadow 150ms ease, color 150ms ease;
-  touch-action: manipulation;
-}
-.interactive-tap:active {
-  transform: scale(0.95);
-}
-
-/* ═══════════════════════════════════════════════════════════════════
-   ORIENTATION-AWARE LANDSCAPE LAYOUT RULES (Figma / Illustrator Style)
-   ═══════════════════════════════════════════════════════════════════ */
-@media (orientation: landscape) {
-  .landscape-compact-header {
-    height: 40px !important;
-    padding-left: 0.75rem !important;
-    padding-right: 0.75rem !important;
-  }
-
-  /* Visor de música con jerarquía vertical cómoda en horizontal (35dvh / 35%) */
-  .landscape-compact-waveform {
-    height: 35dvh !important;
-    min-height: 110px !important;
-    max-height: 38dvh !important;
-    flex: 0 0 35% !important;
-  }
-}
-
-/* Soporte Universal de Safe Areas (Notches, Dynamic Island & Home indicator) */
-.pt-safe {
-  padding-top: max(0.5rem, env(safe-area-inset-top, 0px)) !important;
-}
-.pb-safe {
-  padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px)) !important;
-}
-.pl-safe {
-  padding-left: max(0.5rem, env(safe-area-inset-left, 0px)) !important;
-}
-.pr-safe {
-  padding-right: max(0.5rem, env(safe-area-inset-right, 0px)) !important;
-}
-.px-safe {
-  padding-left: max(0.5rem, env(safe-area-inset-left, 0px)) !important;
-  padding-right: max(0.5rem, env(safe-area-inset-right, 0px)) !important;
-}
-.p-safe {
-  padding-top: max(0.5rem, env(safe-area-inset-top, 0px)) !important;
-  padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px)) !important;
-  padding-left: max(0.5rem, env(safe-area-inset-left, 0px)) !important;
-  padding-right: max(0.5rem, env(safe-area-inset-right, 0px)) !important;
-}
-
-/* Tipografía Fluida Internacional con clamp() */
-.font-fluid-title {
-  font-size: clamp(1.25rem, 3vw + 0.5rem, 1.85rem) !important;
-  line-height: 1.2 !important;
-}
-.font-fluid-heading {
-  font-size: clamp(1rem, 2.2vw + 0.25rem, 1.35rem) !important;
-  line-height: 1.25 !important;
-}
-.font-fluid-body {
-  font-size: clamp(0.875rem, 1.5vw + 0.2rem, 1rem) !important;
-  line-height: 1.4 !important;
-}
-.font-fluid-caption {
-  font-size: clamp(0.72rem, 1vw + 0.2rem, 0.875rem) !important;
-  line-height: 1.3 !important;
-}
-
-/* Área táctil mínima de 48x48px (International Standard) */
-.touch-target-48 {
-  min-width: 48px !important;
-  min-height: 48px !important;
-}
-
-/* ═══════════════════════════════════════════════════════════════════
-   ZONAS SEGURAS (SAFE ZONES) EN VISOR DE MÚSICA PARA MÓVIL PORTRAIT
-   Touch Target Clearance: Espacio físico de >=24px para evitar el gesto 'Atrás'
-   ═══════════════════════════════════════════════════════════════════ */
-@media (max-width: 768px) and (orientation: portrait) {
-  .timeline-container,
-  .timeline-safe-zone {
-    padding-left: max(24px, env(safe-area-inset-left, 0px)) !important;
-    padding-right: max(24px, env(safe-area-inset-right, 0px)) !important;
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════════════
-   SAFE AREAS EXACTAS (sin padding mínimo forzado)
-   Se usan donde el contenedor ya aporta su propio espaciado base.
-   ═══════════════════════════════════════════════════════════════════ */
-.safe-inset-t { padding-top: env(safe-area-inset-top, 0px) !important; }
-.safe-inset-b { padding-bottom: env(safe-area-inset-bottom, 0px) !important; }
-.safe-inset-l { padding-left: env(safe-area-inset-left, 0px) !important; }
-.safe-inset-r { padding-right: env(safe-area-inset-right, 0px) !important; }
-.safe-inset-x {
-  padding-left: env(safe-area-inset-left, 0px) !important;
-  padding-right: env(safe-area-inset-right, 0px) !important;
-}
-
-/* Margen vertical para barras fijas sobre el home indicator */
-.nav-safe-bottom {
-  padding-bottom: max(0.375rem, env(safe-area-inset-bottom, 0px)) !important;
-}
-
-/* ═══════════════════════════════════════════════════════════════════
-   UTILIDADES DE COMPOSICIÓN VISUAL (Glassmorphism / Neón suave)
-   ═══════════════════════════════════════════════════════════════════ */
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -218,6 +185,22 @@ body {
   display: none;
 }
 
+.scroll-touch {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* ── Fluid typography (continuous between viewport sizes) ── */
+.text-fluid-xs  { font-size: clamp(0.65rem, 1.8vw, 0.75rem); }
+.text-fluid-sm  { font-size: clamp(0.75rem, 2vw, 0.875rem); }
+.text-fluid-base { font-size: clamp(0.875rem, 2.2vw, 1rem); }
+
+.font-fluid-title   { font-size: clamp(1.25rem, 3vw + 0.5rem, 1.85rem) !important; }
+.font-fluid-heading { font-size: clamp(1rem, 2.2vw + 0.25rem, 1.35rem) !important; }
+.font-fluid-body    { font-size: clamp(0.875rem, 1.5vw + 0.2rem, 1rem) !important; }
+.font-fluid-caption { font-size: clamp(0.72rem, 1vw + 0.2rem, 0.875rem) !important; }
+
+/* ── Glass morphism surfaces ── */
 .glass-panel {
   background: linear-gradient(180deg, rgba(25, 34, 52, 0.82) 0%, rgba(18, 24, 38, 0.88) 100%);
   backdrop-filter: blur(18px) saturate(140%);
@@ -240,7 +223,7 @@ body {
   color: transparent;
 }
 
-/* Aurora / halo radial reutilizable detrás del Hero */
+/* ── Hero aurora halo ── */
 .hero-aurora::before {
   content: '';
   position: absolute;
@@ -254,7 +237,6 @@ body {
   z-index: 0;
 }
 
-/* Rejilla técnica sutil (World Skate) */
 .grid-veil {
   background-image:
     linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
@@ -264,14 +246,15 @@ body {
   mask-image: radial-gradient(70% 62% at 50% 38%, #000 0%, transparent 100%);
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   MICRO-INTERACCIONES TÁCTILES (Apple HIG / Material 3)
-   Hitbox mínimo garantizado de 48x48px + feedback de presión.
-   ═══════════════════════════════════════════════════════════════════ */
+/* ── Hit target minimum 48×48 (WCAG 2.2 + Apple HIG) ── */
 .hit-48 {
   min-width: 48px !important;
   min-height: 48px !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   MICRO-INTERACTIONS — Press feedback + touch optimization
+   ═══════════════════════════════════════════════════════════════════ */
 
 .press {
   transition:
@@ -290,18 +273,68 @@ body {
   .press:hover { transform: none; }
 }
 
-/* Evita que etiquetas largas rompan el layout en pantallas pequeñas */
-.wrap-anywhere {
-  overflow-wrap: anywhere;
-  word-break: break-word;
+.interactive-tap {
+  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 150ms ease, box-shadow 150ms ease, color 150ms ease;
+  touch-action: manipulation;
+}
+.interactive-tap:active {
+  transform: scale(0.95);
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   REGLAS ESTRUCTURALES DETERMINISTAS POR ORIENTACIÓN + ANCHO
-   (No dependen del orden de variantes de Tailwind: orientation vs lg)
+   SAFE AREAS (Notch, Dynamic Island, Home Indicator)
    ═══════════════════════════════════════════════════════════════════ */
 
-/* Sidebar compacta: SOLO landscape de móvil/tablet (< 1024px) */
+.pt-safe { padding-top: max(0.5rem, var(--safe-top)) !important; }
+.pb-safe { padding-bottom: max(0.5rem, var(--safe-bottom)) !important; }
+.pl-safe { padding-left: max(0.5rem, var(--safe-left)) !important; }
+.pr-safe { padding-right: max(0.5rem, var(--safe-right)) !important; }
+.px-safe {
+  padding-left: max(0.5rem, var(--safe-left)) !important;
+  padding-right: max(0.5rem, var(--safe-right)) !important;
+}
+
+.safe-inset-t { padding-top: var(--safe-top) !important; }
+.safe-inset-b { padding-bottom: var(--safe-bottom) !important; }
+.safe-inset-l { padding-left: var(--safe-left) !important; }
+.safe-inset-r { padding-right: var(--safe-right) !important; }
+.safe-inset-x {
+  padding-left: var(--safe-left) !important;
+  padding-right: var(--safe-right) !important;
+}
+
+.nav-safe-bottom {
+  padding-bottom: max(0.375rem, var(--safe-bottom)) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ORIENTATION-AWARE STRUCTURAL RULES
+   The Tailwind `landscape:` and `portrait:` variants handle utility
+   classes; these rules handle complex multi-condition media queries
+   that can't be expressed as single utility classes.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Audio waveform: reduced height in landscape (viewport is shorter) */
+@media (orientation: landscape) {
+  .landscape-compact-waveform {
+    height: 35dvh !important;
+    min-height: 110px !important;
+    max-height: 38dvh !important;
+    flex: 0 0 35% !important;
+  }
+}
+
+/* Timeline safe zones: portrait mobile only (avoid edge swipe zones) */
+@media (max-width: 768px) and (orientation: portrait) {
+  .timeline-container,
+  .timeline-safe-zone {
+    padding-left: max(24px, var(--safe-left)) !important;
+    padding-right: max(24px, var(--safe-right)) !important;
+  }
+}
+
+/* Sidebar rail: only visible in landscape mobile/tablet */
 .rail-landscape-only {
   display: none;
 }
@@ -311,8 +344,7 @@ body {
   }
 }
 
-/* Atribución: oculta en portrait móvil/tablet para liberar altura útil,
-   visible en landscape y en escritorio. */
+/* Attribution footer: only on desktop */
 .attribution-bar {
   display: none;
 }
@@ -322,11 +354,15 @@ body {
   }
 }
 
-/* Área scrollable con inercia iOS */
-.scroll-touch {
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
+@media (orientation: landscape) {
+  .attribution-bar {
+    display: flex;
+  }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   ACCESSIBILITY — Reduced motion
+   ═══════════════════════════════════════════════════════════════════ */
 
 @media (prefers-reduced-motion: reduce) {
   .press,
@@ -336,5 +372,24 @@ body {
   .press:active,
   .interactive-tap:active {
     transform: none !important;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   RESPONSIVE OVERFLOW PROTECTION
+   ═══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 480px) {
+  .overflow-guard {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
   }
 }

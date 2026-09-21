@@ -429,8 +429,8 @@ export function App() {
           Sin `flex-wrap`: una sola fila garantiza cero apiñamiento/superposición.
           ═══════════════════════════════════════════════ */}
       {activeView !== 'studio' && (
-        <header className="relative z-30 shrink-0 glass-hud border-b border-white/10 pt-safe px-safe">
-          <div className="flex min-h-[54px] items-center justify-between gap-2 px-2 py-1 sm:px-3 lg:min-h-[60px] lg:px-4">
+        <header className="relative z-30 shrink-0 glass-hud border-b border-white/10 pt-safe px-safe landscape:h-10 landscape:pt-safe landscape:px-safe">
+          <div className="flex min-h-[54px] landscape:min-h-0 landscape:h-10 items-center justify-between gap-2 px-2 py-1 sm:px-3 lg:min-h-[60px] lg:px-4">
 
         {/* ── IZQUIERDA: Marca (navega a Inicio) + contexto del atleta ── */}
         <div className="flex min-w-0 items-center gap-2">
@@ -464,7 +464,7 @@ export function App() {
         {/* ── DERECHA: Transporte maestro + carga de audio + desbordamiento ── */}
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           {activeView === 'rink' && (
-            <div className="hidden landscape:flex lg:flex">
+            <div className="hidden lg:flex">
               <RinkAudioPlayer
                 variant="header"
                 currentTimeMs={currentTimeMs}
@@ -674,7 +674,7 @@ export function App() {
 
           {/* Transporte compacto: exclusivo de portrait móvil/tablet,
               donde el header no tiene ancho suficiente sin apiñar la marca. */}
-          <div className="shrink-0 border-t border-white/5 bg-neon-surface/60 px-2 py-1.5 pl-safe pr-safe landscape:hidden lg:hidden">
+          <div className="shrink-0 border-t border-white/5 bg-neon-surface/60 px-2 py-1.5 pl-safe pr-safe lg:hidden">
             <RinkAudioPlayer
               variant="compact"
               currentTimeMs={currentTimeMs}
