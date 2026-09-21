@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { 
   Check, 
   Copy, 
@@ -20,6 +20,7 @@ export const FloatingClipContextMenu: React.FC = () => {
   const currentTimeSec = useAudioStudioStore((s) => s.currentTimeSec);
 
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
 
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
@@ -38,22 +39,54 @@ export const FloatingClipContextMenu: React.FC = () => {
     };
   }, [closeContextMenu]);
 
+  /**
+   * Posicionamiento con medición real: el menú se mide DESPUÉS de montarse
+   * (`useLayoutEffect`, antes del pintado) y se acota al viewport con margen.
+   * Así nunca se pierde fuera de pantalla aunque se abra junto al borde
+   * derecho, izquierdo, superior o inferior (clave en móvil vertical).
+   */
+  useLayoutEffect(() => {
+    if (!contextMenu?.isOpen) {
+      setPos(null);
+      return;
+    }
+    const el = menuRef.current;
+    if (!el) return;
+
+    const measure = () => {
+      const rect = el.getBoundingClientRect();
+      const w = rect.width || 280;
+      const h = rect.height || 44;
+      const margin = 8;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+
+      // Centrado horizontal sobre el punto tocado, pero siempre dentro del viewport
+      let left = contextMenu.x - w / 2;
+      left = Math.max(margin, Math.min(Math.max(margin, vw - w - margin), left));
+
+      // Preferir encima del punto; si no cabe, debajo; si tampoco, pegado al borde
+      let top = contextMenu.y - h - margin;
+      if (top < margin) {
+        top = contextMenu.y + margin + 12;
+      }
+      top = Math.max(margin, Math.min(Math.max(margin, vh - h - margin), top));
+
+      setPos({ left, top });
+    };
+
+    measure();
+    window.addEventListener('resize', measure);
+    window.addEventListener('orientationchange', measure);
+    return () => {
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('orientationchange', measure);
+    };
+  }, [contextMenu]);
+
   if (!contextMenu || !contextMenu.isOpen) return null;
 
-  const { x, y, trackId, clipId } = contextMenu;
-
-  // Anclaje dinámico como barra de herramientas flotante compacta
-  // Asegura que la onda de audio permanezca 100% visible sin obstrucción
-  const menuWidth = 320;
-  const menuHeight = 36;
-  const clampedX = Math.max(12, Math.min(window.innerWidth - menuWidth - 12, x - menuWidth / 2));
-  
-  // Si hay espacio superior libre (>= 50px de margen respecto a la cabecera), flotar arriba del clip
-  // De lo contrario, flotar debajo del clip (y + 64px) para no quedar tapado ni tapar la onda
-  const hasSpaceAbove = y >= 52;
-  const clampedY = hasSpaceAbove 
-    ? Math.max(8, y - menuHeight - 8) 
-    : Math.min(window.innerHeight - menuHeight - 10, y + 64);
+  const { trackId, clipId } = contextMenu;
 
   const handleSelect = () => {
     setSelectedClipId(clipId);
@@ -86,10 +119,12 @@ export const FloatingClipContextMenu: React.FC = () => {
   return (
     <div
       ref={menuRef}
-      className="fixed z-50 flex items-center gap-0.5 p-1 rounded-full bg-zinc-950/95 border border-cyan/40 shadow-2xl shadow-cyan/20 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100"
+      className="fixed z-50 flex items-center gap-0.5 p-1 rounded-full bg-zinc-950/95 border border-cyan/40 shadow-2xl shadow-cyan/20 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100 max-w-[calc(100vw-1rem)] overflow-x-auto no-scrollbar"
       style={{
-        left: `${clampedX}px`,
-        top: `${clampedY}px`,
+        // Antes de medir se mantiene invisible para evitar parpadeo en la esquina
+        left: `${pos?.left ?? 0}px`,
+        top: `${pos?.top ?? 0}px`,
+        visibility: pos ? 'visible' : 'hidden',
       }}
       onPointerDown={(e) => e.stopPropagation()}
     >

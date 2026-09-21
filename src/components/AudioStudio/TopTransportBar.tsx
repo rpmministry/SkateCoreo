@@ -92,7 +92,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
   return (
     <>
       <header 
-        className="relative z-40 min-h-[52px] shrink-0 flex items-center justify-between px-2 sm:px-4 bg-black border-b border-white/10 text-white select-none backdrop-blur-md pt-safe px-safe overflow-x-auto no-scrollbar gap-2 sm:gap-4"
+        className="relative z-40 shrink-0 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 px-2 py-1.5 bg-black border-b border-white/10 text-white select-none pt-safe px-safe sm:flex-nowrap sm:justify-between sm:gap-4 sm:px-4 sm:py-2"
       >
         {/* ── IZQUIERDA: Inicio + Regreso a Pista (destinos distintos, sin duplicar) ── */}
         <div className="flex items-center gap-2 shrink-0">

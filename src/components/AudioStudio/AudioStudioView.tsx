@@ -198,6 +198,16 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     return [tracks.music, ...additionalTracks];
   }, [tracks.music, additionalTracks]);
 
+  /**
+   * ¿Existe audio real para transportar? Se usa para deshabilitar con honestidad
+   * los controles de Rewind/Stop cuando no hay nada que mover: antes se pulsaban
+   * y "no hacían nada", lo que se percibía como botones rotos.
+   */
+  const hasAudioContent = useMemo(
+    () => arrangementTracks.some((t) => (t.clips && t.clips.length > 0) || !!t.buffer),
+    [arrangementTracks]
+  );
+
   // Atajos de teclado en escritorio:
   // - Espacio: Reproducir / Pausar
   // - Ctrl + C: Copiar clip de la pista (seleccionado o bajo el cabezal)
@@ -574,7 +584,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
         onPointerDown={handleWorkspacePointerDown}
         onPointerUp={handleWorkspacePointerUp}
         onPointerCancel={handleWorkspacePointerUp}
-        className="relative flex-1 overflow-x-auto overflow-y-auto bg-black"
+        className="relative flex-1 min-h-0 overflow-x-auto overflow-y-auto bg-black isolate"
         style={{
           WebkitOverflowScrolling: 'touch',
           overscrollBehavior: 'contain',
@@ -710,16 +720,21 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
         </div>
       </div>
 
-      {/* ── 3. BARRA INFERIOR DE TRANSPORTE BANDLAB (BandLab Bottom Dock) ── */}
-      <footer className="min-h-16 h-16 shrink-0 flex items-center justify-between gap-1.5 overflow-x-auto border-t border-white/10 bg-zinc-950 px-2 text-xs z-30 select-none pb-safe px-safe no-scrollbar sm:gap-4 sm:px-6">
+      {/* ── 3. BARRA INFERIOR DE TRANSPORTE BANDLAB (BandLab Bottom Dock) ──
+          Mobile-first: `flex-wrap` garantiza CERO desbordamiento horizontal y
+          CERO recorte. La altura es automática (no fija) para que la safe-area
+          inferior nunca corte los botones. Todos los controles quedan siempre
+          visibles y alcanzables en pantallas estrechas. */}
+      <footer className="shrink-0 flex flex-wrap items-center justify-center gap-x-1 gap-y-1 border-t border-white/10 bg-zinc-950 px-1.5 py-1.5 text-xs z-30 select-none pb-safe sm:justify-between sm:gap-x-3 sm:px-4 sm:py-2">
         {/* Izquierda: Mezclador + Rewind + Stop + Tijeras */}
-        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+        <div className="flex shrink-0 items-center gap-0.5 sm:gap-1.5">
           {/* Botón Mezclador (Abre BandLabMixerDrawer) */}
           <button
             type="button"
             onClick={() => setShowMixerDrawer(true)}
-            className="w-12 h-12 min-w-touch min-h-touch rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white transition-all active:scale-95 shadow-sm"
+            className="w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white transition-all active:scale-95 shadow-sm"
             title="Abrir Mezclador de Pistas (Volumen, Mute, Solo)"
+            aria-label="Abrir mezclador de pistas"
           >
             <Sliders className="w-5 h-5 text-cyan" />
           </button>
@@ -727,9 +742,11 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           {/* Rewind to 0:00 */}
           <button
             type="button"
-            {...press(handleRewind)}
-            className="press w-12 h-12 min-w-touch min-h-touch rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10"
-            title="Volver al inicio (0:00)"
+            {...press(handleRewind, { enabled: hasAudioContent })}
+            disabled={!hasAudioContent}
+            className="press w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 disabled:opacity-25 disabled:pointer-events-none"
+            title={hasAudioContent ? 'Volver al inicio (0:00)' : 'Carga audio para usar el transporte'}
+            aria-label="Volver al inicio"
           >
             <SkipBack className="w-5 h-5" />
           </button>
@@ -737,9 +754,11 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           {/* Stop / Detener */}
           <button
             type="button"
-            {...press(handleStop)}
-            className="press w-12 h-12 min-w-touch min-h-touch rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10"
-            title="Detener reproducción y reiniciar posición"
+            {...press(handleStop, { enabled: hasAudioContent })}
+            disabled={!hasAudioContent}
+            className="press w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 disabled:opacity-25 disabled:pointer-events-none"
+            title={hasAudioContent ? 'Detener reproducción y reiniciar posición' : 'Carga audio para usar el transporte'}
+            aria-label="Detener reproducción"
           >
             <Square className="w-4 h-4 fill-current" />
           </button>
@@ -749,8 +768,9 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             type="button"
             {...press(handleSplitAtPlayhead, { enabled: Boolean(selectedClipId) })}
             disabled={!selectedClipId}
-            className="press w-12 h-12 min-w-touch min-h-touch rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 disabled:opacity-25"
-            title="Dividir clip en el cabezal (corte milimétrico)"
+            className="press w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 disabled:opacity-25 disabled:pointer-events-none"
+            title={selectedClipId ? 'Dividir clip en el cabezal (corte milimétrico)' : 'Selecciona un clip para dividirlo'}
+            aria-label="Dividir clip en el cabezal"
           >
             <Scissors className="w-5 h-5 text-mint" />
           </button>
@@ -763,7 +783,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             {...press(handlePlayToggle)}
             aria-pressed={isPlaying}
             aria-label={isPlaying ? 'Pausar reproducción' : 'Reproducir'}
-            className={`press w-14 h-14 min-w-touch min-h-touch rounded-full flex items-center justify-center shadow-lg ${
+            className={`press w-12 h-12 sm:w-14 sm:h-14 shrink-0 rounded-full flex items-center justify-center shadow-lg ${
               isPlaying 
                 ? 'bg-amber-400 text-black shadow-amber-400/30' 
                 : 'bg-red-500 text-white shadow-red-500/30 hover:bg-red-600'
@@ -779,19 +799,19 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
         </div>
 
         {/* Derecha: Metrónomo + Marcador + Zoom */}
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Toggle Metrónomo rápido (48x48px, activación táctil inmediata) */}
+        <div className="flex items-center gap-0.5 sm:gap-1.5 shrink-0">
+          {/* Toggle Metrónomo rápido */}
           <button
             type="button"
             {...press(toggleMetronomeMute)}
-            className={`w-12 h-12 min-w-touch min-h-touch rounded-full flex items-center justify-center press ${
+            className={`w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center press ${
               globalControls.metronome.muted 
                 ? 'text-slate-500 hover:bg-white/5' 
                 : 'text-amber-400 bg-amber-500/15'
             }`}
             aria-pressed={globalControls.metronome.muted}
             aria-label={globalControls.metronome.muted ? 'Activar metrónomo' : 'Silenciar metrónomo'}
-            title="Activar/Silenciar Metrónomo"
+            title={globalControls.metronome.muted ? 'Activar Metrónomo' : 'Silenciar Metrónomo'}
           >
             <Bell className="w-5 h-5" />
           </button>
@@ -800,8 +820,9 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           <button
             type="button"
             onClick={() => addTimeNode(audioEngine.getCurrentTimeMs() / 1000)}
-            className="press flex h-12 min-h-touch shrink-0 items-center gap-1.5 rounded-full border border-cyan/30 bg-cyan/15 px-2.5 text-xs font-bold text-cyan hover:bg-cyan/25 sm:px-3"
+            className="press flex h-11 sm:h-12 shrink-0 items-center gap-1.5 rounded-full border border-cyan/30 bg-cyan/15 px-2.5 text-xs font-bold text-cyan hover:bg-cyan/25 sm:px-3"
             title="Añadir marcador temporal"
+            aria-label="Añadir marcador temporal"
           >
             <MapPin className="w-4 h-4 shrink-0" />
             <span className="hidden sm:inline">Nodo</span>
@@ -813,16 +834,18 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             <button
               type="button"
               onClick={() => zoomOut()}
-              className="w-9 h-9 min-w-[36px] min-h-[36px] rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10"
+              className="w-10 h-10 sm:w-9 sm:h-9 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10"
               title="Alejar Zoom"
+              aria-label="Alejar zoom"
             >
               <ZoomOut className="w-4 h-4" />
             </button>
             <button
               type="button"
               onClick={() => zoomIn()}
-              className="w-9 h-9 min-w-[36px] min-h-[36px] rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10"
+              className="w-10 h-10 sm:w-9 sm:h-9 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10"
               title="Acercar Zoom"
+              aria-label="Acercar zoom"
             >
               <ZoomIn className="w-4 h-4" />
             </button>
@@ -830,7 +853,8 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
               <button
                 type="button"
                 onClick={resetZoom}
-                className="px-2 py-1 rounded-lg text-[10px] bg-white/10 text-slate-300 font-bold"
+                className="px-2 py-1 rounded-lg text-[10px] bg-white/10 text-slate-300 font-bold shrink-0"
+                aria-label="Restablecer zoom"
               >
                 1x
               </button>
