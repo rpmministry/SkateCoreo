@@ -1,9 +1,21 @@
 /**
- * pdfTemplateGenerator — Generador de Plantilla Reglamentaria PDF A4 Horizontal
+ * pdfTemplateGenerator — Plantilla reglamentaria PDF A4 horizontal (297 × 210 mm).
  *
- * Exporta un documento PDF A4 Landscape (297 x 210 mm) con la pista World Skate 2:1 a escala,
- * cuadrícula milimetrada, guías de evaluación (Eje Largo, Eje Corto, Diagonales, cotas 3/4)
- * y 4 marcas fiduciales de alta precisión en las esquinas para visión artificial.
+ * Diseño editorial con cuadrícula explícita (todo elemento pertenece a una banda
+ * y ninguna se solapa). El layout y los textos se exportan (`PDF_LAYOUT`,
+ * `PDF_TEXTS`) para poder verificarlos con pruebas automáticas.
+ *
+ * Bandas verticales (mm):
+ *   10 ─ 32   ENCABEZADO  · contenedor cerrado: solo logotipo + datos institucionales
+ *   32 ─ 43   Título principal (centrado)
+ *   43 ─ 60   DATOS DE ESCRITURA MANUAL (Atleta / Club / Entrenador) en negro puro
+ *   61 ─ 66   Panel de jueces (centrado, fuera de la pista)
+ *   69 ─ 179  PISTA reglamentaria 220 × 110 mm (proporción 2:1 exacta)
+ *  188 ─ 204  Instrucciones + crédito de desarrollo
+ *
+ * Los 4 fiduciales se centran en las esquinas de la pista y disponen de un halo
+ * blanco de aislamiento (`fiducial.halo`) que ninguna otra banda invade: así el
+ * motor de visión artificial los detecta sin interferencias.
  */
 
 import { jsPDF } from 'jspdf';
@@ -14,100 +26,229 @@ import { SKATECOREO_LOGO_REVERSO_PNG } from '../constants/brand/logoDataUri';
 export interface TemplateMetadata {
   title?: string;
   athleteName?: string;
-  coachName?: string;
   clubName?: string;
+  coachName?: string;
+  /** Reservados para uso interno; NO se imprimen en la plantilla. */
   category?: string;
   bpm?: number;
   durationSec?: number;
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   Cuadrícula del documento (milímetros). Fuente única de verdad.
+   ══════════════════════════════════════════════════════════════════ */
+export const PDF_LAYOUT = {
+  /** A4 horizontal: 297 × 210 mm. */
+  page: { width: 297, height: 210 },
+  margin: 10,
+
+  /** Encabezado: contenedor cerrado (logotipo + datos institucionales). */
+  header: { x: 10, y: 10, w: 277, h: 22 },
+  logo: { x: 14, y: 16.95, w: 48, h: 8.1 },
+  divider: { x: 65, y: 15.5, h: 13 },
+  institutionalTitle: { x: 69, baseline: 20 },
+  institutionalSubtitle: { x: 69, baseline: 25.5 },
+
+  /** Título principal del documento (centrado). */
+  documentTitle: { baseline: 39.5 },
+
+  /** Campos de escritura manual (área blanca, tinta negra pura). */
+  data: {
+    labelX: 10,
+    valueX: 38,
+    row1: { label: 46.5, line: 48.5 },
+    row2: { label: 55.5, line: 57.5 },
+    clubLineEnd: 150,
+    coachLabelX: 158,
+    coachValueX: 196,
+  },
+
+  /** Panel de jueces: centrado, siempre FUERA del área de la pista. */
+  judges: { w: 46, h: 5, y: 61 },
+
+  /** Pista reglamentaria: proporción 2:1 exacta (220 × 110 mm). */
+  rink: { x: 38.5, y: 69, w: 220, h: 110 },
+
+  /** Fiduciales: tamaño del cuadro negro y halo blanco de aislamiento. */
+  fiducial: { size: 10, halo: 2.5 },
+
+  /** Bloque inferior: instrucciones + crédito de desarrollo. */
+  instructions: {
+    x: 10,
+    y: 188,
+    w: 277,
+    h: 16,
+    titleBaseline: 193,
+    lineBaselines: [197, 200.4],
+    creditBaseline: 203,
+  },
+} as const;
+
+/* ══════════════════════════════════════════════════════════════════
+   Textos del documento. Centralizados para poder auditarlos.
+   ══════════════════════════════════════════════════════════════════ */
+export const PDF_TEXTS = {
+  institutionalTitle: 'SKATECOREO · SISTEMA PAPER-TO-DIGITAL',
+  institutionalSubtitle: 'Normativa World Skate & FEP · Reglamento 2026 · Pista 50×25 m (2:1)',
+  documentTitle: 'PLANTILLA REGLAMENTARIA DE COREOGRAFÍA',
+  labels: {
+    athlete: 'ATLETA',
+    club: 'CLUB',
+    coach: 'ENTRENADOR',
+  },
+  judgesPanel: 'PANEL DE JUECES (WORLD SKATE)',
+  instructionsTitle: 'INSTRUCCIONES (PAPER-TO-DIGITAL)',
+  instructions: [
+    '1) Trace las trayectorias sobre la pista con tinta oscura.   2) Numere los nodos en secuencia (1, 2, 3…).   3) Fotografíe la hoja completa y bien iluminada.',
+    '4) En SkateCoreo pulse «Digitalizar Papel» y suba la foto: la perspectiva se corrige sola. Mantenga las 4 marcas de esquina visibles y la hoja sin doblar.',
+  ],
+  credit: 'Desarrollado por Mauricio Andrade Luna · SkateCoreo',
+} as const;
+
+/** Color de tinta de los campos manuales: negro puro, contraste máximo. */
+const INK_BLACK: [number, number, number] = [0, 0, 0];
+const SLATE_900: [number, number, number] = [15, 23, 42];
+const SLATE_400: [number, number, number] = [148, 163, 184];
+const SLATE_600: [number, number, number] = [71, 85, 105];
+const CYAN: [number, number, number] = [0, 240, 255];
+const SKY: [number, number, number] = [2, 132, 199];
+const PURPLE: [number, number, number] = [168, 85, 247];
+
 export class PdfTemplateGenerator {
-  /**
-   * Genera el documento PDF A4 Horizontal y retorna la instancia jsPDF
-   */
+  /** Genera el documento PDF A4 horizontal y retorna la instancia jsPDF. */
   public static generateTemplate(
     metadata: TemplateMetadata = {},
     rink: RinkDimensions = DEFAULT_RINK_DIMENSIONS
   ): jsPDF {
-    // A4 Landscape: 297mm x 210mm
-    const doc = new jsPDF({
-      orientation: 'landscape',
-      unit: 'mm',
-      format: 'a4',
-    });
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
 
-    const PAGE_W = 297;
+    const L = PDF_LAYOUT;
+    const T = PDF_TEXTS;
 
-    // Dimensiones calibradas de la pista (Escala 2:1 estricta: 240mm x 120mm)
-    const RINK_W = 240;
-    const RINK_H = 120;
-    const RINK_X = (PAGE_W - RINK_W) / 2; // 28.5 mm
-    const RINK_Y = 44; // mm
+    // Dimensiones reales de la página (derivadas, no asumidas).
+    const pageW = doc.internal.pageSize.getWidth();
+    const usableRight = pageW - L.margin;
+    const centerX = pageW / 2;
 
-    const scaleMmPerMeter = RINK_W / rink.lengthMeters; // 4.8 mm/metro
-    const cornerRadiusMm = rink.cornerRoundsMeters * scaleMmPerMeter; // 16.8 mm
+    const scaleMmPerMeter = L.rink.w / rink.lengthMeters; // 4.4 mm por metro
+    const cornerRadiusMm = rink.cornerRoundsMeters * scaleMmPerMeter;
 
-    // ── 1. ENCABEZADO INSTITUCIONAL & IDENTIDAD VISUAL SKATECOREO ──
-    doc.setFillColor(15, 23, 42); // slate-900 (Carbon Dark aesthetic)
-    doc.rect(10, 10, PAGE_W - 20, 26, 'F');
+    /* ── 1. ENCABEZADO: contenedor cerrado ──────────────────────────
+       Solo logotipo + datos institucionales primarios. Los campos de
+       escritura manual viven FUERA, en el área blanca inferior. */
+    doc.setFillColor(...SLATE_900);
+    doc.rect(L.header.x, L.header.y, L.header.w, L.header.h, 'F');
 
-    // Inyección del Logotipo completo SkateCoreo (Símbolo S + tipografía oficial)
-    // Coordenadas calculadas: X=14mm, Y=12.5mm, Ancho=48mm, Alto=8.1mm
-    // Margen de seguridad: El borde inferior del logo (20.6mm) dista 16.9mm de la marca fiducial TL (37.5mm)
-    // y 23.4mm del área activa de la pista (44mm). 100% libre de colisiones e interferencias OCR.
     try {
-      doc.addImage(SKATECOREO_LOGO_REVERSO_PNG, 'PNG', 14, 12.5, 48, 8.1);
+      doc.addImage(
+        SKATECOREO_LOGO_REVERSO_PNG,
+        'PNG',
+        L.logo.x,
+        L.logo.y,
+        L.logo.w,
+        L.logo.h
+      );
     } catch {
-      // Resiliencia visual en entornos restringidos
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(13);
       doc.setTextColor(255, 255, 255);
-      doc.text('SKATECOREO', 14, 18);
+      doc.text('SKATECOREO', L.logo.x, L.logo.y + 5.5);
     }
 
-    // Línea divisoria vertical sutil (Carbon UI separator)
-    doc.setDrawColor(51, 65, 85); // slate-700
+    // Separador vertical del lockup
+    doc.setDrawColor(51, 65, 85);
     doc.setLineWidth(0.3);
-    doc.line(65, 12.5, 65, 23);
+    doc.line(L.divider.x, L.divider.y, L.divider.x, L.divider.y + L.divider.h);
 
-    // Título descriptivo reglamentario y subtítulo normativo
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10.5);
-    doc.setTextColor(0, 240, 255); // Cyan eléctrico SkateCoreo
-    doc.text('PLANTILLA REGLAMENTARIA DE COREOGRAFÍA', 69, 17.5);
+    doc.setTextColor(...CYAN);
+    doc.text(T.institutionalTitle, L.institutionalTitle.x, L.institutionalTitle.baseline);
 
+    doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(148, 163, 184); // slate-400
-    doc.text('Normativa World Skate & FEP · Escala 50x25m (Proporción 2:1) · Sistema Paper-to-Digital', 69, 22.5);
+    doc.setTextColor(...SLATE_400);
+    doc.text(T.institutionalSubtitle, L.institutionalSubtitle.x, L.institutionalSubtitle.baseline);
 
-    // Campos de metadatos
-    doc.setFontSize(8);
-    doc.setTextColor(226, 232, 240); // slate-200
-    const metaY1 = 30;
+    /* ── 2. TÍTULO PRINCIPAL (centrado) ──────────────────────────── */
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(...SLATE_900);
+    doc.text(T.documentTitle, centerX, L.documentTitle.baseline, { align: 'center' });
+
+    /* ── 3. CAMPOS DE ESCRITURA MANUAL (área blanca, negro puro) ────
+       Etiquetas a la izquierda y línea continua debajo para escribir con
+       lapicero o marcador oscuro. Sin fondos ni adornos que estorben. */
+    const drawWriteField = (
+      label: string,
+      labelX: number,
+      valueX: number,
+      valueEndX: number,
+      labelBaseline: number,
+      lineY: number
+    ) => {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(...INK_BLACK);
+      doc.text(label, labelX, labelBaseline);
+
+      doc.setDrawColor(...INK_BLACK);
+      doc.setLineWidth(0.25);
+      doc.line(valueX, lineY, valueEndX, lineY);
+    };
+
+    const D = L.data;
+
+    // Fila 1 — Atleta (línea de ancho completo)
+    drawWriteField(T.labels.athlete, D.labelX, D.valueX, usableRight, D.row1.label, D.row1.line);
+    if (metadata.athleteName) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(...INK_BLACK);
+      doc.text(metadata.athleteName, D.valueX, D.row1.label);
+    }
+
+    // Fila 2 — Club | Entrenador (dos columnas alineadas a la misma cuadrícula)
+    drawWriteField(T.labels.club, D.labelX, D.valueX, D.clubLineEnd, D.row2.label, D.row2.line);
+    drawWriteField(
+      T.labels.coach,
+      D.coachLabelX,
+      D.coachValueX,
+      usableRight,
+      D.row2.label,
+      D.row2.line
+    );
+    if (metadata.clubName) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(...INK_BLACK);
+      doc.text(metadata.clubName, D.valueX, D.row2.label);
+    }
+    if (metadata.coachName) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(...INK_BLACK);
+      doc.text(metadata.coachName, D.coachValueX, D.row2.label);
+    }
+
+    /* ── 4. PANEL DE JUECES (fuera de la pista, centrado) ─────────── */
+    const judgeBoxX = (pageW - L.judges.w) / 2;
+    doc.setFillColor(254, 243, 199);
+    doc.setDrawColor(245, 158, 11);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(judgeBoxX, L.judges.y, L.judges.w, L.judges.h, 1, 1, 'FD');
 
     doc.setFont('helvetica', 'bold');
-    doc.text('Atleta:', 14, metaY1);
-    doc.setFont('helvetica', 'normal');
-    doc.text(metadata.athleteName || '________________________', 26, metaY1);
+    doc.setFontSize(5.5);
+    doc.setTextColor(180, 83, 9);
+    doc.text(T.judgesPanel, centerX, L.judges.y + 3.5, { align: 'center' });
 
-    doc.setFont('helvetica', 'bold');
-    doc.text('Club / Entrenador:', 90, metaY1);
-    doc.setFont('helvetica', 'normal');
-    doc.text(metadata.clubName || metadata.coachName || '________________________', 122, metaY1);
+    /* ── 5. PISTA: fondo blanco libre de tipografía ──────────────── */
+    const RINK_X = L.rink.x;
+    const RINK_Y = L.rink.y;
+    const RINK_W = L.rink.w;
+    const RINK_H = L.rink.h;
 
-    doc.setFont('helvetica', 'bold');
-    doc.text('Categoría:', 185, metaY1);
-    doc.setFont('helvetica', 'normal');
-    doc.text(metadata.category || 'RollArt 2026', 203, metaY1);
-
-    doc.setFont('helvetica', 'bold');
-    doc.text('Tempo:', 240, metaY1);
-    doc.setFont('helvetica', 'normal');
-    doc.text(metadata.bpm ? `${metadata.bpm} BPM` : '140 BPM', 253, metaY1);
-
-    // ── 2. CUADRÍCULA MILIMETRADA DE LA PISTA (1m y 5m) ──
-    // Fondo de la pista (blanco técnico para dibujo a tinta)
     doc.setFillColor(255, 255, 255);
     doc.roundedRect(RINK_X, RINK_Y, RINK_W, RINK_H, cornerRadiusMm, cornerRadiusMm, 'F');
 
@@ -135,151 +276,113 @@ export class PdfTemplateGenerator {
       doc.line(RINK_X, gy, RINK_X + RINK_W, gy);
     }
 
-    // ── 3. GUÍAS ESPACIALES REGLAMENTARIAS IMPRESAS ──
-    // Valla perimetral de la pista
-    doc.setDrawColor(71, 85, 105); // slate-600
+    // Valla perimetral
+    doc.setDrawColor(...SLATE_600);
     doc.setLineWidth(0.6);
     doc.roundedRect(RINK_X, RINK_Y, RINK_W, RINK_H, cornerRadiusMm, cornerRadiusMm, 'S');
 
-    // Eje Largo (Long Axis)
+    // Ejes reglamentarios
     const midY = RINK_Y + RINK_H / 2;
-    doc.setDrawColor(2, 132, 199); // Sky blue
+    const midX = RINK_X + RINK_W / 2;
+
+    doc.setDrawColor(...SKY);
     doc.setLineWidth(0.35);
     doc.setLineDashPattern([3, 2], 0);
     doc.line(RINK_X, midY, RINK_X + RINK_W, midY);
-
-    // Eje Corto (Short Axis)
-    const midX = RINK_X + RINK_W / 2;
     doc.line(midX, RINK_Y, midX, RINK_Y + RINK_H);
-    doc.setLineDashPattern([], 0); // Restaurar sólido
+    doc.setLineDashPattern([], 0);
 
-    // Círculo central reglamentario (Radio 3m = 14.4mm)
-    doc.setDrawColor(2, 132, 199);
+    // Círculo central (radio 3 m)
+    doc.setDrawColor(...SKY);
     doc.setLineWidth(0.3);
     doc.circle(midX, midY, 3 * scaleMmPerMeter, 'S');
 
-    // Diagonales (para evaluación de Scissors >= 3/4)
-    doc.setDrawColor(168, 85, 247); // Púrpura
+    // Diagonales de evaluación
+    doc.setDrawColor(...PURPLE);
     doc.setLineWidth(0.25);
     doc.setLineDashPattern([2, 3], 0);
     doc.line(RINK_X, RINK_Y, RINK_X + RINK_W, RINK_Y + RINK_H);
     doc.line(RINK_X, RINK_Y + RINK_H, RINK_X + RINK_W, RINK_Y);
     doc.setLineDashPattern([], 0);
 
-    // Marcas de 3/4 de Eje Largo (Skating Skills >= 37.5m)
-    doc.setFillColor(2, 132, 199);
-    const mark34LeftX = RINK_X + RINK_W * 0.25;
-    const mark34RightX = RINK_X + RINK_W * 0.75;
+    // Marcas de 3/4 de eje largo: SOLO la marca gráfica, sin ningún rótulo.
+    doc.setFillColor(...SKY);
+    doc.rect(RINK_X + RINK_W * 0.25 - 0.5, midY - 3, 1, 6, 'F');
+    doc.rect(RINK_X + RINK_W * 0.75 - 0.5, midY - 3, 1, 6, 'F');
 
-    doc.rect(mark34LeftX - 0.5, midY - 3, 1, 6, 'F');
-    doc.rect(mark34RightX - 0.5, midY - 3, 1, 6, 'F');
+    /* ── 6. FIDUCIALES: se dibujan AL FINAL sobre la pista y con halo ──
+       El halo blanco aísla cada diana de cualquier línea o texto vecino,
+       de modo que la detección por visión artificial no tenga ruido. */
+    this.drawFiducialMarker(doc, RINK_X, RINK_Y);
+    this.drawFiducialMarker(doc, RINK_X + RINK_W, RINK_Y);
+    this.drawFiducialMarker(doc, RINK_X + RINK_W, RINK_Y + RINK_H);
+    this.drawFiducialMarker(doc, RINK_X, RINK_Y + RINK_H);
 
-    doc.setFontSize(6);
-    doc.setTextColor(2, 132, 199);
-    doc.text('3/4 (37.5m)', mark34LeftX, midY - 4, { align: 'center' });
-    doc.text('3/4 (37.5m)', mark34RightX, midY - 4, { align: 'center' });
-
-    // Panel de Jueces World Skate (recuadro superior central)
-    doc.setFillColor(254, 243, 199); // Amber-100
-    doc.setDrawColor(245, 158, 11); // Amber-500
-    doc.setLineWidth(0.3);
-    const judgeBoxW = 46;
-    const judgeBoxH = 5;
-    const judgeBoxX = RINK_X + (RINK_W - judgeBoxW) / 2;
-    const judgeBoxY = RINK_Y - 6;
-    doc.roundedRect(judgeBoxX, judgeBoxY, judgeBoxW, judgeBoxH, 1, 1, 'FD');
-
-    doc.setFontSize(5.5);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(180, 83, 9);
-    doc.text('PANEL DE JUECES (WORLD SKATE)', judgeBoxX + judgeBoxW / 2, judgeBoxY + 3.5, { align: 'center' });
-
-    // ── 4. MARCAS FIDUCIALES DE ALTA PRECISIÓN (4 ESQUINAS) ──
-    // Estas dianas de calibración son leídas por el motor de visión artificial
-    this.drawFiducialMarker(doc, RINK_X, RINK_Y, 'TL');
-    this.drawFiducialMarker(doc, RINK_X + RINK_W, RINK_Y, 'TR');
-    this.drawFiducialMarker(doc, RINK_X + RINK_W, RINK_Y + RINK_H, 'BR');
-    this.drawFiducialMarker(doc, RINK_X, RINK_Y + RINK_H, 'BL');
-
-    // ── 5. PANEL INFERIOR: GUÍA DE DIBUJO E INSTRUCCIONES ──
-    const footY = RINK_Y + RINK_H + 4;
+    /* ── 7. BLOQUE INFERIOR: instrucciones + crédito ──────────────── */
+    const I = L.instructions;
     doc.setFillColor(248, 250, 252);
     doc.setDrawColor(203, 213, 225);
     doc.setLineWidth(0.3);
-    doc.roundedRect(10, footY, PAGE_W - 20, 32, 2, 2, 'FD');
+    doc.roundedRect(I.x, I.y, I.w, I.h, 2, 2, 'FD');
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
-    doc.setTextColor(15, 23, 42);
-    doc.text('INSTRUCCIONES PARA LA ENTRENADORA / COREÓGRAFA (PAPER-TO-DIGITAL):', 14, footY + 6);
+    doc.setFontSize(7.5);
+    doc.setTextColor(...SLATE_900);
+    doc.text(T.instructionsTitle, centerX, I.titleBaseline, { align: 'center' });
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
+    doc.setFontSize(6.5);
     doc.setTextColor(51, 65, 85);
-    doc.text('1. DIBUJO DE TRAZOS: Dibuje las trayectorias de desplazamiento sobre la pista con un marcador o bolígrafo de tinta oscura (negro o azul).', 14, footY + 12);
-    doc.text('2. NUMERACIÓN DE NODOS: Escriba números claros dentro de pequeños círculos ( 1 , 2 , 3 ...) para indicar la secuencia temporal exacta.', 14, footY + 17);
-    doc.text('3. CAPTURA DE FOTO: Tome una foto iluminada de la hoja completa. Asegúrese de que las 4 marcas de esquina ( ⊕ ) sean claramente visibles.', 14, footY + 22);
-    doc.text('4. DIGITALIZACIÓN: En la app SkateCoreo, seleccione "Digitalizar Papel" y suba la foto. El sistema corregirá la perspectiva y cargará sus nodos.', 14, footY + 27);
+    T.instructions.forEach((line, index) => {
+      doc.text(line, I.x + 4, I.lineBaselines[index] ?? I.lineBaselines[I.lineBaselines.length - 1]);
+    });
 
-    // Indicador de escala en esquina derecha
+    // Crédito de desarrollo, centrado y en tono secundario
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7);
-    doc.setTextColor(100, 116, 139);
-    doc.text('ESCALA DE PISTA: 1 metro = 4.80 mm  |  1 mm = 0.208 m  |  Ratio 2:1 Estricto (50x25 m)', PAGE_W - 14, footY + 27, { align: 'right' });
+    doc.setFontSize(6);
+    doc.setTextColor(...SLATE_600);
+    doc.text(T.credit, centerX, I.creditBaseline, { align: 'center' });
 
     return doc;
   }
 
   /**
-   * Dibuja una marca fiducial concéntrica de alto contraste (Patrón Diana + Cruz)
-   * Tamaño: 12 mm x 12 mm centrada exactamente en (cx, cy)
+   * Marca fiducial concéntrica de alto contraste (diana + cruz).
+   * `size` (10 mm) y `halo` (2.5 mm) provienen de `PDF_LAYOUT.fiducial`.
    */
-  private static drawFiducialMarker(
-    doc: jsPDF,
-    cx: number,
-    cy: number,
-    label: 'TL' | 'TR' | 'BR' | 'BL'
-  ): void {
-    const size = 10; // mm
+  private static drawFiducialMarker(doc: jsPDF, cx: number, cy: number): void {
+    const size = PDF_LAYOUT.fiducial.size;
+    const halo = PDF_LAYOUT.fiducial.halo;
     const half = size / 2;
 
     doc.saveGraphicsState();
 
-    // Fondo blanco protector exterior
+    // Halo blanco de aislamiento (libera las esquinas de cualquier vecino)
     doc.setFillColor(255, 255, 255);
-    doc.rect(cx - half - 1.5, cy - half - 1.5, size + 3, size + 3, 'F');
+    doc.rect(cx - half - halo, cy - half - halo, size + halo * 2, size + halo * 2, 'F');
 
-    // Cuadrante exterior oscuro
+    // Cuadrante exterior negro
     doc.setFillColor(0, 0, 0);
     doc.rect(cx - half, cy - half, size, size, 'F');
 
-    // Círculo interior blanco
+    // Anillo blanco
     doc.setFillColor(255, 255, 255);
     doc.circle(cx, cy, 3.2, 'F');
 
-    // Círculo central negro
+    // Punto central negro
     doc.setFillColor(0, 0, 0);
     doc.circle(cx, cy, 1.4, 'F');
 
-    // Cruz de mira de alta precisión (Crosshairs)
+    // Cruz de mira
     doc.setDrawColor(255, 255, 255);
     doc.setLineWidth(0.4);
     doc.line(cx - half + 0.5, cy, cx + half - 0.5, cy);
     doc.line(cx, cy - half + 0.5, cx, cy + half - 0.5);
 
-    // Etiqueta del cuadrante
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(5);
-    doc.setTextColor(71, 85, 105);
-    const textOffsetY = label.startsWith('T') ? -half - 1.5 : half + 2.5;
-    doc.text(`[${label}]`, cx, cy + textOffsetY, { align: 'center' });
-
     doc.restoreGraphicsState();
   }
 
-  /**
-   * Genera el PDF y dispara la descarga automática en el navegador
-   */
+  /** Genera el PDF y dispara la descarga automática en el navegador. */
   public static downloadTemplate(metadata: TemplateMetadata = {}): void {
     const doc = this.generateTemplate(metadata);
     const fileName = `SkateCoreo_Plantilla_${(metadata.title || 'Coreografia').replace(/\s+/g, '_')}_A4.pdf`;

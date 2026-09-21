@@ -47,4 +47,28 @@ assert(
   'El cliente NO contiene ninguna credencial de Google Cloud TTS'
 );
 
+// ── 5. Regresión: la voz natural DEBE intentarse sin clave local ──
+//  El bug original comprobaba la clave local del usuario para decidir si usar
+//  la voz natural. En producción esa clave no existe (la custodia el servidor),
+//  así que todo caía al sintetizador del navegador: femenina robótica y
+//  masculina idéntica con el tono bajado.
+const { ttsService } = await import('../../services/ttsService');
+
+assert(
+  !ttsService.hasGoogleApiKey(),
+  'No hay clave local en el cliente (la credencial vive en el servidor)'
+);
+assert(
+  ttsService.shouldUseNaturalVoice(),
+  'La locución usa la voz natural aunque no haya clave local (regresión corregida)'
+);
+assert(
+  ttsService.hasNaturalVoice(),
+  'hasNaturalVoice() refleja la disponibilidad real del back-end'
+);
+assert(
+  ttsService.isUsingTtsProxy(),
+  'El servicio confirma que opera contra el endpoint propio'
+);
+
 console.log('\n✅ TODAS LAS PRUEBAS DEL BACK-END DE VOZ PASARON\n');

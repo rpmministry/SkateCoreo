@@ -254,6 +254,18 @@ export class TTSService {
     return isTtsProxyEnabled() || this.hasGoogleApiKey();
   }
 
+  /**
+   * Decisión única de enrutado de la locución.
+   *
+   * Se expone como método (y se usa en `speak()` y `preWarm()`) porque el bug
+   * original fue precisamente una guarda equivocada: se comprobaba la clave
+   * LOCAL del usuario en lugar de la disponibilidad real del back-end natural,
+   * de modo que en producción nunca se intentaba la voz natural.
+   */
+  public shouldUseNaturalVoice(): boolean {
+    return this.hasNaturalVoice();
+  }
+
   public static getInstance(): TTSService {
     if (!TTSService.instance) {
       TTSService.instance = new TTSService();
@@ -326,8 +338,15 @@ export class TTSService {
     // Detener locución previa si está activa
     this.stop();
 
-    // 1. Intentar síntesis con Google Cloud TTS (Neural2/Wavenet/Journey)
-    if (this.hasGoogleApiKey()) {
+    // 1. Voz natural (Neural2/Wavenet/Journey).
+    //
+    // BUG corregido: aquí se comprobaba `hasGoogleApiKey()`, que solo mira la
+    // clave LOCAL del usuario. En producción esa clave no existe (la custodia el
+    // servidor), así que esta rama nunca se ejecutaba y TODO caía al sintetizador
+    // del navegador: la guía femenina sonaba robótica y la masculina era la misma
+    // voz con el tono bajado. Ahora se comprueba `hasNaturalVoice()`, que incluye
+    // el endpoint propio `/api/tts`.
+    if (this.shouldUseNaturalVoice()) {
       try {
         const audioBuffer = await this.synthesizeWithGoogleTTS(
           cleanText,
@@ -372,7 +391,10 @@ export class TTSService {
    * Pre-sintetiza y cachea un conjunto de frases comunes para latencia 0ms
    */
   public async preWarm(phrases: string[], options?: TTSOptions) {
-    if (!this.hasGoogleApiKey()) return;
+    // Mismo bug que en `speak()`: la voz natural también está disponible a través
+    // del endpoint propio, no solo con una clave local.
+    if (!this.shouldUseNaturalVoice()) return;
+    if (typeof window === 'undefined') return; // el proxy es same-origin
     const gender = options?.gender || this.voiceGender;
     const lang = options?.language || this.language;
 

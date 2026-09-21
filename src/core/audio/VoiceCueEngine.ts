@@ -147,6 +147,23 @@ export class VoiceCueEngine {
         hasSavedEnginePreference = true;
       }
 
+      // Migración única: las primeras versiones usaban 'browser' por defecto
+      // (cuando la voz natural requería una clave manual). Si esa preferencia
+      // quedó guardada, la Voz Guía seguía sonando robótica aunque la app ya
+      // ofreciera el endpoint natural. Se reevalúa UNA sola vez.
+      const ENGINE_MIGRATION_FLAG = 'skatecoreo_tts_engine_migrated_v2';
+      if (
+        savedEngine === 'browser' &&
+        hasNaturalVoiceBackend() &&
+        !localStorage.getItem(ENGINE_MIGRATION_FLAG)
+      ) {
+        this.config.ttsEngine = 'google-cloud';
+        try {
+          localStorage.setItem('skatecoreo_tts_engine', 'google-cloud');
+          localStorage.setItem(ENGINE_MIGRATION_FLAG, '1');
+        } catch (e) {}
+      }
+
       const savedGoogleVoice = localStorage.getItem('skatecoreo_google_voice') || localStorage.getItem('skateart_google_voice');
       if (savedGoogleVoice) {
         this.config.googleVoiceName = savedGoogleVoice;

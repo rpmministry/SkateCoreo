@@ -1,4 +1,6 @@
-const CACHE_NAME = 'skatecoreo-v2';
+// Al cambiar la versión se purgan las cachés antiguas en `activate`, de modo
+// que un despliegue nuevo se vea de inmediato sin quedarse con bundles viejos.
+const CACHE_NAME = 'skatecoreo-v3';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -34,6 +36,15 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   // Pass through non-GET requests
   if (event.request.method !== 'GET') return;
+
+  // El endpoint propio de voz (`/api/*`) NUNCA se cachea: debe llegar siempre a
+  // la función serverless y su respuesta depende de la credencial del servidor.
+  try {
+    const url = new URL(event.request.url);
+    if (url.origin === self.location.origin && url.pathname.startsWith('/api/')) return;
+  } catch (e) {
+    /* URL no parseable: se trata como recurso normal */
+  }
   
   // Para navegaciones (HTML / index.html), estrategia NETWORK-FIRST:
   // Garantiza que los despliegues en producción sean inmediatamente visibles
