@@ -1,23 +1,22 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
-  Play, 
-  Pause, 
-  Square, 
   ArrowLeft, 
+  Settings, 
+  Upload, 
+  Download, 
+  FileText, 
+  Layers, 
   Bell, 
-  BellOff, 
   Mic, 
-  MicOff, 
-  Plus, 
-  Sparkles, 
-  Activity 
+  Magnet,
+  X
 } from 'lucide-react';
 import { useAudioStudioStore } from '../../store/useAudioStudioStore';
-import { audioEngine } from '../../services/audioEngine';
 
 interface TopTransportBarProps {
   onBackToRink?: () => void;
   onExportToRink?: () => void;
+  onImportGlobalAudio?: (file: File) => void;
   isExporting?: boolean;
 }
 
@@ -25,40 +24,36 @@ const fmtTimeWithMs = (sec: number): string => {
   const s = Math.max(0, sec);
   const mins = Math.floor(s / 60);
   const secs = Math.floor(s % 60);
-  const ms = Math.floor((s % 1) * 100);
-  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
+  const ms = Math.floor((s % 1) * 10);
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${ms}`;
 };
 
 export const TopTransportBar: React.FC<TopTransportBarProps> = ({
   onBackToRink,
   onExportToRink,
+  onImportGlobalAudio,
   isExporting = false,
 }) => {
-  const isPlaying = useAudioStudioStore((s) => s.isPlaying);
-  const setIsPlaying = useAudioStudioStore((s) => s.setIsPlaying);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const currentTimeSec = useAudioStudioStore((s) => s.currentTimeSec);
-  const setCurrentTimeSec = useAudioStudioStore((s) => s.setCurrentTimeSec);
-  const totalDurationSec = useAudioStudioStore((s) => s.totalDurationSec);
 
   const globalControls = useAudioStudioStore((s) => s.globalControls);
   const setGlobalBpm = useAudioStudioStore((s) => s.setGlobalBpm);
   const toggleMetronomeMute = useAudioStudioStore((s) => s.toggleMetronomeMute);
   const setMetronomeVolume = useAudioStudioStore((s) => s.setMetronomeVolume);
-
   const toggleVoiceGuideMute = useAudioStudioStore((s) => s.toggleVoiceGuideMute);
   const setVoiceGuideVolume = useAudioStudioStore((s) => s.setVoiceGuideVolume);
 
-  const additionalTracks = useAudioStudioStore((s) => s.additionalTracks);
-  const addAudioTrack = useAudioStudioStore((s) => s.addAudioTrack);
   const analyzeBpm = useAudioStudioStore((s) => s.analyzeBpm);
   const isAnalyzingBpm = useAudioStudioStore((s) => s.isAnalyzingBpm);
 
-  // Popovers interactivos flotantes
-  const [showBpmMenu, setShowBpmMenu] = useState(false);
-  const [showMetroMenu, setShowMetroMenu] = useState(false);
-  const [showVoiceMenu, setShowVoiceMenu] = useState(false);
+  const [activeTab, setActiveTab] = useState<'arrangement' | 'notes' | 'settings'>('arrangement');
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [notesText, setNotesText] = useState('Rutina SkateCoreo: Programa Corto');
+  const [showNotesModal, setShowNotesModal] = useState(false);
+  const [snapEnabled, setSnapEnabled] = useState(true);
 
-  // Tap tempo state
+  // Tap tempo
   const tapTimesRef = useRef<number[]>([]);
   const handleTapTempo = () => {
     const now = performance.now();
@@ -79,119 +74,156 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
     }
   };
 
-  const handlePlayToggle = async () => {
-    if (isPlaying) {
-      audioEngine.pause();
-      setIsPlaying(false);
-    } else {
-      await audioEngine.play();
-      setIsPlaying(true);
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && onImportGlobalAudio) {
+      onImportGlobalAudio(file);
+      e.target.value = '';
     }
   };
 
-  const handleStop = () => {
-    audioEngine.stop();
-    setIsPlaying(false);
-    setCurrentTimeSec(0);
-  };
-
-  // Cerrar popovers al hacer clic fuera
-  const barRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const handleOutside = (e: MouseEvent | TouchEvent) => {
-      if (barRef.current && !barRef.current.contains(e.target as Node)) {
-        setShowBpmMenu(false);
-        setShowMetroMenu(false);
-        setShowVoiceMenu(false);
-      }
-    };
-    document.addEventListener('pointerdown', handleOutside);
-    return () => document.removeEventListener('pointerdown', handleOutside);
-  }, []);
-
-  const canAddMoreTracks = additionalTracks.length < 4;
-
   return (
-    <header 
-      ref={barRef}
-      className="relative z-40 h-9 shrink-0 flex items-center justify-between px-2 sm:px-3 bg-zinc-950/95 border-b border-white/10 text-white select-none backdrop-blur-md"
-      style={{ minHeight: '36px' }}
-    >
-      {/* ── IZQUIERDA: Volver + Transporte ── */}
-      <div className="flex items-center gap-1 sm:gap-2">
-        {onBackToRink && (
-          <button
-            type="button"
-            onClick={onBackToRink}
-            className="h-7 px-2 rounded flex items-center gap-1 text-[11px] font-bold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
-            title="Volver a la Pista 2D"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Pista</span>
-          </button>
-        )}
+    <>
+      <header 
+        className="relative z-40 h-10 shrink-0 flex items-center justify-between px-2 sm:px-4 bg-black border-b border-white/10 text-white select-none backdrop-blur-md"
+      >
+        {/* ── IZQUIERDA: Exit Studio (Estilo BandLab 2_Arrangement-View-1.webp) ── */}
+        <div className="flex items-center gap-2">
+          {onBackToRink && (
+            <button
+              type="button"
+              onClick={onBackToRink}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-slate-300 hover:text-white bg-white/10 hover:bg-white/20 transition-all active:scale-95 shadow-sm"
+              title="Salir del Estudio y volver a la Pista 2D"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+          )}
 
-        {/* Play/Pause */}
-        <button
-          type="button"
-          onClick={handlePlayToggle}
-          className={`h-7 px-2.5 rounded flex items-center justify-center font-bold text-xs transition-all shadow-sm ${
-            isPlaying 
-              ? 'bg-amber-400 text-black shadow-amber-400/20' 
-              : 'bg-cyan text-black shadow-cyan/20 hover:bg-cyan-300'
-          }`}
-          title={isPlaying ? 'Pausar (Espacio)' : 'Reproducir (Espacio)'}
-        >
-          {isPlaying ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current" />}
-        </button>
-
-        {/* Stop */}
-        <button
-          type="button"
-          onClick={handleStop}
-          className="h-7 w-7 rounded flex items-center justify-center text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
-          title="Detener y volver a 00:00"
-        >
-          <Square className="w-3 h-3 fill-current" />
-        </button>
-
-        {/* Display de Tiempo Digital Monospace */}
-        <div className="flex items-center px-1.5 h-7 rounded bg-black/60 border border-white/10 font-mono text-xs text-cyan tracking-wider">
-          <span>{fmtTimeWithMs(currentTimeSec)}</span>
-          <span className="text-slate-500 mx-1">/</span>
-          <span className="text-slate-400 text-[11px]">{fmtTimeWithMs(totalDurationSec)}</span>
+          {/* Display Digital de Tiempo (BandLab 00:00.0) */}
+          <div className="flex items-center gap-1.5 font-mono text-xs font-black text-white pl-1">
+            <span>{fmtTimeWithMs(currentTimeSec)}</span>
+            <button
+              type="button"
+              onClick={() => setSnapEnabled((v) => !v)}
+              className={`p-1 rounded transition-colors ${
+                snapEnabled ? 'text-cyan bg-cyan/15' : 'text-slate-500 hover:text-slate-300'
+              }`}
+              title={snapEnabled ? 'Snap a la cuadrícula: Activado' : 'Snap desactivado'}
+            >
+              <Magnet className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* ── CENTRO / DERECHA: Controles Globales (BPM, Metrónomo, Voces, + Pista) ── */}
-      <div className="flex items-center gap-1 sm:gap-1.5">
-        {/* Selector Global de BPM */}
-        <div className="relative">
+        {/* ── CENTRO: Cápsula Flotante Segmentada (BandLab Pill: Waveform / Notes / Settings) ── */}
+        <div className="flex items-center p-0.5 rounded-full bg-zinc-900 border border-white/10 shadow-inner">
+          {/* 1. Modo Vista de Arreglos (Arrangement View) */}
           <button
             type="button"
-            onClick={() => {
-              setShowBpmMenu((v) => !v);
-              setShowMetroMenu(false);
-              setShowVoiceMenu(false);
-            }}
-            className={`h-7 px-1.5 sm:px-2 rounded flex items-center gap-1 text-[11px] font-mono font-bold border transition-colors ${
-              showBpmMenu 
-                ? 'bg-cyan/20 border-cyan text-cyan' 
-                : 'bg-white/5 border-white/10 text-slate-300 hover:text-white'
+            onClick={() => setActiveTab('arrangement')}
+            className={`h-7 px-3 rounded-full flex items-center justify-center transition-all ${
+              activeTab === 'arrangement'
+                ? 'bg-white text-black shadow font-bold'
+                : 'text-slate-400 hover:text-white'
             }`}
-            title="Ajustar tempo global BPM"
+            title="Vista de Arreglos"
           >
-            <Activity className="w-3 h-3 text-cyan" />
-            <span>{globalControls.bpm}</span>
-            <span className="text-[9px] text-slate-400 font-sans hidden sm:inline">BPM</span>
+            <Layers className="w-4 h-4" />
           </button>
 
-          {/* Menú Popover de BPM */}
-          {showBpmMenu && (
-            <div className="absolute top-9 left-1/2 -translate-x-1/2 w-48 p-2 rounded-lg bg-zinc-900/98 border border-white/20 shadow-2xl z-50 backdrop-blur-xl flex flex-col gap-2">
-              <div className="flex items-center justify-between text-[11px] font-bold text-slate-300">
-                <span>Tempo Global</span>
-                <span className="font-mono text-cyan font-black">{globalControls.bpm} BPM</span>
+          {/* 2. Notas / Guía Coreográfica */}
+          <button
+            type="button"
+            onClick={() => setShowNotesModal(true)}
+            className={`h-7 px-3 rounded-full flex items-center justify-center transition-all ${
+              showNotesModal
+                ? 'bg-white text-black shadow font-bold'
+                : 'text-slate-400 hover:text-white'
+            }`}
+            title="Notas del Programa y Coreografía"
+          >
+            <FileText className="w-4 h-4" />
+          </button>
+
+          {/* 3. Ajustes de Proyecto (BPM, Metrónomo, Voces) */}
+          <button
+            type="button"
+            onClick={() => setShowSettingsModal(true)}
+            className={`h-7 px-3 rounded-full flex items-center justify-center transition-all ${
+              showSettingsModal
+                ? 'bg-white text-black shadow font-bold'
+                : 'text-slate-400 hover:text-white'
+            }`}
+            title="Configuración de Tempo & Guías"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* ── DERECHA: Cargar Audio + Guardar/Exportar a la Pista (BandLab Cloud Icon) ── */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Botón Importar Archivo de Audio Directo */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="h-8 px-2.5 rounded-full flex items-center gap-1 bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white text-xs font-bold transition-all active:scale-95 shadow-sm"
+            title="Importar archivo de audio (MP3, WAV, M4A)"
+          >
+            <Upload className="w-3.5 h-3.5 text-cyan" />
+            <span className="hidden sm:inline">Importar</span>
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="audio/*"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+
+          {/* Botón Guardar / Exportar Mix a Coreografía (Cloud Icon) */}
+          {onExportToRink && (
+            <button
+              type="button"
+              onClick={onExportToRink}
+              disabled={isExporting}
+              className="w-8 h-8 rounded-full flex items-center justify-center bg-cyan text-black hover:bg-cyan-300 transition-all active:scale-95 shadow-md shadow-cyan/20 disabled:opacity-50"
+              title="Guardar mezcla y enviar a la Pista 2D"
+            >
+              <Download className="w-4 h-4 stroke-[2.5]" />
+            </button>
+          )}
+        </div>
+      </header>
+
+      {/* ── MODAL DE AJUSTES DE PROYECTO (BPM, METRÓNOMO, VOCES) ── */}
+      {showSettingsModal && (
+        <div 
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-in fade-in duration-150"
+          onClick={() => setShowSettingsModal(false)}
+        >
+          <div 
+            className="w-full max-w-sm bg-zinc-900 border border-white/15 rounded-2xl p-4 shadow-2xl flex flex-col gap-3 text-white"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-white/10">
+              <h3 className="text-sm font-black uppercase tracking-wider text-cyan flex items-center gap-1.5">
+                <Settings className="w-4 h-4" /> Ajustes del Estudio
+              </h3>
+              <button 
+                type="button"
+                onClick={() => setShowSettingsModal(false)}
+                className="text-slate-400 hover:text-white p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* BPM */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-300">
+                <span>Tempo (BPM)</span>
+                <span className="font-mono text-cyan text-sm">{globalControls.bpm} BPM</span>
               </div>
               <div className="flex items-center gap-1">
                 <button
@@ -223,11 +255,11 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
                   +5
                 </button>
               </div>
-              <div className="flex items-center gap-1.5 pt-1 border-t border-white/10">
+              <div className="flex items-center gap-1.5 pt-1">
                 <button
                   type="button"
                   onClick={handleTapTempo}
-                  className="flex-1 py-1 px-2 rounded bg-cyan/20 hover:bg-cyan/30 text-cyan text-[10px] font-black uppercase tracking-wider"
+                  className="flex-1 py-1 rounded bg-cyan/20 text-cyan text-xs font-black uppercase tracking-wider"
                 >
                   Tap Tempo
                 </button>
@@ -235,169 +267,108 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
                   type="button"
                   onClick={() => analyzeBpm()}
                   disabled={isAnalyzingBpm}
-                  className="flex-1 py-1 px-2 rounded bg-white/10 hover:bg-white/20 text-[10px] font-bold text-slate-300 disabled:opacity-50"
-                  title="Detectar automáticamente BPM del audio cargado"
+                  className="flex-1 py-1 rounded bg-white/10 text-xs font-bold text-slate-300"
                 >
-                  {isAnalyzingBpm ? '...' : 'Auto-BPM'}
+                  {isAnalyzingBpm ? '...' : 'Auto-BPM (DSP)'}
                 </button>
               </div>
             </div>
-          )}
-        </div>
 
-        {/* Toggle & Control Global de Metrónomo */}
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => {
-              setShowMetroMenu((v) => !v);
-              setShowBpmMenu(false);
-              setShowVoiceMenu(false);
-            }}
-            className={`h-7 px-1.5 sm:px-2 rounded flex items-center gap-1 text-[11px] font-bold border transition-colors ${
-              globalControls.metronome.muted || !globalControls.metronome.enabled
-                ? 'bg-white/5 border-white/10 text-slate-500'
-                : 'bg-amber-500/15 border-amber-500/50 text-amber-400'
-            }`}
-            title="Metrónomo Global (Mute / Volumen)"
-          >
-            {globalControls.metronome.muted || !globalControls.metronome.enabled ? (
-              <BellOff className="w-3 h-3 text-slate-500" />
-            ) : (
-              <Bell className="w-3 h-3 text-amber-400" />
-            )}
-            <span className="hidden sm:inline">Metro</span>
-            <span className="font-mono text-[10px] opacity-75">
-              {globalControls.metronome.muted ? 'Off' : `${Math.round(globalControls.metronome.volume * 100)}%`}
-            </span>
-          </button>
-
-          {/* Menú Popover de Metrónomo */}
-          {showMetroMenu && (
-            <div className="absolute top-9 right-0 w-44 p-2.5 rounded-lg bg-zinc-900/98 border border-white/20 shadow-2xl z-50 backdrop-blur-xl flex flex-col gap-2">
+            {/* Metrónomo */}
+            <div className="pt-2 border-t border-white/10 flex flex-col gap-1.5">
               <div className="flex items-center justify-between text-xs font-bold text-amber-400">
-                <span>Metrónomo</span>
+                <span className="flex items-center gap-1">
+                  <Bell className="w-3.5 h-3.5" /> Metrónomo
+                </span>
                 <button
                   type="button"
                   onClick={toggleMetronomeMute}
-                  className={`px-1.5 py-0.5 rounded text-[10px] font-black uppercase ${
-                    globalControls.metronome.muted ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'
+                  className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                    globalControls.metronome.muted ? 'bg-rose-500/20 text-rose-400' : 'bg-green-500/20 text-green-400'
                   }`}
                 >
                   {globalControls.metronome.muted ? 'Silenciado' : 'Activo'}
                 </button>
               </div>
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center justify-between text-[10px] text-slate-400">
-                  <span>Volumen</span>
-                  <span className="font-mono text-white">{Math.round(globalControls.metronome.volume * 100)}%</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  value={globalControls.metronome.volume}
-                  onChange={(e) => setMetronomeVolume(parseFloat(e.target.value))}
-                  className="w-full accent-amber-400 h-1.5 bg-white/10 rounded cursor-pointer"
-                />
-              </div>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={globalControls.metronome.volume}
+                onChange={(e) => setMetronomeVolume(parseFloat(e.target.value))}
+                className="w-full accent-amber-400 h-1.5 bg-white/10 rounded cursor-pointer"
+              />
             </div>
-          )}
-        </div>
 
-        {/* Toggle & Control Global de Guías de Voz */}
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => {
-              setShowVoiceMenu((v) => !v);
-              setShowBpmMenu(false);
-              setShowMetroMenu(false);
-            }}
-            className={`h-7 px-1.5 sm:px-2 rounded flex items-center gap-1 text-[11px] font-bold border transition-colors ${
-              globalControls.voiceGuide.muted || !globalControls.voiceGuide.enabled
-                ? 'bg-white/5 border-white/10 text-slate-500'
-                : 'bg-fuchsia-500/15 border-fuchsia-500/50 text-fuchsia-400'
-            }`}
-            title="Voces Guía (Cues Técnicos)"
-          >
-            {globalControls.voiceGuide.muted || !globalControls.voiceGuide.enabled ? (
-              <MicOff className="w-3 h-3 text-slate-500" />
-            ) : (
-              <Mic className="w-3 h-3 text-fuchsia-400" />
-            )}
-            <span className="hidden sm:inline">Voz</span>
-            <span className="font-mono text-[10px] opacity-75">
-              {globalControls.voiceGuide.muted ? 'Off' : `${Math.round(globalControls.voiceGuide.volume * 100)}%`}
-            </span>
-          </button>
-
-          {/* Menú Popover de Voces Guía */}
-          {showVoiceMenu && (
-            <div className="absolute top-9 right-0 w-44 p-2.5 rounded-lg bg-zinc-900/98 border border-white/20 shadow-2xl z-50 backdrop-blur-xl flex flex-col gap-2">
+            {/* Voces Guía */}
+            <div className="pt-2 border-t border-white/10 flex flex-col gap-1.5">
               <div className="flex items-center justify-between text-xs font-bold text-fuchsia-400">
-                <span>Guías Vocales</span>
+                <span className="flex items-center gap-1">
+                  <Mic className="w-3.5 h-3.5" /> Cues & Guías Vocales
+                </span>
                 <button
                   type="button"
                   onClick={toggleVoiceGuideMute}
-                  className={`px-1.5 py-0.5 rounded text-[10px] font-black uppercase ${
-                    globalControls.voiceGuide.muted ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'
+                  className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                    globalControls.voiceGuide.muted ? 'bg-rose-500/20 text-rose-400' : 'bg-green-500/20 text-green-400'
                   }`}
                 >
                   {globalControls.voiceGuide.muted ? 'Silenciado' : 'Activo'}
                 </button>
               </div>
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center justify-between text-[10px] text-slate-400">
-                  <span>Volumen</span>
-                  <span className="font-mono text-white">{Math.round(globalControls.voiceGuide.volume * 100)}%</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  value={globalControls.voiceGuide.volume}
-                  onChange={(e) => setVoiceGuideVolume(parseFloat(e.target.value))}
-                  className="w-full accent-fuchsia-400 h-1.5 bg-white/10 rounded cursor-pointer"
-                />
-              </div>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={globalControls.voiceGuide.volume}
+                onChange={(e) => setVoiceGuideVolume(parseFloat(e.target.value))}
+                className="w-full accent-fuchsia-400 h-1.5 bg-white/10 rounded cursor-pointer"
+              />
             </div>
-          )}
+          </div>
         </div>
+      )}
 
-        {/* Botón Añadir Pista (Máximo 4 adicionales = 5 en total) */}
-        <button
-          type="button"
-          onClick={() => addAudioTrack()}
-          disabled={!canAddMoreTracks}
-          className={`h-7 px-2 rounded flex items-center gap-1 text-[11px] font-bold transition-all ${
-            canAddMoreTracks
-              ? 'bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white border border-white/10'
-              : 'bg-white/5 text-slate-600 border border-white/5 cursor-not-allowed'
-          }`}
-          title={canAddMoreTracks ? `Añadir pista de audio (${additionalTracks.length + 1}/5)` : 'Límite alcanzado: 5 pistas máximo'}
+      {/* ── MODAL DE NOTAS / LETRAS DE RUTINA (BandLab Feather Icon) ── */}
+      {showNotesModal && (
+        <div 
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-in fade-in duration-150"
+          onClick={() => setShowNotesModal(false)}
         >
-          <Plus className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Pista</span>
-          <span className="font-mono text-[10px] text-slate-400">{1 + additionalTracks.length}/5</span>
-        </button>
-
-        {/* Botón Exportar Mixdown / Sincronizar con Coreo */}
-        {onExportToRink && (
-          <button
-            type="button"
-            onClick={onExportToRink}
-            disabled={isExporting}
-            className="h-7 px-2.5 rounded flex items-center gap-1 bg-cyan/20 hover:bg-cyan/30 text-cyan border border-cyan/40 text-[11px] font-bold shadow-sm transition-colors disabled:opacity-50"
-            title="Guardar y exportar mezcla a la Pista 2D"
+          <div 
+            className="w-full max-w-sm bg-zinc-900 border border-white/15 rounded-2xl p-4 shadow-2xl flex flex-col gap-3 text-white"
+            onClick={(e) => e.stopPropagation()}
           >
-            <Sparkles className="w-3 h-3" />
-            <span className="hidden sm:inline">{isExporting ? 'Procesando...' : 'Aplicar Mezcla'}</span>
-          </button>
-        )}
-      </div>
-    </header>
+            <div className="flex items-center justify-between pb-2 border-b border-white/10">
+              <h3 className="text-sm font-black uppercase tracking-wider text-white flex items-center gap-1.5">
+                <FileText className="w-4 h-4 text-cyan" /> Notas de Coreografía
+              </h3>
+              <button 
+                type="button"
+                onClick={() => setShowNotesModal(false)}
+                className="text-slate-400 hover:text-white p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <textarea
+              value={notesText}
+              onChange={(e) => setNotesText(e.target.value)}
+              placeholder="Escribe notas, conteos o acentos musicales para la rutina..."
+              className="w-full h-32 p-2.5 rounded-lg bg-black/60 border border-white/15 text-xs text-slate-200 resize-none focus:outline-none focus:border-cyan"
+            />
+            <button
+              type="button"
+              onClick={() => setShowNotesModal(false)}
+              className="w-full py-2 rounded-lg bg-cyan text-black font-bold text-xs"
+            >
+              Listo
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 };

@@ -305,6 +305,35 @@ export class AudioEngine {
     this.emitStateChange();
   }
 
+  /**
+   * Decodifica cualquier archivo o Blob de audio sin alterar el buffer maestro ni detener la reproducción
+   */
+  public async decodeAudioFile(file: File | Blob): Promise<AudioBuffer> {
+    this.initAudioContext();
+    if (!this.ctx) throw new Error('No se pudo inicializar AudioContext');
+
+    if (this.ctx.state === 'suspended') {
+      await this.ctx.resume().catch(() => {});
+    }
+
+    const arrayBuffer = await file.arrayBuffer();
+    const copy = arrayBuffer.slice(0);
+
+    return new Promise<AudioBuffer>((resolve, reject) => {
+      // Fallback dual promesa/callback para compatibilidad con Safari iOS y Android Chrome
+      const promise = this.ctx!.decodeAudioData(
+        copy,
+        (decoded) => resolve(decoded),
+        (err) => reject(err || new Error('Fallo al decodificar audio. Verifique que sea un archivo de audio compatible (.mp3, .wav, .m4a, .aac).'))
+      );
+      if (promise && typeof promise.then === 'function') {
+        promise.then(resolve).catch((err) => {
+          reject(new Error('Fallo al decodificar audio: ' + (err?.message || 'Formato no soportado')));
+        });
+      }
+    });
+  }
+
   public async loadAudioFile(file: File | Blob, name?: string): Promise<AudioBuffer> {
     this.initAudioContext();
     if (!this.ctx) throw new Error('No se pudo inicializar AudioContext');
@@ -313,24 +342,18 @@ export class AudioEngine {
     this.fileName = name || (file instanceof File ? file.name : 'pista_audio.wav');
     this.rawBlob = file instanceof Blob ? file : new Blob([file]);
 
-    const arrayBuffer = await file.arrayBuffer();
+    const decoded = await this.decodeAudioFile(file);
+    this.audioBuffer = decoded;
+    this.durationMs = Math.round(decoded.duration * 1000);
+    this.pausedAtTime = 0;
 
+    // Detectar y ajustar BPM automáticamente si la pista tiene transitorios rítmicos claros
+    this.detectAndApplyBpm(this.audioBuffer);
 
-    try {
-      this.audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
-      this.durationMs = Math.round(this.audioBuffer.duration * 1000);
-      this.pausedAtTime = 0;
-
-      // Detectar y ajustar BPM automáticamente si la pista tiene transitorios rítmicos claros
-      this.detectAndApplyBpm(this.audioBuffer);
-
-      this.mediaSession.updateMetadata(this.fileName);
-      await this.checkBluetoothAndLatency();
-      this.emitStateChange();
-      return this.audioBuffer;
-    } catch (err) {
-      throw new Error('Fallo al decodificar audio. Verifique que sea un archivo .m4a, .wav o .mp3 válido.');
-    }
+    this.mediaSession.updateMetadata(this.fileName);
+    await this.checkBluetoothAndLatency();
+    this.emitStateChange();
+    return this.audioBuffer;
   }
 
   /**

@@ -764,22 +764,25 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
       };
 
       if (isCore) {
-        const existingClips = updatedTracks[trackKey].clips;
         updatedTracks[trackKey] = {
           ...updatedTracks[trackKey],
           buffer,
-          clips: existingClips.length > 0 ? existingClips : [initialClip],
+          clips: [initialClip],
           trimEndSec: duration,
           fileName: fileName || state.tracks[trackKey].fileName,
         };
+
+        // Si es la pista principal, sincronizar con AudioEngine de la Pista 2D
+        if (trackKey === 'music') {
+          audioEngine.setAudioBuffer(buffer, fileName || 'musica_master.wav');
+        }
       } else {
         updatedAdditional = updatedAdditional.map((t) => {
           if (t.id === trackKey) {
-            const existingClips = t.clips || [];
             return {
               ...t,
               buffer,
-              clips: existingClips.length > 0 ? existingClips : [initialClip],
+              clips: [initialClip],
               trimEndSec: duration,
               fileName: fileName || t.fileName,
             };

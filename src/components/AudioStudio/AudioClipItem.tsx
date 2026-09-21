@@ -19,7 +19,7 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
   trackColor,
   totalDurationSec,
   contentWidth,
-  trackLaneHeight = 56,
+  trackLaneHeight = 60,
   onTrackHop,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -54,12 +54,12 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
   const clipDurationSec = Math.max(0.1, clip.trimEndSec - clip.trimStartSec);
 
   const leftPx = (currentStartSec / safeTotalDuration) * contentWidth;
-  const widthPx = Math.max(16, (clipDurationSec / safeTotalDuration) * contentWidth);
+  const widthPx = Math.max(24, (clipDurationSec / safeTotalDuration) * contentWidth);
 
   // Px por segundo actual para calcular arrastres
   const pxPerSec = contentWidth / safeTotalDuration;
 
-  // ── Renderizado Canvas 2D de Onda Sonora con Curva de Fades ──
+  // ── Renderizado Canvas 2D de Onda Sonora (Estilo BandLab: Forma de onda contrastada sobre bloque sólido) ──
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !clip.buffer) return;
@@ -69,7 +69,7 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
 
     const dpr = window.devicePixelRatio || 1;
     const renderWidth = Math.floor(widthPx);
-    const renderHeight = Math.floor(trackLaneHeight);
+    const renderHeight = Math.floor(trackLaneHeight - 8);
 
     canvas.width = renderWidth * dpr;
     canvas.height = renderHeight * dpr;
@@ -88,8 +88,8 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
     const step = Math.max(1, Math.floor(samplesInClip / renderWidth));
     const midY = renderHeight / 2;
 
-    // 1. Dibujar Forma de Onda
-    ctx.fillStyle = trackColor;
+    // 1. Dibujar Forma de Onda (Color contrastado oscuro/profundo como en BandLab)
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
     for (let x = 0; x < renderWidth; x++) {
       const idx = startSample + x * step;
       let maxPeak = 0;
@@ -97,14 +97,14 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
         const val = Math.abs(channelData[idx + s] || 0);
         if (val > maxPeak) maxPeak = val;
       }
-      const barHeight = Math.max(2, maxPeak * (renderHeight * 0.78));
-      ctx.fillRect(x, midY - barHeight / 2, 1.2, barHeight);
+      const barHeight = Math.max(3, maxPeak * (renderHeight * 0.72));
+      ctx.fillRect(x, midY - barHeight / 2, 1.5, barHeight);
     }
 
     // 2. Dibujar envolvente visual de Fade In
     const fadeInWidth = (localFadeIn / clipDurationSec) * renderWidth;
     if (fadeInWidth > 2) {
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.40)';
       ctx.beginPath();
       ctx.moveTo(0, 0);
       ctx.lineTo(fadeInWidth, 0);
@@ -113,8 +113,8 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
       ctx.fill();
 
       // Línea de rampa de entrada
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(0, renderHeight);
       ctx.lineTo(fadeInWidth, 0);
@@ -125,7 +125,7 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
     const fadeOutWidth = (localFadeOut / clipDurationSec) * renderWidth;
     if (fadeOutWidth > 2) {
       const startFadeOutX = renderWidth - fadeOutWidth;
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.40)';
       ctx.beginPath();
       ctx.moveTo(startFadeOutX, 0);
       ctx.lineTo(renderWidth, 0);
@@ -134,20 +134,18 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
       ctx.fill();
 
       // Línea de rampa de salida
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(startFadeOutX, 0);
       ctx.lineTo(renderWidth, renderHeight);
       ctx.stroke();
     }
-  }, [clip.buffer, clip.trimStartSec, clip.trimEndSec, widthPx, trackLaneHeight, trackColor, localFadeIn, localFadeOut, clipDurationSec]);
+  }, [clip.buffer, clip.trimStartSec, clip.trimEndSec, widthPx, trackLaneHeight, localFadeIn, localFadeOut, clipDurationSec]);
 
   // ── Drag Gesture con @use-gesture/react ──
-  // Permite arrastre horizontal (tiempo) y vertical (track hopping)
   const bindDrag = useDrag(
     ({ down, movement: [mx, my], first, last }) => {
-      // Evitar que el gesto se dispare si se está arrastrando un tirador de fade
       if (isAdjustingFadeIn || isAdjustingFadeOut) return;
 
       if (first) {
@@ -168,7 +166,6 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
         const finalSec = dragOffsetSec !== null ? dragOffsetSec : clip.startOffsetSec;
         setDragOffsetSec(null);
 
-        // Si se movió verticalmente más de medio carril, avisar para Track Hopping
         if (Math.abs(my) > trackLaneHeight * 0.5 && onTrackHop) {
           onTrackHop(clip.id, my, finalSec);
         } else {
@@ -179,19 +176,17 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
     },
     {
       filterTaps: true,
-      delay: 220, // Long-press umbral táctil
+      delay: 220,
       threshold: 4,
     }
   );
 
-  // Tap handler para abrir menú contextual flotante
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     setSelectedClipId(clip.id);
     openContextMenu(trackId, clip.id, e.clientX, e.clientY);
   };
 
-  // ── Tiradores de Fade In / Fade Out ──
   const handleFadeInPointerDown = (e: React.PointerEvent) => {
     e.stopPropagation();
     setIsAdjustingFadeIn(true);
@@ -223,7 +218,6 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
     const initialFade = localFadeOut;
 
     const handlePointerMove = (ev: PointerEvent) => {
-      // Movimiento hacia la izquierda incrementa fade out
       const deltaPx = startX - ev.clientX;
       const deltaSec = deltaPx / pxPerSec;
       const newFade = Math.max(0, Math.min(clipDurationSec * 0.8, initialFade + deltaSec));
@@ -246,53 +240,53 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
       ref={clipRef}
       {...(bindDrag() as any)}
       onClick={handleClick}
-      className={`absolute top-1 select-none cursor-pointer rounded-md overflow-hidden transition-shadow ${
-        isDraggingClip ? 'z-30 shadow-2xl scale-[1.02] opacity-90' : 'z-10'
+      className={`absolute top-1 select-none cursor-pointer rounded-lg overflow-hidden transition-all ${
+        isDraggingClip ? 'z-30 shadow-2xl scale-[1.02] opacity-95' : 'z-10'
       } ${
         isSelected
-          ? 'ring-2 ring-cyan shadow-glow-cyan'
-          : 'ring-1 ring-white/20 hover:ring-white/40'
+          ? 'ring-2 ring-white shadow-xl shadow-cyan/30'
+          : 'hover:brightness-110 shadow-md'
       }`}
       style={{
         left: `${leftPx}px`,
         width: `${widthPx}px`,
         height: `${trackLaneHeight - 8}px`,
-        backgroundColor: `${trackColor}18`,
+        backgroundColor: trackColor, // Bloque de color sólido auténtico BandLab
         transform: isDraggingClip ? `translateY(${dragDeltaY}px)` : 'none',
         touchAction: 'none',
       }}
     >
-      {/* Canvas con la onda sonora del clip */}
+      {/* Canvas con la onda sonora */}
       <canvas
         ref={canvasRef}
         className="w-full h-full block pointer-events-none"
         style={{ width: '100%', height: '100%' }}
       />
 
-      {/* Header del Clip con nombre */}
-      <div className="absolute top-0 inset-x-0 h-4 px-1.5 flex items-center justify-between bg-black/40 backdrop-blur-xs text-[10px] font-mono text-slate-200 pointer-events-none truncate">
-        <span className="truncate">{clip.name}</span>
-        <span className="text-[9px] text-slate-400 font-sans ml-1">
+      {/* Header del Clip con nombre y duración estilo BandLab */}
+      <div className="absolute top-0 inset-x-0 h-4 px-2 flex items-center justify-between bg-black/25 text-[10px] font-sans font-bold text-white pointer-events-none truncate">
+        <span className="truncate drop-shadow-sm">{clip.name}</span>
+        <span className="text-[9px] font-mono text-white/80 ml-1">
           {clipDurationSec.toFixed(1)}s
         </span>
       </div>
 
-      {/* ── Tirador Fade In (Superior Izquierda) ── */}
+      {/* Tirador Fade In (Superior Izquierda) */}
       <div
         onPointerDown={handleFadeInPointerDown}
-        className="absolute top-0 left-0 w-4 h-4 cursor-ew-resize z-20 flex items-start justify-start group"
-        title="Arrastra para ajustar Fade In"
+        className="absolute top-0 left-0 w-5 h-5 cursor-ew-resize z-20 flex items-start justify-start group p-0.5"
+        title="Arrastra para Fade In"
       >
-        <div className="w-2.5 h-2.5 bg-white/70 group-hover:bg-cyan rounded-br transition-colors shadow-sm" />
+        <div className="w-2 h-2 bg-white group-hover:scale-125 rounded-xs shadow transition-transform" />
       </div>
 
-      {/* ── Tirador Fade Out (Superior Derecha) ── */}
+      {/* Tirador Fade Out (Superior Derecha) */}
       <div
         onPointerDown={handleFadeOutPointerDown}
-        className="absolute top-0 right-0 w-4 h-4 cursor-ew-resize z-20 flex items-start justify-end group"
-        title="Arrastra para ajustar Fade Out"
+        className="absolute top-0 right-0 w-5 h-5 cursor-ew-resize z-20 flex items-start justify-end group p-0.5"
+        title="Arrastra para Fade Out"
       >
-        <div className="w-2.5 h-2.5 bg-white/70 group-hover:bg-cyan rounded-bl transition-colors shadow-sm" />
+        <div className="w-2 h-2 bg-white group-hover:scale-125 rounded-xs shadow transition-transform" />
       </div>
     </div>
   );
