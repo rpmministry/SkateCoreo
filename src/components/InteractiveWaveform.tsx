@@ -4,9 +4,7 @@ import { useAudioStudioStore } from '../store/useAudioStudioStore';
 import { audioEngine } from '../core/audio/AudioEngine';
 import { ChoreographyPoint, isMainNode } from '../types/choreography';
 import { 
-  Clock, 
   Music, 
-  Sparkles, 
   ZoomIn, 
   ZoomOut, 
   RotateCcw,
@@ -48,16 +46,11 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
   const [hoveredPinId, setHoveredPinId] = useState<string | null>(null);
   const [isMiniMixerOpen, setIsMiniMixerOpen] = useState(false);
 
-  // Store de Audio Studio para sincronización de los badges de estado de los 3 canales principales
+  // Store de Audio Studio: volumen master para el badge resumido de mezcla
   const tracks = useAudioStudioStore((s) => s.tracks);
-  const globalControls = useAudioStudioStore((s) => s.globalControls);
-
   const masterTrack = tracks.music;
   const musicVolume = masterTrack?.volume ?? 1.0;
   const musicMuted = masterTrack?.muted ?? false;
-
-  const metronomeMuted = globalControls.metronome.muted;
-  const voiceMuted = globalControls.voiceGuide.muted;
 
   // Radio seguro de marcadores en px
   const PIN_RADIUS = 18;
@@ -459,58 +452,60 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
       ref={containerRef}
       className="w-full h-full bg-surface-canvas text-text-primary px-3 sm:px-4 py-1 flex flex-col justify-between select-none relative overflow-hidden timeline-safe-zone"
     >
-      {/* ── Cabecera del Waveform: Información y Controles de Zoom ── */}
-      <div className="flex items-center justify-between gap-2 text-xs shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="w-5 h-5 rounded-subtle bg-surface-hover text-text-secondary flex items-center justify-center border border-border-subtle shrink-0">
-            <Music className="w-3 h-3" />
+      {/* ── Cabecera del Waveform: identidad de pista + zoom + mezcla ──
+          El tiempo y la duración viven en el transporte único (RinkAudioPlayer)
+          para eliminar telemetría duplicada en pantalla.
+          Todas las áreas táctiles respetan el mínimo de 48x48px. */}
+      <div className="flex shrink-0 items-center justify-between gap-2 text-xs">
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-subtle border border-border-subtle bg-surface-hover text-text-secondary">
+            <Music className="h-3.5 w-3.5" />
           </div>
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className="font-semibold text-text-primary truncate max-w-[110px] sm:max-w-[180px]">
+          <div className="flex min-w-0 flex-col leading-tight">
+            <span className="truncate font-semibold text-text-primary max-w-[130px] sm:max-w-[190px] xl:max-w-[260px]">
               {fileName || 'Pista Musical'}
             </span>
-            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-surface-hover text-text-tertiary border border-border-subtle hidden sm:inline shrink-0">
-              Waveform
+            <span className="hidden text-[9px] font-mono uppercase tracking-wider text-text-tertiary lg:inline">
+              Waveform · {timelineNodes.length} nodos
             </span>
           </div>
         </div>
 
-        {/* Controles de Zoom & Telemetría */}
-        <div className="flex items-center gap-2 font-mono text-[11px] shrink-0">
-          {/* Botón Desplegable Mini-Mezclador */}
+        <div className="flex shrink-0 items-center gap-1.5">
+          {/* Botón Desplegable Mini-Mezclador (único acceso a la mezcla de la Pista 2D) */}
           <button
             type="button"
             onClick={() => setIsMiniMixerOpen((prev) => !prev)}
-            className={`px-2 py-0.5 rounded-subtle flex items-center gap-1.5 font-sans text-[11px] font-bold transition-all ${
+            className={`min-h-touch min-w-touch rounded-subtle flex items-center justify-center gap-1.5 border px-2.5 font-sans text-[11px] font-bold press lg:px-3 ${
               isMiniMixerOpen
-                ? 'bg-cyan/20 text-cyan border border-cyan/40 shadow-sm shadow-cyan/20'
-                : 'bg-surface-hover/80 hover:bg-surface-active text-text-secondary hover:text-text-primary border border-border-subtle'
+                ? 'border-cyan/40 bg-cyan/20 text-cyan shadow-sm shadow-cyan/20'
+                : 'border-border-subtle bg-surface-hover/80 text-text-secondary hover:bg-surface-active hover:text-text-primary'
             }`}
             title="Ajustar volúmenes independientes (Música Master, Metrónomo, Voces Guía)"
+            aria-label="Abrir mezcla de audio"
           >
-            <Sliders className="w-3 h-3 text-cyan" />
-            <span className="hidden sm:inline">Mezcla</span>
-            <div className="flex items-center gap-1 font-mono text-[9px] text-text-tertiary">
-              <span className={musicMuted ? 'text-rose-400 line-through' : 'text-cyan font-bold'}>M:{musicMuted ? 'M' : `${Math.round(musicVolume * 100)}%`}</span>
-              <span className={metronomeMuted ? 'text-rose-400 line-through' : 'text-amber-400 font-semibold'}>🔔</span>
-              <span className={voiceMuted ? 'text-rose-400 line-through' : 'text-fuchsia-400 font-semibold'}>🗣️</span>
-            </div>
+            <Sliders className="h-3.5 w-3.5 text-cyan" />
+            <span className="hidden lg:inline">Mezcla</span>
+            <span className="hidden font-mono text-[9px] text-text-tertiary xl:inline">
+              {musicMuted ? 'M' : `${Math.round(musicVolume * 100)}%`}
+            </span>
           </button>
 
-          {/* Botones de Zoom In / Zoom Out / Reset */}
-          <div className="flex items-center gap-1 bg-surface-hover/80 p-0.5 rounded-subtle border border-border-subtle">
+          {/* Botones de Zoom In / Zoom Out / Reset (48x48px) */}
+          <div className="flex items-center gap-0.5 rounded-subtle border border-border-subtle bg-surface-hover/80 p-0.5">
             <button
               type="button"
               onClick={() => zoomOut()}
               disabled={zoom <= 1.01}
-              className="w-5 h-5 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-surface-active disabled:opacity-25 disabled:pointer-events-none transition-all active:scale-95"
+              className="flex min-h-touch min-w-touch items-center justify-center rounded text-text-secondary press hover:bg-surface-active hover:text-text-primary disabled:pointer-events-none disabled:opacity-25"
               title="Alejar (Ctrl + Rueda abajo)"
+              aria-label="Alejar"
             >
-              <ZoomOut className="w-3 h-3" />
+              <ZoomOut className="h-4 w-4" />
             </button>
 
             <span
-              className="font-mono text-[10px] text-accent font-bold px-1 min-w-[34px] text-center"
+              className="hidden min-w-[34px] px-1 text-center font-mono text-[10px] font-bold text-accent lg:inline"
               title="Factor de zoom horizontal actual"
             >
               {zoom.toFixed(1)}x
@@ -520,36 +515,25 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
               type="button"
               onClick={() => zoomIn()}
               disabled={zoom >= 34.9}
-              className="w-5 h-5 flex items-center justify-center rounded text-text-secondary hover:text-text-primary hover:bg-surface-active disabled:opacity-25 disabled:pointer-events-none transition-all active:scale-95"
+              className="flex min-h-touch min-w-touch items-center justify-center rounded text-text-secondary press hover:bg-surface-active hover:text-text-primary disabled:pointer-events-none disabled:opacity-25"
               title="Acercar (Ctrl + Rueda arriba o Pellizco)"
+              aria-label="Acercar"
             >
-              <ZoomIn className="w-3 h-3" />
+              <ZoomIn className="h-4 w-4" />
             </button>
 
             {zoom > 1.05 && (
               <button
                 type="button"
                 onClick={resetZoom}
-                className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-accent/15 text-accent hover:bg-accent/25 transition-all flex items-center gap-0.5"
+                className="flex min-h-touch min-w-touch items-center justify-center gap-0.5 rounded bg-accent/15 text-[9px] font-bold text-accent press hover:bg-accent/25"
                 title="Restablecer a vista completa (1x)"
+                aria-label="Restablecer zoom"
               >
-                <RotateCcw className="w-2.5 h-2.5" />
-                <span>1x</span>
+                <RotateCcw className="h-3 w-3" />
+                1x
               </button>
             )}
-          </div>
-
-          {/* Telemetría de Tiempo */}
-          <div className="flex items-center gap-1 text-text-tertiary">
-            <Clock className="w-3 h-3 text-accent" />
-            <span className="text-accent font-semibold">{formatTime(currentTimeMs)}</span>
-            <span>/</span>
-            <span>{formatTime(effectiveDurationMs)}</span>
-          </div>
-
-          <div className="hidden sm:flex items-center gap-1 text-text-secondary bg-surface-hover/70 px-2 py-0.5 rounded-subtle border border-border-subtle">
-            <Sparkles className="w-3 h-3 text-accent" />
-            <span>Nodos: <strong className="text-text-primary font-bold">{timelineNodes.length}</strong></span>
           </div>
         </div>
       </div>

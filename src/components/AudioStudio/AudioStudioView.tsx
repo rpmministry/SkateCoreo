@@ -26,12 +26,14 @@ import { BandLabMixerDrawer } from './BandLabMixerDrawer';
 interface AudioStudioViewProps {
   onExportToRink?: () => void;
   onBackToRink?: () => void;
+  onGoHome?: () => void;
   onOpenDrawer?: () => void;
 }
 
 export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   onExportToRink,
   onBackToRink,
+  onGoHome,
 }) => {
   const tracks = useAudioStudioStore((s) => s.tracks);
   const additionalTracks = useAudioStudioStore((s) => s.additionalTracks);
@@ -462,6 +464,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
       {/* ── 1. CABECERA BANDLAB (TopTransportBar) ── */}
       <TopTransportBar
         onBackToRink={onBackToRink}
+        onGoHome={onGoHome}
         onExportToRink={handleExportMix}
         onImportGlobalAudio={handleImportGlobal}
         isExporting={isExporting}

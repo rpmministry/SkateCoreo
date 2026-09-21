@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { 
   ArrowLeft, 
+  Home,
   Settings, 
   Upload, 
   Send, 
@@ -15,6 +16,7 @@ import { useAudioStudioStore } from '../../store/useAudioStudioStore';
 
 interface TopTransportBarProps {
   onBackToRink?: () => void;
+  onGoHome?: () => void;
   onExportToRink?: () => void;
   onImportGlobalAudio?: (file: File) => void;
   isExporting?: boolean;
@@ -30,6 +32,7 @@ const fmtTimeWithMs = (sec: number): string => {
 
 export const TopTransportBar: React.FC<TopTransportBarProps> = ({
   onBackToRink,
+  onGoHome,
   onExportToRink,
   onImportGlobalAudio,
   isExporting = false,
@@ -86,20 +89,31 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
   return (
     <>
       <header 
-        className="relative z-40 h-12 shrink-0 flex items-center justify-between px-2 sm:px-4 bg-black border-b border-white/10 text-white select-none backdrop-blur-md pt-safe px-safe overflow-x-auto no-scrollbar gap-2 sm:gap-4"
+        className="relative z-40 min-h-[52px] shrink-0 flex items-center justify-between px-2 sm:px-4 bg-black border-b border-white/10 text-white select-none backdrop-blur-md pt-safe px-safe overflow-x-auto no-scrollbar gap-2 sm:gap-4"
       >
-        {/* ── IZQUIERDA: Exit Studio (Estilo BandLab 2_Arrangement-View-1.webp) ── */}
+        {/* ── IZQUIERDA: Inicio + Regreso a Pista (destinos distintos, sin duplicar) ── */}
         <div className="flex items-center gap-2 shrink-0">
+          {onGoHome && (
+            <button
+              type="button"
+              onClick={onGoHome}
+              className="press flex h-11 w-11 min-h-touch min-w-touch shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10 text-slate-200 hover:bg-white/20 hover:text-white"
+              title="Ir al Inicio"
+              aria-label="Ir al Inicio"
+            >
+              <Home className="w-4 h-4 text-cyan shrink-0" />
+            </button>
+          )}
           {onBackToRink && (
             <button
               type="button"
               onClick={onBackToRink}
-              className="h-10 min-h-touch px-3 rounded-full flex items-center gap-1.5 text-slate-200 hover:text-white bg-white/10 hover:bg-white/20 border border-white/15 transition-all active:scale-95 shadow-sm font-bold text-xs shrink-0"
+              className="press h-11 min-h-touch px-3 rounded-full flex items-center gap-1.5 text-slate-200 hover:text-white bg-white/10 hover:bg-white/20 border border-white/15 shadow-sm font-bold text-xs shrink-0"
               title="Salir del Estudio y volver a la Pista 2D"
             >
               <ArrowLeft className="w-4 h-4 text-cyan shrink-0" />
-              <span className="hidden sm:inline">← Volver a Pista 2D</span>
-              <span className="sm:hidden">Volver a Pista</span>
+              <span className="hidden sm:inline">Volver a Pista 2D</span>
+              <span className="sm:hidden">Pista 2D</span>
             </button>
           )}
 

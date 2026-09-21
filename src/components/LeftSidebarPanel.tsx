@@ -19,7 +19,9 @@ import {
   CircleDot,
   Camera,
   FileDown,
+  PenTool,
 } from 'lucide-react';
+import { RinkContextTools } from './rink/RinkContextTools';
 import { useAudioEngine } from '../hooks/useAudioEngine';
 import { useChoreographyStore } from '../store/useChoreographyStore';
 import { useAuthStore } from '../store/useAuthStore';
@@ -148,6 +150,15 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
           </div>
         </section>
 
+        {/* ═══ 0b. Modo de Trazado (controles únicos de edición de pista) ═══ */}
+        <section className="px-4 py-3.5 space-y-2">
+          <h3 className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+            <PenTool className="w-3.5 h-3.5 text-cyan" />
+            Modo de Trazado
+          </h3>
+          <RinkContextTools layout="panel" showActions={false} onClear={() => onClearRink?.()} />
+        </section>
+
         {/* ═══ 1. Intro countdown ═══════════════════════════ */}
         <section className="px-4 py-3.5 space-y-2.5">
           <h3 className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">
@@ -186,16 +197,7 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
               <Music className="w-3.5 h-3.5 text-cyan" />
               Mezclador de Audio
             </h3>
-            {onOpenAudioStudio && (
-              <button
-                type="button"
-                onClick={onOpenAudioStudio}
-                className="text-[10px] font-bold text-cyan hover:underline flex items-center gap-1"
-                title="Abrir Estudio de Audio completo"
-              >
-                <span>Abrir DAW →</span>
-              </button>
-            )}
+            <span className="text-[10px] text-slate-500 font-mono">3 canales</span>
           </div>
 
           {onOpenAudioStudio && (

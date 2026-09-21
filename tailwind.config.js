@@ -23,6 +23,14 @@ export default {
           '"SF Pro Display"',
           'sans-serif',
         ],
+        // Geometría oficial de marca (SkateCoreo wordmark & titulares)
+        display: [
+          '"IBM Plex Sans"',
+          'Inter',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          'sans-serif',
+        ],
         mono: ['"JetBrains Mono"', 'monospace'],
       },
       colors: {
@@ -106,6 +114,31 @@ export default {
       },
       transitionDuration: {
         ui: '180ms',
+      },
+      // Animaciones nativas (sin dependencias externas)
+      keyframes: {
+        'fade-up': {
+          '0%': { opacity: '0', transform: 'translateY(10px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        'fade-in': {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        'scale-in': {
+          '0%': { opacity: '0', transform: 'scale(0.97)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
+        },
+        'glow-pulse': {
+          '0%, 100%': { opacity: '0.55' },
+          '50%': { opacity: '1' },
+        },
+      },
+      animation: {
+        'fade-up': 'fade-up 420ms cubic-bezier(0.16, 1, 0.3, 1) both',
+        'fade-in': 'fade-in 220ms ease-out both',
+        'scale-in': 'scale-in 200ms cubic-bezier(0.16, 1, 0.3, 1) both',
+        'glow-pulse': 'glow-pulse 3.2s ease-in-out infinite',
       },
     },
   },
