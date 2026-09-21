@@ -106,7 +106,7 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
           type="button"
           onClick={handlePlayPause}
           disabled={!hasAudioLoaded}
-          className={`min-w-[40px] min-h-[40px] w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-95 shadow-md ${
+          className={`w-12 h-12 min-w-touch min-h-touch rounded-xl flex items-center justify-center transition-all active:scale-95 shadow-md ${
             isPlaying
               ? 'bg-amber-400 text-black shadow-amber-400/25'
               : 'bg-cyan text-black shadow-cyan/25 hover:bg-cyan-300'
@@ -114,9 +114,9 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
           title={isPlaying ? 'Pausar (Espacio)' : 'Reproducir (Espacio)'}
         >
           {isPlaying ? (
-            <Pause className="w-4 h-4 fill-current stroke-none" />
+            <Pause className="w-5 h-5 fill-current stroke-none" />
           ) : (
-            <Play className="w-4 h-4 fill-current stroke-none ml-0.5" />
+            <Play className="w-5 h-5 fill-current stroke-none ml-0.5" />
           )}
         </button>
 
@@ -125,10 +125,10 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
           type="button"
           onClick={handleStop}
           disabled={!hasAudioLoaded}
-          className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-25"
+          className="w-12 h-12 min-w-touch min-h-touch rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-25"
           title="Detener y volver a 0:00"
         >
-          <Square className="w-3.5 h-3.5 fill-current stroke-none" />
+          <Square className="w-4 h-4 fill-current stroke-none" />
         </button>
 
         {/* Display de Tiempo Digital y Progreso */}
@@ -177,19 +177,19 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
         <button
           type="button"
           onClick={() => setIsMixerOpen((prev) => !prev)}
-          className={`h-8 px-2 sm:px-2.5 rounded-xl flex items-center gap-1.5 text-xs font-bold transition-all ${
+          className={`h-12 min-h-touch px-3 rounded-xl flex items-center gap-1.5 text-xs font-bold transition-all ${
             isMixerOpen
               ? 'bg-cyan/20 text-cyan border border-cyan/40 shadow-sm'
               : 'bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/5'
           }`}
           title={isMixerOpen ? 'Cerrar panel de mezcla' : 'Abrir controles de volumen de Pistas, Cues y Metrónomo'}
         >
-          <Sliders className="w-3.5 h-3.5" />
+          <Sliders className="w-4 h-4" />
           <span className="hidden sm:inline">Mezcla</span>
           {isMixerOpen ? (
-            <ChevronUp className="w-3 h-3 text-cyan" />
+            <ChevronUp className="w-3.5 h-3.5 text-cyan" />
           ) : (
-            <ChevronDown className="w-3 h-3 text-slate-400" />
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
           )}
         </button>
 
@@ -198,10 +198,10 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
           <button
             type="button"
             onClick={onOpenStudio}
-            className="h-8 px-2 sm:px-2.5 rounded-xl flex items-center gap-1 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-medium border border-white/5 transition-colors"
+            className="h-12 min-h-touch px-3 rounded-xl flex items-center gap-1.5 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-medium border border-white/5 transition-colors"
             title="Abrir editor multipista completo (Estudio de Audio)"
           >
-            <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-cyan" />
+            <ExternalLink className="w-4 h-4 text-slate-400 group-hover:text-cyan" />
             <span className="hidden lg:inline">Estudio DAW</span>
           </button>
         )}

@@ -6,6 +6,14 @@ export default {
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
+    screens: {
+      'xs': '320px',          // mobile_portrait: 320px a 479px
+      'sm': '480px',          // mobile_landscape: 480px a 767px
+      'md': '768px',          // tablet_portrait: 768px a 1023px
+      'lg': '1024px',         // tablet_landscape_and_laptop: 1024px a 1279px
+      'xl': '1280px',         // desktop_large: 1280px o más
+      '2xl': '1536px',
+    },
     extend: {
       fontFamily: {
         sans: [

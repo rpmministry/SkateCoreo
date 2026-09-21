@@ -103,11 +103,13 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
     <>
       <div 
         className={`relative flex items-stretch border-b border-white/5 transition-all ${
-          isDropTarget
-            ? 'bg-cyan-950/40 ring-2 ring-inset ring-cyan shadow-lg shadow-cyan/20'
-            : isActive
-              ? 'bg-zinc-950/80 ring-1 ring-inset ring-cyan/30'
-              : 'bg-black/60 hover:bg-black/80'
+          isMasterDropTarget
+            ? 'bg-cyan-900/60 ring-2 ring-inset ring-cyan shadow-xl shadow-cyan/30'
+            : isDropTarget
+              ? 'bg-cyan-950/40 ring-2 ring-inset ring-cyan shadow-lg shadow-cyan/20'
+              : isActive
+                ? 'bg-zinc-950/80 ring-1 ring-inset ring-cyan/30'
+                : 'bg-black/60 hover:bg-black/80'
         }`}
         style={{ height: `${trackLaneHeight}px` }}
         onDragOver={(e) => e.preventDefault()}

@@ -609,37 +609,37 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
       </div>
 
       {/* ── 3. BARRA INFERIOR DE TRANSPORTE BANDLAB (BandLab Bottom Dock) ── */}
-      <footer className="h-14 shrink-0 flex items-center justify-between px-3 sm:px-6 bg-zinc-950 border-t border-white/10 text-xs z-30 select-none">
+      <footer className="min-h-16 h-auto py-2 sm:py-0 shrink-0 flex items-center justify-between px-3 sm:px-6 bg-zinc-950 border-t border-white/10 text-xs z-30 select-none pb-safe px-safe flex-wrap gap-2">
         {/* Izquierda: Mezclador + Rewind + Stop + Tijeras */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-2">
           {/* Botón Mezclador (Abre BandLabMixerDrawer) */}
           <button
             type="button"
             onClick={() => setShowMixerDrawer(true)}
-            className="w-10 h-10 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white transition-all active:scale-95 shadow-sm"
+            className="w-12 h-12 min-w-touch min-h-touch rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white transition-all active:scale-95 shadow-sm"
             title="Abrir Mezclador de Pistas (Volumen, Mute, Solo)"
           >
-            <Sliders className="w-4 h-4 text-cyan" />
+            <Sliders className="w-5 h-5 text-cyan" />
           </button>
 
           {/* Rewind to 0:00 */}
           <button
             type="button"
             onClick={handleRewind}
-            className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors active:scale-95"
+            className="w-12 h-12 min-w-touch min-h-touch rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors active:scale-95"
             title="Volver al inicio (0:00)"
           >
-            <SkipBack className="w-4 h-4" />
+            <SkipBack className="w-5 h-5" />
           </button>
 
           {/* Stop / Detener */}
           <button
             type="button"
             onClick={handleStop}
-            className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors active:scale-95"
+            className="w-12 h-12 min-w-touch min-h-touch rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors active:scale-95"
             title="Detener reproducción y reiniciar posición"
           >
-            <Square className="w-3.5 h-3.5 fill-current" />
+            <Square className="w-4 h-4 fill-current" />
           </button>
 
           {/* Cortar en cabezal */}
@@ -656,10 +656,10 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
               }
             }}
             disabled={!selectedClipId}
-            className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 disabled:opacity-25 transition-colors active:scale-95"
+            className="w-12 h-12 min-w-touch min-h-touch rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 disabled:opacity-25 transition-colors active:scale-95"
             title="Dividir clip en el cabezal"
           >
-            <Scissors className="w-4 h-4 text-mint" />
+            <Scissors className="w-5 h-5 text-mint" />
           </button>
         </div>
 
@@ -668,7 +668,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           <button
             type="button"
             onClick={handlePlayToggle}
-            className={`w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-transform active:scale-95 ${
+            className={`w-14 h-14 min-w-touch min-h-touch rounded-full flex items-center justify-center shadow-lg transition-transform active:scale-95 ${
               isPlaying 
                 ? 'bg-amber-400 text-black shadow-amber-400/30' 
                 : 'bg-red-500 text-white shadow-red-500/30 hover:bg-red-600'
@@ -676,9 +676,9 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             title={isPlaying ? 'Pausar' : 'Reproducir'}
           >
             {isPlaying ? (
-              <Pause className="w-5 h-5 fill-current" />
+              <Pause className="w-6 h-6 fill-current" />
             ) : (
-              <Play className="w-5 h-5 fill-current ml-0.5" />
+              <Play className="w-6 h-6 fill-current ml-0.5" />
             )}
           </button>
         </div>
@@ -689,51 +689,51 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           <button
             type="button"
             onClick={toggleMetronomeMute}
-            className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
+            className={`w-12 h-12 min-w-touch min-h-touch rounded-full flex items-center justify-center transition-colors ${
               globalControls.metronome.muted 
                 ? 'text-slate-500 hover:bg-white/5' 
                 : 'text-amber-400 bg-amber-500/15'
             }`}
             title="Activar/Silenciar Metrónomo"
           >
-            <Bell className="w-4 h-4" />
+            <Bell className="w-5 h-5" />
           </button>
 
           {/* + Marcador temporal */}
           <button
             type="button"
             onClick={() => addTimeNode(currentTimeSec)}
-            className="h-8 px-2.5 rounded-full flex items-center gap-1 bg-cyan/15 text-cyan border border-cyan/30 text-xs font-bold transition-all hover:bg-cyan/25 active:scale-95"
+            className="h-12 min-h-touch px-3 rounded-full flex items-center gap-1.5 bg-cyan/15 text-cyan border border-cyan/30 text-xs font-bold transition-all hover:bg-cyan/25 active:scale-95"
             title="Añadir marcador temporal"
           >
-            <MapPin className="w-3.5 h-3.5" />
+            <MapPin className="w-4 h-4" />
             <span className="hidden sm:inline">Nodo</span>
             <span>({audioNodes.length})</span>
           </button>
 
           {/* Controles de Zoom */}
-          <div className="flex items-center gap-0.5 font-mono text-xs pl-1">
+          <div className="flex items-center gap-1 font-mono text-xs pl-1">
             <button
               type="button"
               onClick={() => zoomOut()}
-              className="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:text-white"
+              className="w-9 h-9 min-w-[36px] min-h-[36px] rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10"
               title="Alejar Zoom"
             >
-              <ZoomOut className="w-3.5 h-3.5" />
+              <ZoomOut className="w-4 h-4" />
             </button>
             <button
               type="button"
               onClick={() => zoomIn()}
-              className="w-7 h-7 rounded flex items-center justify-center text-slate-400 hover:text-white"
+              className="w-9 h-9 min-w-[36px] min-h-[36px] rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10"
               title="Acercar Zoom"
             >
-              <ZoomIn className="w-3.5 h-3.5" />
+              <ZoomIn className="w-4 h-4" />
             </button>
             {zoom > 1.05 && (
               <button
                 type="button"
                 onClick={resetZoom}
-                className="px-1 py-0.5 rounded text-[10px] bg-white/10 text-slate-300"
+                className="px-2 py-1 rounded-lg text-[10px] bg-white/10 text-slate-300 font-bold"
               >
                 1x
               </button>

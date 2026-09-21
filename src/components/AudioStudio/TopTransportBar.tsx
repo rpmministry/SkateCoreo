@@ -85,7 +85,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
   return (
     <>
       <header 
-        className="relative z-40 h-10 shrink-0 flex items-center justify-between px-2 sm:px-4 bg-black border-b border-white/10 text-white select-none backdrop-blur-md"
+        className="relative z-40 min-h-12 h-auto py-1 sm:py-0 shrink-0 flex items-center justify-between px-2 sm:px-4 bg-black border-b border-white/10 text-white select-none backdrop-blur-md pt-safe px-safe flex-wrap gap-2"
       >
         {/* ── IZQUIERDA: Exit Studio (Estilo BandLab 2_Arrangement-View-1.webp) ── */}
         <div className="flex items-center gap-2">
@@ -93,10 +93,10 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
             <button
               type="button"
               onClick={onBackToRink}
-              className="h-8 px-2.5 sm:px-3 rounded-full flex items-center gap-1.5 text-slate-200 hover:text-white bg-white/10 hover:bg-white/20 border border-white/15 transition-all active:scale-95 shadow-sm font-bold text-xs"
+              className="h-10 min-h-touch px-3 rounded-full flex items-center gap-1.5 text-slate-200 hover:text-white bg-white/10 hover:bg-white/20 border border-white/15 transition-all active:scale-95 shadow-sm font-bold text-xs"
               title="Salir del Estudio y volver a la Pista 2D"
             >
-              <ArrowLeft className="w-3.5 h-3.5 text-cyan shrink-0" />
+              <ArrowLeft className="w-4 h-4 text-cyan shrink-0" />
               <span className="hidden sm:inline">← Volver a Pista 2D</span>
               <span className="sm:hidden">Volver</span>
             </button>
@@ -108,12 +108,12 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
             <button
               type="button"
               onClick={() => setSnapEnabled((v) => !v)}
-              className={`p-1 rounded transition-colors ${
+              className={`p-1.5 rounded transition-colors ${
                 snapEnabled ? 'text-cyan bg-cyan/15' : 'text-slate-500 hover:text-slate-300'
               }`}
               title={snapEnabled ? 'Snap a la cuadrícula: Activado' : 'Snap desactivado'}
             >
-              <Magnet className="w-3.5 h-3.5" />
+              <Magnet className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -124,7 +124,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('arrangement')}
-            className={`h-7 px-3 rounded-full flex items-center justify-center transition-all ${
+            className={`h-8 px-3 rounded-full flex items-center justify-center transition-all ${
               activeTab === 'arrangement'
                 ? 'bg-white text-black shadow font-bold'
                 : 'text-slate-400 hover:text-white'
@@ -138,7 +138,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
           <button
             type="button"
             onClick={() => setShowNotesModal(true)}
-            className={`h-7 px-3 rounded-full flex items-center justify-center transition-all ${
+            className={`h-8 px-3 rounded-full flex items-center justify-center transition-all ${
               showNotesModal
                 ? 'bg-white text-black shadow font-bold'
                 : 'text-slate-400 hover:text-white'
@@ -152,7 +152,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
           <button
             type="button"
             onClick={() => setShowSettingsModal(true)}
-            className={`h-7 px-3 rounded-full flex items-center justify-center transition-all ${
+            className={`h-8 px-3 rounded-full flex items-center justify-center transition-all ${
               showSettingsModal
                 ? 'bg-white text-black shadow font-bold'
                 : 'text-slate-400 hover:text-white'
@@ -164,15 +164,15 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
         </div>
 
         {/* ── DERECHA: Cargar Audio + Guardar/Exportar a la Pista (BandLab Cloud Icon) ── */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
+        <div className="flex items-center gap-2">
           {/* Botón Importar Archivo de Audio Directo */}
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="h-8 px-2.5 rounded-full flex items-center gap-1 bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white text-xs font-bold transition-all active:scale-95 shadow-sm"
+            className="h-10 min-h-touch px-3 rounded-full flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white text-xs font-bold transition-all active:scale-95 shadow-sm"
             title="Importar archivo de audio (MP3, WAV, M4A)"
           >
-            <Upload className="w-3.5 h-3.5 text-cyan" />
+            <Upload className="w-4 h-4 text-cyan" />
             <span className="hidden sm:inline">Importar</span>
           </button>
           <input
@@ -189,7 +189,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
               type="button"
               onClick={onExportToRink}
               disabled={isExporting}
-              className="h-8 px-3 rounded-full flex items-center gap-1.5 bg-gradient-to-r from-cyan to-teal-400 text-black hover:brightness-110 transition-all active:scale-95 shadow-md shadow-cyan/25 font-bold text-xs disabled:opacity-50"
+              className="h-10 min-h-touch px-3.5 rounded-full flex items-center gap-1.5 bg-gradient-to-r from-cyan to-teal-400 text-black hover:brightness-110 transition-all active:scale-95 shadow-md shadow-cyan/25 font-bold text-xs disabled:opacity-50"
               title="Transferir mezcla terminada y nodos al mostrador de audio de la Pista 2D"
             >
               {isExporting ? (
@@ -199,7 +199,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
                 </>
               ) : (
                 <>
-                  <Send className="w-3.5 h-3.5 fill-black stroke-none shrink-0" />
+                  <Send className="w-4 h-4 fill-black stroke-none shrink-0" />
                   <span className="hidden sm:inline">Enviar a Pista 2D</span>
                   <span className="sm:hidden">Enviar</span>
                 </>

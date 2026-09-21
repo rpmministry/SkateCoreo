@@ -115,18 +115,18 @@ export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
             </div>
           </div>
 
-          {/* Botón de Cierre accesible (44x44px mínimo) */}
+          {/* Botón de Cierre accesible (48x48px mínimo) */}
           <button
             type="button"
             onClick={onClose}
-            className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors active:scale-95"
+            className="w-12 h-12 min-w-touch min-h-touch rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors active:scale-95"
             aria-label="Cerrar panel de mezcla"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* ── LISTADO DE CANALES DE VOLUMEN (Áreas táctiles >= 44px) ── */}
+        {/* ── LISTADO DE CANALES DE VOLUMEN (Áreas táctiles >= 48px) ── */}
         <div className="flex flex-col gap-4 my-auto py-4">
           {/* Canal 1: Música Master */}
           <div className="flex flex-col gap-2 p-3.5 rounded-2xl bg-zinc-900/80 border border-white/10">
@@ -143,11 +143,11 @@ export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
             </div>
 
             <div className="flex items-center gap-3">
-              {/* Botón Mute Accesible (44x44px) */}
+              {/* Botón Mute Accesible (48x48px) */}
               <button
                 type="button"
                 onClick={handleMusicMuteToggle}
-                className={`w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl flex items-center justify-center transition-all active:scale-95 shadow-sm ${
+                className={`w-12 h-12 min-w-touch min-h-touch rounded-xl flex items-center justify-center transition-all active:scale-95 shadow-sm ${
                   musicMuted 
                     ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40' 
                     : 'bg-cyan/15 text-cyan border border-cyan/30 hover:bg-cyan/25'
@@ -158,8 +158,8 @@ export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
                 {musicMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
               </button>
 
-              {/* Slider Ergonómico (44px hit height) */}
-              <div className="flex-1 h-11 flex items-center">
+              {/* Slider Ergonómico (48px hit height) */}
+              <div className="flex-1 h-12 flex items-center">
                 <input
                   type="range"
                   min="0"
@@ -189,11 +189,11 @@ export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
             </div>
 
             <div className="flex items-center gap-3">
-              {/* Botón Mute Accesible (44x44px) */}
+              {/* Botón Mute Accesible (48x48px) */}
               <button
                 type="button"
                 onClick={toggleVoiceGuideMute}
-                className={`w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl flex items-center justify-center transition-all active:scale-95 shadow-sm ${
+                className={`w-12 h-12 min-w-touch min-h-touch rounded-xl flex items-center justify-center transition-all active:scale-95 shadow-sm ${
                   voiceMuted 
                     ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40' 
                     : 'bg-fuchsia-500/15 text-fuchsia-400 border border-fuchsia-500/30 hover:bg-fuchsia-500/25'
@@ -204,8 +204,8 @@ export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
                 {voiceMuted ? <VolumeX className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
               </button>
 
-              {/* Slider Ergonómico (44px hit height) */}
-              <div className="flex-1 h-11 flex items-center">
+              {/* Slider Ergonómico (48px hit height) */}
+              <div className="flex-1 h-12 flex items-center">
                 <input
                   type="range"
                   min="0"
@@ -235,11 +235,11 @@ export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
             </div>
 
             <div className="flex items-center gap-3">
-              {/* Botón Mute Accesible (44x44px) */}
+              {/* Botón Mute Accesible (48x48px) */}
               <button
                 type="button"
                 onClick={toggleMetronomeMute}
-                className={`w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl flex items-center justify-center transition-all active:scale-95 shadow-sm ${
+                className={`w-12 h-12 min-w-touch min-h-touch rounded-xl flex items-center justify-center transition-all active:scale-95 shadow-sm ${
                   metronomeMuted 
                     ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40' 
                     : 'bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25'
@@ -250,8 +250,8 @@ export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
                 {metronomeMuted ? <VolumeX className="w-5 h-5" /> : <Bell className="w-5 h-5" />}
               </button>
 
-              {/* Slider Ergonómico (44px hit height) */}
-              <div className="flex-1 h-11 flex items-center">
+              {/* Slider Ergonómico (48px hit height) */}
+              <div className="flex-1 h-12 flex items-center">
                 <input
                   type="range"
                   min="0"
@@ -276,7 +276,7 @@ export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
                 onClose();
                 onOpenStudio();
               }}
-              className="w-full h-11 min-h-[44px] rounded-2xl bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/40 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all active:scale-98 shadow-md"
+              className="w-full h-12 min-h-touch rounded-2xl bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/40 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all active:scale-98 shadow-md"
             >
               <ExternalLink className="w-4 h-4" />
               <span>Abrir Estudio de Audio Completo</span>
@@ -286,7 +286,7 @@ export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="w-full h-11 min-h-[44px] rounded-2xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs transition-colors active:scale-98"
+            className="w-full h-12 min-h-touch rounded-2xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs transition-colors active:scale-98"
           >
             Aceptar y Cerrar
           </button>

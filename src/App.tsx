@@ -341,29 +341,29 @@ export function App() {
           HEADER — Pro Dark Console (h-12 / landscape-compact-header)
           ═══════════════════════════════════════════════ */}
       {activeView !== 'studio' && (
-        <header className="min-h-12 h-auto py-1 sm:py-0 landscape-compact-header shrink-0 flex items-center justify-between px-2 sm:px-4 bg-neon-surface/95 backdrop-blur-md border-b border-white/10 z-20 flex-wrap gap-1.5 sm:gap-2">
+        <header className="min-h-12 h-auto py-1 sm:py-0 landscape-compact-header pt-safe px-safe shrink-0 flex items-center justify-between px-2 sm:px-4 bg-neon-surface/95 backdrop-blur-md border-b border-white/10 z-20 flex-wrap gap-2">
 
         {/* ── ZONA 1 (Izquierda): Identidad SkateCoreo + Contexto Atleta ── */}
-        <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}
-            className="lg:hidden flex items-center justify-center min-w-[44px] min-h-[44px] w-11 h-11 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 interactive-tap shrink-0"
+            className="lg:hidden flex items-center justify-center min-w-touch min-h-touch w-12 h-12 rounded-xl text-slate-300 hover:text-white hover:bg-white/10 interactive-tap shrink-0"
             aria-label="Abrir menú"
           >
-            <Menu className="w-5 h-5 stroke-[1.75]" />
+            <Menu className="w-5 h-5 stroke-[2]" />
           </button>
 
           {/* Contenedor de Marca Responsive con margen derecho para no apiñar herramientas */}
           <SkateCoreoBrand />
 
           {/* Contexto del Atleta Activo */}
-          <div className="hidden lg:flex items-center gap-1.5 pl-3 border-l border-white/10 text-xs min-w-0">
+          <div className="hidden lg:flex items-center gap-2 pl-3 border-l border-white/10 text-xs min-w-0">
             <span className="font-semibold text-slate-200 truncate max-w-[110px]" title={selectedSkater?.name}>
               {selectedSkater?.name || 'Sin Atleta'}
             </span>
             {selectedSkater?.category && (
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-white/5 text-cyan border border-white/10 shrink-0">
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-white/5 text-cyan border border-white/10 shrink-0">
                 {selectedSkater.category}
               </span>
             )}
@@ -371,23 +371,23 @@ export function App() {
         </div>
 
         {/* ── ZONA 2 (Centro): Herramientas Desktop & Master Audio Transport ── */}
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           {/* Herramientas de Trazado (Exclusivo Desktop lg+) */}
-          <div className="hidden lg:flex items-center bg-white/[0.04] p-0.5 rounded-xl border border-white/10 gap-0.5 shadow-soft-elevation">
+          <div className="hidden lg:flex items-center bg-white/[0.04] p-1 rounded-xl border border-white/10 gap-1 shadow-soft-elevation">
             <button
               type="button"
               onClick={() => {
                 setPhase('plot');
                 useChoreographyStore.getState().setSelectedPointId(null);
               }}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all interactive-tap ${
+              className={`flex items-center gap-1.5 px-3.5 py-2 min-h-touch rounded-lg text-xs font-bold transition-all interactive-tap ${
                 phase === 'plot'
                   ? 'bg-amber-500 text-black shadow-glow-amber font-black'
                   : 'text-slate-300 hover:text-white hover:bg-white/5'
               }`}
               title="Modo Nodos: Coloca puntos clave"
             >
-              <PenTool className="w-3.5 h-3.5 stroke-[1.75]" />
+              <PenTool className="w-4 h-4 stroke-[2]" />
               <span>Nodos</span>
             </button>
             <button
@@ -398,14 +398,14 @@ export function App() {
                 useChoreographyStore.getState().setSelectedPointId(null);
               }}
               disabled={!canDraw}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all interactive-tap ${
+              className={`flex items-center gap-1.5 px-3.5 py-2 min-h-touch rounded-lg text-xs font-bold transition-all interactive-tap ${
                 phase === 'curve'
                   ? 'bg-cyan text-black shadow-glow-cyan font-black'
                   : 'text-slate-300 hover:text-white hover:bg-white/5 disabled:opacity-30 disabled:pointer-events-none'
               }`}
               title={canDraw ? 'Modo Trazado: Ver y deformar curvas' : 'Requiere al menos 2 nodos'}
             >
-              <Route className="w-3.5 h-3.5 stroke-[1.75]" />
+              <Route className="w-4 h-4 stroke-[2]" />
               <span>Trazar</span>
             </button>
             <button
@@ -415,14 +415,14 @@ export function App() {
                 else setPhase('erase');
                 useChoreographyStore.getState().setSelectedPointId(null);
               }}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all interactive-tap ${
+              className={`flex items-center gap-1.5 px-3.5 py-2 min-h-touch rounded-lg text-xs font-bold transition-all interactive-tap ${
                 phase === 'erase'
                   ? 'bg-red-500 text-white shadow-lg shadow-red-500/30 font-black'
                   : 'text-slate-300 hover:text-white hover:bg-white/5'
               }`}
               title="Modo Borrador: Toca cualquier nodo para eliminarlo"
             >
-              <Eraser className="w-3.5 h-3.5 stroke-[1.75]" />
+              <Eraser className="w-4 h-4 stroke-[2]" />
               <span>Borrar</span>
             </button>
           </div>
@@ -439,12 +439,12 @@ export function App() {
         </div>
 
         {/* ── ZONA 3 (Derecha): CTA Principal & Menú de Desbordamiento Carbon ── */}
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           {/* Botón Estudio de Audio (DAW Lite) */}
           <button
             type="button"
             onClick={() => setActiveView('studio')}
-            className="min-h-[44px] flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all interactive-tap shadow-soft-elevation border bg-white/[0.04] hover:bg-white/10 text-cyan border-cyan/30"
+            className="min-h-touch min-w-[48px] flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all interactive-tap shadow-soft-elevation border bg-white/[0.04] hover:bg-white/10 text-cyan border-cyan/30"
             title="Abrir Estudio de Audio (DAW Lite multipista)"
           >
             <span>🎛️</span>
@@ -462,10 +462,10 @@ export function App() {
           <button
             type="button"
             onClick={() => audioInputRef.current?.click()}
-            className="min-w-[44px] min-h-[44px] flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/30 interactive-tap transition-all shadow-soft-elevation"
+            className="min-w-touch min-h-touch flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/30 interactive-tap transition-all shadow-soft-elevation"
             title="Cargar archivo de música"
           >
-            <Upload className="w-4 h-4 stroke-[1.75]" />
+            <Upload className="w-4 h-4 stroke-[2]" />
             <span className="hidden sm:inline">Cargar Audio</span>
           </button>
 
@@ -474,10 +474,10 @@ export function App() {
             <button
               type="button"
               onClick={() => setShowExportMenu((v) => !v)}
-              className="min-w-[44px] min-h-[44px] w-11 h-11 rounded-xl flex items-center justify-center bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white border border-white/10 interactive-tap transition-all"
+              className="min-w-touch min-h-touch w-12 h-12 rounded-xl flex items-center justify-center bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white border border-white/10 interactive-tap transition-all"
               title="Más opciones del proyecto"
             >
-              <MoreVertical className="w-4 h-4 stroke-[1.75]" />
+              <MoreVertical className="w-5 h-5 stroke-[2]" />
             </button>
 
             {showExportMenu && (
@@ -627,14 +627,14 @@ export function App() {
         {/* ── MOBILE / TABLET LANDSCAPE TOOLBAR (Figma Style Sidebar) ── */}
         <nav
           aria-label="Herramientas táctiles en modo horizontal"
-          className="hidden landscape:flex lg:hidden w-14 shrink-0 flex-col items-center py-2 px-1 gap-1.5 bg-neon-surface/95 border-r border-white/5 z-30 overflow-y-auto"
+          className="hidden landscape:flex lg:hidden w-16 shrink-0 flex-col items-center py-2 px-1 gap-2 bg-neon-surface/95 border-r border-white/5 z-30 overflow-y-auto pl-safe"
         >
           {/* 1. Config / Menu */}
           <button
             type="button"
             onClick={() => { setDrawerOpen((o) => !o); setSheetOpen(false); }}
             className={[
-              'w-11 h-11 shrink-0 flex flex-col items-center justify-center rounded-xl interactive-tap transition-all',
+              'w-12 h-12 min-w-touch min-h-touch shrink-0 flex flex-col items-center justify-center rounded-xl interactive-tap transition-all',
               drawerOpen ? 'text-cyan bg-cyan/15 shadow-glow-cyan' : 'text-slate-400 hover:text-white bg-neon-card hover:bg-neon-hover',
             ].join(' ')}
             title="Configuración y Audio"
@@ -652,7 +652,7 @@ export function App() {
               useChoreographyStore.getState().setSelectedPointId(null);
             }}
             className={[
-              'w-11 h-11 shrink-0 flex flex-col items-center justify-center rounded-xl interactive-tap transition-all',
+              'w-12 h-12 min-w-touch min-h-touch shrink-0 flex flex-col items-center justify-center rounded-xl interactive-tap transition-all',
               phase === 'plot'
                 ? 'bg-amber-500 text-black shadow-glow-amber font-black'
                 : 'text-slate-400 hover:text-white bg-neon-card hover:bg-neon-hover',
@@ -676,7 +676,7 @@ export function App() {
             }}
             disabled={!canDraw}
             className={[
-              'w-11 h-11 shrink-0 flex flex-col items-center justify-center rounded-xl interactive-tap transition-all',
+              'w-12 h-12 min-w-touch min-h-touch shrink-0 flex flex-col items-center justify-center rounded-xl interactive-tap transition-all',
               phase === 'curve'
                 ? 'bg-cyan text-black shadow-glow-cyan font-black'
                 : 'text-slate-400 hover:text-white bg-neon-card hover:bg-neon-hover disabled:opacity-30 disabled:pointer-events-none',
@@ -700,7 +700,7 @@ export function App() {
               setSheetOpen(false);
             }}
             className={[
-              'w-11 h-11 shrink-0 flex flex-col items-center justify-center rounded-xl interactive-tap transition-all',
+              'w-12 h-12 min-w-touch min-h-touch shrink-0 flex flex-col items-center justify-center rounded-xl interactive-tap transition-all',
               phase === 'erase'
                 ? 'bg-red-500 text-white shadow-lg shadow-red-500/40 font-black'
                 : 'text-slate-400 hover:text-white bg-neon-card hover:bg-neon-hover',
@@ -716,7 +716,7 @@ export function App() {
             type="button"
             onClick={handleClearRink}
             disabled={points.length === 0}
-            className="w-11 h-11 shrink-0 flex flex-col items-center justify-center rounded-xl text-slate-400 hover:text-coral bg-neon-card hover:bg-neon-hover interactive-tap disabled:opacity-20 disabled:pointer-events-none"
+            className="w-12 h-12 min-w-touch min-h-touch shrink-0 flex flex-col items-center justify-center rounded-xl text-slate-400 hover:text-coral bg-neon-card hover:bg-neon-hover interactive-tap disabled:opacity-20 disabled:pointer-events-none"
             title="Limpiar toda la pista"
           >
             <Trash2 className="w-4 h-4 text-coral stroke-[2]" />
@@ -728,7 +728,7 @@ export function App() {
             type="button"
             onClick={undo}
             disabled={history.length === 0}
-            className="w-11 h-11 shrink-0 flex flex-col items-center justify-center rounded-xl text-slate-400 hover:text-white bg-neon-card hover:bg-neon-hover interactive-tap disabled:opacity-20 disabled:pointer-events-none"
+            className="w-12 h-12 min-w-touch min-h-touch shrink-0 flex flex-col items-center justify-center rounded-xl text-slate-400 hover:text-white bg-neon-card hover:bg-neon-hover interactive-tap disabled:opacity-20 disabled:pointer-events-none"
             title="Deshacer último cambio"
           >
             <Undo2 className="w-4 h-4 stroke-[2]" />
@@ -740,7 +740,7 @@ export function App() {
             type="button"
             onClick={() => { setSheetOpen((o) => !o); setDrawerOpen(false); }}
             className={[
-              'w-11 h-11 shrink-0 flex flex-col items-center justify-center rounded-xl interactive-tap transition-all',
+              'w-12 h-12 min-w-touch min-h-touch shrink-0 flex flex-col items-center justify-center rounded-xl interactive-tap transition-all',
               sheetOpen ? 'text-mint bg-mint/15 shadow-glow-mint' : 'text-slate-400 hover:text-white bg-neon-card hover:bg-neon-hover',
             ].join(' ')}
             title="Inspector de nodo seleccionado"
@@ -880,7 +880,7 @@ export function App() {
           ═══════════════════════════════════════════════ */}
       <nav
         aria-label="Acciones principales táctiles en vertical"
-        className="landscape:hidden lg:hidden shrink-0 flex items-stretch justify-around bg-neon-surface/95 backdrop-blur-md border-t border-white/10 z-30 pb-safe"
+        className="landscape:hidden lg:hidden shrink-0 flex items-stretch justify-around bg-neon-surface/95 backdrop-blur-md border-t border-white/10 z-30 pb-safe px-safe"
         style={{ minHeight: 52 }}
       >
         {/* Config / Drawer Trigger */}
@@ -1102,14 +1102,14 @@ export function App() {
       {/* ═══════════════════════════════════════════════
           FOOTER — Atribución Oficial (Carbon Design System)
           ═══════════════════════════════════════════════ */}
-      <footer className="h-6 shrink-0 flex items-center justify-between px-3 bg-neon-surface/85 border-t border-white/5 text-xs text-gray-500 select-none z-20">
+      <footer className="min-h-6 h-auto py-1 shrink-0 flex items-center justify-between px-3 bg-neon-surface/85 border-t border-white/5 text-xs text-gray-500 select-none z-20 pb-safe px-safe">
         <span className="truncate-safe font-normal">
           Desarrollado por Mauricio Andrade Luna | Diseñada por:{' '}
           <a
             href="http://www.alsitech.com"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-blue-500 hover:underline hover:text-blue-400 transition-colors font-medium"
+            className="text-blue-500 hover:underline hover:text-blue-400 transition-colors font-medium inline-block py-1"
           >
             AlsizTech
           </a>
