@@ -289,7 +289,12 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
               cp2x: node.positionMeters.x + 6,
               cp2y: node.positionMeters.y,
               type: idx === 0 ? 'Step' : 'Jump',
-              label: `Nodo ${node.sequenceNumber} (Papel)`,
+              // Filtro de Voz Guía: la plantilla de papel solo aporta un número
+              // de orden, NO una figura técnica. La etiqueta queda vacía para que
+              // la voz guía permanezca en silencio hasta que la entrenadora
+              // asigne la figura real a cada nodo (así nunca lee "Nodo 3 (Papel)",
+              // notas al margen ni texto descriptivo).
+              label: '',
               isMainNode: true,
               path: segmentPath && segmentPath.length > 1 ? segmentPath : undefined,
             };

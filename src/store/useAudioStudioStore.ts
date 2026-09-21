@@ -14,6 +14,7 @@ import {
   DraggingGhostState,
 } from '../types/audioStudio';
 import { BpmDetector } from '../core/audio/BpmDetector';
+import { snapToZeroCrossing } from '../core/audio/zeroCrossing';
 import { audioEngine } from '../core/audio/AudioEngine';
 import { useChoreographyStore } from './useChoreographyStore';
 import { renderStudioMixdown, bounceStudioClipsToBuffer } from '../core/audio/studioMixdown';
@@ -241,21 +242,53 @@ const initialTracks = {
   },
 };
 
-export const triggerStudioConsolidation = () => {
+/**
+ * Bandera de consolidación diferida.
+ * Mientras hay reproducción activa NO se puede reemplazar el buffer maestro
+ * (AudioEngine.setAudioBuffer detiene la fuente), porque eso producía el
+ * "Play fantasma": la UI seguía mostrando "reproduciendo" con el audio ya
+ * detenido y los toques posteriores se desincronizaban.
+ * En su lugar se marca pendiente y se aplica al pausar/detener.
+ */
+let pendingConsolidation = false;
+
+const runStudioConsolidation = (): boolean => {
   try {
     const state = useAudioStudioStore.getState();
     const arrangementTracks = [state.tracks.music, ...state.additionalTracks];
     const hasAnyClips = arrangementTracks.some((t) => (t.clips && t.clips.length > 0) || t.buffer);
-    if (!hasAnyClips) return;
+    if (!hasAnyClips) return false;
 
     const buffer = bounceStudioClipsToBuffer(arrangementTracks, state.totalDurationSec);
     if (buffer) {
-      audioEngine.setAudioBuffer(buffer, 'Mezcla_Estudio_Consolidada.wav');
+      // preservePosition: conservar el cabezal tras re-renderizar la mezcla
+      audioEngine.setAudioBuffer(buffer, 'Mezcla_Estudio_Consolidada.wav', true);
+      return true;
     }
   } catch (e) {
     // silent fallback
   }
+  return false;
 };
+
+export const triggerStudioConsolidation = () => {
+  // Nunca cortar la reproducción: se difiere hasta pausa/stop.
+  if (audioEngine.getState().isPlaying) {
+    pendingConsolidation = true;
+    return;
+  }
+  runStudioConsolidation();
+};
+
+/** Aplica la consolidación diferida. Invocar al pausar/detener la reproducción. */
+export const flushPendingConsolidation = () => {
+  if (!pendingConsolidation) return;
+  pendingConsolidation = false;
+  runStudioConsolidation();
+};
+
+/** Indica si quedan cambios de mezcla sin consolidar en el buffer maestro. */
+export const hasPendingConsolidation = () => pendingConsolidation;
 
 export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => ({
   tracks: initialTracks,
@@ -359,7 +392,9 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         state.totalDurationSec
       );
       if (buffer) {
-        audioEngine.setAudioBuffer(buffer, 'Mezcla_Estudio_Consolidada.wav');
+        // Preserva el cabezal: el llamador decide desde dónde reproducir.
+        audioEngine.setAudioBuffer(buffer, 'Mezcla_Estudio_Consolidada.wav', true);
+        pendingConsolidation = false;
         return buffer;
       }
     } catch (err) {
@@ -519,6 +554,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
 
   splitClip: (trackId, clipId, splitTimeSec) => {
     let wasSplit = false;
+    let newSplitClipId: string | null = null;
     set((state) => {
       const updateClips = (track: AudioStudioTrack): AudioStudioTrack => {
         const clipIndex = track.clips.findIndex((c) => c.id === clipId);
@@ -526,25 +562,46 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         const clip = track.clips[clipIndex];
 
         const clipDuration = clip.trimEndSec - clip.trimStartSec;
-        const relativeSplit = splitTimeSec - clip.startOffsetSec;
+        let relativeSplit = splitTimeSec - clip.startOffsetSec;
 
-        if (relativeSplit <= 0.05 || relativeSplit >= clipDuration - 0.05) {
+        // Margen mínimo de 20ms para evitar fragmentos inservibles
+        if (relativeSplit <= 0.02 || relativeSplit >= clipDuration - 0.02) {
           return track;
         }
 
-        const bufferSplitPoint = clip.trimStartSec + relativeSplit;
+        let bufferSplitPoint = clip.trimStartSec + relativeSplit;
+
+        // Corte milimétrico sin clic: ajustar al cruce por cero más cercano
+        if (clip.buffer) {
+          try {
+            bufferSplitPoint = snapToZeroCrossing(clip.buffer, bufferSplitPoint, 4);
+            relativeSplit = bufferSplitPoint - clip.trimStartSec;
+            if (relativeSplit <= 0.005 || relativeSplit >= clipDuration - 0.005) {
+              return track;
+            }
+          } catch (err) {
+            // Ante cualquier fallo, conservar el punto solicitado
+          }
+        }
+
+        const splitOffsetSec = clip.startOffsetSec + relativeSplit;
+
+        // Identificadores basados en un único sello de tiempo para que el clip
+        // seleccionado tras el corte coincida exactamente con el segundo fragmento.
+        const stamp = Date.now();
+        const secondClipId = `clip-${stamp}-b`;
 
         const firstClip: AudioClip = {
           ...clip,
-          id: `clip-${Date.now()}-a`,
+          id: `clip-${stamp}-a`,
           trimEndSec: bufferSplitPoint,
           fadeOutSec: Math.min(clip.fadeOutSec, 0.2),
         };
 
         const secondClip: AudioClip = {
           ...clip,
-          id: `clip-${Date.now()}-b`,
-          startOffsetSec: splitTimeSec,
+          id: secondClipId,
+          startOffsetSec: splitOffsetSec,
           trimStartSec: bufferSplitPoint,
           fadeInSec: Math.min(clip.fadeInSec, 0.2),
         };
@@ -552,6 +609,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         const newClips = [...track.clips];
         newClips.splice(clipIndex, 1, firstClip, secondClip);
         wasSplit = true;
+        newSplitClipId = secondClipId;
 
         return {
           ...track,
@@ -573,7 +631,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
       return {
         tracks: updatedTracks,
         additionalTracks: updatedAdditional,
-        selectedClipId: wasSplit ? `clip-${Date.now()}-b` : state.selectedClipId,
+        selectedClipId: wasSplit && newSplitClipId ? newSplitClipId : state.selectedClipId,
         mixManifest: buildManifest(updatedTracks, updatedAdditional, state.globalControls, state.totalDurationSec),
       };
     });

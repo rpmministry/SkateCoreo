@@ -1,4 +1,5 @@
 import { StrictVoiceCuePayload } from '../types/audio';
+import { sanitizeSpeechText } from '../core/audio/voiceCueSanitizer';
 
 export type VoiceGender = 'female' | 'male';
 
@@ -8,6 +9,11 @@ export interface TTSOptions {
   speed?: number;
   pitch?: number;
   urgent?: boolean;
+  /**
+   * Omite el filtro de Voz Guía. Reservado exclusivamente a la prueba manual
+   * de voz solicitada por el usuario desde Ajustes.
+   */
+  force?: boolean;
 }
 
 export interface GoogleVoiceDefinition {
@@ -16,16 +22,38 @@ export interface GoogleVoiceDefinition {
   gender: VoiceGender;
 }
 
+/**
+ * Voces oficiales por idioma y género.
+ *
+ * Para español se usan voces LATINAS (región es-US) en variantes Neural2, con
+ * respaldo Wavenet. Las voces es-ES se evitan deliberadamente porque el acento
+ * castellano no corresponde al público objetivo.
+ */
 const GOOGLE_VOICES_CONFIG: Record<string, Record<VoiceGender, string>> = {
   es: {
-    female: 'es-ES-Neural2-A',
-    male: 'es-ES-Neural2-B'
+    female: 'es-US-Neural2-C',
+    male: 'es-US-Neural2-B'
   },
   en: {
     female: 'en-US-Neural2-F',
     male: 'en-US-Neural2-D'
   }
 };
+
+/** Respaldo Wavenet latino si Neural2 no está habilitada en el proyecto. */
+const GOOGLE_VOICES_WAVENET_FALLBACK: Record<string, Record<VoiceGender, string>> = {
+  es: {
+    female: 'es-US-Wavenet-C',
+    male: 'es-US-Wavenet-D'
+  },
+  en: {
+    female: 'en-US-Wavenet-F',
+    male: 'en-US-Wavenet-D'
+  }
+};
+
+/** Prioridad de regiones latinas para las voces del navegador. */
+const LATIN_BROWSER_REGIONS = ['es-419', 'es-us', 'es-mx', 'es-ar', 'es-co', 'es-cl', 'es-pe', 'es-ve', 'es-uy', 'es-do', 'es-ec', 'es-gt', 'es-pr'];
 
 export class TTSService {
   private static instance: TTSService;
@@ -265,25 +293,12 @@ export class TTSService {
    * Rechaza cualquier intento de vocalizar nombres de archivo, metadatos o buffers de música.
    */
   public async speak(text: StrictVoiceCuePayload | string, options?: TTSOptions): Promise<void> {
-    const cleanText = text.trim();
-    if (!cleanText) return;
-
-    // Filtro de seguridad estricto: la voz solo vocaliza figuras técnicas y conteos.
-    // Rechaza etiquetas de nodos estructurales, metadatos y marcadores automáticos.
-    const lower = cleanText.toLowerCase();
-    if (
-      /\.(wav|mp3|m4a|ogg|aac|flac)$/i.test(cleanText) || 
-      lower.includes('pista_rollart') || 
-      cleanText.startsWith('/') ||
-      /^(inicio(\s+trazo)?|fin(\s+trazo)?|final|v[eé]rtice|bucle|esquina|trazo|tramo|recta|curva(\s+de\s+transici[oó]n)?|transici[oó]n|salida\s*\/\s*choreo\s*entry|pose(\s+final)?)$/i.test(lower) ||
-      /^(nodo|node|punto|point|marcador|marker|paso|step|beat|tempo|comp[aá]s|t|tiempo|time)(\s*#?\d+(\.\d+)?s?)?$/i.test(lower) ||
-      /^#?\d+(\.\d+)?s?$/i.test(lower) ||
-      /^(sin\s+figura|sin\s+etiqueta|sin\s+selecci[oó]n|ningun[ao]|none|null|undefined|vacio|vacío|custom|otro\s*\/?\s*personalizado\.\.\.)$/i.test(lower) ||
-      /^[-—–]\s*(elegir|seleccionar|sin)\b/i.test(lower) ||
-      /^¡?ya!?\s*(inicio|fin|v[eé]rtice|nodo|punto|point|marcador|marker|beat|step|trazo)\b/i.test(lower) ||
-      /^go!?\s*(start|end|vertex|node|point|marker|beat|step)\b/i.test(lower)
-    ) {
-      console.warn('[TTSService] Intento de vocalizar etiqueta de nodo o metadato bloqueado:', cleanText);
+    // Filtro de Voz Guía estricto (whitelist del catálogo oficial):
+    // solo pasan comandos explícitos y nombres de figuras reales. Cualquier
+    // etiqueta de nodo, nota al margen o metadato se descarta en silencio.
+    const cleanText = options?.force ? String(text).trim() : sanitizeSpeechText(text);
+    if (!cleanText) {
+      console.warn('[TTSService] Texto no vocalizable descartado por el filtro de Voz Guía:', text);
       return;
     }
 
@@ -338,7 +353,8 @@ export class TTSService {
     const lang = options?.language || this.language;
 
     for (const phrase of phrases) {
-      const clean = phrase.trim();
+      // Solo se cachean frases vocalizables (ahorra cuota de Google Cloud)
+      const clean = options?.force ? phrase.trim() : sanitizeSpeechText(phrase);
       if (!clean) continue;
       this.synthesizeWithGoogleTTS(clean, gender, lang, options?.speed).catch(() => {});
     }
@@ -352,8 +368,8 @@ export class TTSService {
     options?: TTSOptions
   ): Promise<void> {
     const speakableLabels = points
-      .filter((p) => p.label && p.label.trim().length > 0)
-      .map((p) => p.label!.trim());
+      .map((p) => (p.label ? sanitizeSpeechText(p.label) : null))
+      .filter((label): label is string => Boolean(label));
 
     if (speakableLabels.length > 0) {
       await this.preWarm(Array.from(new Set(speakableLabels)), options);
@@ -367,7 +383,8 @@ export class TTSService {
     text: string,
     options?: TTSOptions
   ): Promise<AudioBuffer | null> {
-    const cleanText = text.trim();
+    // Defensa en profundidad: nunca se envía texto no vocalizable a la API
+    const cleanText = options?.force ? text.trim() : sanitizeSpeechText(text);
     if (!cleanText) return null;
 
     const gender = options?.gender || this.voiceGender;
@@ -401,7 +418,9 @@ export class TTSService {
     speed: number = 1.05
   ): Promise<AudioBuffer | null> {
     const voiceName = GOOGLE_VOICES_CONFIG[lang]?.[gender] || GOOGLE_VOICES_CONFIG['es']['female'];
-    const languageCode = lang === 'es' ? 'es-ES' : 'en-US';
+    // Región latina (es-US) para el español; es-ES queda descartado por acento
+    const languageCode = lang === 'es' ? 'es-US' : 'en-US';
+    const wavenetFallback = GOOGLE_VOICES_WAVENET_FALLBACK[lang]?.[gender];
     const cleanKey = text.toLowerCase().trim();
     const cacheKey = `${voiceName}_${speed.toFixed(2)}_${cleanKey}`;
 
@@ -442,32 +461,47 @@ export class TTSService {
           return null;
         }
 
-        const payload = {
-          input: { text },
-          voice: {
-            languageCode,
-            name: voiceName
-          },
-          audioConfig: {
-            audioEncoding: 'MP3',
-            speakingRate: Math.max(0.5, Math.min(2.0, speed))
-          }
-        };
-
         const url = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(this.apiKey)}`;
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
 
-        if (!response.ok) {
+        // Intento 1: voz Neural2 latina. Intento 2: respaldo Wavenet latino
+        // (por si el proyecto de Google Cloud no tiene Neural2 habilitada).
+        const voiceAttempts = wavenetFallback && wavenetFallback !== voiceName
+          ? [voiceName, wavenetFallback]
+          : [voiceName];
+
+        let data: any = null;
+        for (const attemptVoice of voiceAttempts) {
+          const payload = {
+            input: { text },
+            voice: {
+              languageCode,
+              name: attemptVoice
+            },
+            audioConfig: {
+              audioEncoding: 'MP3',
+              speakingRate: Math.max(0.5, Math.min(2.0, speed))
+            }
+          };
+
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          if (response.ok) {
+            data = await response.json();
+            if (attemptVoice !== voiceName) {
+              console.warn('[TTSService] Voz latina primaria no disponible; usando respaldo Wavenet:', attemptVoice);
+            }
+            break;
+          }
+
           const errorDetail = await response.text();
-          console.warn('[TTSService] Google TTS HTTP Error:', response.status, errorDetail);
-          return null;
+          console.warn('[TTSService] Google TTS HTTP Error con voz', attemptVoice, response.status, errorDetail);
         }
 
-        const data = await response.json();
+        if (!data) return null;
         if (!data.audioContent) {
           return null;
         }
@@ -565,23 +599,32 @@ export class TTSService {
     try {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = lang === 'es' ? 'es-ES' : 'en-US';
+      utterance.lang = lang === 'es' ? 'es-US' : 'en-US';
       utterance.rate = speed;
 
       const voices = window.speechSynthesis.getVoices();
       if (voices && voices.length > 0) {
-        const langVoices = voices.filter(v => v.lang.toLowerCase().startsWith(lang));
-        // Buscar voz coincidente por género en el nombre si es posible
-        const matched = langVoices.find(v => 
-          gender === 'female' 
-            ? /female|mujer|monica|helena|sabina|lucia|zira/i.test(v.name)
-            : /male|hombre|jorge|pablo|david/i.test(v.name)
+        const langVoices = voices.filter((v) => v.lang.toLowerCase().startsWith(lang));
+
+        // 1. Preferir región latina (es-419 / es-US / es-MX ...) sobre es-ES
+        const latinVoices = lang === 'es'
+          ? langVoices
+              .map((v) => ({ voice: v, rank: LATIN_BROWSER_REGIONS.indexOf(v.lang.toLowerCase()) }))
+              .filter((entry) => entry.rank >= 0)
+              .sort((a, b) => a.rank - b.rank)
+              .map((entry) => entry.voice)
+          : langVoices.filter((v) => v.lang.toLowerCase().startsWith('en-us'));
+
+        const pool = latinVoices.length > 0 ? latinVoices : langVoices;
+
+        // 2. Dentro del pool, buscar coincidencia de género por nombre
+        const matched = pool.find((v) =>
+          gender === 'female'
+            ? /female|mujer|monica|mónica|helena|sabina|lucia|lucía|paulina|catalina|zira/i.test(v.name)
+            : /male|hombre|jorge|pablo|david|diego|carlos|andres|andres|juan/i.test(v.name)
         );
-        if (matched) {
-          utterance.voice = matched;
-        } else if (langVoices.length > 0) {
-          utterance.voice = langVoices[0];
-        }
+
+        utterance.voice = matched || pool[0];
       }
 
       window.speechSynthesis.speak(utterance);

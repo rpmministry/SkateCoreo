@@ -13,9 +13,10 @@ import {
   Sliders,
   Bell,
 } from 'lucide-react';
-import { useAudioStudioStore } from '../../store/useAudioStudioStore';
+import { useAudioStudioStore, flushPendingConsolidation } from '../../store/useAudioStudioStore';
 import { audioEngine } from '../../services/audioEngine';
 import { useAudioZoomPan } from '../../hooks/useAudioZoomPan';
+import { usePressAction } from '../../hooks/usePressAction';
 import { AudioStudioTrack } from '../../types/audioStudio';
 import { TopTransportBar } from './TopTransportBar';
 import { AudioTimeRuler } from './AudioTimeRuler';
@@ -29,6 +30,13 @@ interface AudioStudioViewProps {
   onGoHome?: () => void;
   onOpenDrawer?: () => void;
 }
+
+/**
+ * `pan-x pan-y` permite desplazar la línea de tiempo con un dedo pero BLOQUEA el
+ * zoom nativo del navegador, de modo que el gesto de pinza llega íntegro a
+ * nuestro gestor de zoom (crítico en orientación horizontal).
+ */
+const STUDIO_TOUCH_ACTION: React.CSSProperties = { touchAction: 'pan-x pan-y' };
 
 export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   onExportToRink,
@@ -62,6 +70,9 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   const [isExporting, setIsExporting] = useState(false);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
   const [showMixerDrawer, setShowMixerDrawer] = useState(false);
+
+  // Activación táctil inmediata sin doble disparo (evita el Play/Pausa fantasma)
+  const press = usePressAction();
 
   // Ancho de cabecera de pista BandLab (100px) y Espacio Vacío Continuo de Ensamblaje (450px)
   const headerWidth = 100;
@@ -110,7 +121,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     const clickX = e.clientX - rect.left + container.scrollLeft - headerWidth;
     const dur = Math.max(10, totalDurationSec);
     const ratio = Math.max(0, clickX / contentWidth);
-    const targetTimeSec = Math.round(ratio * dur * 100) / 100;
+    const targetTimeSec = Math.round(ratio * dur * 1000) / 1000;
 
     setCurrentTimeSec(targetTimeSec);
     audioEngine.seek(targetTimeSec * 1000);
@@ -181,10 +192,25 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   // - Supr / Backspace: Eliminar clip seleccionado
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const activeTag = (document.activeElement as HTMLElement)?.tagName;
-      if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
+      const target = e.target as HTMLElement | null;
+      const activeEl = document.activeElement as HTMLElement | null;
+      const activeTag = activeEl?.tagName;
+      if (
+        activeTag === 'INPUT' ||
+        activeTag === 'TEXTAREA' ||
+        activeTag === 'SELECT' ||
+        activeEl?.isContentEditable ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
 
       if (e.code === 'Space') {
+        // Evita repetición por auto-repeat al mantener pulsado
+        if (e.repeat) return;
+        // preventDefault cancela la activación nativa del <button> enfocado:
+        // sin esto, un botón con foco + este atajo ejecutaban la acción DOS veces
+        // (causa directa del Play/Pausa fantasma con teclado).
         e.preventDefault();
         handlePlayToggle();
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
@@ -296,6 +322,24 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     moveClipToTrack(fromTrackId, targetTrack.id, clipId, newOffsetSec);
   };
 
+  // Corte milimétrico del clip seleccionado en la posición exacta del cabezal.
+  // El store ajusta el punto de corte al cruce por cero más cercano (±4ms) para
+  // que el empalme sea inaudible.
+  const handleSplitAtPlayhead = () => {
+    const clipId = selectedClipId;
+    if (!clipId) return;
+
+    const target = arrangementTracks.find((t) => t.clips.some((c) => c.id === clipId));
+    if (!target) return;
+
+    const splitAtSec = currentTimeSec;
+    const didSplit = splitClip(target.id, clipId, splitAtSec);
+    if (didSplit) {
+      setExportNotice(`✂️ Corte milimétrico a ${splitAtSec.toFixed(3)}s (sin clic)`);
+      setTimeout(() => setExportNotice(null), 2200);
+    }
+  };
+
   // Reordenar pistas adicionales
   const handleMoveTrackUp = (index: number) => {
     if (index <= 1) return;
@@ -374,17 +418,44 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     };
   }, [onBackToRink]);
 
+  /**
+   * Sincroniza el estado del store con el motor de audio real.
+   *
+   * El motor es la ÚNICA fuente de verdad de la reproducción (onended, stop por
+   * consolidación, media keys del sistema, etc.). Sin esta suscripción el botón
+   * quedaba "encendido" mostrando Pausa con el audio ya detenido: el clásico
+   * Play fantasma.
+   */
+  useEffect(() => {
+    const unsubscribe = audioEngine.onStateChange((state) => {
+      setIsPlaying(state.isPlaying);
+      if (!state.isPlaying) {
+        // La reproducción terminó: aplicar cambios de mezcla diferidos
+        flushPendingConsolidation();
+      }
+    });
+    return unsubscribe;
+  }, [setIsPlaying]);
+
   // Play / Pause Toggle instantáneo sin latencia (Web Audio API)
+  // Lee el estado REAL del motor (no la clausura de React) para que un toque
+  // nunca invierta el sentido equivocado por un render pendiente.
   const handlePlayToggle = () => {
     audioEngine.initAudioContext();
-    if (isPlaying) {
+    const engineState = audioEngine.getState();
+    const isEngineActive = engineState.isPlaying || engineState.isPreRollActive;
+
+    if (isEngineActive) {
       audioEngine.pause();
       setIsPlaying(false);
-    } else {
-      consolidateStudioAudio();
-      audioEngine.play(currentTimeSec * 1000);
-      setIsPlaying(true);
+      flushPendingConsolidation();
+      return;
     }
+
+    // Re-render de la mezcla con los cambios pendientes antes de sonar
+    void consolidateStudioAudio();
+    audioEngine.play(useAudioStudioStore.getState().currentTimeSec * 1000);
+    setIsPlaying(true);
   };
 
   // Stop y Reset a 0:00
@@ -393,6 +464,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     audioEngine.seek(0);
     setIsPlaying(false);
     setCurrentTimeSec(0);
+    flushPendingConsolidation();
   };
 
   // Return to start
@@ -432,7 +504,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
       const clickX = clientX - rect.left + container.scrollLeft - headerWidth;
       const dur = Math.max(10, totalDurationSec);
       const ratio = Math.max(0, clickX / contentWidth);
-      const targetTimeSec = Math.round(ratio * dur * 100) / 100;
+      const targetTimeSec = Math.round(ratio * dur * 1000) / 1000;
       
       setCurrentTimeSec(targetTimeSec);
       audioEngine.seek(targetTimeSec * 1000);
@@ -459,7 +531,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   return (
     <div 
       className="fixed inset-0 z-50 flex flex-col bg-black text-slate-100 overflow-hidden select-none font-sans"
-      style={{ touchAction: 'pan-x' }}
+      style={STUDIO_TOUCH_ACTION}
     >
       {/* ── 1. CABECERA BANDLAB (TopTransportBar) ── */}
       <TopTransportBar
@@ -489,11 +561,22 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
         >
           {/* Regla de tiempo superior */}
           <div className="sticky top-0 z-30 flex items-stretch bg-zinc-950/95 border-b border-white/10 backdrop-blur-md">
-            <div 
-              className="shrink-0 border-r border-white/10 flex items-center justify-center bg-zinc-900/90 text-[10px] font-mono font-black text-slate-400"
+            <div
+              className="shrink-0 border-r border-white/10 flex flex-col items-center justify-center gap-0.5 bg-zinc-900/90 text-[9px] font-mono font-black text-slate-400 leading-none"
               style={{ width: `${headerWidth}px` }}
+              title="Marcadores temporales (doble clic en la regla para crear)"
             >
-              TRACKS
+              <span>TRACKS</span>
+              <span
+                className={[
+                  'px-1.5 py-0.5 rounded-full border text-[9px] font-bold',
+                  audioNodes.length > 0
+                    ? 'bg-cyan/15 text-cyan border-cyan/30'
+                    : 'bg-white/5 text-slate-500 border-white/10',
+                ].join(' ')}
+              >
+                {audioNodes.length} {audioNodes.length === 1 ? 'nodo' : 'nodos'}
+              </span>
             </div>
             <div className="flex-1 overflow-hidden">
               <AudioTimeRuler
@@ -601,9 +684,9 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
       </div>
 
       {/* ── 3. BARRA INFERIOR DE TRANSPORTE BANDLAB (BandLab Bottom Dock) ── */}
-      <footer className="min-h-16 h-16 shrink-0 flex items-center justify-between px-3 sm:px-6 bg-zinc-950 border-t border-white/10 text-xs z-30 select-none pb-safe px-safe overflow-x-auto no-scrollbar gap-2 sm:gap-4">
+      <footer className="min-h-16 h-16 shrink-0 flex items-center justify-between gap-1.5 overflow-x-auto border-t border-white/10 bg-zinc-950 px-2 text-xs z-30 select-none pb-safe px-safe no-scrollbar sm:gap-4 sm:px-6">
         {/* Izquierda: Mezclador + Rewind + Stop + Tijeras */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           {/* Botón Mezclador (Abre BandLabMixerDrawer) */}
           <button
             type="button"
@@ -617,9 +700,8 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           {/* Rewind to 0:00 */}
           <button
             type="button"
-            onPointerDown={(e) => { e.preventDefault(); handleRewind(); }}
-            onClick={handleRewind}
-            className="w-12 h-12 min-w-touch min-h-touch rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors active:scale-95"
+            {...press(handleRewind)}
+            className="press w-12 h-12 min-w-touch min-h-touch rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10"
             title="Volver al inicio (0:00)"
           >
             <SkipBack className="w-5 h-5" />
@@ -628,41 +710,20 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           {/* Stop / Detener */}
           <button
             type="button"
-            onPointerDown={(e) => { e.preventDefault(); handleStop(); }}
-            onClick={handleStop}
-            className="w-12 h-12 min-w-touch min-h-touch rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors active:scale-95"
+            {...press(handleStop)}
+            className="press w-12 h-12 min-w-touch min-h-touch rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10"
             title="Detener reproducción y reiniciar posición"
           >
             <Square className="w-4 h-4 fill-current" />
           </button>
 
-          {/* Cortar en cabezal */}
+          {/* Cortar en cabezal (precisión al cruce por cero) */}
           <button
             type="button"
-            onPointerDown={(e) => {
-              if (selectedClipId) {
-                e.preventDefault();
-                for (const t of arrangementTracks) {
-                  if (t.clips.some((c) => c.id === selectedClipId)) {
-                    splitClip(t.id, selectedClipId, currentTimeSec);
-                    break;
-                  }
-                }
-              }
-            }}
-            onClick={() => {
-              if (selectedClipId) {
-                for (const t of arrangementTracks) {
-                  if (t.clips.some((c) => c.id === selectedClipId)) {
-                    splitClip(t.id, selectedClipId, currentTimeSec);
-                    break;
-                  }
-                }
-              }
-            }}
+            {...press(handleSplitAtPlayhead, { enabled: Boolean(selectedClipId) })}
             disabled={!selectedClipId}
-            className="w-12 h-12 min-w-touch min-h-touch rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 disabled:opacity-25 transition-colors active:scale-95"
-            title="Dividir clip en el cabezal"
+            className="press w-12 h-12 min-w-touch min-h-touch rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 disabled:opacity-25"
+            title="Dividir clip en el cabezal (corte milimétrico)"
           >
             <Scissors className="w-5 h-5 text-mint" />
           </button>
@@ -672,14 +733,15 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
         <div className="flex items-center gap-3 shrink-0">
           <button
             type="button"
-            onPointerDown={(e) => { e.preventDefault(); handlePlayToggle(); }}
-            onClick={handlePlayToggle}
-            className={`w-14 h-14 min-w-touch min-h-touch rounded-full flex items-center justify-center shadow-lg transition-transform active:scale-95 ${
+            {...press(handlePlayToggle)}
+            aria-pressed={isPlaying}
+            aria-label={isPlaying ? 'Pausar reproducción' : 'Reproducir'}
+            className={`press w-14 h-14 min-w-touch min-h-touch rounded-full flex items-center justify-center shadow-lg ${
               isPlaying 
                 ? 'bg-amber-400 text-black shadow-amber-400/30' 
                 : 'bg-red-500 text-white shadow-red-500/30 hover:bg-red-600'
             }`}
-            title={isPlaying ? 'Pausar' : 'Reproducir'}
+            title={isPlaying ? 'Pausar (Espacio)' : 'Reproducir (Espacio)'}
           >
             {isPlaying ? (
               <Pause className="w-6 h-6 fill-current" />
@@ -709,16 +771,16 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           <button
             type="button"
             onClick={() => addTimeNode(currentTimeSec)}
-            className="h-12 min-h-touch px-3 rounded-full flex items-center gap-1.5 bg-cyan/15 text-cyan border border-cyan/30 text-xs font-bold transition-all hover:bg-cyan/25 active:scale-95"
+            className="press flex h-12 min-h-touch shrink-0 items-center gap-1.5 rounded-full border border-cyan/30 bg-cyan/15 px-2.5 text-xs font-bold text-cyan hover:bg-cyan/25 sm:px-3"
             title="Añadir marcador temporal"
           >
-            <MapPin className="w-4 h-4" />
+            <MapPin className="w-4 h-4 shrink-0" />
             <span className="hidden sm:inline">Nodo</span>
-            <span>({audioNodes.length})</span>
+            <span className="font-mono">({audioNodes.length})</span>
           </button>
 
           {/* Controles de Zoom */}
-          <div className="flex items-center gap-1 font-mono text-xs pl-1">
+          <div className="flex shrink-0 items-center gap-0.5 pl-0.5 font-mono text-xs sm:gap-1 sm:pl-1">
             <button
               type="button"
               onClick={() => zoomOut()}

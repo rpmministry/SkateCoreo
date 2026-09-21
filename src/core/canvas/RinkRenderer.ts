@@ -105,7 +105,10 @@ export class RinkRenderer {
       ctx.lineTo(offsetX + renderedW, offsetY + renderedH / 2);
       ctx.stroke();
 
-      // Marcas y cotas de 3/4 de longitud (37.5m)
+      // Marcas de 3/4 de longitud: SOLO referencia gráfica, sin texto alguno.
+      // La pista debe quedar libre de rótulos obstructivos; el indicador es
+      // puramente visual (tick + punto) y se puede desactivar con
+      // `showReglamentaryGuides: false` desde Ajustes de Pista.
       ctx.setLineDash([]);
       ctx.strokeStyle = '#00F0FF';
       ctx.fillStyle = '#00F0FF';
@@ -121,12 +124,18 @@ export class RinkRenderer {
         ctx.lineTo(markX, markY + 8);
         ctx.stroke();
 
-        // Pequeño indicador
-        ctx.font = 'bold 8px JetBrains Mono, monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        ctx.fillStyle = 'rgba(0, 240, 255, 0.7)';
-        ctx.fillText('3/4 (37.5m)', markX, markY - 10);
+        // Punto central de referencia (sustituye al antiguo texto "3/4 (37.5m)")
+        ctx.beginPath();
+        ctx.arc(markX, markY, 2.4, 0, Math.PI * 2);
+        ctx.fillStyle = '#00F0FF';
+        ctx.fill();
+
+        // Halo tenue para reforzar la lectura sin añadir ruido tipográfico
+        ctx.beginPath();
+        ctx.arc(markX, markY, 5, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(0, 240, 255, 0.35)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
       });
       ctx.restore();
 

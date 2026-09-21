@@ -1,11 +1,26 @@
-export type SkaterCategory = 
-  | 'Tots' 
-  | 'Minis' 
-  | 'Espoir' 
-  | 'Cadet' 
-  | 'Youth' 
-  | 'Junior' 
+import type { CategoriaReglamento, EficienciaReglamento } from '../constants/reglamento';
+
+/**
+ * Categorías oficiales del Reglamento 2026.
+ * Se reutiliza el tipo canónico del reglamento para que el formulario de atletas
+ * y el panel de Reglamento no puedan divergir jamás.
+ */
+export type SkaterCategoryReglamento = CategoriaReglamento;
+
+/** Taxonomía heredada (registros antiguos ya persistidos en IndexedDB). */
+export type SkaterCategoryLegacy =
+  | 'Tots'
+  | 'Minis'
+  | 'Espoir'
+  | 'Cadet'
+  | 'Youth'
+  | 'Junior'
   | 'Senior';
+
+export type SkaterCategory = SkaterCategoryReglamento | SkaterCategoryLegacy;
+
+/** Eficiencias oficiales del Reglamento 2026 (tipo canónico del reglamento). */
+export type SkaterEficiencia = EficienciaReglamento;
 
 export interface Skater {
   id: string;
@@ -13,6 +28,10 @@ export interface Skater {
   category: SkaterCategory;
   club?: string;
   country?: string;
+  /** Edad del patinador/a; determina la categoría oficial. */
+  age?: number;
+  /** Nivel de eficiencia (Reglamento 2026). */
+  eficiencia?: SkaterEficiencia;
   created_at: number;
 }
 

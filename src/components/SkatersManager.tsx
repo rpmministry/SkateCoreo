@@ -7,7 +7,17 @@ import {
   Download, 
   Upload
 } from 'lucide-react';
-import { Skater, Program, SkaterCategory } from '../types';
+import {
+  Skater,
+  Program,
+  SkaterCategoryReglamento,
+  SkaterEficiencia,
+} from '../types';
+import {
+  EFICIENCIAS_DISPONIBLES,
+  getCategoriaByEdad,
+  getDescripcionCategoria,
+} from '../constants/reglamento';
 import { dbService } from '../services/db';
 
 interface SkatersManagerProps {
@@ -20,7 +30,25 @@ interface SkatersManagerProps {
   onSelectProgram: (program: Program) => void;
 }
 
-const CATEGORIES: SkaterCategory[] = ['Tots', 'Minis', 'Espoir', 'Cadet', 'Youth', 'Junior', 'Senior'];
+/**
+ * Categorías OFICIALES del Reglamento 2026.
+ * Es exactamente la misma estructura de datos que alimenta el panel de
+ * Reglamento, de modo que el perfil del atleta y el motor de cálculo nunca
+ * divergen.
+ */
+const CATEGORIAS_REGLAMENTO: SkaterCategoryReglamento[] = ['TOT', 'MINI', 'ESPOIR', 'CADET', 'MAYOR'];
+
+/** Rango de edad soportado por el reglamento (TOT a MAYOR). */
+const EDADES_DISPONIBLES: number[] = Array.from({ length: 28 }, (_, i) => i + 3); // 3..30
+
+/** Duraciones reglamentarias habituales (segundos) para evitar errores de tipeo. */
+const DURACIONES_REGLAMENTO: number[] = [60, 90, 120, 150, 180, 210, 240, 270, 300, 330, 360];
+
+const formatDuracion = (sec: number): string => {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${s.toString().padStart(2, '0')} min (${sec}s)`;
+};
 
 export const SkatersManager: React.FC<SkatersManagerProps> = ({
   skaters,
@@ -34,13 +62,17 @@ export const SkatersManager: React.FC<SkatersManagerProps> = ({
   // New Skater Modal / Form State
   const [showNewSkaterModal, setShowNewSkaterModal] = useState(false);
   const [newSkaterName, setNewSkaterName] = useState('');
-  const [newSkaterCat, setNewSkaterCat] = useState<SkaterCategory>('Senior');
+  const [newSkaterAge, setNewSkaterAge] = useState<number>(12);
+  const [newSkaterCat, setNewSkaterCat] = useState<SkaterCategoryReglamento>('ESPOIR');
+  const [newSkaterEficiencia, setNewSkaterEficiencia] = useState<SkaterEficiencia>('BÁSICA');
+  const [newSkaterCatTouched, setNewSkaterCatTouched] = useState(false);
   const [newSkaterClub, setNewSkaterClub] = useState('');
 
   // New Program Modal / Form State
   const [showNewProgramModal, setShowNewProgramModal] = useState(false);
   const [newProgTitle, setNewProgTitle] = useState('');
   const [newProgDurationSec, setNewProgDurationSec] = useState(240); // 4 min default
+  const [newProgCustomDuration, setNewProgCustomDuration] = useState(false);
 
   // Backup / JSON status
   const [statusMessage, setStatusMessage] = useState<{ text: string; isError?: boolean } | null>(null);
@@ -53,6 +85,8 @@ export const SkatersManager: React.FC<SkatersManagerProps> = ({
       id: `skater-${Date.now()}`,
       name: newSkaterName.trim(),
       category: newSkaterCat,
+      age: newSkaterAge,
+      eficiencia: newSkaterEficiencia,
       club: newSkaterClub.trim() || undefined,
       created_at: Date.now()
     };
@@ -60,10 +94,27 @@ export const SkatersManager: React.FC<SkatersManagerProps> = ({
     await dbService.saveSkater(newSkater);
     setNewSkaterName('');
     setNewSkaterClub('');
+    setNewSkaterCatTouched(false);
     setShowNewSkaterModal(false);
     onRefreshData();
     onSelectSkater(newSkater);
     setStatusMessage({ text: `Atleta "${newSkater.name}" creado con éxito` });
+  };
+
+  /**
+   * Al cambiar la edad se recalcula automáticamente la categoría oficial
+   * (Reglamento 2026), salvo que la entrenadora la haya fijado a mano.
+   */
+  const handleAgeChange = (age: number) => {
+    setNewSkaterAge(age);
+    if (!newSkaterCatTouched) {
+      setNewSkaterCat(getCategoriaByEdad(age));
+    }
+  };
+
+  const handleCategoryChange = (cat: SkaterCategoryReglamento) => {
+    setNewSkaterCat(cat);
+    setNewSkaterCatTouched(true);
   };
 
   const handleDeleteSkater = async (id: string, name: string) => {
@@ -342,15 +393,62 @@ export const SkatersManager: React.FC<SkatersManagerProps> = ({
                 />
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div className="min-w-0">
+                  <label className="mb-1 block text-slate-300 font-medium">Edad:</label>
+                  <select
+                    value={newSkaterAge}
+                    onChange={(e) => handleAgeChange(parseInt(e.target.value, 10))}
+                    className="w-full rounded-xl border border-skate-border bg-skate-bg px-3 py-2 text-white outline-none focus:border-sky-500"
+                  >
+                    {EDADES_DISPONIBLES.map((edad) => (
+                      <option key={edad} value={edad}>
+                        {edad} años
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="min-w-0">
+                  <label className="mb-1 block text-slate-300 font-medium">Categoría Oficial:</label>
+                  <select
+                    value={newSkaterCat}
+                    onChange={(e) => handleCategoryChange(e.target.value as SkaterCategoryReglamento)}
+                    className="w-full rounded-xl border border-skate-border bg-skate-bg px-3 py-2 text-white outline-none focus:border-sky-500"
+                  >
+                    {CATEGORIAS_REGLAMENTO.map((c) => (
+                      <option key={c} value={c}>
+                        {c} · {getDescripcionCategoria(c)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <p className="rounded-xl border border-sky-900/60 bg-sky-950/40 px-3 py-2 text-[11px] text-sky-300">
+                Categoría sugerida por Reglamento 2026 para {newSkaterAge} años:{' '}
+                <strong className="font-mono font-black text-amber-300">
+                  {getCategoriaByEdad(newSkaterAge)}
+                </strong>{' '}
+                ({getDescripcionCategoria(getCategoriaByEdad(newSkaterAge))})
+                {newSkaterCatTouched && newSkaterCat !== getCategoriaByEdad(newSkaterAge) && (
+                  <span className="ml-1 text-amber-400">
+                    · Ajustada manualmente a {newSkaterCat}
+                  </span>
+                )}
+              </p>
+
               <div>
-                <label className="block text-slate-300 font-medium mb-1">Categoría Oficial:</label>
+                <label className="mb-1 block text-slate-300 font-medium">Nivel de Eficiencia:</label>
                 <select
-                  value={newSkaterCat}
-                  onChange={(e) => setNewSkaterCat(e.target.value as SkaterCategory)}
-                  className="w-full bg-skate-bg border border-skate-border rounded-xl px-3 py-2 text-white outline-none focus:border-sky-500"
+                  value={newSkaterEficiencia}
+                  onChange={(e) => setNewSkaterEficiencia(e.target.value as SkaterEficiencia)}
+                  className="w-full rounded-xl border border-skate-border bg-skate-bg px-3 py-2 text-white outline-none focus:border-sky-500"
                 >
-                  {CATEGORIES.map(c => (
-                    <option key={c} value={c}>{c}</option>
+                  {EFICIENCIAS_DISPONIBLES.map((eff) => (
+                    <option key={eff} value={eff}>
+                      {eff}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -409,18 +507,41 @@ export const SkatersManager: React.FC<SkatersManagerProps> = ({
               </div>
 
               <div>
-                <label className="block text-slate-300 font-medium mb-1">Duración Reglamentaria (Segundos):</label>
-                <input
-                  type="number"
-                  required
-                  min={30}
-                  max={360}
-                  value={newProgDurationSec}
-                  onChange={(e) => setNewProgDurationSec(parseInt(e.target.value, 10) || 240)}
-                  className="w-full bg-skate-bg border border-skate-border rounded-xl px-3 py-2 text-white outline-none focus:border-sky-500 font-mono"
-                />
-                <span className="text-[11px] text-slate-500 mt-1 block">
-                  Tiempo medio calculado para factor T: {(newProgDurationSec / 2)}s
+                <label className="mb-1 block text-slate-300 font-medium">Duración Reglamentaria:</label>
+                <select
+                  value={newProgCustomDuration ? 'custom' : String(newProgDurationSec)}
+                  onChange={(e) => {
+                    if (e.target.value === 'custom') {
+                      setNewProgCustomDuration(true);
+                      return;
+                    }
+                    setNewProgCustomDuration(false);
+                    setNewProgDurationSec(parseInt(e.target.value, 10));
+                  }}
+                  className="w-full rounded-xl border border-skate-border bg-skate-bg px-3 py-2 font-mono text-white outline-none focus:border-sky-500"
+                >
+                  {DURACIONES_REGLAMENTO.map((sec) => (
+                    <option key={sec} value={sec}>
+                      {formatDuracion(sec)}
+                    </option>
+                  ))}
+                  <option value="custom">Personalizado…</option>
+                </select>
+
+                {newProgCustomDuration && (
+                  <input
+                    type="number"
+                    required
+                    min={30}
+                    max={360}
+                    value={newProgDurationSec}
+                    onChange={(e) => setNewProgDurationSec(parseInt(e.target.value, 10) || 240)}
+                    className="mt-2 w-full rounded-xl border border-skate-border bg-skate-bg px-3 py-2 font-mono text-white outline-none focus:border-sky-500"
+                  />
+                )}
+
+                <span className="mt-1 block text-[11px] text-slate-500">
+                  Cuarto/medio de programa para factor T: {(newProgDurationSec / 2)}s
                 </span>
               </div>
             </div>

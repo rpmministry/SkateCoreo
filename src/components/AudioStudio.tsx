@@ -85,7 +85,7 @@ export const AudioStudio: React.FC<AudioStudioProps> = ({
     () => audioEngine.voiceCueEngine.getConfig().ttsEngine || 'browser'
   );
   const [googleVoiceName, setGoogleVoiceName] = useState<string>(
-    () => audioEngine.voiceCueEngine.getConfig().googleVoiceName || 'es-ES-Neural2-A'
+    () => audioEngine.voiceCueEngine.getConfig().googleVoiceName || 'es-US-Neural2-C'
   );
   const [isTestingVoice, setIsTestingVoice] = useState(false);
 

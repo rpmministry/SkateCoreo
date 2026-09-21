@@ -546,7 +546,10 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
           overflowX: 'auto',
           overflowY: 'hidden',
           WebkitOverflowScrolling: 'touch',
-          touchAction: zoom > 1 ? 'pan-x' : 'none',
+          // Fijo (no reactivo): `useAudioZoomPan` gestiona touch-action una sola
+          // vez y mutarlo aquí a mitad de gesto rompía la pinza. `pan-x pan-y`
+          // desactiva el zoom nativo y deja el gesto de dos dedos al hook.
+          touchAction: 'pan-x pan-y',
         }}
       >
         {/* Canvas de Onda con resolución nativa de píxeles (¡Cero CSS scaleX!) */}

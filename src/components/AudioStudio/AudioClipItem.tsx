@@ -104,35 +104,39 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
     ctx.fillStyle = 'rgba(0, 0, 0, 0.20)';
     ctx.fillRect(0, midY - 0.5, renderWidth, 1);
 
-    // 1. Dibujar Forma de Onda Nítida HD (Barras verticales redondeadas con antialiasing)
-    const barWidth = 1.5;
-    const barGap = 1.0;
-    const step = barWidth + barGap;
-    const numBars = Math.max(1, Math.floor(renderWidth / step));
+    // 1. Forma de onda de ALTA RESOLUCIÓN (1 barra por píxel de dispositivo)
+    //
+    // El paso se calcula en píxeles FÍSICOS y se convierte a CSS, de modo que
+    // cada barra ocupa exactamente 1px de hardware con 1px de separación: en
+    // pantallas Retina/OLED la onda se ve nítida y permite cortes milimétricos
+    // sin aliasing ni emborronado.
+    const stepCss = Math.max(1 / dpr, Math.min(3, renderWidth / 2600));
+    const barCss = Math.max(1 / dpr, stepCss - 1 / dpr);
+    const numBars = Math.max(1, Math.floor(renderWidth / stepCss));
+    const samplesPerBar = Math.max(1, samplesInClip / numBars);
 
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.68)';
-    ctx.lineWidth = barWidth;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.68)';
 
     for (let i = 0; i < numBars; i++) {
-      const x = i * step + barWidth / 2;
-      const sampleStart = startSample + Math.floor((i / numBars) * samplesInClip);
-      const sampleEnd = startSample + Math.floor(((i + 1) / numBars) * samplesInClip);
+      // Alinear al grid de píxeles físicos para evitar antialiasing difuso
+      const xDev = Math.round(i * stepCss * dpr) / dpr;
+      if (xDev > renderWidth) break;
+
+      const sampleStart = startSample + Math.floor(i * samplesPerBar);
+      const sampleEnd = Math.min(
+        endSample,
+        startSample + Math.floor((i + 1) * samplesPerBar) + 1
+      );
 
       let maxPeak = 0;
-      for (let s = sampleStart; s < sampleEnd && s < endSample; s++) {
+      for (let s = sampleStart; s < sampleEnd; s++) {
         const val = Math.abs(channelData[s] || 0);
         if (val > maxPeak) maxPeak = val;
       }
 
-      const barHeight = Math.max(2.5, maxPeak * (renderHeight * 0.76));
-      const halfH = barHeight / 2;
-
-      ctx.moveTo(x, midY - halfH);
-      ctx.lineTo(x, midY + halfH);
+      const halfH = Math.max(1.2, maxPeak * (renderHeight * 0.38));
+      ctx.fillRect(xDev, midY - halfH, barCss, halfH * 2);
     }
-    ctx.stroke();
 
     // 2. Dibujar envolvente visual de Fade In
     const fadeInWidth = (localFadeIn / clipDurationSec) * renderWidth;
@@ -191,8 +195,16 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
 
   // ── Drag Gesture con @use-gesture/react ──
   const bindDrag = useDrag(
-    ({ down, movement: [mx, my], xy: [clientX, clientY], first, last }) => {
+    ({ down, movement: [mx, my], xy: [clientX, clientY], first, last, event, cancel }) => {
       if (isAdjustingFadeIn || isAdjustingFadeOut) return;
+
+      // Dos o más dedos = gesto de pinza/zoom: nunca arrastrar un clip.
+      // Sin esta guarda el clip "secuestraba" el pinch en landscape.
+      const activeTouches = (event as TouchEvent | undefined)?.touches?.length;
+      if (typeof activeTouches === 'number' && activeTouches > 1) {
+        cancel?.();
+        return;
+      }
 
       const laneOffset = Math.round(my / trackLaneHeight);
       const safeTotal = Math.max(1, totalTracks);

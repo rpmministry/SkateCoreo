@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { useAudioStudioStore } from '../../store/useAudioStudioStore';
-import { Trash2, MapPin } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 
 interface AudioTimeRulerProps {
   totalDurationSec: number;
@@ -41,7 +41,7 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
 
     const rect = rulerRef.current.getBoundingClientRect();
     const px = e.clientX - rect.left;
-    const clickedSec = Math.max(0, Math.round((px / effectiveWidth) * duration * 100) / 100);
+    const clickedSec = Math.max(0, Math.round((px / effectiveWidth) * duration * 1000) / 1000);
 
     // Doble clic o Shift + clic crea marcador de nodo
     if (e.shiftKey || e.detail >= 2) {
@@ -60,7 +60,7 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
     if (!isScrubbingRulerRef.current || !rulerRef.current) return;
     const rect = rulerRef.current.getBoundingClientRect();
     const px = e.clientX - rect.left;
-    const newSec = Math.max(0, Math.round((px / effectiveWidth) * duration * 100) / 100);
+    const newSec = Math.max(0, Math.round((px / effectiveWidth) * duration * 1000) / 1000);
     onSeek(newSec);
   };
 
@@ -87,7 +87,7 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
     if (draggingNodeId !== id || !rulerRef.current) return;
     const rect = rulerRef.current.getBoundingClientRect();
     const px = e.clientX - rect.left;
-    const newSec = Math.max(0, Math.round((px / effectiveWidth) * duration * 100) / 100);
+    const newSec = Math.max(0, Math.round((px / effectiveWidth) * duration * 1000) / 1000);
     updateTimeNode(id, newSec);
     onSeek(newSec);
   };
@@ -131,10 +131,10 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
 
   const extendedDuration = duration + (overscrollPx > 0 ? (overscrollPx / pxPerSec) : 0);
   const majorTickCount = Math.floor(extendedDuration / majorStepSec);
-  const majorTicks = Array.from({ length: majorTickCount + 1 }, (_, i) => Math.round(i * majorStepSec * 100) / 100);
+  const majorTicks = Array.from({ length: majorTickCount + 1 }, (_, i) => Math.round(i * majorStepSec * 1000) / 1000);
 
   const subTickCount = Math.floor(extendedDuration / subStepSec);
-  const subTicks = Array.from({ length: subTickCount + 1 }, (_, i) => Math.round(i * subStepSec * 100) / 100);
+  const subTicks = Array.from({ length: subTickCount + 1 }, (_, i) => Math.round(i * subStepSec * 1000) / 1000);
 
   const playheadPx = Math.max(0, (currentTimeSec / duration) * effectiveWidth);
 
@@ -142,23 +142,8 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
     <div
       style={{ width: `${totalRulerWidth}px` }}
       className="select-none bg-slate-950 border-b border-white/10 flex flex-col"
+      title="Regla de tiempo · Doble clic (o Shift + clic) crea un marcador arrastrable"
     >
-      {/* ── Sub-header: Instrucción Rápida y Contador de Marcadores ── */}
-      <div className="h-7 px-3 flex items-center justify-between bg-slate-900/80 border-b border-white/5 text-[11px]">
-        <div className="flex items-center gap-2 text-slate-300 font-medium">
-          <MapPin className="w-3.5 h-3.5 text-cyan" />
-          <span>Regla de Marcadores Temporales:</span>
-          <span className="text-[10px] text-slate-400">
-            (Doble clic o Shift + Clic en la regla para crear un nuevo Nodo)
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan/10 text-cyan border border-cyan/30 font-bold">
-            {audioNodes.length} {audioNodes.length === 1 ? 'Nodo creado' : 'Nodos creados'}
-          </span>
-        </div>
-      </div>
-
       {/* ── Contenedor de la Regla Graduada con Scrubbing Continuo ── */}
       <div
         ref={rulerRef}

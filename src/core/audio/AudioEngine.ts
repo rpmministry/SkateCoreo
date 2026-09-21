@@ -293,14 +293,28 @@ export class AudioEngine {
   }
 
 
-  public setAudioBuffer(buffer: AudioBuffer, fileName?: string | null) {
+  /**
+   * Instala un nuevo buffer maestro.
+   *
+   * @param preservePosition Conserva el cabezal actual en lugar de volver a 0:00.
+   *   Se usa al re-renderizar la mezcla (consolidación) para no expulsar al
+   *   usuario de su punto de trabajo.
+   */
+  public setAudioBuffer(
+    buffer: AudioBuffer,
+    fileName?: string | null,
+    preservePosition: boolean = false
+  ) {
+    const previousPosition = this.pausedAtTime;
     this.stop();
     this.audioBuffer = buffer;
     this.durationMs = Math.round(buffer.duration * 1000);
     if (fileName !== undefined) {
       this.fileName = fileName;
     }
-    this.pausedAtTime = 0;
+    this.pausedAtTime = preservePosition
+      ? Math.max(0, Math.min(previousPosition, this.durationMs))
+      : 0;
     this.mediaSession.updateMetadata(this.fileName || 'Pista de Audio');
     this.emitStateChange();
   }

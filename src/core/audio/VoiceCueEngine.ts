@@ -1,6 +1,13 @@
 import { VoiceCueConfig, VoiceCueEvent, TTSEngineType } from '../../types/audio';
 import { ElementLog, ChoreographyPathPoint } from '../../types/choreography';
 import { ttsService } from '../../services/ttsService';
+import {
+  cleanFigureNameForSpeech,
+  sanitizeSpeechText,
+} from './voiceCueSanitizer';
+
+// Re-export para mantener compatibilidad con los consumidores existentes
+export { cleanFigureNameForSpeech, sanitizeSpeechText };
 
 export type PreRollTickCallback = (remainingSec: number) => void;
 export type PreRollCompleteCallback = () => void;
@@ -12,90 +19,79 @@ export interface GoogleTTSVoiceOption {
   gender: 'female' | 'male';
 }
 
+/**
+ * Catálogo de voces Google Cloud.
+ *
+ * Política de marca: se priorizan VOCES LATINAS (región es-US / es-419) en
+ * variantes Neural2 y Wavenet, tanto femenina como masculina, porque el público
+ * objetivo es latinoamericano. Las variantes es-ES quedan como alternativa.
+ */
 export const GOOGLE_TTS_VOICES: GoogleTTSVoiceOption[] = [
-  { name: 'es-ES-Neural2-A', lang: 'es-ES', label: 'Español (ES) - Neural2 A (Femenina)', gender: 'female' },
-  { name: 'es-ES-Neural2-B', lang: 'es-ES', label: 'Español (ES) - Neural2 B (Masculina)', gender: 'male' },
-  { name: 'es-ES-Neural2-C', lang: 'es-ES', label: 'Español (ES) - Neural2 C (Femenina)', gender: 'female' },
-  { name: 'es-ES-Neural2-F', lang: 'es-ES', label: 'Español (ES) - Neural2 F (Masculina)', gender: 'male' },
-  { name: 'es-ES-Journey-D', lang: 'es-ES', label: 'Español (ES) - Journey D (Natural Dinámica)', gender: 'female' },
-  { name: 'es-ES-Journey-F', lang: 'es-ES', label: 'Español (ES) - Journey F (Conversacional)', gender: 'male' },
-  { name: 'es-US-Neural2-A', lang: 'es-US', label: 'Español (LatAm/US) - Neural2 A (Femenina)', gender: 'female' },
-  { name: 'es-US-Neural2-B', lang: 'es-US', label: 'Español (LatAm/US) - Neural2 B (Masculina)', gender: 'male' },
-  { name: 'es-US-Journey-F', lang: 'es-US', label: 'Español (LatAm/US) - Journey F (Ultra-natural)', gender: 'female' },
-  { name: 'es-US-Journey-O', lang: 'es-US', label: 'Español (LatAm/US) - Journey O (Ultra-natural)', gender: 'male' },
-  { name: 'en-US-Neural2-F', lang: 'en-US', label: 'English (US) - Neural2 F (Female)', gender: 'female' },
-  { name: 'en-US-Neural2-D', lang: 'en-US', label: 'English (US) - Neural2 D (Male)', gender: 'male' },
-  { name: 'en-US-Journey-F', lang: 'en-US', label: 'English (US) - Journey F (Expressive)', gender: 'female' },
-  { name: 'en-US-Journey-O', lang: 'en-US', label: 'English (US) - Journey O (Expressive)', gender: 'male' }
+  // ── Latinas (prioritarias) ──
+  { name: 'es-US-Neural2-C', lang: 'es-US', label: 'Latino (es-US) · Neural2 C — Femenina', gender: 'female' },
+  { name: 'es-US-Neural2-B', lang: 'es-US', label: 'Latino (es-US) · Neural2 B — Masculina', gender: 'male' },
+  { name: 'es-US-Neural2-A', lang: 'es-US', label: 'Latino (es-US) · Neural2 A — Femenina', gender: 'female' },
+  { name: 'es-US-Wavenet-C', lang: 'es-US', label: 'Latino (es-US) · Wavenet C — Femenina', gender: 'female' },
+  { name: 'es-US-Wavenet-D', lang: 'es-US', label: 'Latino (es-US) · Wavenet D — Masculina', gender: 'male' },
+  { name: 'es-US-Wavenet-A', lang: 'es-US', label: 'Latino (es-US) · Wavenet A — Femenina', gender: 'female' },
+  { name: 'es-US-Wavenet-B', lang: 'es-US', label: 'Latino (es-US) · Wavenet B — Masculina', gender: 'male' },
+  { name: 'es-US-Journey-F', lang: 'es-US', label: 'Latino (es-US) · Journey F — Ultra natural (F)', gender: 'female' },
+  { name: 'es-US-Journey-O', lang: 'es-US', label: 'Latino (es-US) · Journey O — Ultra natural (M)', gender: 'male' },
+  // ── Alternativas de España ──
+  { name: 'es-ES-Neural2-A', lang: 'es-ES', label: 'Español (ES) · Neural2 A — Femenina', gender: 'female' },
+  { name: 'es-ES-Neural2-B', lang: 'es-ES', label: 'Español (ES) · Neural2 B — Masculina', gender: 'male' },
+  { name: 'es-ES-Neural2-C', lang: 'es-ES', label: 'Español (ES) · Neural2 C — Femenina', gender: 'female' },
+  { name: 'es-ES-Neural2-F', lang: 'es-ES', label: 'Español (ES) · Neural2 F — Masculina', gender: 'male' },
+  // ── Inglés ──
+  { name: 'en-US-Neural2-F', lang: 'en-US', label: 'English (US) · Neural2 F — Female', gender: 'female' },
+  { name: 'en-US-Neural2-D', lang: 'en-US', label: 'English (US) · Neural2 D — Male', gender: 'male' },
+  { name: 'en-US-Journey-F', lang: 'en-US', label: 'English (US) · Journey F — Expressive', gender: 'female' },
+  { name: 'en-US-Journey-O', lang: 'en-US', label: 'English (US) · Journey O — Expressive', gender: 'male' }
 ];
 
-/**
- * Limpia y formatea el nombre de una figura técnica para que la voz la pronuncie de forma natural y profesional.
- * Remueve sufijos de categoría de UI (ej: "(Posición Base)") y formatea figuras de grupos reglamentarios.
- */
-export function cleanFigureNameForSpeech(label: string): string {
-  let text = label.trim();
-  // Quitar sufijos de categorías de la UI
-  text = text.replace(/\s*\((Posición Base|Variación|Elemento Artístico)\)/gi, '');
-  // Dar formato fluido a figuras obligatorias: "1-2 (Grupo 1)" -> "Figura 1 y 2, Grupo 1"
-  text = text.replace(/^(\d+)-(\d+)\s*\((Grupo\s*\d+)\)/i, 'Figura $1 y $2, $3');
-  // Limpiar paréntesis restantes conservando el nombre: "(Rittberger)" -> "Rittberger"
-  text = text.replace(/\((.*?)\)/g, '$1');
-  return text.trim();
+/** Voz latina femenina por defecto y su contraparte masculina. */
+export const DEFAULT_LATIN_FEMALE_VOICE = 'es-US-Neural2-C';
+export const DEFAULT_LATIN_MALE_VOICE = 'es-US-Neural2-B';
+
+/** Códigos de región latinos preferidos al elegir una voz del navegador. */
+const LATIN_REGION_PRIORITY = ['es-419', 'es-us', 'es-mx', 'es-ar', 'es-co', 'es-cl', 'es-pe', 'es-ve', 'es-uy', 'es-do', 'es-ec', 'es-gt', 'es-pr'];
+
+function scoreBrowserVoice(voice: SpeechSynthesisVoice, lang: 'es' | 'en'): number {
+  const voiceLang = voice.lang.toLowerCase();
+  if (!voiceLang.startsWith(lang)) return -1;
+
+  let score = 0;
+  if (lang === 'es') {
+    const regionIndex = LATIN_REGION_PRIORITY.indexOf(voiceLang);
+    score = regionIndex >= 0 ? 100 - regionIndex : voiceLang.startsWith('es-es') ? 40 : 20;
+  } else {
+    score = voiceLang.startsWith('en-us') ? 100 : 60;
+  }
+
+  const name = voice.name.toLowerCase();
+  if (/(neural|natural|premium|enhanced|wavenet|journey)/.test(name)) score += 15;
+  if (/google/.test(name)) score += 8;
+  return score;
 }
 
 /**
- * Determina si una etiqueta o identificador corresponde a una figura técnica real seleccionada,
- * evitando estrictamente que la voz lea etiquetas de nodos estructurales (ej. "Inicio Trazo",
- * "Fin Trazo", "Vértice", "Bucle", "Curva", "Pose Final", "Nodo 3", "Punto 1", etc.) o metadatos de audio.
- * Si no hay figura seleccionada, devuelve false para omitir cualquier aviso vocal en ese nodo.
+ * isSpeakableFigure — Delega en el sanitizador estricto (whitelist del catálogo
+ * oficial). Un nodo solo es "hablable" si tiene un código de elemento asignado o
+ * una etiqueta que corresponde a una figura reglamentaria real.
  */
 export function isSpeakableFigure(label?: string | null, type?: string | null, element_id?: string | null): boolean {
-  // Si el nodo tiene un código de elemento RollArt asignado (ej: '1A', '2Lo', 'SSp'), es una figura válida
   if (element_id && element_id.trim() !== '') return true;
 
   if (!label) return false;
   const trimmed = label.trim();
   if (!trimmed) return false;
 
-  const lower = trimmed.toLowerCase();
-
-  // 1. Filtrar nombres de archivos de música o metadatos de audio
-  if (/\.(wav|mp3|m4a|ogg|aac|flac)$/i.test(trimmed) || lower.includes('pista_rollart') || trimmed.startsWith('/')) {
-    return false;
-  }
-
-  // 2. Filtrar placeholders de interfaz y estados vacíos
-  if (
-    /^(sin\s+figura|sin\s+etiqueta|sin\s+selecci[oó]n|ningun[ao]|none|null|undefined|vacio|vacío|custom|otro\s*\/?\s*personalizado\.\.\.)$/i.test(lower) ||
-    /^[-—–]\s*(elegir|seleccionar|sin)\b/i.test(lower)
-  ) {
-    return false;
-  }
-
-  // 3. Filtrar etiquetas estructurales de nodos, trazos y conectores de dibujo
-  if (
-    /^(inicio(\s+trazo)?|fin(\s+trazo)?|final|v[eé]rtice|bucle|esquina|trazo|tramo|recta|curva(\s+de\s+transici[oó]n)?|transici[oó]n|salida\s*\/\s*choreo\s*entry|pose(\s+final)?)$/i.test(lower)
-  ) {
-    return false;
-  }
-
-  // 4. Filtrar marcadores automáticos, números aislados o identificadores genéricos de nodos
-  if (
-    /^(nodo|node|punto|point|marcador|marker|paso|step|beat|tempo|comp[aá]s|t|tiempo|time)(\s*#?\d+(\.\d+)?s?)?$/i.test(lower) ||
-    /^#?\d+(\.\d+)?s?$/i.test(lower)
-  ) {
-    return false;
-  }
-
-  // 5. Si el tipo es 'Marker' o 'Curve' y su etiqueta es genérica, descartar
+  // Descartar marcadores estructurales por tipo antes de consultar el catálogo
   if (type === 'Marker' || type === 'Curve') {
-    if (/^(marcador|marker|beat|punto|point|nodo|node|curve|curva)\b/i.test(lower)) {
-      return false;
-    }
+    if (/^(marcador|marker|beat|punto|point|nodo|node|curve|curva)\b/i.test(trimmed)) return false;
   }
 
-  return true;
+  return sanitizeSpeechText(trimmed) !== null;
 }
 
 export class VoiceCueEngine {
@@ -113,7 +109,7 @@ export class VoiceCueEngine {
     selectedVoiceURI: null,
     ttsEngine: 'browser',
     googleApiKey: null,
-    googleVoiceName: 'es-ES-Neural2-A'
+    googleVoiceName: DEFAULT_LATIN_FEMALE_VOICE
   };
 
   private availableVoices: SpeechSynthesisVoice[] = [];
@@ -150,6 +146,16 @@ export class VoiceCueEngine {
       if (savedGoogleVoice) {
         this.config.googleVoiceName = savedGoogleVoice;
       }
+
+      // Migración única: cualquier voz castellana (es-ES) guardada por versiones
+      // anteriores se sustituye por la voz latina femenina por defecto, para que
+      // el acento de la Voz Guía sea siempre latinoamericano.
+      if (this.config.language === 'es' && /^es-ES-/i.test(this.config.googleVoiceName)) {
+        this.config.googleVoiceName = DEFAULT_LATIN_FEMALE_VOICE;
+        try {
+          localStorage.setItem('skatecoreo_google_voice', DEFAULT_LATIN_FEMALE_VOICE);
+        } catch (e) {}
+      }
     }
 
     if (config) {
@@ -174,12 +180,11 @@ export class VoiceCueEngine {
               }
             }
 
-            // If no voice selected, pick best default for current language
+            // Sin preferencia guardada: elegir la mejor voz (prioriza acento latino)
             if (!this.config.selectedVoiceURI) {
-              const langCode = this.config.language === 'es' ? 'es' : 'en';
-              const match = list.find(v => v.lang.toLowerCase().startsWith(langCode));
-              if (match) {
-                this.config.selectedVoiceURI = match.voiceURI;
+              const best = this.pickBestBrowserVoice(list, this.config.language);
+              if (best) {
+                this.config.selectedVoiceURI = best.voiceURI;
               }
             }
           }
@@ -189,6 +194,29 @@ export class VoiceCueEngine {
       loadVoices();
       window.speechSynthesis.onvoiceschanged = loadVoices;
     }
+  }
+
+  /**
+   * Elige la mejor voz del navegador para el idioma dado, priorizando acento
+   * latino (es-419 / es-US / es-MX / ...) sobre el castellano y las voces
+   * "neural/natural/premium" sobre las sintéticas básicas.
+   */
+  public pickBestBrowserVoice(
+    voices: SpeechSynthesisVoice[],
+    lang: 'es' | 'en'
+  ): SpeechSynthesisVoice | null {
+    if (!voices || voices.length === 0) return null;
+
+    let best: SpeechSynthesisVoice | null = null;
+    let bestScore = -1;
+    for (const voice of voices) {
+      const score = scoreBrowserVoice(voice, lang);
+      if (score > bestScore) {
+        bestScore = score;
+        best = voice;
+      }
+    }
+    return bestScore >= 0 ? best : null;
   }
 
   public init(ctx: AudioContext, outputNode: AudioNode) {
@@ -273,16 +301,16 @@ export class VoiceCueEngine {
     if (this.availableVoices.length > 0) {
       const current = this.availableVoices.find(v => v.voiceURI === this.config.selectedVoiceURI);
       const prefix = lang === 'es' ? 'es' : 'en';
-      if (!current || !current.lang.toLowerCase().startsWith(prefix)) {
-        const match = this.availableVoices.find(v => v.lang.toLowerCase().startsWith(prefix));
-        if (match) {
-          this.setSelectedVoice(match.voiceURI);
-        }
+      const needsSwitch = !current || !current.lang.toLowerCase().startsWith(prefix);
+      if (needsSwitch) {
+        const best = this.pickBestBrowserVoice(this.availableVoices, lang);
+        if (best) this.setSelectedVoice(best.voiceURI);
       }
     }
 
-    if (lang === 'es' && !this.config.googleVoiceName.startsWith('es-')) {
-      this.setGoogleVoiceName('es-ES-Neural2-A');
+    // Migrar a voz latina: cualquier voz es-ES previa se reemplaza por la latina
+    if (lang === 'es' && !this.config.googleVoiceName.startsWith('es-US')) {
+      this.setGoogleVoiceName(DEFAULT_LATIN_FEMALE_VOICE);
     } else if (lang === 'en' && !this.config.googleVoiceName.startsWith('en-')) {
       this.setGoogleVoiceName('en-US-Neural2-F');
     }
@@ -323,27 +351,34 @@ export class VoiceCueEngine {
   public loadProgramElements(elements: ElementLog[]) {
     this.triggeredCueIds.clear();
     const leadMs = this.config.warningLeadTimeSec * 1000;
+    const isEs = this.config.language === 'es';
 
-    this.cues = elements.map(el => {
-      const triggerTimeMs = Math.max(0, el.execution_timestamp - leadMs);
-      const isEs = this.config.language === 'es';
-      
-      const elementName = el.name || el.base_code;
-      const text = isEs 
-        ? `${elementName} en ${this.config.warningLeadTimeSec}` 
-        : `${elementName} in ${this.config.warningLeadTimeSec}`;
+    this.cues = elements
+      .map((el): VoiceCueEvent | null => {
+        const triggerTimeMs = Math.max(0, el.execution_timestamp - leadMs);
 
-      return {
-        id: `cue-${el.id}`,
-        timeMs: triggerTimeMs,
-        text,
-        type: 'element-alert',
-        elementId: el.id
-      };
-    });
+        // Filtro de Voz Guía: solo se anuncia el nombre de la figura asignada
+        // (o su código de elemento). Nombres descriptivos o vacíos se descartan.
+        const rawName = (el.name || '').trim() || (el.base_code || '').trim();
+        const spokenName = sanitizeSpeechText(rawName);
+        if (!spokenName) return null;
+
+        const text = isEs
+          ? `${spokenName} en ${this.config.warningLeadTimeSec}`
+          : `${spokenName} in ${this.config.warningLeadTimeSec}`;
+
+        return {
+          id: `cue-${el.id}`,
+          timeMs: triggerTimeMs,
+          text,
+          type: 'element-alert' as const,
+          elementId: el.id,
+        };
+      })
+      .filter((cue): cue is VoiceCueEvent => cue !== null);
 
     if (this.config.ttsEngine === 'google-cloud' && this.config.googleApiKey) {
-      void this.preloadGoogleTTS(this.cues.map(c => c.text));
+      void this.preloadGoogleTTS(this.cues.map((c) => c.text));
     }
   }
 
@@ -498,6 +533,10 @@ export class VoiceCueEngine {
   private scheduleHardwareCue(cue: VoiceCueEvent, targetCtxTime: number) {
     if (!this.ctx || !this.outputNode) return;
 
+    // Filtro de Voz Guía: nada llega a la API de TTS sin pasar la whitelist
+    const safeText = sanitizeSpeechText(cue.text);
+    if (!safeText) return;
+
     // 1. Emitir tono percusivo exacto en el momento del evento
     try {
       const osc = this.ctx.createOscillator();
@@ -519,7 +558,7 @@ export class VoiceCueEngine {
     // 2. Intentar reproducir buffer de voz TTS precargado si está disponible
     void (async () => {
       try {
-        const buffer = await ttsService.getAudioBufferForText(cue.text, { speed: this.config.voiceSpeed });
+        const buffer = await ttsService.getAudioBufferForText(safeText, { speed: this.config.voiceSpeed });
         if (buffer && this.ctx && this.outputNode) {
           const source = this.ctx.createBufferSource();
           source.buffer = buffer;
@@ -532,7 +571,7 @@ export class VoiceCueEngine {
       // Fallback a síntesis reactiva si no había buffer
       const delayMs = Math.max(0, Math.round((targetCtxTime - (this.ctx?.currentTime || 0)) * 1000));
       setTimeout(() => {
-        this.speak(cue.text);
+        this.speakRaw(safeText);
       }, delayMs);
     })();
   }
@@ -713,29 +752,44 @@ export class VoiceCueEngine {
   public testVoice(sampleText?: string) {
     const isEs = this.config.language === 'es';
     const text = sampleText || (isEs ? 'Doble Axel en 3, 2, 1, ¡ya!' : 'Double Axel in 3, 2, 1, go!');
-    this.speak(text);
+    // Acción explícita del usuario: se salta el filtro para permitir cualquier muestra
+    this.speakRaw(text);
     if (this.config.ttsEngine === 'browser') {
       this.playAlertTone();
     }
   }
 
   /**
-   * Sintetiza y reproduce texto usando Google Cloud Text-to-Speech o Web Speech API
+   * Sintetiza y reproduce texto usando Google Cloud Text-to-Speech o Web Speech API.
+   *
+   * Filtro de Voz Guía: TODO texto pasa por `sanitizeSpeechText`, que solo deja
+   * pasar comandos explícitos o nombres de figuras del catálogo oficial. Así la
+   * digitalización de la plantilla A4 nunca lee "Nodo 3 (Papel)", notas al
+   * margen ni metadatos de audio.
    */
   public speak(text: string) {
+    const safeText = sanitizeSpeechText(text);
+    if (!safeText) return;
+    this.speakRaw(safeText);
+  }
+
+  /** Reproducción sin filtro. Reservado a la prueba manual de voz. */
+  public speakRaw(text: string) {
     if (!this.config.enabled || this.config.volume <= 0) return;
+    const trimmed = (text || '').trim();
+    if (!trimmed) return;
 
     if (ttsService.hasGoogleApiKey() || (this.config.ttsEngine === 'google-cloud' && this.config.googleApiKey)) {
-      ttsService.speak(text, { speed: this.config.voiceSpeed });
+      ttsService.speak(trimmed, { speed: this.config.voiceSpeed, force: true });
       return;
     }
 
     if (this.config.ttsEngine === 'google-cloud') {
-      this.speakGoogleCloud(text);
+      this.speakGoogleCloud(trimmed);
       return;
     }
 
-    this.speakBrowser(text);
+    this.speakBrowser(trimmed);
   }
 
   /**
@@ -777,7 +831,8 @@ export class VoiceCueEngine {
 
     try {
       const voiceOption = GOOGLE_TTS_VOICES.find(v => v.name === this.config.googleVoiceName);
-      const langCode = voiceOption?.lang || (this.config.language === 'es' ? 'es-ES' : 'en-US');
+      // Región latina por defecto (es-US) para todo el motor de voz guía
+      const langCode = voiceOption?.lang || (this.config.language === 'es' ? 'es-US' : 'en-US');
 
       const pitchSemitones = (this.config.voicePitch - 1.0) * 4;
       const clampedPitch = Math.max(-20, Math.min(20, pitchSemitones));
@@ -889,14 +944,23 @@ export class VoiceCueEngine {
         const utterance = new SpeechSynthesisUtterance(text);
         
         const voices = this.getAvailableVoices();
-        if (this.config.selectedVoiceURI && voices.length > 0) {
-          const matchedVoice = voices.find(v => v.voiceURI === this.config.selectedVoiceURI);
-          if (matchedVoice) {
-            utterance.voice = matchedVoice;
-            utterance.lang = matchedVoice.lang;
-          }
+        const matchedVoice =
+          this.config.selectedVoiceURI && voices.length > 0
+            ? voices.find((v) => v.voiceURI === this.config.selectedVoiceURI) || null
+            : null;
+
+        if (matchedVoice) {
+          utterance.voice = matchedVoice;
+          utterance.lang = matchedVoice.lang;
         } else {
-          utterance.lang = this.config.language === 'es' ? 'es-ES' : 'en-US';
+          // Sin voz explícita: elegir la mejor disponible priorizando acento latino
+          const best = this.pickBestBrowserVoice(voices, this.config.language);
+          if (best) {
+            utterance.voice = best;
+            utterance.lang = best.lang;
+          } else {
+            utterance.lang = this.config.language === 'es' ? 'es-US' : 'en-US';
+          }
         }
 
         utterance.rate = this.config.voiceSpeed;

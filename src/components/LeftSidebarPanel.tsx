@@ -22,6 +22,8 @@ import {
   PenTool,
 } from 'lucide-react';
 import { RinkContextTools } from './rink/RinkContextTools';
+import { audioEngine } from '../services/audioEngine';
+import { GOOGLE_TTS_VOICES, DEFAULT_LATIN_FEMALE_VOICE } from '../core/audio/VoiceCueEngine';
 import { useAudioEngine } from '../hooks/useAudioEngine';
 import { useChoreographyStore } from '../store/useChoreographyStore';
 import { useAuthStore } from '../store/useAuthStore';
@@ -85,6 +87,19 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
   const [showDeviceModal, setShowDeviceModal] = React.useState(false);
   const [showPaperModal, setShowPaperModal] = React.useState(false);
 
+  // Modelo de Voz Guía (Google Cloud TTS). Solo se ofrecen voces LATINAS.
+  const LATIN_VOICES = React.useMemo(
+    () => GOOGLE_TTS_VOICES.filter((v) => v.lang === 'es-US'),
+    []
+  );
+  const [googleVoiceName, setGoogleVoiceName] = React.useState<string>(
+    () => audioEngine.voiceCueEngine.getConfig().googleVoiceName || DEFAULT_LATIN_FEMALE_VOICE
+  );
+  const handleVoiceModelChange = (voiceName: string) => {
+    setGoogleVoiceName(voiceName);
+    audioEngine.voiceCueEngine.setGoogleVoiceName(voiceName);
+  };
+
   const content = (
     <>
       {/* ═══ 0. Reglamento & Categoría 2026 ═══════════════ */}
@@ -136,7 +151,7 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
                   type="button"
                   onClick={() => setEficiencia(eff)}
                   className={[
-                    'py-2 px-1 rounded-xl text-[10px] font-bold interactive-tap transition-all truncate-safe text-center',
+                    'press min-w-0 min-h-touch overflow-hidden rounded-xl px-1 py-1.5 text-center text-[9px] font-bold leading-[1.15] wrap-anywhere',
                     eficiencia === eff
                       ? 'bg-cyan text-neon-canvas shadow-glow-cyan font-black'
                       : 'bg-neon-card text-slate-400 hover:text-white hover:bg-neon-hover shadow-soft-elevation',
@@ -359,6 +374,34 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Modelo de Voz Guía (voces latinas Neural2 / Wavenet) */}
+          <div className="space-y-1.5">
+            <label className="flex items-center gap-1 text-[10px] font-semibold text-slate-500">
+              <Mic className="w-3 h-3" />
+              Modelo de Voz Latina
+            </label>
+            <select
+              value={googleVoiceName}
+              onChange={(e) => handleVoiceModelChange(e.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-neon-card px-2.5 py-2 text-[11px] font-semibold text-slate-200 outline-none focus:border-cyan/60"
+              title="Voces latinas (es-US) Neural2 y Wavenet, femeninas y masculinas"
+            >
+              {LATIN_VOICES.map((voice) => (
+                <option key={voice.name} value={voice.name}>
+                  {voice.label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => audioEngine.voiceCueEngine.testVoice()}
+              className="press flex min-h-touch w-full items-center justify-center gap-1.5 rounded-xl border border-cyan/30 bg-cyan/15 px-3 py-2 text-[11px] font-bold text-cyan hover:bg-cyan/25"
+            >
+              <Mic className="h-3.5 w-3.5" />
+              Probar Voz Guía
+            </button>
           </div>
         </section>
 
@@ -726,14 +769,21 @@ function ToggleButton({
       onClick={onClick}
       title={title}
       className={[
-        'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold interactive-tap transition-all',
+        // Columna icono + etiqueta: la etiqueta dispone de todo el ancho del
+        // cajón y puede partirse en dos líneas sin desbordar ni solaparse.
+        'press flex w-full min-w-0 min-h-touch flex-col items-center justify-center gap-1 overflow-hidden rounded-xl px-1 py-1.5 text-center',
         active
           ? 'bg-cyan text-neon-canvas shadow-glow-cyan font-black'
           : 'bg-neon-card text-slate-400 hover:text-white hover:bg-neon-hover shadow-soft-elevation',
       ].join(' ')}
     >
-      {icon}
-      {label}
+      <span className="shrink-0 leading-none">{icon}</span>
+      <span
+        className="wrap-anywhere block w-full text-[10px] font-bold leading-[1.15]"
+        style={{ overflowWrap: 'anywhere', wordBreak: 'break-word', hyphens: 'auto' }}
+      >
+        {label}
+      </span>
     </button>
   );
 }

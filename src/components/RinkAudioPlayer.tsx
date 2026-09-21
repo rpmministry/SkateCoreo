@@ -2,6 +2,7 @@ import React from 'react';
 import { Play, Pause, Square, Music, Mic, Bell } from 'lucide-react';
 import { audioEngine } from '../services/audioEngine';
 import { useAudioStudioStore } from '../store/useAudioStudioStore';
+import { usePressAction } from '../hooks/usePressAction';
 
 interface RinkAudioPlayerProps {
   currentTimeMs: number;
@@ -46,9 +47,19 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
   const metronomeMuted = globalControls.metronome.muted;
   const voiceMuted = globalControls.voiceGuide.muted;
 
+  // Activación táctil única (evita el doble disparo pointerdown + click que
+  // provocaba la "reproducción fantasma" en la Pista 2D).
+  const press = usePressAction();
+
+  /**
+   * Lee el estado REAL del motor en lugar de la prop `isPlaying`, que puede
+   * llegar con un render de retraso y hacer que un toque invierta el sentido
+   * equivocado (play cuando ya está sonando o viceversa).
+   */
   const handlePlayPause = () => {
     audioEngine.initAudioContext();
-    if (isPlaying) {
+    const engineState = audioEngine.getState();
+    if (engineState.isPlaying || engineState.isPreRollActive) {
       audioEngine.pause();
     } else {
       audioEngine.play();
@@ -63,13 +74,9 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
   const playButton = (size: 'md' | 'lg') => (
     <button
       type="button"
-      onPointerDown={(e) => {
-        if (!hasAudioLoaded) return;
-        e.preventDefault();
-        handlePlayPause();
-      }}
-      onClick={handlePlayPause}
+      {...press(handlePlayPause, { enabled: hasAudioLoaded })}
       disabled={!hasAudioLoaded}
+      aria-pressed={isPlaying}
       className={[
         size === 'lg' ? 'h-[52px] w-[52px]' : 'h-12 w-12',
         'min-w-touch min-h-touch shrink-0 rounded-xl flex items-center justify-center press shadow-md disabled:opacity-30 disabled:pointer-events-none',
@@ -91,12 +98,7 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
   const stopButton = (size: 'md' | 'lg') => (
     <button
       type="button"
-      onPointerDown={(e) => {
-        if (!hasAudioLoaded) return;
-        e.preventDefault();
-        handleStop();
-      }}
-      onClick={handleStop}
+      {...press(handleStop, { enabled: hasAudioLoaded })}
       disabled={!hasAudioLoaded}
       className={[
         size === 'lg' ? 'h-[52px] w-[52px]' : 'h-12 w-12',
