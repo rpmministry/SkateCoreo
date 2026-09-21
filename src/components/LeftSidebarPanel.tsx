@@ -146,6 +146,14 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
     setGoogleVoiceName(audioEngine.voiceCueEngine.getConfig().googleVoiceName);
   };
 
+  /**
+   * Etiqueta de compás real (p. ej. "6/8", no "6/4"). Se deriva del catálogo
+   * `TIME_SIGNATURES`, que es la única fuente de verdad de la métrica.
+   */
+  const currentTimeSigLabel =
+    TIME_SIGNATURES.find((ts) => ts.beats === audio.metronome.beatsPerMeasure)?.label ??
+    `${audio.metronome.beatsPerMeasure}/4`;
+
   const content = (
     <>
       {/* ═══ 0. Reglamento & Categoría 2026 ═══════════════ */}
@@ -344,11 +352,15 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
             </div>
 
             {audio.metronome.enabled && (
-              <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/5">
-                <div>
-                  <label className="text-[10px] font-semibold text-slate-400 block mb-1">
-                    BPM ({audio.metronome.bpm})
-                  </label>
+              <div className="space-y-3 pt-3 border-t border-white/5">
+                {/* ── Tempo (BPM) — fila completa ── */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <label className="text-slate-400 font-medium">Tempo</label>
+                    <span className="font-mono font-bold text-mint">
+                      {audio.metronome.bpm} BPM
+                    </span>
+                  </div>
                   <input
                     type="range"
                     min={40}
@@ -356,30 +368,47 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
                     value={audio.metronome.bpm}
                     onChange={(e) => audio.metronome.setBpm(parseInt(e.target.value, 10))}
                     className="w-full h-1.5 accent-mint bg-neon-surface rounded-full cursor-pointer"
+                    aria-label="Tempo del metrónomo en BPM"
                   />
                 </div>
-                <div>
-                  <label className="text-[10px] font-semibold text-slate-400 block mb-1">
-                    Compás ({audio.metronome.beatsPerMeasure}/4)
-                  </label>
-                  <div className="grid grid-cols-4 gap-1">
-                    {TIME_SIGNATURES.map((ts) => (
-                      <button
-                        key={ts.label}
-                        type="button"
-                        onClick={() => audio.metronome.setBeats(ts.beats)}
-                        aria-pressed={audio.metronome.beatsPerMeasure === ts.beats}
-                        aria-label={`Compás ${ts.label}`}
-                        className={[
-                          'min-h-touch min-w-touch flex items-center justify-center rounded-lg text-[11px] font-bold interactive-tap transition-all',
-                          audio.metronome.beatsPerMeasure === ts.beats
-                            ? 'bg-mint text-neon-canvas shadow-glow-mint font-black'
-                            : 'bg-neon-surface text-slate-400 hover:text-white',
-                        ].join(' ')}
-                      >
-                        {ts.label}
-                      </button>
-                    ))}
+
+                {/* ── Compás (Time Signature) — fila completa.
+                    Rejilla de 4 columnas: cada celda mide ≥44px de alto y el
+                    ancho se reparte al 100% del panel, así los números nunca
+                    se apilan ni se salen en móvil, tablet ni escritorio. ── */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <label className="text-slate-400 font-medium">Compás</label>
+                    <span className="font-mono font-bold text-mint">
+                      {currentTimeSigLabel}
+                    </span>
+                  </div>
+                  <div
+                    role="group"
+                    aria-label="Métrica del metrónomo"
+                    className="grid grid-cols-4 gap-1"
+                  >
+                    {TIME_SIGNATURES.map((ts) => {
+                      const isActive = audio.metronome.beatsPerMeasure === ts.beats;
+                      return (
+                        <button
+                          key={ts.label}
+                          type="button"
+                          onClick={() => audio.metronome.setBeats(ts.beats)}
+                          aria-pressed={isActive}
+                          aria-label={`Compás ${ts.label}`}
+                          title={`Compás ${ts.label}`}
+                          className={[
+                            'min-h-[44px] w-full min-w-0 flex items-center justify-center rounded-lg px-1 text-[11px] font-bold tabular-nums interactive-tap transition-all',
+                            isActive
+                              ? 'bg-mint text-neon-canvas shadow-glow-mint font-black'
+                              : 'bg-neon-surface text-slate-400 hover:text-white hover:bg-neon-hover',
+                          ].join(' ')}
+                        >
+                          {ts.label}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
