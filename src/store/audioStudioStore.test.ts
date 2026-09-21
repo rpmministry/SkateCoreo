@@ -69,4 +69,59 @@ assert(placed3 !== null, 'Nodo 3 ubicado con éxito en la pista');
 assert(useChoreographyStore.getState().unplacedNodes.length === 0, 'Una vez ubicados todos los nodos, la bandeja se vacía automáticamente');
 assert(useChoreographyStore.getState().phase === 'curve', 'Con todos los nodos posicionados, la fase pasa automáticamente a curve');
 
-console.log('Resultado AudioStudioStore & Tray: 16/16 pruebas pasadas con éxito.\n');
+// 5. Controles Globales (Metrónomo, Voces Guía, BPM)
+useAudioStudioStore.getState().setGlobalBpm(136);
+assert(useAudioStudioStore.getState().globalControls.bpm === 136, 'BPM global actualizado a 136');
+assert(useAudioStudioStore.getState().metronomeConfig.bpm === 136, 'Metrónomo sincronizado con BPM global (136)');
+
+useAudioStudioStore.getState().setMetronomeVolume(0.75);
+assert(useAudioStudioStore.getState().globalControls.metronome.volume === 0.75, 'Volumen global del metrónomo ajustado a 75%');
+
+useAudioStudioStore.getState().toggleVoiceGuideMute();
+assert(useAudioStudioStore.getState().globalControls.voiceGuide.muted === true, 'Voces guía silenciadas globalmente (Mute)');
+
+// 6. Límite de Pistas: 1 Master + hasta 4 adicionales (5 pistas en total)
+const t1 = useAudioStudioStore.getState().addAudioTrack('Pista 2');
+const t2 = useAudioStudioStore.getState().addAudioTrack('Pista 3');
+const t3 = useAudioStudioStore.getState().addAudioTrack('Pista 4');
+const t4 = useAudioStudioStore.getState().addAudioTrack('Pista 5');
+assert(useAudioStudioStore.getState().additionalTracks.length === 4, 'Se crearon 4 pistas adicionales');
+
+// Intento de exceder el límite: no debe crear una 6ta pista
+useAudioStudioStore.getState().addAudioTrack('Pista 6 Prohibida');
+assert(useAudioStudioStore.getState().additionalTracks.length === 4, 'Límite estricto: no permite más de 4 pistas adicionales (5 en total)');
+
+// 7. Desplazamiento y Transferencia de Clips entre Pistas (Track Hopping)
+const testClip = {
+  id: 'clip-jump-1',
+  name: 'Sample Vocal',
+  buffer: {} as any,
+  startOffsetSec: 5.0,
+  trimStartSec: 0,
+  trimEndSec: 3.0,
+  fadeInSec: 0.2,
+  fadeOutSec: 0.3,
+};
+useAudioStudioStore.setState((s) => ({
+  tracks: {
+    ...s.tracks,
+    music: { ...s.tracks.music, clips: [testClip] },
+  },
+}));
+assert(useAudioStudioStore.getState().tracks.music.clips.length === 1, 'Clip agregado a la pista de música principal');
+
+// Mover clip desde 'music' hacia la pista adicional t1
+useAudioStudioStore.getState().moveClipToTrack('music', t1.id, 'clip-jump-1', 8.5);
+assert(useAudioStudioStore.getState().tracks.music.clips.length === 0, 'Clip removido con éxito de la pista principal');
+const targetAdditionalTrack = useAudioStudioStore.getState().additionalTracks.find((t) => t.id === t1.id);
+assert(targetAdditionalTrack?.clips.length === 1, 'Clip transferido exitosamente a la pista secundaria');
+assert(targetAdditionalTrack?.clips[0].startOffsetSec === 8.5, 'Clip preserva y actualiza nuevo offset temporal (8.5s)');
+
+// 8. Manifiesto Reactivo de Mezcla Ligero (JSON)
+const manifest = useAudioStudioStore.getState().getMixManifest();
+assert(manifest.bpm === 136, 'Manifiesto contiene BPM global sincronizado');
+assert(manifest.masterTrack.id === 'track-music', 'Manifiesto identifica la pista master');
+assert(manifest.additionalTracks.length === 4, 'Manifiesto incluye las 4 pistas adicionales');
+assert(manifest.globalControls.metronome.volume === 0.75, 'Manifiesto refleja volumen del metrónomo');
+
+console.log('Resultado AudioStudioStore & Tray: 24/24 pruebas pasadas con éxito.\n');

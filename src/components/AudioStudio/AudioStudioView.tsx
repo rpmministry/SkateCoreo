@@ -1,35 +1,25 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
+import { usePinch } from '@use-gesture/react';
 import {
-  Play,
-  Pause,
-  Square,
-  ArrowRight,
-  Sparkles,
-  Upload,
-  MapPin,
-  Trash2,
-  Activity,
-  Layers,
-  CheckCircle2,
-  Clock,
   ZoomIn,
   ZoomOut,
   RotateCcw,
-  Sliders,
-  Menu,
-  Plus,
   Scissors,
+  MousePointer,
+  Trash2,
+  MapPin,
+  CheckCircle2,
   Copy,
   ClipboardPaste,
-  MousePointer,
-  Loader2,
 } from 'lucide-react';
 import { useAudioStudioStore } from '../../store/useAudioStudioStore';
 import { audioEngine } from '../../services/audioEngine';
 import { useAudioZoomPan } from '../../hooks/useAudioZoomPan';
+import { AudioStudioTrack } from '../../types/audioStudio';
+import { TopTransportBar } from './TopTransportBar';
 import { AudioTimeRuler } from './AudioTimeRuler';
 import { MultitrackTrackRow } from './MultitrackTrackRow';
-import { SkateCoreoBrand } from '../brand/SkateCoreoBrand';
+import { FloatingClipContextMenu } from './FloatingClipContextMenu';
 
 interface AudioStudioViewProps {
   onExportToRink?: () => void;
@@ -37,18 +27,9 @@ interface AudioStudioViewProps {
   onOpenDrawer?: () => void;
 }
 
-const fmtTimeWithMs = (sec: number): string => {
-  const s = Math.max(0, sec);
-  const mins = Math.floor(s / 60);
-  const secs = Math.floor(s % 60);
-  const ms = Math.floor((s % 1) * 100);
-  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
-};
-
 export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   onExportToRink,
   onBackToRink,
-  onOpenDrawer,
 }) => {
   const tracks = useAudioStudioStore((s) => s.tracks);
   const additionalTracks = useAudioStudioStore((s) => s.additionalTracks);
@@ -56,47 +37,34 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   const currentTimeSec = useAudioStudioStore((s) => s.currentTimeSec);
   const totalDurationSec = useAudioStudioStore((s) => s.totalDurationSec);
   const isPlaying = useAudioStudioStore((s) => s.isPlaying);
-  const metronomeConfig = useAudioStudioStore((s) => s.metronomeConfig);
-  const isAnalyzingBpm = useAudioStudioStore((s) => s.isAnalyzingBpm);
 
-  const addAudioTrack = useAudioStudioStore((s) => s.addAudioTrack);
-  const removeAudioTrack = useAudioStudioStore((s) => s.removeAudioTrack);
   const setCurrentTimeSec = useAudioStudioStore((s) => s.setCurrentTimeSec);
-  const setIsPlaying = useAudioStudioStore((s) => s.setIsPlaying);
   const setTrackBuffer = useAudioStudioStore((s) => s.setTrackBuffer);
-  const setMetronomeConfig = useAudioStudioStore((s) => s.setMetronomeConfig);
-  const analyzeBpm = useAudioStudioStore((s) => s.analyzeBpm);
-  const clearTimeNodes = useAudioStudioStore((s) => s.clearTimeNodes);
-  const deleteTimeNode = useAudioStudioStore((s) => s.deleteTimeNode);
-  const updateTimeNode = useAudioStudioStore((s) => s.updateTimeNode);
-  const sendMixToChoreo = useAudioStudioStore((s) => s.sendMixToChoreo);
+  const removeAudioTrack = useAudioStudioStore((s) => s.removeAudioTrack);
+  const moveClipToTrack = useAudioStudioStore((s) => s.moveClipToTrack);
+  const addTimeNode = useAudioStudioStore((s) => s.addTimeNode);
+  const renderAndExportMixdown = useAudioStudioStore((s) => s.renderAndExportMixdown);
 
   const activeTool = useAudioStudioStore((s) => s.activeTool);
   const setActiveTool = useAudioStudioStore((s) => s.setActiveTool);
   const selectedClipId = useAudioStudioStore((s) => s.selectedClipId);
-  const clipboardClip = useAudioStudioStore((s) => s.clipboardClip);
+  const splitClip = useAudioStudioStore((s) => s.splitClip);
+  const deleteClip = useAudioStudioStore((s) => s.deleteClip);
   const copyClip = useAudioStudioStore((s) => s.copyClip);
   const pasteClip = useAudioStudioStore((s) => s.pasteClip);
-  const deleteClip = useAudioStudioStore((s) => s.deleteClip);
-  const renderAndExportMixdown = useAudioStudioStore((s) => s.renderAndExportMixdown);
 
   const [isExporting, setIsExporting] = useState(false);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 640);
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 640);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-  const widthOffset = isMobile ? 80 : 240;
-
+  // Ancho de cabecera fija de pista (48px en móvil, 64px en desktop)
+  const headerWidth = 56;
   const playheadLineRef = useRef<HTMLDivElement | null>(null);
+  const workspaceRef = useRef<HTMLDivElement | null>(null);
 
-  // Motor de Zoom y Paneo Dinámico Multidispositivo para el Estudio de Audio
+  // Motor de Zoom y Paneo
   const {
     zoom,
+    setZoomExplicit,
     containerRef: timelineContainerRef,
     contentWidth,
     zoomIn,
@@ -106,9 +74,23 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     minZoom: 1.0,
     maxZoom: 35.0,
     initialZoom: 1.0,
-    widthOffset,
+    widthOffset: headerWidth,
     enableWheelPan: true,
   });
+
+  // Gesto Pinch-to-Zoom con dos dedos sobre el timeline
+  usePinch(
+    ({ offset: [d], first, memo }) => {
+      const initialZoom = first ? zoom : ((memo as number) || zoom);
+      const newZoom = Math.max(1.0, Math.min(35.0, initialZoom * d));
+      setZoomExplicit(newZoom);
+      return initialZoom;
+    },
+    {
+      target: workspaceRef,
+      eventOptions: { passive: false },
+    }
+  );
 
   // Auto-scroll durante reproducción si hay zoom activo
   useEffect(() => {
@@ -118,17 +100,17 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
 
     const dur = Math.max(10, totalDurationSec);
     const playheadRatio = Math.max(0, Math.min(1, currentTimeSec / dur));
-    const playheadPx = widthOffset + playheadRatio * contentWidth;
+    const playheadPx = headerWidth + playheadRatio * contentWidth;
 
     const left = container.scrollLeft;
     const right = left + container.clientWidth;
 
-    if (playheadPx > right - 120 || playheadPx < left + 240) {
+    if (playheadPx > right - 80 || playheadPx < left + 100) {
       container.scrollLeft = Math.max(0, playheadPx - container.clientWidth / 2);
     }
-  }, [currentTimeSec, isPlaying, zoom, contentWidth, totalDurationSec, widthOffset, timelineContainerRef]);
+  }, [currentTimeSec, isPlaying, zoom, contentWidth, totalDurationSec, headerWidth, timelineContainerRef]);
 
-  // Playhead continuo único que atraviesa regla y todas las pistas (Single Source of Truth a 60/120 fps)
+  // Actualización fluida del cabezal a 60 FPS
   useEffect(() => {
     let animId: number;
     const updatePlayhead = () => {
@@ -136,7 +118,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
         const timeSec = isPlaying ? audioEngine.getCurrentTimeMs() / 1000 : currentTimeSec;
         const dur = Math.max(10, totalDurationSec);
         const ratio = Math.max(0, Math.min(1, timeSec / dur));
-        const leftPx = widthOffset + ratio * contentWidth;
+        const leftPx = headerWidth + ratio * contentWidth;
         playheadLineRef.current.style.transform = `translateX(${leftPx}px)`;
       }
       if (isPlaying) {
@@ -148,668 +130,299 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     if (isPlaying) {
       animId = requestAnimationFrame(updatePlayhead);
     }
-    return () => {
-      if (animId) cancelAnimationFrame(animId);
-    };
-  }, [isPlaying, currentTimeSec, totalDurationSec, contentWidth, widthOffset]);
+    return () => cancelAnimationFrame(animId);
+  }, [isPlaying, currentTimeSec, totalDurationSec, contentWidth, headerWidth]);
 
-  // Sincronizar tiempo de AudioEngine con el store de AudioStudio
-  useEffect(() => {
-    const unsubTime = audioEngine.onTimeUpdate((ms) => {
-      setCurrentTimeSec(ms / 1000);
-    });
+  // 1 Pista Principal (Música) + hasta 4 Pistas Adicionales (Total: hasta 5 pistas)
+  const arrangementTracks: AudioStudioTrack[] = useMemo(() => {
+    return [tracks.music, ...additionalTracks];
+  }, [tracks.music, additionalTracks]);
 
-    const unsubState = audioEngine.onStateChange((state) => {
-      setIsPlaying(state.isPlaying);
-    });
+  // Manejador de cambio de pista (Track Hopping) al arrastrar clips verticalmente
+  const handleTrackHop = (
+    fromTrackId: string,
+    targetTrackIndex: number,
+    clipId: string,
+    newOffsetSec: number
+  ) => {
+    const targetTrack = arrangementTracks[targetTrackIndex];
+    if (!targetTrack || targetTrack.id === fromTrackId) return;
 
-    return () => {
-      unsubTime();
-      unsubState();
-    };
-  }, [setCurrentTimeSec, setIsPlaying]);
-
-  // Si hay buffer de música cargado en AudioEngine y no en el store, sincronizarlo
-  useEffect(() => {
-    const engineBuffer = (audioEngine as any).audioBuffer;
-    if (engineBuffer && !tracks.music.buffer) {
-      setTrackBuffer('music', engineBuffer, (audioEngine as any).fileName || 'Musica.wav');
-    }
-  }, [tracks.music.buffer, setTrackBuffer]);
-
-  // Manejo de reproducción / pausa
-  const handleTogglePlay = () => {
-    if (isPlaying) {
-      audioEngine.pause();
-    } else {
-      // Si no hay buffer cargado, generar o asegurar el demo
-      if (!tracks.music.buffer) {
-        audioEngine.ensureAudioBuffer();
-        const buf = (audioEngine as any).audioBuffer;
-        if (buf) {
-          setTrackBuffer('music', buf, 'Pista_Demo.wav');
-        }
-      }
-      audioEngine.play(currentTimeSec * 1000);
-    }
+    moveClipToTrack(fromTrackId, targetTrack.id, clipId, newOffsetSec);
   };
 
-  const handleStop = () => {
-    audioEngine.stop();
-    setCurrentTimeSec(0);
-  };
-
-  const handleSeek = (sec: number) => {
-    const clamped = Math.max(0, Math.min(totalDurationSec, sec));
-    setCurrentTimeSec(clamped);
-    audioEngine.seek(clamped * 1000);
-  };
-
-  // Carga de archivo de audio
-  const handleFileUpload = async (file: File, trackKey: string = 'music') => {
+  // Cargar archivo de audio en una pista específica
+  const handleUploadFile = async (trackId: string, file: File) => {
     try {
-      audioEngine.initAudioContext();
-      const ctx = (audioEngine as any).ctx as AudioContext;
-      const arrayBuffer = await file.arrayBuffer();
-      const decodedBuffer = await ctx.decodeAudioData(arrayBuffer);
-
-      setTrackBuffer(trackKey, decodedBuffer, file.name);
-
-      if (trackKey === 'music') {
-        audioEngine.setAudioBuffer(decodedBuffer, file.name);
-        // Analizar BPM automáticamente al cargar nueva pista musical
-        void analyzeBpm();
-      }
+      const buffer = await audioEngine.loadAudioFile(file, file.name);
+      setTrackBuffer(trackId, buffer, file.name);
     } catch (err: any) {
-      alert('Error al procesar el archivo de audio: ' + (err?.message || err));
+      alert('Error al decodificar audio: ' + (err?.message || 'Archivo no compatible'));
     }
   };
 
-  // Detección manual de BPM
-  const handleDetectBpm = async () => {
-    if (!tracks.music.buffer) {
-      alert('Carga primero una pista musical para detectar su tempo.');
-      return;
-    }
-    const bpm = await analyzeBpm();
-    if (bpm) {
-      setExportNotice(`Tempo detectado: ${bpm} BPM. Metrónomo sincronizado.`);
-      setTimeout(() => setExportNotice(null), 4000);
-    }
-  };
-
-  // Exportar mezcla y nodos a la Pista 2D mediante OfflineAudioContext
-  const handleExportToChoreo = async () => {
-    if (audioNodes.length === 0) {
-      if (!window.confirm('No has creado ningún marcador temporal en la regla. ¿Deseas mezclar y enviar a la Pista 2D sin nodos de audio?')) {
-        return;
-      }
-    }
-
+  // Exportar mezcla mixdown por hardware
+  const handleExportMix = async () => {
     setIsExporting(true);
     try {
       const result = await renderAndExportMixdown();
       if (result.success) {
-        setExportNotice(`¡Mezcla completada! (${fmtTimeWithMs(result.durationSec)}). Nodos listos en Pista 2D.`);
-        setTimeout(() => {
-          setExportNotice(null);
-          if (onExportToRink) onExportToRink();
-          else if (onBackToRink) onBackToRink();
-        }, 700);
-      } else {
-        const fallback = sendMixToChoreo();
-        if (fallback.success) {
-          setExportNotice(`Audio y ${fallback.nodes.length} nodos exportados a la Pista 2D.`);
-          setTimeout(() => {
-            setExportNotice(null);
-            if (onExportToRink) onExportToRink();
-            else if (onBackToRink) onBackToRink();
-          }, 700);
-        }
+        setExportNotice('¡Mezcla sincronizada con éxito en la Pista 2D!');
+        setTimeout(() => setExportNotice(null), 3500);
+        if (onExportToRink) onExportToRink();
       }
     } catch (err: any) {
-      alert('Error en el renderizado de mezcla: ' + (err?.message || err));
+      alert('Error al exportar la mezcla: ' + err?.message);
     } finally {
       setIsExporting(false);
     }
   };
 
+  // Long-press en el fondo del área de trabajo para mover el cabezal directamente
+  const longPressTimerRef = useRef<number | null>(null);
+  const handleWorkspacePointerDown = (e: React.PointerEvent) => {
+    if ((e.target as HTMLElement).closest('button, input, [data-interactive]')) return;
+    
+    const clientX = e.clientX;
+    const container = timelineContainerRef.current;
+    if (!container) return;
+
+    longPressTimerRef.current = window.setTimeout(() => {
+      const rect = container.getBoundingClientRect();
+      const clickX = clientX - rect.left + container.scrollLeft - headerWidth;
+      const dur = Math.max(10, totalDurationSec);
+      const ratio = Math.max(0, Math.min(1, clickX / contentWidth));
+      const targetTimeSec = Math.round(ratio * dur * 100) / 100;
+      
+      setCurrentTimeSec(targetTimeSec);
+      audioEngine.seek(targetTimeSec * 1000);
+      if ('vibrate' in navigator) navigator.vibrate(12);
+    }, 280);
+  };
+
+  const handleWorkspacePointerUp = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  // Altura de carril adaptativa según cantidad de pistas para maximizar el espacio vertical
+  const trackLaneHeight = useMemo(() => {
+    const totalTracks = arrangementTracks.length;
+    if (totalTracks <= 2) return 80;
+    if (totalTracks <= 3) return 68;
+    if (totalTracks <= 4) return 58;
+    return 52; // 5 pistas
+  }, [arrangementTracks.length]);
+
   return (
-    <div className="h-full w-full flex flex-col bg-[#070A12] text-slate-100 select-none overflow-hidden font-sans">
-      {/* ═══════════════════════════════════════════════
-          HEADER: Barra de Transporte y Navegación DAW Lite
-          ═══════════════════════════════════════════════ */}
-      <header className="min-h-14 py-1.5 sm:py-0 shrink-0 bg-[#0E1322] border-b border-white/10 px-2.5 sm:px-4 flex items-center justify-between flex-wrap gap-2 z-20">
-        {/* Izquierda: Volver a la Pista + Menú Hamburguesa + Marca + Título */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          {onOpenDrawer && (
-            <button
-              type="button"
-              onClick={onOpenDrawer}
-              className="min-w-[44px] min-h-[44px] p-2 rounded-xl text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-all active:scale-95 flex items-center justify-center"
-              title="Abrir menú de navegación"
-            >
-              <Menu className="w-4 h-4" />
-            </button>
-          )}
+    <div 
+      className="fixed inset-0 z-50 flex flex-col bg-zinc-950 text-slate-100 overflow-hidden select-none font-sans"
+      style={{ touchAction: 'pan-x' }}
+    >
+      {/* ── 1. CABECERA ULTRA-COMPACTA (36px) — TopTransportBar ── */}
+      <TopTransportBar
+        onBackToRink={onBackToRink}
+        onExportToRink={handleExportMix}
+        isExporting={isExporting}
+      />
 
-          <SkateCoreoBrand />
-
-          <button
-            type="button"
-            onClick={onBackToRink}
-            className="min-h-[44px] flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-all"
-            title="Regresar a la vista de la pista 2D"
-          >
-            <span>← Pista 2D</span>
-          </button>
-
-          <div className="flex items-center gap-2 border-l border-white/10 pl-2 sm:pl-3">
-            <span className="w-2.5 h-2.5 rounded-full bg-cyan shadow-glow-cyan" />
-            <span className="text-xs sm:text-sm font-black tracking-wide text-white uppercase truncate max-w-[120px] sm:max-w-none">
-              Estudio de Audio
-            </span>
-            <span className="hidden sm:inline text-[10px] px-2 py-0.5 rounded-full bg-cyan/10 text-cyan border border-cyan/25 font-bold uppercase">
-              DAW Lite
-            </span>
-          </div>
-        </div>
-
-        {/* Centro: Controles de Transporte Master (Play / Pause / Stop / Tiempo) */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          <div className="flex items-center gap-1.5 bg-slate-950/80 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-2xl border border-white/10 shadow-soft-elevation">
-            <button
-              type="button"
-              onClick={handleTogglePlay}
-              className={`min-w-[44px] min-h-[44px] w-11 h-11 rounded-xl flex items-center justify-center transition-all ${
-                isPlaying
-                  ? 'bg-coral text-white shadow-glow-coral'
-                  : 'bg-cyan text-slate-950 hover:bg-cyan/90 shadow-glow-cyan font-black'
-              }`}
-              title={isPlaying ? 'Pausar' : 'Reproducir'}
-            >
-              {isPlaying ? (
-                <Pause className="w-4 h-4 fill-current stroke-none" />
-              ) : (
-                <Play className="w-4 h-4 fill-current stroke-none ml-0.5" />
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={handleStop}
-              className="min-w-[44px] min-h-[44px] w-11 h-11 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-all"
-              title="Detener y volver al inicio"
-            >
-              <Square className="w-3.5 h-3.5 fill-current stroke-none" />
-            </button>
-
-            <div className="font-mono text-xs px-2 text-slate-300 flex items-center gap-1">
-              <span className="text-cyan font-bold tracking-wider">{fmtTimeWithMs(currentTimeSec)}</span>
-              <span className="text-slate-600">/</span>
-              <span className="text-slate-400">{fmtTimeWithMs(totalDurationSec)}</span>
-            </div>
-          </div>
-
-          {/* Sección de Sincronización BPM y Metrónomo */}
-          <div className="hidden md:flex items-center gap-2 bg-slate-950/60 px-3 py-1.5 rounded-2xl border border-white/10 text-xs">
-            <div className="flex items-center gap-1.5">
-              <Activity className="w-3.5 h-3.5 text-amber-400" />
-              <span className="text-slate-400 font-medium">BPM:</span>
-              <input
-                type="number"
-                min="50"
-                max="240"
-                value={metronomeConfig.bpm}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value, 10);
-                  if (!isNaN(val) && val >= 40 && val <= 260) {
-                    setMetronomeConfig({ bpm: val });
-                  }
-                }}
-                className="w-14 bg-slate-900 border border-white/10 rounded px-1.5 py-0.5 text-amber-400 font-mono font-bold text-center"
-              />
-            </div>
-
-            {/* Selector de Compás */}
-            <select
-              value={metronomeConfig.beatsPerMeasure}
-              onChange={(e) => setMetronomeConfig({ beatsPerMeasure: parseInt(e.target.value, 10) as 1 | 2 | 3 | 4 | 6 })}
-              className="bg-slate-900 border border-white/10 text-slate-300 text-xs rounded px-2 py-0.5 font-mono cursor-pointer"
-            >
-              <option value="1">1/1</option>
-              <option value="2">2/4</option>
-              <option value="3">3/4 (Vals)</option>
-              <option value="4">4/4</option>
-              <option value="6">6/8</option>
-            </select>
-
-            {/* Botón Detección Inteligente de BPM */}
-            <button
-              type="button"
-              onClick={handleDetectBpm}
-              disabled={isAnalyzingBpm || !tracks.music.buffer}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 transition-all disabled:opacity-30 disabled:pointer-events-none"
-              title="Detecta automáticamente el tempo de la pista de música"
-            >
-              <Sparkles className={`w-3 h-3 ${isAnalyzingBpm ? 'animate-spin' : ''}`} />
-              <span>{isAnalyzingBpm ? 'Analizando...' : 'Auto-Sync BPM'}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Derecha: CTA Exportar a Pista 2D */}
-        <div className="flex items-center gap-2">
-          {/* Cargar Música */}
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="min-h-[44px] flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-all"
-            title="Cargar archivo de música"
-          >
-            <Upload className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Cargar Audio</span>
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="audio/*,.mp3,.wav,.m4a,.aac"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleFileUpload(file, 'music');
-            }}
-          />
-
-          {/* CTA Exportar / Mezclar a Pista 2D */}
-          <button
-            type="button"
-            onClick={handleExportToChoreo}
-            disabled={isExporting}
-            className="min-h-[44px] flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-black bg-cyan text-slate-950 hover:bg-cyan/90 border border-white/20 shadow-glow-cyan transition-all interactive-tap disabled:opacity-60"
-            title="Mezcla todas las pistas con OfflineAudioContext y las exporta a la Pista 2D"
-          >
-            {isExporting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-                <span>Mezclando...</span>
-              </>
-            ) : (
-              <>
-                <span>Mezclar y Enviar a Pista 2D</span>
-                <ArrowRight className="w-4 h-4 stroke-[2.5]" />
-              </>
-            )}
-          </button>
-        </div>
-      </header>
-
-      {/* ═══════════════════════════════════════════════
-          DAW EDITING TOOLBAR: Selector de Herramientas Táctiles (44x44px)
-          Adaptable a cualquier resolución sin desbordamientos
-          ═══════════════════════════════════════════════ */}
-      <div className="flex flex-wrap gap-2 justify-start items-center p-2 bg-[#090D18]/95 backdrop-blur z-50 sticky top-0 border-b border-white/10">
-        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-          {/* Herramienta 1: Seleccionar / Puntero */}
-          <button
-            type="button"
-            onClick={() => setActiveTool('select')}
-            className={`min-w-[44px] min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 ${
-              activeTool === 'select'
-                ? 'bg-cyan text-slate-950 shadow-glow-cyan font-black'
-                : 'bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10'
-            }`}
-            title="Seleccionar y mover clips horizontalmente en el tiempo"
-          >
-            <MousePointer className="w-4 h-4" />
-            <span className="hidden sm:inline">Seleccionar</span>
-          </button>
-
-          {/* Herramienta 2: Cortar / Tijeras */}
-          <button
-            type="button"
-            onClick={() => setActiveTool('split')}
-            className={`min-w-[44px] min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 ${
-              activeTool === 'split'
-                ? 'bg-amber-400 text-slate-950 shadow-glow-amber font-black'
-                : 'bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10'
-            }`}
-            title="Tijeras: Toca cualquier clip para cortarlo en dos partes"
-          >
-            <Scissors className="w-4 h-4" />
-            <span className="hidden sm:inline">Cortar (Tijeras)</span>
-          </button>
-
-          {/* Herramienta 3: Borrador */}
-          <button
-            type="button"
-            onClick={() => {
-              if (selectedClipId) {
-                deleteClip();
-              } else {
-                setActiveTool('delete');
-              }
-            }}
-            className={`min-w-[44px] min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 ${
-              activeTool === 'delete'
-                ? 'bg-red-500 text-white shadow-lg shadow-red-500/40 font-black'
-                : 'bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10'
-            }`}
-            title="Borrar: Toca cualquier clip para eliminarlo de la pista"
-          >
-            <Trash2 className="w-4 h-4" />
-            <span className="hidden sm:inline">Borrar Clip</span>
-          </button>
-
-          <div className="h-6 w-px bg-white/10 mx-1 hidden sm:block" />
-
-          {/* Portapapeles: Copiar */}
-          <button
-            type="button"
-            onClick={() => copyClip()}
-            disabled={!selectedClipId}
-            className="min-w-[44px] min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 disabled:opacity-30 disabled:pointer-events-none transition-all active:scale-95"
-            title={selectedClipId ? 'Copiar clip seleccionado' : 'Selecciona un clip para copiarlo'}
-          >
-            <Copy className="w-4 h-4" />
-            <span className="hidden sm:inline">Copiar</span>
-          </button>
-
-          {/* Portapapeles: Pegar */}
-          <button
-            type="button"
-            onClick={() => pasteClip()}
-            disabled={!clipboardClip}
-            className="min-w-[44px] min-h-[44px] px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 disabled:opacity-30 disabled:pointer-events-none transition-all active:scale-95"
-            title={clipboardClip ? `Pegar clip (${clipboardClip.name})` : 'Portapapeles vacío'}
-          >
-            <ClipboardPaste className="w-4 h-4" />
-            <span className="hidden sm:inline">Pegar</span>
-          </button>
-        </div>
-
-        {/* Indicador visual de modo activo */}
-        <div className="text-[11px] text-slate-400 font-medium hidden md:flex items-center gap-2">
-          {activeTool === 'split' && (
-            <span className="text-amber-400 flex items-center gap-1 bg-amber-400/10 px-2 py-0.5 rounded-md border border-amber-400/30">
-              <Scissors className="w-3.5 h-3.5" /> Modo Tijeras: Haz clic en cualquier onda para dividir el clip
-            </span>
-          )}
-          {activeTool === 'delete' && (
-            <span className="text-red-400 flex items-center gap-1 bg-red-400/10 px-2 py-0.5 rounded-md border border-red-400/30">
-              <Trash2 className="w-3.5 h-3.5" /> Modo Borrador: Haz clic en un clip para eliminarlo
-            </span>
-          )}
-          {activeTool === 'select' && (
-            <span className="text-slate-400">
-              Arrastra horizontalmente los clips para moverlos en el tiempo
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Banner de Notificación de Éxito */}
-      {exportNotice && (
-        <div className="bg-cyan/20 border-b border-cyan/40 px-4 py-2 flex items-center justify-between text-xs text-cyan font-bold animate-in fade-in">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-cyan" />
-            <span>{exportNotice}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setExportNotice(null)}
-            className="text-cyan/70 hover:text-cyan text-sm"
-          >
-            ✕
-          </button>
-        </div>
-      )}
-
-      {/* ═══════════════════════════════════════════════
-          BODY PRINCIPAL: Multitrack Workspace & Timeline (Sincronizado con Zoom y Paneo)
-          ═══════════════════════════════════════════════ */}
-      <div
+      {/* ── 2. LIENZO CENTRAL MULTITRACK (Arrangement View) ── */}
+      <div 
         ref={timelineContainerRef}
-        className="flex-1 min-h-0 overflow-x-auto overflow-y-auto bg-[#060911] select-none"
+        onPointerDown={handleWorkspacePointerDown}
+        onPointerUp={handleWorkspacePointerUp}
+        onPointerCancel={handleWorkspacePointerUp}
+        className="relative flex-1 overflow-x-auto overflow-y-auto bg-black/80"
         style={{
           WebkitOverflowScrolling: 'touch',
-          touchAction: zoom > 1 ? 'pan-x' : 'none',
+          overscrollBehavior: 'contain',
         }}
       >
-        <div className="relative" style={{ width: `${contentWidth + widthOffset}px`, minWidth: '100%' }}>
-          {/* Aguja Playhead Única y Continua (Single Source of Truth para todo el Multitrack) */}
-          <div
-            ref={playheadLineRef}
-            className="absolute top-0 bottom-0 w-[2px] bg-[#FACC15] pointer-events-none z-[100] transition-none shadow-[0_0_8px_rgba(250,204,21,0.85)]"
-            style={{
-              left: 0,
-              willChange: 'transform',
-            }}
-          >
-            {/* Cabezal de aguja superior en la regla */}
-            <div className="w-3.5 h-3.5 bg-[#FACC15] rotate-45 -translate-x-[6px] -translate-y-1 rounded-sm shadow-md" />
-          </div>
-
-          {/* Fila de la Regla Graduada de Tiempo con esquina Sticky */}
-          <div className="flex border-b border-white/10 bg-slate-950">
-            {/* Esquina Sticky Izquierda: Controles de Zoom del Workspace */}
-            <div className="w-20 sm:w-60 shrink-0 bg-slate-950/95 border-r border-white/10 px-2 sm:px-3 py-1 flex items-center justify-between sticky left-0 z-30">
-              <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-300">
-                <Sliders className="w-3.5 h-3.5 text-cyan shrink-0" />
-                <span className="hidden sm:inline">Pistas</span>
-              </div>
-
-              {/* Botones de Zoom In / Out / Reset */}
-              <div className="flex items-center gap-1 bg-slate-900 px-1 py-0.5 rounded-lg border border-white/10">
-                <button
-                  type="button"
-                  onClick={() => zoomOut()}
-                  disabled={zoom <= 1.01}
-                  className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-white hover:bg-white/10 disabled:opacity-25 disabled:pointer-events-none transition-all active:scale-95"
-                  title="Alejar (Ctrl + Rueda abajo)"
-                >
-                  <ZoomOut className="w-3 h-3" />
-                </button>
-
-                <span
-                  className="font-mono text-[10px] text-cyan font-bold px-1 min-w-[28px] sm:min-w-[32px] text-center"
-                  title="Zoom horizontal actual"
-                >
-                  {zoom.toFixed(1)}x
-                </span>
-
-                <button
-                  type="button"
-                  onClick={() => zoomIn()}
-                  disabled={zoom >= 34.9}
-                  className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-white hover:bg-white/10 disabled:opacity-25 disabled:pointer-events-none transition-all active:scale-95"
-                  title="Acercar (Ctrl + Rueda arriba o Pellizco)"
-                >
-                  <ZoomIn className="w-3 h-3" />
-                </button>
-
-                {zoom > 1.05 && (
-                  <button
-                    type="button"
-                    onClick={resetZoom}
-                    className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-cyan/15 text-cyan hover:bg-cyan/25 transition-all hidden sm:flex items-center gap-0.5"
-                    title="Restablecer a vista completa (1x)"
-                  >
-                    <RotateCcw className="w-2.5 h-2.5" />
-                    <span>1x</span>
-                  </button>
-                )}
-              </div>
+        <div 
+          ref={workspaceRef}
+          className="relative min-h-full flex flex-col"
+          style={{ width: `${headerWidth + contentWidth}px` }}
+        >
+          {/* Regla de tiempo y marcadores */}
+          <div className="sticky top-0 z-30 flex items-stretch bg-zinc-950/95 border-b border-white/10 backdrop-blur-md">
+            <div 
+              className="shrink-0 border-r border-white/10 flex items-center justify-center bg-zinc-900/90 text-[10px] font-mono font-bold text-slate-400"
+              style={{ width: `${headerWidth}px` }}
+            >
+              RULER
             </div>
-
-            {/* Timeline de la Regla */}
-            <div style={{ width: `${contentWidth}px` }} className="flex-1">
+            <div className="flex-1 overflow-hidden">
               <AudioTimeRuler
                 totalDurationSec={totalDurationSec}
                 currentTimeSec={currentTimeSec}
                 contentWidth={contentWidth}
+                onSeek={(sec) => {
+                  setCurrentTimeSec(sec);
+                  audioEngine.seek(sec * 1000);
+                }}
                 hidePlayhead={true}
-                onSeek={handleSeek}
               />
             </div>
           </div>
 
-          {/* Pistas Multitrack (Música, Voz, Metrónomo, Libres) */}
-          <div className="min-h-[40vh] overflow-y-auto divide-y divide-white/5">
-            <MultitrackTrackRow
-              track={tracks.music}
-              trackNumber={1}
-              isMasterTrack={true}
-              totalDurationSec={totalDurationSec}
-              currentTimeSec={currentTimeSec}
-              contentWidth={contentWidth}
-              widthOffset={widthOffset}
-              onUploadFile={(file) => handleFileUpload(file, 'music')}
-              onSeek={handleSeek}
-            />
-
-            <MultitrackTrackRow
-              track={tracks.voice}
-              trackNumber={2}
-              totalDurationSec={totalDurationSec}
-              currentTimeSec={currentTimeSec}
-              contentWidth={contentWidth}
-              widthOffset={widthOffset}
-              onUploadFile={(file) => handleFileUpload(file, 'voice')}
-              onSeek={handleSeek}
-            />
-
-            <MultitrackTrackRow
-              track={tracks.metronome}
-              trackNumber={3}
-              totalDurationSec={totalDurationSec}
-              currentTimeSec={currentTimeSec}
-              contentWidth={contentWidth}
-              widthOffset={widthOffset}
-              onSeek={handleSeek}
-            />
-
-            {/* Pistas adicionales dinámicas */}
-            {additionalTracks.map((trk, index) => (
+          {/* Carriles de Pistas (Máximo 5 pistas: 1 Master + hasta 4 adicionales) */}
+          <div className="flex-1 flex flex-col">
+            {arrangementTracks.map((track, index) => (
               <MultitrackTrackRow
-                key={trk.id}
-                track={trk}
-                trackNumber={4 + index}
+                key={track.id}
+                track={track}
+                trackIndex={index}
                 totalDurationSec={totalDurationSec}
-                currentTimeSec={currentTimeSec}
                 contentWidth={contentWidth}
-                widthOffset={widthOffset}
-                onUploadFile={(file) => handleFileUpload(file, trk.id)}
-                onSeek={handleSeek}
-                onRemove={() => removeAudioTrack(trk.id)}
+                trackLaneHeight={trackLaneHeight}
+                onUploadFile={(file) => handleUploadFile(track.id, file)}
+                onTrackHop={(fromTrackId, targetIndex, clipId, newOffsetSec) => {
+                  handleTrackHop(fromTrackId, targetIndex, clipId, newOffsetSec);
+                }}
+                onRemoveTrack={() => removeAudioTrack(track.id)}
               />
             ))}
+          </div>
 
-            {/* Botón "+ Añadir Pista de Audio" (Full width en mobile con min-h-[44px]) */}
-            <div className="p-3 bg-[#060911]/80 flex items-center border-t border-white/5">
-              <button
-                type="button"
-                onClick={() => addAudioTrack()}
-                className="w-full sm:w-auto min-h-[44px] flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-slate-200 hover:text-white bg-white/5 hover:bg-cyan/10 border border-dashed border-white/20 hover:border-cyan/50 hover:bg-cyan/5 transition-all active:scale-95"
-              >
-                <Plus className="w-4 h-4 text-cyan" />
-                <span>+ Añadir Pista de Audio</span>
-              </button>
-            </div>
+          {/* Aguja de Reproducción Global Única (Playhead) */}
+          <div
+            ref={playheadLineRef}
+            className="absolute top-0 bottom-0 w-[2px] bg-amber-400 pointer-events-none z-40 transition-none shadow-glow-amber"
+            style={{ left: 0, transform: `translateX(${headerWidth}px)` }}
+          >
+            <div className="w-3.5 h-3.5 bg-amber-400 rotate-45 -translate-x-[6px] -translate-y-1 rounded-xs shadow-md" />
           </div>
         </div>
       </div>
-        {/* ═══════════════════════════════════════════════
-            PANEL INFERIOR: Lista y Gestión de Nodos Temporales
-            ═══════════════════════════════════════════════ */}
-        <div className="h-44 shrink-0 bg-[#0A0E1A] border-t border-white/10 flex flex-col">
-          {/* Header del panel de nodos */}
-          <div className="h-8 px-4 bg-slate-950/60 border-b border-white/5 flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2">
-              <Layers className="w-3.5 h-3.5 text-cyan" />
-              <span className="font-bold text-slate-200">Lista de Nodos Temporales para la Coreografía</span>
-              <span className="text-[11px] text-slate-400">
-                ({audioNodes.length} marcas listas para ubicar en la Pista 2D)
-              </span>
-            </div>
 
-            {audioNodes.length > 0 && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (window.confirm('¿Eliminar todos los marcadores temporales creados?')) {
-                    clearTimeNodes();
+      {/* ── 3. DOCK INFERIOR ULTRA-COMPACTO (32px) — Herramientas & Zoom ── */}
+      <footer className="h-8 shrink-0 flex items-center justify-between px-2 sm:px-3 bg-zinc-950/95 border-t border-white/10 text-xs z-30 backdrop-blur-md">
+        {/* Herramientas de Edición Rápida */}
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setActiveTool('select')}
+            className={`h-6 px-2 rounded flex items-center gap-1 text-[10px] font-bold transition-colors ${
+              activeTool === 'select' ? 'bg-cyan text-black font-black' : 'bg-white/5 text-slate-400 hover:text-white'
+            }`}
+            title="Herramienta Selección"
+          >
+            <MousePointer className="w-3 h-3" />
+            <span className="hidden sm:inline">Elegir</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (selectedClipId) {
+                // Dividir en el punto del playhead
+                for (const t of arrangementTracks) {
+                  if (t.clips.some((c) => c.id === selectedClipId)) {
+                    splitClip(t.id, selectedClipId, currentTimeSec);
+                    break;
                   }
-                }}
-                className="flex items-center gap-1 text-[11px] text-red-400/80 hover:text-red-400 transition-colors"
-              >
-                <Trash2 className="w-3 h-3" />
-                <span>Limpiar todos</span>
-              </button>
-            )}
-          </div>
+                }
+              }
+            }}
+            disabled={!selectedClipId}
+            className="h-6 px-2 rounded flex items-center gap-1 text-[10px] font-bold bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 disabled:opacity-30 transition-colors"
+            title="Dividir clip seleccionado en la aguja de tiempo"
+          >
+            <Scissors className="w-3 h-3 text-mint" />
+            <span className="hidden sm:inline">Cortar</span>
+          </button>
 
-          {/* Lista scrolleable de nodos */}
-          <div className="flex-1 p-3 overflow-x-auto overflow-y-hidden flex items-center gap-3">
-            {audioNodes.length === 0 ? (
-              <div className="w-full h-full flex flex-col items-center justify-center text-slate-500 text-xs gap-1.5 border border-dashed border-white/10 rounded-2xl">
-                <MapPin className="w-5 h-5 text-slate-600" />
-                <span>Aún no hay marcadores temporales.</span>
-                <span className="text-[11px] text-slate-600">
-                  Haz <span className="text-cyan font-bold">doble clic</span> o <span className="text-cyan font-bold">Shift + Clic</span> en la regla de tiempo para crear el <span className="text-slate-300 font-semibold">Nodo 1</span>.
-                </span>
-              </div>
-            ) : (
-              audioNodes.map((node) => {
-                const mins = Math.floor(node.timestampSec / 60);
-                const secs = (node.timestampSec % 60).toFixed(2);
-                const formattedTime = `${mins}:${node.timestampSec % 60 < 10 ? '0' : ''}${secs}`;
+          <button
+            type="button"
+            onClick={() => copyClip()}
+            disabled={!selectedClipId}
+            className="h-6 px-2 rounded flex items-center gap-1 text-[10px] font-bold bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 disabled:opacity-30 transition-colors"
+            title="Copiar clip"
+          >
+            <Copy className="w-3 h-3 text-amber-400" />
+            <span className="hidden sm:inline">Copiar</span>
+          </button>
 
-                return (
-                  <div
-                    key={node.id}
-                    className="w-48 shrink-0 h-28 bg-[#0D1424] hover:bg-[#11192e] border border-cyan/20 hover:border-cyan/50 rounded-2xl p-2.5 flex flex-col justify-between transition-all shadow-md group"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-5 h-5 rounded-full bg-cyan text-slate-950 font-black text-xs flex items-center justify-center">
-                          {node.numeroSecuencial}
-                        </span>
-                        <span className="text-xs font-bold text-slate-200">
-                          Nodo {node.numeroSecuencial}
-                        </span>
-                      </div>
+          <button
+            type="button"
+            onClick={() => pasteClip('music', currentTimeSec)}
+            className="h-6 px-2 rounded flex items-center gap-1 text-[10px] font-bold bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-colors"
+            title="Pegar clip en el cabezal"
+          >
+            <ClipboardPaste className="w-3 h-3 text-blue-400" />
+            <span className="hidden sm:inline">Pegar</span>
+          </button>
 
-                      <button
-                        type="button"
-                        onClick={() => deleteTimeNode(node.id)}
-                        className="text-slate-500 hover:text-red-400 p-1 rounded hover:bg-white/5 transition-colors opacity-0 group-hover:opacity-100"
-                        title="Eliminar este nodo"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-
-                    {/* Tiempo exacto */}
-                    <div className="flex items-center gap-1 text-[11px] font-mono text-cyan bg-cyan/10 px-2 py-0.5 rounded-lg border border-cyan/20 w-fit">
-                      <Clock className="w-3 h-3" />
-                      <span>{formattedTime}s</span>
-                    </div>
-
-                    {/* Etiqueta opcional */}
-                    <input
-                      type="text"
-                      placeholder="Etiqueta (ej: Salto Axel)"
-                      value={node.label || ''}
-                      onChange={(e) => updateTimeNode(node.id, node.timestampSec, e.target.value)}
-                      className="w-full bg-slate-900 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-cyan"
-                    />
-                  </div>
-                );
-              })
-            )}
-          </div>
+          <button
+            type="button"
+            onClick={() => deleteClip()}
+            disabled={!selectedClipId}
+            className="h-6 px-2 rounded flex items-center gap-1 text-[10px] font-bold bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 disabled:opacity-30 transition-colors"
+            title="Eliminar clip seleccionado"
+          >
+            <Trash2 className="w-3 h-3" />
+            <span className="hidden sm:inline">Borrar</span>
+          </button>
         </div>
-      </div>
-    );
-  };
+
+        {/* Nodos de Marcación de Coreografía */}
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => addTimeNode(currentTimeSec)}
+            className="h-6 px-2 rounded flex items-center gap-1 bg-cyan/10 hover:bg-cyan/20 text-cyan border border-cyan/30 text-[10px] font-bold transition-colors"
+            title="Añadir marcador temporal en la aguja actual"
+          >
+            <MapPin className="w-3 h-3" />
+            <span>+ Nodo ({audioNodes.length})</span>
+          </button>
+        </div>
+
+        {/* Controles de Zoom Horizontal */}
+        <div className="flex items-center gap-1 font-mono text-[10px]">
+          <button
+            type="button"
+            onClick={() => zoomOut()}
+            className="h-6 w-6 rounded flex items-center justify-center bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white"
+            title="Alejar Zoom"
+          >
+            <ZoomOut className="w-3 h-3" />
+          </button>
+          <span className="px-1 text-slate-400">{zoom.toFixed(1)}x</span>
+          <button
+            type="button"
+            onClick={() => zoomIn()}
+            className="h-6 w-6 rounded flex items-center justify-center bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white"
+            title="Acercar Zoom"
+          >
+            <ZoomIn className="w-3 h-3" />
+          </button>
+          {zoom > 1.05 && (
+            <button
+              type="button"
+              onClick={resetZoom}
+              className="h-6 px-1.5 rounded flex items-center gap-0.5 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white"
+              title="Restablecer Zoom a 1x"
+            >
+              <RotateCcw className="w-2.5 h-2.5" />
+              <span>1x</span>
+            </button>
+          )}
+        </div>
+      </footer>
+
+      {/* ── 4. MENÚ CONTEXTUAL TÁCTIL FLOTANTE (Pill Menu) ── */}
+      <FloatingClipContextMenu />
+
+      {/* ── 5. NOTIFICACIÓN FLOTANTE DE SINCRONIZACIÓN ── */}
+      {exportNotice && (
+        <div className="fixed bottom-12 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-3 py-1.5 rounded-full bg-cyan-950/90 border border-cyan/50 text-cyan text-xs font-bold shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-2">
+          <CheckCircle2 className="w-4 h-4 text-cyan" />
+          <span>{exportNotice}</span>
+        </div>
+      )}
+    </div>
+  );
+};

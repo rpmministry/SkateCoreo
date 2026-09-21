@@ -1,5 +1,6 @@
 /**
  * audioStudio.ts — Tipos de datos para el Estudio de Audio Multitrack (DAW Lite)
+ * Optimizado para Landscape Móvil, Carbon Design System y Web Audio API.
  */
 
 export interface AudioTimeNode {
@@ -9,19 +10,19 @@ export interface AudioTimeNode {
   label?: string;
 }
 
-export type TrackType = 'music' | 'voice' | 'metronome' | 'user';
+export type TrackType = 'music' | 'voice' | 'metronome' | 'user' | 'additional';
 
 export type StudioTool = 'select' | 'split' | 'delete';
 
 export const CARBON_TRACK_COLORS = [
-  '#00F0FF', // Cyan Eléctrico (Pista 1 - Música)
-  '#D946EF', // Magenta Neón (Pista 2 - Voz)
-  '#10F49C', // Verde Menta Neón (Pista 3 - Libre 1)
-  '#F59E0B', // Ámbar Cálido (Metrónomo / Pista 4)
-  '#8B5CF6', // Púrpura Eléctrico (Pista 5)
-  '#38BDF8', // Azul Cielo (Pista 6)
-  '#F43F5E', // Coral Neón (Pista 7)
-  '#A3E635', // Lima Neón (Pista 8)
+  '#00F0FF', // Cyan Eléctrico (Pista 1 - Música Principal)
+  '#D946EF', // Magenta Neón (Pista 2 - Secundaria 1)
+  '#10F49C', // Verde Menta Neón (Pista 3 - Secundaria 2)
+  '#F59E0B', // Ámbar Cálido (Pista 4 - Secundaria 3)
+  '#8B5CF6', // Púrpura Eléctrico (Pista 5 - Secundaria 4)
+  '#38BDF8', // Azul Cielo
+  '#F43F5E', // Coral Neón
+  '#A3E635', // Lima Neón
 ];
 
 export interface AudioClip {
@@ -60,3 +61,59 @@ export interface StudioMetronomeConfig {
   volume: number;
 }
 
+export interface GlobalVoiceGuideConfig {
+  enabled: boolean;
+  volume: number;
+  muted: boolean;
+}
+
+export interface GlobalAudioControls {
+  bpm: number;
+  beatsPerMeasure: 1 | 2 | 3 | 4 | 6;
+  metronome: {
+    enabled: boolean;
+    volume: number;
+    accentFirstBeat: boolean;
+    muted: boolean;
+  };
+  voiceGuide: GlobalVoiceGuideConfig;
+}
+
+export interface ClipContextMenuState {
+  isOpen: boolean;
+  x: number;
+  y: number;
+  trackId: string;
+  clipId: string;
+}
+
+export interface AudioClipMetadata {
+  id: string;
+  name: string;
+  startOffsetSec: number;
+  durationSec: number;
+  trimStartSec: number;
+  trimEndSec: number;
+  fadeInSec: number;
+  fadeOutSec: number;
+}
+
+export interface AudioTrackMetadata {
+  id: string;
+  name: string;
+  color: string;
+  type: TrackType;
+  volume: number;
+  muted: boolean;
+  solo: boolean;
+  fileName?: string | null;
+  clips: AudioClipMetadata[];
+}
+
+export interface MixProjectMetadata {
+  bpm: number;
+  totalDurationSec: number;
+  masterTrack: AudioTrackMetadata;
+  additionalTracks: AudioTrackMetadata[];
+  globalControls: GlobalAudioControls;
+}

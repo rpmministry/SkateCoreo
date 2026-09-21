@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useChoreographyStore } from '../store/useChoreographyStore';
+import { useAudioStudioStore } from '../store/useAudioStudioStore';
 import { audioEngine } from '../core/audio/AudioEngine';
 import { ChoreographyPoint, isMainNode } from '../types/choreography';
 import { Clock, Music, Sparkles, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
@@ -86,14 +87,20 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
   // Duración efectiva (por defecto 120s si no hay audio cargado aún)
   const effectiveDurationMs = durationMs > 0 ? durationMs : 120000;
 
-  // Actualizar datos de onda sonora al cambiar de pista, duración o al hacer zoom
+  // Integración reactiva con el Manifiesto de Mezcla Ligero del Estudio de Audio
+  const mixManifest = useAudioStudioStore((state) => state.mixManifest);
+
+  // Actualizar datos de onda sonora al cambiar de pista, duración, zoom o mezcla en el estudio
   useEffect(() => {
     const updatePeaks = () => {
       // Al hacer zoom, solicitamos una mayor resolución de buckets al AudioBuffer para detalle milimétrico
       const numBuckets = Math.max(300, Math.min(3000, Math.floor(contentWidth / 3.2)));
-      const peaks = audioEngine.getWaveformData(numBuckets);
-      if (peaks && peaks.length > 0) {
-        setWavePeaks(peaks);
+      const basePeaks = audioEngine.getWaveformData(numBuckets);
+      if (basePeaks && basePeaks.length > 0) {
+        // Modular reactivamente la onda según los volúmenes y estados Mute del manifiesto del estudio
+        const masterVol = mixManifest.masterTrack.muted ? 0 : mixManifest.masterTrack.volume;
+        const modulated = basePeaks.map((p) => Math.min(1.0, p * masterVol));
+        setWavePeaks(modulated);
       } else {
         // Generar onda representativa elegante si aún no se ha cargado archivo
         const demoPeaks: number[] = [];
@@ -115,7 +122,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     });
 
     return () => unsubState();
-  }, [durationMs, fileName, contentWidth]);
+  }, [durationMs, fileName, contentWidth, mixManifest]);
 
   // Auto-cargar la pista de música de prueba oficial si no hay audio cargado
   useEffect(() => {
