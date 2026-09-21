@@ -773,6 +773,7 @@ export function App() {
               isPlaying={isAudioActive}
               onSeek={(ms) => audioEngine.seek(ms)}
               fileName={audioState.fileName}
+              onOpenStudio={() => setActiveView('studio')}
             />
           </div>
         </main>

@@ -173,16 +173,26 @@ export function useAudioZoomPan(options: UseAudioZoomPanOptions = {}): UseAudioZ
         const rect = container.getBoundingClientRect();
         const focalX = Math.max(0, e.clientX - rect.left - widthOffset);
 
-        // Sensibilidad suave de zoom según la intensidad del scroll
-        const intensity = Math.min(Math.abs(e.deltaY) / 100, 2);
-        const zoomStep = 1 + 0.15 * Math.max(1, intensity);
-        const factor = e.deltaY < 0 ? zoomStep : 1 / zoomStep;
+        // Normalización de rueda de ratón vs trackpad de precisión:
+        // deltaMode: 0 = pixels (trackpads/ruedas modernas), 1 = lines (rueda clásica de ratón), 2 = pages
+        let delta = e.deltaY;
+        if (e.deltaMode === 1) {
+          delta *= 24;
+        } else if (e.deltaMode === 2) {
+          delta *= 250;
+        }
+
+        // Suavizado exponencial para evitar saltos bruscos entre mouses con muescas (notches) y trackpads
+        const clampedDelta = Math.max(-100, Math.min(100, delta));
+        const factor = Math.pow(1.002, -clampedDelta);
 
         applyZoom(factor, focalX, false);
       } else if (enableWheelPan && e.deltaY !== 0 && e.deltaX === 0) {
         // Paneo Horizontal en Desktop con rueda de ratón estándar
         if (container.scrollWidth > container.clientWidth) {
-          container.scrollLeft += e.deltaY;
+          let panDelta = e.deltaY;
+          if (e.deltaMode === 1) panDelta *= 24;
+          container.scrollLeft += panDelta;
           e.preventDefault();
         }
       }

@@ -87,6 +87,19 @@ export interface ClipContextMenuState {
   clipId: string;
 }
 
+export interface DraggingGhostState {
+  clip: AudioClip;
+  fromTrackId: string;
+  targetTrackIndex: number;
+  targetTrackId: string;
+  targetTrackName: string;
+  startOffsetSec: number;
+  cursorX: number;
+  cursorY: number;
+  isOverMaster: boolean;
+  snapLineSec: number | null;
+}
+
 export interface AudioClipMetadata {
   id: string;
   name: string;

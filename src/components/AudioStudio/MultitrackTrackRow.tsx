@@ -48,11 +48,14 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
   const setActiveTrackId = useAudioStudioStore((s) => s.setActiveTrackId);
   const pasteClip = useAudioStudioStore((s) => s.pasteClip);
   const audioClipboard = useAudioStudioStore((s) => s.audioClipboard);
+  const draggingGhost = useAudioStudioStore((s) => s.draggingGhost);
 
   const [showTrackMenu, setShowTrackMenu] = useState(false);
 
   const isMasterTrack = trackIndex === 0 || track.type === 'music';
   const isActive = activeTrackId === track.id || (isMasterTrack && (activeTrackId === 'music' || activeTrackId === 'track-music' || activeTrackId === 'master'));
+  const isDropTarget = draggingGhost?.targetTrackIndex === trackIndex;
+  const isMasterDropTarget = isMasterTrack && isDropTarget;
   const displayName = isMasterTrack ? 'Master' : track.name;
 
   // Icono dinámico según la pista estilo BandLab
@@ -99,8 +102,12 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
   return (
     <>
       <div 
-        className={`relative flex items-stretch border-b border-white/5 transition-colors ${
-          isActive ? 'bg-zinc-950/80 ring-1 ring-inset ring-cyan/30' : 'bg-black/60 hover:bg-black/80'
+        className={`relative flex items-stretch border-b border-white/5 transition-all ${
+          isDropTarget
+            ? 'bg-cyan-950/40 ring-2 ring-inset ring-cyan shadow-lg shadow-cyan/20'
+            : isActive
+              ? 'bg-zinc-950/80 ring-1 ring-inset ring-cyan/30'
+              : 'bg-black/60 hover:bg-black/80'
         }`}
         style={{ height: `${trackLaneHeight}px` }}
         onDragOver={(e) => e.preventDefault()}
@@ -166,6 +173,19 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
           className="relative flex-1 overflow-hidden"
           style={{ width: `${contentWidth}px` }}
         >
+          {/* Indicador visual de Zona de Caída Activa */}
+          {isDropTarget && (
+            <div className={`absolute inset-0 z-30 pointer-events-none border-2 border-dashed flex items-center justify-center transition-all ${
+              isMasterTrack
+                ? 'border-cyan bg-cyan-500/10 shadow-[inset_0_0_15px_rgba(0,210,255,0.2)]'
+                : 'border-white/40 bg-white/5'
+            }`}>
+              <span className="px-3 py-1 rounded-full bg-cyan text-slate-950 text-[11px] font-black shadow-lg animate-pulse flex items-center gap-1.5">
+                {isMasterTrack ? '🎯 Soltar en Master (Ensamblaje)' : `↳ Soltar en ${displayName}`}
+              </span>
+            </div>
+          )}
+
           {/* Renderizado de Clips */}
           {track.clips && track.clips.map((clip) => (
             <AudioClipItem
@@ -176,6 +196,8 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
               totalDurationSec={totalDurationSec}
               contentWidth={contentWidth}
               trackLaneHeight={trackLaneHeight}
+              trackIndex={trackIndex}
+              totalTracks={totalTracks}
               onTrackHop={(clipId, deltaY, newOffsetSec) => {
                 if (onTrackHop) {
                   const laneOffset = Math.round(deltaY / trackLaneHeight);

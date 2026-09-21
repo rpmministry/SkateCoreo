@@ -10,7 +10,8 @@ import {
   ClipContextMenuState,
   MixProjectMetadata,
   AudioTrackMetadata,
-  AudioClipMetadata
+  AudioClipMetadata,
+  DraggingGhostState,
 } from '../types/audioStudio';
 import { BpmDetector } from '../core/audio/BpmDetector';
 import { audioEngine } from '../core/audio/AudioEngine';
@@ -26,6 +27,20 @@ export interface AudioStudioStoreState {
     [key: string]: AudioStudioTrack;
   };
   additionalTracks: AudioStudioTrack[]; // Máximo 4 pistas adicionales (1 principal + 4 = 5 en total)
+
+  // Feedback Visual Drag & Drop y Snapping Magnético
+  draggingGhost: DraggingGhostState | null;
+  setDraggingGhost: (ghost: DraggingGhostState | null) => void;
+  calculateSnapOffset: (
+    targetTrackId: string,
+    clipId: string | null,
+    rawOffsetSec: number,
+    clipDurationSec: number,
+    thresholdSec?: number
+  ) => { snappedSec: number; snapLineSec: number | null };
+
+  // Consolidación Continua del Buffer en Web Audio API
+  consolidateStudioAudio: () => Promise<AudioBuffer | null>;
 
   // Controles Globales (Metrónomo, Voces Guía, BPM Global)
   globalControls: GlobalAudioControls;
@@ -224,9 +239,107 @@ const initialTracks = {
   },
 };
 
+let studioConsolidateTimer: any = null;
+export const triggerStudioConsolidation = () => {
+  if (studioConsolidateTimer) clearTimeout(studioConsolidateTimer);
+  studioConsolidateTimer = setTimeout(() => {
+    useAudioStudioStore.getState().consolidateStudioAudio().catch(() => {});
+  }, 100);
+};
+
 export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => ({
   tracks: initialTracks,
   additionalTracks: [],
+
+  draggingGhost: null,
+  setDraggingGhost: (ghost) => set({ draggingGhost: ghost }),
+
+  calculateSnapOffset: (targetTrackId, clipId, rawOffsetSec, clipDurationSec, thresholdSec = 0.18) => {
+    const state = get();
+    const targetTrack = isMasterId(targetTrackId)
+      ? state.tracks.music
+      : (state.tracks[targetTrackId] || state.additionalTracks.find((t) => t.id === targetTrackId));
+
+    const snapPoints: number[] = [0.0]; // 0.0s inicio de la pista
+
+    // Playhead
+    snapPoints.push(state.currentTimeSec);
+
+    // BPM Grid snap points (beats)
+    const bpm = state.globalControls.bpm || 120;
+    const beatSec = 60 / bpm;
+    const minSnapTime = Math.max(0, rawOffsetSec - 1);
+    const maxSnapTime = rawOffsetSec + clipDurationSec + 1;
+    const startBeat = Math.floor(minSnapTime / beatSec);
+    const endBeat = Math.ceil(maxSnapTime / beatSec);
+    for (let b = startBeat; b <= endBeat; b++) {
+      snapPoints.push(Math.round(b * beatSec * 1000) / 1000);
+    }
+
+    // Bordes de otros clips en la misma pista (snap clip-to-clip)
+    if (targetTrack?.clips) {
+      for (const other of targetTrack.clips) {
+        if (other.id === clipId) continue;
+        const otherDur = Math.max(0.05, other.trimEndSec - other.trimStartSec);
+        const otherStart = other.startOffsetSec;
+        const otherEnd = otherStart + otherDur;
+        snapPoints.push(otherStart);
+        snapPoints.push(otherEnd);
+      }
+    }
+
+    let bestSnappedOffset = rawOffsetSec;
+    let minDistance = thresholdSec;
+    let snapLineSec: number | null = null;
+
+    // 1. Probar snap en el inicio del clip (clipStart -> snapPoint)
+    for (const pt of snapPoints) {
+      const dist = Math.abs(rawOffsetSec - pt);
+      if (dist < minDistance) {
+        minDistance = dist;
+        bestSnappedOffset = pt;
+        snapLineSec = pt;
+      }
+    }
+
+    // 2. Probar snap en el fin del clip (clipEnd -> snapPoint => clipStart = snapPoint - clipDurationSec)
+    const rawEndSec = rawOffsetSec + clipDurationSec;
+    for (const pt of snapPoints) {
+      const dist = Math.abs(rawEndSec - pt);
+      if (dist < minDistance) {
+        minDistance = dist;
+        bestSnappedOffset = Math.max(0, pt - clipDurationSec);
+        snapLineSec = pt;
+      }
+    }
+
+    return {
+      snappedSec: Math.max(0, Math.round(bestSnappedOffset * 1000) / 1000),
+      snapLineSec,
+    };
+  },
+
+  consolidateStudioAudio: async () => {
+    const state = get();
+    const arrangementTracks = [state.tracks.music, ...state.additionalTracks];
+    const hasAnyClips = arrangementTracks.some((t) => (t.clips && t.clips.length > 0) || t.buffer);
+    if (!hasAnyClips) return null;
+
+    try {
+      const mixResult = await renderStudioMixdown(
+        arrangementTracks,
+        state.totalDurationSec,
+        state.metronomeConfig
+      );
+      if (mixResult && mixResult.buffer) {
+        audioEngine.setAudioBuffer(mixResult.buffer, 'Mezcla_Estudio_Consolidada.wav');
+        return mixResult.buffer;
+      }
+    } catch (err) {
+      console.warn('[AudioStudioStore] Fallo al consolidar buffer de estudio:', err);
+    }
+    return null;
+  },
 
   globalControls: DEFAULT_GLOBAL_CONTROLS,
 
@@ -438,6 +551,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
       };
     });
 
+    if (wasSplit) triggerStudioConsolidation();
     return wasSplit;
   },
 
@@ -468,6 +582,8 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         mixManifest: buildManifest(updatedTracks, updatedAdditional, state.globalControls, state.totalDurationSec),
       };
     });
+
+    triggerStudioConsolidation();
   },
 
   moveClipToTrack: (fromTrackId, toTrackId, clipId, newStartOffsetSec) => {
@@ -522,6 +638,8 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         mixManifest: buildManifest(finalTracks, finalAdditional, state.globalControls, state.totalDurationSec),
       };
     });
+
+    triggerStudioConsolidation();
   },
 
   duplicateClipToTrack: (fromTrackId, toTrackId, clipId, newStartOffsetSec) => {
@@ -567,6 +685,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
       };
     });
 
+    triggerStudioConsolidation();
     return duplicatedClip;
   },
 
@@ -604,6 +723,8 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         mixManifest: buildManifest(updatedTracks, updatedAdditional, state.globalControls, state.totalDurationSec),
       };
     });
+
+    triggerStudioConsolidation();
   },
 
   copyClip: (clip) => {
@@ -679,6 +800,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
       };
     });
 
+    triggerStudioConsolidation();
     return newClip;
   },
 

@@ -93,10 +93,12 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
             <button
               type="button"
               onClick={onBackToRink}
-              className="w-8 h-8 rounded-full flex items-center justify-center text-slate-300 hover:text-white bg-white/10 hover:bg-white/20 transition-all active:scale-95 shadow-sm"
+              className="h-8 px-2.5 sm:px-3 rounded-full flex items-center gap-1.5 text-slate-200 hover:text-white bg-white/10 hover:bg-white/20 border border-white/15 transition-all active:scale-95 shadow-sm font-bold text-xs"
               title="Salir del Estudio y volver a la Pista 2D"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-3.5 h-3.5 text-cyan shrink-0" />
+              <span className="hidden sm:inline">← Volver a Pista 2D</span>
+              <span className="sm:hidden">Volver</span>
             </button>
           )}
 

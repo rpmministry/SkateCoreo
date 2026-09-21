@@ -10,6 +10,7 @@ import {
   Play,
   Pause,
   SkipBack,
+  Square,
   Sliders,
   Bell,
 } from 'lucide-react';
@@ -54,6 +55,8 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
 
   const selectedClipId = useAudioStudioStore((s) => s.selectedClipId);
   const splitClip = useAudioStudioStore((s) => s.splitClip);
+  const draggingGhost = useAudioStudioStore((s) => s.draggingGhost);
+  const consolidateStudioAudio = useAudioStudioStore((s) => s.consolidateStudioAudio);
 
   const [isExporting, setIsExporting] = useState(false);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
@@ -343,15 +346,64 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     }
   };
 
-  // Play / Pause Toggle
+  // Detección de gesto Swipe en bordes móviles para retorno rápido a Pista 2D
+  useEffect(() => {
+    if (!onBackToRink) return;
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let isEdgeSwipe = false;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      const t = e.touches[0];
+      touchStartX = t.clientX;
+      touchStartY = t.clientY;
+      isEdgeSwipe = touchStartX <= 45 || touchStartY <= 45;
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (!isEdgeSwipe || e.changedTouches.length !== 1) return;
+      const t = e.changedTouches[0];
+      const deltaX = t.clientX - touchStartX;
+      const deltaY = t.clientY - touchStartY;
+
+      const isSwipeRight = touchStartX <= 45 && deltaX >= 75 && Math.abs(deltaY) < 60;
+      const isSwipeDown = touchStartY <= 45 && deltaY >= 75 && Math.abs(deltaX) < 60;
+
+      if (isSwipeRight || isSwipeDown) {
+        if ('vibrate' in navigator) navigator.vibrate(15);
+        onBackToRink();
+      }
+      isEdgeSwipe = false;
+    };
+
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.addEventListener('touchend', handleTouchEnd, { passive: true });
+    return () => {
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [onBackToRink]);
+
+  // Play / Pause Toggle con consolidación en tiempo real para reproducción continua
   const handlePlayToggle = async () => {
     if (isPlaying) {
       audioEngine.pause();
       setIsPlaying(false);
     } else {
+      // Consolidar clips de todas las pistas para garantizar flujo ininterrumpido en Web Audio API
+      await consolidateStudioAudio();
       await audioEngine.play();
       setIsPlaying(true);
     }
+  };
+
+  // Stop y Reset a 0:00
+  const handleStop = () => {
+    audioEngine.pause();
+    audioEngine.seek(0);
+    setIsPlaying(false);
+    setCurrentTimeSec(0);
   };
 
   // Return to start
@@ -521,6 +573,22 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             )}
           </div>
 
+          {/* Guía Visual Vertical de Snapping Magnético */}
+          {draggingGhost?.snapLineSec !== null && draggingGhost?.snapLineSec !== undefined && (
+            <div
+              className="absolute top-0 bottom-0 pointer-events-none z-35 flex flex-col items-center select-none"
+              style={{
+                left: 0,
+                transform: `translateX(${headerWidth + (draggingGhost.snapLineSec / Math.max(10, totalDurationSec)) * contentWidth}px)`,
+              }}
+            >
+              <div className="px-1.5 py-0.5 rounded bg-cyan text-slate-950 font-mono font-black text-[9px] shadow-md -translate-y-1">
+                🧲 {draggingGhost.snapLineSec.toFixed(2)}s
+              </div>
+              <div className="w-[2px] h-full bg-cyan shadow-glow-cyan" />
+            </div>
+          )}
+
           {/* Aguja de Reproducción Global Única (Playhead con Hitbox Táctil Ensanchado de 32px) */}
           <div
             ref={playheadLineRef}
@@ -541,9 +609,9 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
       </div>
 
       {/* ── 3. BARRA INFERIOR DE TRANSPORTE BANDLAB (BandLab Bottom Dock) ── */}
-      <footer className="h-14 shrink-0 flex items-center justify-between px-3 sm:px-6 bg-zinc-950 border-t border-white/10 text-xs z-30">
-        {/* Izquierda: Mezclador + Deshacer + Rewind */}
-        <div className="flex items-center gap-2">
+      <footer className="h-14 shrink-0 flex items-center justify-between px-3 sm:px-6 bg-zinc-950 border-t border-white/10 text-xs z-30 select-none">
+        {/* Izquierda: Mezclador + Rewind + Stop + Tijeras */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {/* Botón Mezclador (Abre BandLabMixerDrawer) */}
           <button
             type="button"
@@ -558,10 +626,20 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           <button
             type="button"
             onClick={handleRewind}
-            className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
-            title="Volver al inicio"
+            className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors active:scale-95"
+            title="Volver al inicio (0:00)"
           >
             <SkipBack className="w-4 h-4" />
+          </button>
+
+          {/* Stop / Detener */}
+          <button
+            type="button"
+            onClick={handleStop}
+            className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors active:scale-95"
+            title="Detener reproducción y reiniciar posición"
+          >
+            <Square className="w-3.5 h-3.5 fill-current" />
           </button>
 
           {/* Cortar en cabezal */}
@@ -578,7 +656,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
               }
             }}
             disabled={!selectedClipId}
-            className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 disabled:opacity-25 transition-colors"
+            className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 disabled:opacity-25 transition-colors active:scale-95"
             title="Dividir clip en el cabezal"
           >
             <Scissors className="w-4 h-4 text-mint" />
@@ -679,6 +757,31 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
         <div className="fixed bottom-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-full bg-cyan-950/90 border border-cyan/50 text-cyan text-xs font-bold shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-2">
           <CheckCircle2 className="w-4 h-4 text-cyan" />
           <span>{exportNotice}</span>
+        </div>
+      )}
+
+      {/* ── 7. DRAG OVERLAY / GHOST ELEMENT FLOTANTE (Feedback visual de arrastre) ── */}
+      {draggingGhost && (
+        <div
+          className="fixed pointer-events-none z-50 -translate-x-1/2 -translate-y-1/2 transition-transform duration-75 ease-out select-none"
+          style={{ left: `${draggingGhost.cursorX}px`, top: `${draggingGhost.cursorY}px` }}
+        >
+          <div className={`flex items-center gap-2.5 px-3.5 py-2 rounded-2xl border backdrop-blur-xl shadow-2xl transition-all ${
+            draggingGhost.isOverMaster
+              ? 'bg-cyan-950/95 border-cyan text-white shadow-cyan/50 ring-2 ring-cyan scale-105'
+              : 'bg-zinc-900/95 border-white/25 text-white shadow-black/90'
+          }`}>
+            <div className={`w-3 h-3 rounded-full shrink-0 ${draggingGhost.isOverMaster ? 'bg-cyan animate-ping' : 'bg-white/80'}`} />
+            <div className="flex flex-col min-w-0 pr-1">
+              <span className="text-xs font-black truncate max-w-[150px]">{draggingGhost.clip.name}</span>
+              <div className="flex items-center gap-1.5 font-mono text-[10px]">
+                <span className={draggingGhost.isOverMaster ? 'text-cyan font-bold' : 'text-slate-300'}>
+                  {draggingGhost.isOverMaster ? '🎯 Soltar en Master' : `↳ ${draggingGhost.targetTrackName}`}
+                </span>
+                <span className="text-slate-400">· {draggingGhost.startOffsetSec.toFixed(2)}s</span>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

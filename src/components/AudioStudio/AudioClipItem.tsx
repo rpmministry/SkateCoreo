@@ -10,6 +10,8 @@ interface AudioClipItemProps {
   totalDurationSec: number;
   contentWidth: number;
   trackLaneHeight?: number;
+  trackIndex?: number;
+  totalTracks?: number;
   onTrackHop?: (clipId: string, deltaY: number, newOffsetSec: number) => void;
 }
 
@@ -20,6 +22,8 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
   totalDurationSec,
   contentWidth,
   trackLaneHeight = 60,
+  trackIndex = 0,
+  totalTracks = 1,
   onTrackHop,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -29,7 +33,11 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
   const setSelectedClipId = useAudioStudioStore((s) => s.setSelectedClipId);
   const openContextMenu = useAudioStudioStore((s) => s.openContextMenu);
   const moveClip = useAudioStudioStore((s) => s.moveClip);
+  const moveClipToTrack = useAudioStudioStore((s) => s.moveClipToTrack);
   const setClipFades = useAudioStudioStore((s) => s.setClipFades);
+  const calculateSnapOffset = useAudioStudioStore((s) => s.calculateSnapOffset);
+  const setDraggingGhost = useAudioStudioStore((s) => s.setDraggingGhost);
+  const additionalTracks = useAudioStudioStore((s) => s.additionalTracks);
 
   const [isDraggingClip, setIsDraggingClip] = useState(false);
   const [dragOffsetSec, setDragOffsetSec] = useState<number | null>(null);
@@ -143,10 +151,26 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
     }
   }, [clip.buffer, clip.trimStartSec, clip.trimEndSec, widthPx, trackLaneHeight, localFadeIn, localFadeOut, clipDurationSec]);
 
+  const getTargetTrackInfo = (targetIdx: number) => {
+    if (targetIdx <= 0) {
+      return { id: 'music', name: 'Master' };
+    }
+    const addTrack = additionalTracks[targetIdx - 1];
+    if (addTrack) {
+      return { id: addTrack.id, name: addTrack.name };
+    }
+    return { id: trackId, name: 'Pista' };
+  };
+
   // ── Drag Gesture con @use-gesture/react ──
   const bindDrag = useDrag(
-    ({ down, movement: [mx, my], first, last }) => {
+    ({ down, movement: [mx, my], xy: [clientX, clientY], first, last }) => {
       if (isAdjustingFadeIn || isAdjustingFadeOut) return;
+
+      const laneOffset = Math.round(my / trackLaneHeight);
+      const safeTotal = Math.max(1, totalTracks);
+      const targetIndex = Math.max(0, Math.min(safeTotal - 1, trackIndex + laneOffset));
+      const targetInfo = getTargetTrackInfo(targetIndex);
 
       if (first) {
         setIsDraggingClip(true);
@@ -156,18 +180,44 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
 
       if (down) {
         const deltaSec = mx / pxPerSec;
-        const newSec = Math.max(0, clip.startOffsetSec + deltaSec);
-        setDragOffsetSec(newSec);
+        const rawSec = Math.max(0, clip.startOffsetSec + deltaSec);
+
+        // Snapping magnético
+        const snapResult = calculateSnapOffset
+          ? calculateSnapOffset(targetInfo.id, clip.id, rawSec, clipDurationSec, 0.20)
+          : { snappedSec: rawSec, snapLineSec: null };
+
+        setDragOffsetSec(snapResult.snappedSec);
         setDragDeltaY(my);
+
+        // Ghost Overlay en tiempo real
+        setDraggingGhost({
+          clip,
+          fromTrackId: trackId,
+          targetTrackIndex: targetIndex,
+          targetTrackId: targetInfo.id,
+          targetTrackName: targetInfo.name,
+          startOffsetSec: snapResult.snappedSec,
+          cursorX: clientX,
+          cursorY: clientY,
+          isOverMaster: targetIndex === 0,
+          snapLineSec: snapResult.snapLineSec,
+        });
       }
 
       if (last) {
         setIsDraggingClip(false);
+        setDraggingGhost(null);
         const finalSec = dragOffsetSec !== null ? dragOffsetSec : clip.startOffsetSec;
         setDragOffsetSec(null);
 
-        if (Math.abs(my) > trackLaneHeight * 0.5 && onTrackHop) {
-          onTrackHop(clip.id, my, finalSec);
+        if (targetIndex !== trackIndex) {
+          if (onTrackHop) {
+            onTrackHop(clip.id, my, finalSec);
+          } else {
+            moveClipToTrack(trackId, targetInfo.id, clip.id, finalSec);
+          }
+          if ('vibrate' in navigator) navigator.vibrate(15);
         } else {
           moveClip(trackId, clip.id, finalSec);
         }
