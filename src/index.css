@@ -315,14 +315,38 @@ body {
    that can't be expressed as single utility classes.
    ═══════════════════════════════════════════════════════════════════ */
 
-/* Audio waveform: reduced height in landscape (viewport is shorter).
-   Pista 2D is the protagonist — waveform yields space to the canvas. */
-@media (orientation: landscape) {
-  .landscape-compact-waveform {
-    height: 30dvh !important;
-    min-height: 80px !important;
-    max-height: 32dvh !important;
-    flex: 0 0 30% !important;
+/* ═══════════════════════════════════════════════════════════════════
+   AUDIO DOCK — Transporte + Waveform
+
+   Portrait / Desktop: columna (transporte arriba, waveform debajo).
+   Landscape móvil/tablet (< 1024px): FILA horizontal (transporte a la
+   izquierda, waveform a la derecha). Así el dock ocupa poca altura y el
+   lienzo de la Pista 2D —protagonista de la app— conserva el máximo
+   espacio vertical disponible.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.landscape-audio-dock {
+  /* Por defecto (portrait / lg): columna con altura proporcional */
+  display: flex;
+  flex-direction: column;
+}
+
+@media (orientation: landscape) and (max-width: 1023px) {
+  .landscape-audio-dock {
+    flex-direction: row !important;
+    height: 24dvh !important;
+    min-height: 76px !important;
+    max-height: 26dvh !important;
+    flex: 0 0 auto !important;
+  }
+}
+
+/* Pantallas muy bajas (móvil horizontal compacto): dock aún más delgado */
+@media (orientation: landscape) and (max-width: 1023px) and (max-height: 400px) {
+  .landscape-audio-dock {
+    height: 26dvh !important;
+    min-height: 68px !important;
+    max-height: 28dvh !important;
   }
 }
 

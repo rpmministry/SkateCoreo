@@ -699,29 +699,36 @@ export function App() {
             />
           </div>
 
-          {/* Transporte compacto: en landscape móvil/tablet se reduce para dar prioridad visual a la pista 2D.
-              En desktop (lg+) lo maneja el header. */}
-          <div className="shrink-0 border-t border-white/5 bg-neon-surface/60 px-2 py-1.5 pl-safe pr-safe landscape:py-0.5 landscape:px-1.5 lg:hidden">
-            <RinkAudioPlayer
-              variant="compact"
-              currentTimeMs={currentTimeMs}
-              durationMs={audioState.durationMs || 240000}
-              isPlaying={isAudioActive}
-              hasAudioLoaded={audioState.hasAudioLoaded}
-              fileName={audioState.fileName}
-            />
-          </div>
+          {/* ── AUDIO DOCK: Transporte + Waveform ──
+              Portrait / Desktop → columna (transporte arriba, waveform debajo).
+              Landscape móvil/tablet → fila horizontal (transporte a la izquierda,
+              waveform a la derecha). El dock ocupa poca altura y el lienzo de la
+              Pista 2D —protagonista de la app— conserva el máximo espacio vertical. */}
+          <div className="landscape-audio-dock shrink-0 h-[26%] max-h-[170px] min-h-[104px] border-t border-white/5">
 
-          {/* Interactive Waveform Strip — en landscape se reduce para priorizar la pista 2D */}
-          <div className="timeline-container landscape-compact-waveform h-[26%] max-h-[170px] min-h-[104px] landscape:min-h-[80px] shrink-0 border-t border-white/5 bg-neon-surface/40">
-            <InteractiveWaveform
-              currentTimeMs={currentTimeMs}
-              durationMs={audioState.durationMs}
-              isPlaying={isAudioActive}
-              onSeek={(ms) => audioEngine.seek(ms)}
-              fileName={audioState.fileName}
-              onOpenStudio={() => setActiveView('studio')}
-            />
+            {/* Transporte compacto (en desktop lo reemplaza el del header) */}
+            <div className="shrink-0 flex items-center border-b border-white/5 bg-neon-surface/60 px-2 py-1.5 pl-safe pr-safe landscape:w-[clamp(148px,26vw,240px)] landscape:border-b-0 landscape:border-r landscape:py-0.5 landscape:px-1.5 lg:hidden">
+              <RinkAudioPlayer
+                variant="compact"
+                currentTimeMs={currentTimeMs}
+                durationMs={audioState.durationMs || 240000}
+                isPlaying={isAudioActive}
+                hasAudioLoaded={audioState.hasAudioLoaded}
+                fileName={audioState.fileName}
+              />
+            </div>
+
+            {/* Waveform Timeline */}
+            <div className="flex-1 min-w-0 min-h-0 bg-neon-surface/40">
+              <InteractiveWaveform
+                currentTimeMs={currentTimeMs}
+                durationMs={audioState.durationMs}
+                isPlaying={isAudioActive}
+                onSeek={(ms) => audioEngine.seek(ms)}
+                fileName={audioState.fileName}
+                onOpenStudio={() => setActiveView('studio')}
+              />
+            </div>
           </div>
         </main>
 

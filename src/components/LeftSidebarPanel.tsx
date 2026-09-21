@@ -25,6 +25,7 @@ import {
 import { RinkContextTools } from './rink/RinkContextTools';
 import { audioEngine } from '../services/audioEngine';
 import { GOOGLE_TTS_VOICES, DEFAULT_LATIN_FEMALE_VOICE } from '../core/audio/VoiceCueEngine';
+import { TIME_SIGNATURES } from '../core/audio/Metronome';
 import { detectGoogleVoiceGender } from '../core/audio/voiceGender';
 import {
   hasNaturalVoiceBackend,
@@ -361,20 +362,22 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
                   <label className="text-[10px] font-semibold text-slate-400 block mb-1">
                     Compás ({audio.metronome.beatsPerMeasure}/4)
                   </label>
-                  <div className="flex gap-1">
-                    {([2, 3, 4, 6] as const).map((b) => (
+                  <div className="grid grid-cols-4 gap-1">
+                    {TIME_SIGNATURES.map((ts) => (
                       <button
-                        key={b}
+                        key={ts.label}
                         type="button"
-                        onClick={() => audio.metronome.setBeats(b)}
+                        onClick={() => audio.metronome.setBeats(ts.beats)}
+                        aria-pressed={audio.metronome.beatsPerMeasure === ts.beats}
+                        aria-label={`Compás ${ts.label}`}
                         className={[
-                          'flex-1 py-1 text-[11px] font-bold rounded-lg interactive-tap transition-all',
-                          audio.metronome.beatsPerMeasure === b
+                          'min-h-touch min-w-touch flex items-center justify-center rounded-lg text-[11px] font-bold interactive-tap transition-all',
+                          audio.metronome.beatsPerMeasure === ts.beats
                             ? 'bg-mint text-neon-canvas shadow-glow-mint font-black'
-                            : 'bg-neon-surface text-slate-400',
+                            : 'bg-neon-surface text-slate-400 hover:text-white',
                         ].join(' ')}
                       >
-                        {b}
+                        {ts.label}
                       </button>
                     ))}
                   </div>

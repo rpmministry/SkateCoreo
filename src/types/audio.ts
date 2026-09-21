@@ -26,7 +26,7 @@ export interface AudioEngineState {
 export interface MetronomeConfig {
   enabled: boolean;
   bpm: number;
-  beatsPerMeasure: 1 | 2 | 3 | 4 | 6; // Compás: 1/1, 2/4, 3/4, 4/4, 6/8
+  beatsPerMeasure: 1 | 2 | 3 | 4 | 5 | 6 | 7; // Compás: 1/4, 2/4, 3/4, 4/4, 5/4, 6/8, 7/8
   volume: number; // 0.0 to 1.0
   accentFirstBeat: boolean;
   accentPitch: number; // Hz (default 1000)

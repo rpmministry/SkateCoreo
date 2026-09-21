@@ -1,4 +1,40 @@
+/**
+ * Metronome — Web Audio API Lookahead Scheduler
+ *
+ * ARQUITECTURA DE SINCRONIZACIÓN:
+ * - CERO temporizadores de JavaScript para el timing musical.
+ * - Los `setTimeout` solo despiertan el planificador periódicamente (~20ms).
+ * - TODOS los cálculos de tiempo usan exclusivamente `AudioContext.currentTime`,
+ *   el reloj de hardware de la tarjeta de sonido (precisión sub-milisegundo).
+ * - Los beats se programan en el futuro (`scheduleAheadSec = 0.15s`) para que
+ *   el sistema operativo tenga margen de encolado sin underruns.
+ * - Al cambiar BPM o Compás, la resincronización es instantánea: recalcula el
+ *   índice del próximo beat sin detener ni reiniciar la reproducción musical.
+ *
+ * COMPASES SOPORTADOS: 1/4, 2/4, 3/4, 4/4, 5/4, 6/8, 7/8
+ * - El primer pulso de cada compás recibe acento (frecuencia y ganancia elevadas).
+ */
+
 import { MetronomeConfig } from '../../types/audio';
+
+export type TimeSignature = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+export type TimeSignatureDenominator = 4 | 8;
+
+export interface TimeSignatureDef {
+  beats: TimeSignature;
+  denominator: TimeSignatureDenominator;
+  label: string;
+}
+
+export const TIME_SIGNATURES: TimeSignatureDef[] = [
+  { beats: 1, denominator: 4, label: '1/4' },
+  { beats: 2, denominator: 4, label: '2/4' },
+  { beats: 3, denominator: 4, label: '3/4' },
+  { beats: 4, denominator: 4, label: '4/4' },
+  { beats: 5, denominator: 4, label: '5/4' },
+  { beats: 6, denominator: 8, label: '6/8' },
+  { beats: 7, denominator: 8, label: '7/8' },
+];
 
 export class Metronome {
   private ctx: AudioContext | null = null;
@@ -7,7 +43,7 @@ export class Metronome {
 
   private config: MetronomeConfig = {
     enabled: true,
-    bpm: 140, // Tempo estándar de competición RollArt / Pista demo
+    bpm: 140,
     beatsPerMeasure: 4,
     volume: 0.8,
     accentFirstBeat: true,
@@ -16,13 +52,13 @@ export class Metronome {
   };
 
   private isRunning = false;
-  private audioZeroCtxTime = 0; // Context time correspondiente al segundo 0.000 de la música
+  private audioZeroCtxTime = 0;
   private playbackRate = 1.0;
-  private nextBeatIndex = 0; // Índice de beat absoluto (0, 1, 2, ...)
-  private phaseOffsetSec = 0; // Desfase del primer golpe (default 0s)
+  private nextBeatIndex = 0;
+  private phaseOffsetSec = 0;
 
-  private lookaheadMs = 20; // Frecuencia de verificación del scheduler (ms)
-  private scheduleAheadSec = 0.15; // Anticipación en segundos para encolar en Web Audio API
+  private readonly lookaheadMs = 20;
+  private readonly scheduleAheadSec = 0.15;
 
   constructor(config?: Partial<MetronomeConfig>) {
     if (config) {
@@ -47,6 +83,10 @@ export class Metronome {
     return { ...this.config };
   }
 
+  /**
+   * Cambio dinámico de BPM: recalcula el intervalo de beats y resincroniza
+   * inmediatamente sin detener la reproducción musical.
+   */
   public setBpm(bpm: number) {
     this.config.bpm = Math.max(30, Math.min(300, Math.round(bpm)));
     if (this.isRunning && this.ctx) {
@@ -55,8 +95,17 @@ export class Metronome {
     }
   }
 
-  public setBeatsPerMeasure(beats: 1 | 2 | 3 | 4 | 6) {
-    this.config.beatsPerMeasure = beats;
+  /**
+   * Selector de compás (Time Signature).
+   * Acepta cualquier valor de TIME_SIGNATURES.
+   */
+  public setBeatsPerMeasure(beats: number) {
+    const clamped = Math.max(1, Math.min(7, Math.round(beats))) as 1 | 2 | 3 | 4 | 5 | 6 | 7;
+    this.config.beatsPerMeasure = clamped;
+    if (this.isRunning && this.ctx) {
+      const currentSongTime = (this.ctx.currentTime - this.audioZeroCtxTime) * this.playbackRate;
+      this.sync(Math.max(0, currentSongTime), this.playbackRate);
+    }
   }
 
   public setVolume(volume: number) {
@@ -72,24 +121,22 @@ export class Metronome {
   }
 
   /**
-   * Inicia el metrónomo sincronizado de forma matemáticamente exacta con el reloj de audio.
-   * Elimina desfases, jitter de hilos y doble click.
+   * Arranque del metrónomo sincronizado al reloj de hardware.
+   * `syncAudioTimeSec` es la posición actual de la canción en segundos.
    */
   public start(syncAudioTimeSec: number = 0, playbackRate: number = 1.0) {
-    this.stop(); // Prevenir cualquier timer zombie previo
+    this.stop();
 
     if (!this.ctx || !this.outputNode) return;
     this.isRunning = true;
     this.playbackRate = Math.max(0.1, playbackRate || 1.0);
 
-    // Calcular el tiempo de AudioContext donde la pista estuvo o estará en 0.000s
     this.audioZeroCtxTime = this.ctx.currentTime - (syncAudioTimeSec / this.playbackRate);
 
     const secondsPerBeat = 60.0 / this.config.bpm;
     const effectiveSongTime = Math.max(0, syncAudioTimeSec - this.phaseOffsetSec);
     const beatFloat = effectiveSongTime / secondsPerBeat;
 
-    // Si estamos en 0 o muy cerca de un beat (<25ms), comenzar exactamente en ese beat
     if (effectiveSongTime < 0.025 || (beatFloat - Math.floor(beatFloat)) < 0.05) {
       this.nextBeatIndex = Math.max(0, Math.floor(beatFloat + 0.05));
     } else {
@@ -109,7 +156,7 @@ export class Metronome {
   }
 
   /**
-   * Resincroniza el metrónomo sin detenerlo (por ejemplo, al saltar o cambiar de velocidad)
+   * Resincroniza el metrónomo sin detenerlo (seek, cambio de BPM, cambio de playbackRate).
    */
   public sync(currentAudioTimeSec: number, playbackRate?: number) {
     if (!this.ctx) return;

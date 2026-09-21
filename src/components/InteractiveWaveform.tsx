@@ -499,7 +499,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
           <button
             type="button"
             onClick={() => setIsMiniMixerOpen((prev) => !prev)}
-            className={`min-h-touch min-w-touch rounded-subtle flex items-center justify-center gap-1.5 border px-2.5 font-sans text-[11px] font-bold press lg:px-3 ${
+            className={`min-h-touch min-w-touch landscape:h-9 landscape:min-h-0 landscape:min-w-0 rounded-subtle flex items-center justify-center gap-1.5 border px-2.5 landscape:px-2 font-sans text-[11px] font-bold press lg:px-3 ${
               isMiniMixerOpen
                 ? 'border-cyan/40 bg-cyan/20 text-cyan shadow-sm shadow-cyan/20'
                 : 'border-border-subtle bg-surface-hover/80 text-text-secondary hover:bg-surface-active hover:text-text-primary'
@@ -514,13 +514,13 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
             </span>
           </button>
 
-          {/* Botones de Zoom In / Zoom Out / Reset (48x48px) */}
+          {/* Botones de Zoom In / Zoom Out / Reset (48x48px; 36px en landscape para ceder altura al canvas) */}
           <div className="flex items-center gap-0.5 rounded-subtle border border-border-subtle bg-surface-hover/80 p-0.5">
             <button
               type="button"
               onClick={() => zoomOut()}
               disabled={zoom <= 1.01}
-              className="flex min-h-touch min-w-touch items-center justify-center rounded text-text-secondary press hover:bg-surface-active hover:text-text-primary disabled:pointer-events-none disabled:opacity-25"
+              className="flex min-h-touch min-w-touch landscape:h-9 landscape:w-9 landscape:min-h-0 landscape:min-w-0 items-center justify-center rounded text-text-secondary press hover:bg-surface-active hover:text-text-primary disabled:pointer-events-none disabled:opacity-25"
               title="Alejar (Ctrl + Rueda abajo)"
               aria-label="Alejar"
             >
@@ -538,7 +538,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
               type="button"
               onClick={() => zoomIn()}
               disabled={zoom >= 34.9}
-              className="flex min-h-touch min-w-touch items-center justify-center rounded text-text-secondary press hover:bg-surface-active hover:text-text-primary disabled:pointer-events-none disabled:opacity-25"
+              className="flex min-h-touch min-w-touch landscape:h-9 landscape:w-9 landscape:min-h-0 landscape:min-w-0 items-center justify-center rounded text-text-secondary press hover:bg-surface-active hover:text-text-primary disabled:pointer-events-none disabled:opacity-25"
               title="Acercar (Ctrl + Rueda arriba o Pellizco)"
               aria-label="Acercar"
             >
@@ -549,7 +549,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
               <button
                 type="button"
                 onClick={resetZoom}
-                className="flex min-h-touch min-w-touch items-center justify-center gap-0.5 rounded bg-accent/15 text-[9px] font-bold text-accent press hover:bg-accent/25"
+                className="flex min-h-touch min-w-touch landscape:h-9 landscape:min-h-0 landscape:min-w-0 items-center justify-center gap-0.5 rounded bg-accent/15 px-1 text-[9px] font-bold text-accent press hover:bg-accent/25"
                 title="Restablecer a vista completa (1x)"
                 aria-label="Restablecer zoom"
               >

@@ -35,11 +35,11 @@ export interface UseAudioEngineReturn {
   metronome: {
     enabled: boolean;
     bpm: number;
-    beatsPerMeasure: 1 | 2 | 3 | 4 | 6;
+    beatsPerMeasure: 1 | 2 | 3 | 4 | 5 | 6 | 7;
     volume: number;
     toggle: () => void;
     setBpm: (bpm: number) => void;
-    setBeats: (beats: 1 | 2 | 3 | 4 | 6) => void;
+    setBeats: (beats: 1 | 2 | 3 | 4 | 5 | 6 | 7) => void;
     setVolume: (volume: number) => void;
   };
 
@@ -139,7 +139,7 @@ export function useAudioEngine(): UseAudioEngineReturn {
     setMetronomeConfig(audioEngine.metronome.getConfig());
   }, []);
 
-  const setMetronomeBeats = useCallback((beats: 1 | 2 | 3 | 4 | 6) => {
+  const setMetronomeBeats = useCallback((beats: 1 | 2 | 3 | 4 | 5 | 6 | 7) => {
     audioEngine.metronome.setBeatsPerMeasure(beats);
     setMetronomeConfig(audioEngine.metronome.getConfig());
   }, []);

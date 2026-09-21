@@ -56,7 +56,7 @@ export interface AudioStudioTrack {
 export interface StudioMetronomeConfig {
   enabled: boolean;
   bpm: number;
-  beatsPerMeasure: 1 | 2 | 3 | 4 | 6;
+  beatsPerMeasure: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   accentFirstBeat: boolean;
   volume: number;
 }
@@ -69,7 +69,7 @@ export interface GlobalVoiceGuideConfig {
 
 export interface GlobalAudioControls {
   bpm: number;
-  beatsPerMeasure: 1 | 2 | 3 | 4 | 6;
+  beatsPerMeasure: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   metronome: {
     enabled: boolean;
     volume: number;
