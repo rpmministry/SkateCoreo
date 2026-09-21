@@ -344,6 +344,20 @@ body {
   }
 }
 
+/* Compact header: only in landscape mobile/tablet (< 1024px).
+   Desktop is always landscape but needs full 60px header height. */
+.header-compact {
+}
+@media (orientation: landscape) and (max-width: 1023px) {
+  .header-compact {
+    height: 40px !important;
+  }
+  .header-compact-inner {
+    min-height: 0 !important;
+    height: 40px !important;
+  }
+}
+
 /* Attribution footer: only on desktop */
 .attribution-bar {
   display: none;

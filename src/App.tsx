@@ -431,8 +431,8 @@ export function App() {
           Sin `flex-wrap`: una sola fila garantiza cero apiñamiento/superposición.
           ═══════════════════════════════════════════════ */}
       {activeView !== 'studio' && (
-        <header className="relative z-30 shrink-0 glass-hud border-b border-white/10 pt-safe px-safe landscape:h-10 landscape:pt-safe landscape:px-safe">
-          <div className="flex min-h-[54px] landscape:min-h-0 landscape:h-10 items-center justify-between gap-2 px-2 py-1 sm:px-3 lg:min-h-[60px] lg:px-4">
+        <header className="relative z-30 shrink-0 glass-hud border-b border-white/10 pt-safe px-safe header-compact">
+          <div className="flex min-h-[54px] header-compact-inner items-center justify-between gap-2 px-2 py-1 sm:px-3 lg:min-h-[60px] lg:px-4">
 
         {/* ── IZQUIERDA: Marca (navega a Inicio) + contexto del atleta ── */}
         <div className="flex min-w-0 items-center gap-2">
