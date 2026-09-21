@@ -780,15 +780,17 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
 
         {/* Derecha: Metrónomo + Marcador + Zoom */}
         <div className="flex items-center gap-2 shrink-0">
-          {/* Toggle Metrónomo rápido */}
+          {/* Toggle Metrónomo rápido (48x48px, activación táctil inmediata) */}
           <button
             type="button"
-            onClick={toggleMetronomeMute}
-            className={`w-12 h-12 min-w-touch min-h-touch rounded-full flex items-center justify-center transition-colors ${
+            {...press(toggleMetronomeMute)}
+            className={`w-12 h-12 min-w-touch min-h-touch rounded-full flex items-center justify-center press ${
               globalControls.metronome.muted 
                 ? 'text-slate-500 hover:bg-white/5' 
                 : 'text-amber-400 bg-amber-500/15'
             }`}
+            aria-pressed={globalControls.metronome.muted}
+            aria-label={globalControls.metronome.muted ? 'Activar metrónomo' : 'Silenciar metrónomo'}
             title="Activar/Silenciar Metrónomo"
           >
             <Bell className="w-5 h-5" />

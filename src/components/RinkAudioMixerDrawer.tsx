@@ -10,7 +10,7 @@ import {
   ExternalLink 
 } from 'lucide-react';
 import { useAudioStudioStore } from '../store/useAudioStudioStore';
-import { audioEngine } from '../core/audio/AudioEngine';
+import { usePressAction } from '../hooks/usePressAction';
 
 interface RinkAudioMixerDrawerProps {
   isOpen: boolean;
@@ -51,20 +51,15 @@ export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
   const voiceVolume = globalControls.voiceGuide.volume;
   const voiceMuted = globalControls.voiceGuide.muted;
 
-  // Sincronización con AudioEngine
-  const handleMusicVolumeChange = (vol: number) => {
-    setTrackVolume('music', vol);
-    audioEngine.setMusicVolume(vol);
-  };
+  // Activación táctil inmediata y fiable sin doble disparo (móvil/tablet).
+  // Los botones de mute usaban solo `onClick`, que en pantallas táctiles llega
+  // con retraso o se pierde si hay superposición de elementos.
+  const press = usePressAction();
 
-  const handleMusicMuteToggle = () => {
-    toggleTrackMute('music');
-    if (!musicMuted) {
-      audioEngine.setMusicVolume(0);
-    } else {
-      audioEngine.setMusicVolume(musicVolume);
-    }
-  };
+  // Sincronización con AudioEngine: el store ya enruta volumen y mute a los
+  // GainNode de cada sub-bus, así que aquí no se duplica esa lógica.
+  const handleMusicVolumeChange = (vol: number) => setTrackVolume('music', vol);
+  const handleMusicMuteToggle = () => toggleTrackMute('music');
 
   // Cierre accesible con tecla Escape
   useEffect(() => {
@@ -146,7 +141,7 @@ export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
               {/* Botón Mute Accesible (48x48px) */}
               <button
                 type="button"
-                onClick={handleMusicMuteToggle}
+                {...press(handleMusicMuteToggle)}
                 className={`w-12 h-12 min-w-touch min-h-touch rounded-xl flex items-center justify-center transition-all active:scale-95 shadow-sm ${
                   musicMuted 
                     ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40' 
@@ -192,7 +187,7 @@ export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
               {/* Botón Mute Accesible (48x48px) */}
               <button
                 type="button"
-                onClick={toggleVoiceGuideMute}
+                {...press(toggleVoiceGuideMute)}
                 className={`w-12 h-12 min-w-touch min-h-touch rounded-xl flex items-center justify-center transition-all active:scale-95 shadow-sm ${
                   voiceMuted 
                     ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40' 
@@ -238,7 +233,7 @@ export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
               {/* Botón Mute Accesible (48x48px) */}
               <button
                 type="button"
-                onClick={toggleMetronomeMute}
+                {...press(toggleMetronomeMute)}
                 className={`w-12 h-12 min-w-touch min-h-touch rounded-xl flex items-center justify-center transition-all active:scale-95 shadow-sm ${
                   metronomeMuted 
                     ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40' 

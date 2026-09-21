@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { AudioStudioTrack } from '../../types/audioStudio';
 import { useAudioStudioStore } from '../../store/useAudioStudioStore';
+import { usePressAction } from '../../hooks/usePressAction';
 
 interface BandLabMixerDrawerProps {
   isOpen: boolean;
@@ -27,6 +28,7 @@ export const BandLabMixerDrawer: React.FC<BandLabMixerDrawerProps> = ({
   const toggleMetronomeMute = useAudioStudioStore((s) => s.toggleMetronomeMute);
   const setMetronomeVolume = useAudioStudioStore((s) => s.setMetronomeVolume);
   const toggleVoiceGuideMute = useAudioStudioStore((s) => s.toggleVoiceGuideMute);
+  const press = usePressAction();
   const setVoiceGuideVolume = useAudioStudioStore((s) => s.setVoiceGuideVolume);
 
   if (!isOpen) return null;
@@ -99,8 +101,8 @@ export const BandLabMixerDrawer: React.FC<BandLabMixerDrawerProps> = ({
                 <div className="w-full flex items-center gap-1">
                   <button
                     type="button"
-                    onClick={() => toggleTrackMute(t.id)}
-                    className={`flex-1 py-1 rounded text-[9px] font-black uppercase transition-all ${
+                    {...press(() => toggleTrackMute(t.id))}
+                    className={`press min-h-touch flex-1 rounded text-[9px] font-black uppercase ${
                       t.muted ? 'bg-rose-500 text-white shadow-sm' : 'bg-white/10 text-slate-400 hover:text-white'
                     }`}
                   >
@@ -150,8 +152,8 @@ export const BandLabMixerDrawer: React.FC<BandLabMixerDrawerProps> = ({
 
             <button
               type="button"
-              onClick={toggleMetronomeMute}
-              className={`w-full py-1 rounded text-[9px] font-black uppercase transition-all ${
+              {...press(toggleMetronomeMute)}
+              className={`press min-h-touch w-full rounded text-[9px] font-black uppercase ${
                 globalControls.metronome.muted ? 'bg-rose-500 text-white' : 'bg-white/10 text-amber-400'
               }`}
             >
@@ -189,8 +191,8 @@ export const BandLabMixerDrawer: React.FC<BandLabMixerDrawerProps> = ({
 
             <button
               type="button"
-              onClick={toggleVoiceGuideMute}
-              className={`w-full py-1 rounded text-[9px] font-black uppercase transition-all ${
+              {...press(toggleVoiceGuideMute)}
+              className={`press min-h-touch w-full rounded text-[9px] font-black uppercase ${
                 globalControls.voiceGuide.muted ? 'bg-rose-500 text-white' : 'bg-white/10 text-fuchsia-400'
               }`}
             >

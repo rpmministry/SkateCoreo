@@ -129,6 +129,9 @@ export class AudioEngine {
       this.voiceCueEngine.init(this.ctx, this.voiceCueGainNode);
 
       this.updateMatrixGains();
+      // Reaplicar el estado de silencio si el usuario ya había silenciado algo
+      // antes de inicializar el contexto de audio.
+      this.applyBusMutes();
     }
 
     if (this.ctx.state === 'suspended') {
@@ -257,6 +260,73 @@ export class AudioEngine {
     this.channelMode = mode;
     this.updateMatrixGains();
     this.emitStateChange();
+  }
+
+  /* ── Silenciadores absolutos por sub-bus ─────────────────────────
+     Cada canal tiene su propio GainNode antes del bus de coach/música.
+     Se usa `setValueAtTime` (cambio ABSOLUTO e inmediato) en lugar de
+     `setEnabled(false)`, que solo evita programar sonidos nuevos: el
+     metrónomo y las voces se programan con lookahead, así que al silenciar
+     quedaban clics/avisos ya agendados sonando. Poner el gain a 0 silencia
+     también lo ya programado, sin detener ni resincronizar la pista maestra. */
+
+  private musicMuted = false;
+  private metronomeMuted = false;
+  private voiceGuideMuted = false;
+
+  /** Aplica los silenciadores a los GainNode de cada sub-bus. */
+  private applyBusMutes() {
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    this.musicGainNode?.gain.setValueAtTime(this.musicMuted ? 0 : 1, now);
+    this.metronomeGainNode?.gain.setValueAtTime(this.metronomeMuted ? 0 : 1, now);
+    this.voiceCueGainNode?.gain.setValueAtTime(this.voiceGuideMuted ? 0 : 1, now);
+  }
+
+  public setMusicMuted(muted: boolean) {
+    this.musicMuted = muted;
+    this.applyBusMutes();
+    this.emitStateChange();
+  }
+
+  public setMetronomeMuted(muted: boolean) {
+    this.metronomeMuted = muted;
+    this.applyBusMutes();
+    this.emitStateChange();
+  }
+
+  public setVoiceGuideMuted(muted: boolean) {
+    this.voiceGuideMuted = muted;
+    this.applyBusMutes();
+    this.emitStateChange();
+  }
+
+  public isMusicMuted(): boolean {
+    return this.musicMuted;
+  }
+
+  public isMetronomeMuted(): boolean {
+    return this.metronomeMuted;
+  }
+
+  public isVoiceGuideMuted(): boolean {
+    return this.voiceGuideMuted;
+  }
+
+  /**
+   * Reaplica los silenciadores a partir del estado del store.
+   * Se invoca al inicializar el AudioContext y tras hidratar el estado.
+   */
+  public syncBusMutes(flags: {
+    music?: boolean;
+    metronome?: boolean;
+    voiceGuide?: boolean;
+  }) {
+    if (flags.music !== undefined) this.musicMuted = flags.music;
+    if (flags.metronome !== undefined) this.metronomeMuted = flags.metronome;
+    if (flags.voiceGuide !== undefined) this.voiceGuideMuted = flags.voiceGuide;
+    this.applyBusMutes();
   }
 
   public setMusicVolume(vol: number) {
@@ -429,79 +499,9 @@ export class AudioEngine {
     return 1.0;
   }
 
-  public async generateDemoTrack(): Promise<AudioBuffer> {
-    this.initAudioContext();
-    if (!this.ctx) throw new Error('AudioContext no disponible');
-
-    // 1. Intentar cargar la pista oficial de prueba provista en /demo_track.wav
-    try {
-      if (typeof window !== 'undefined' && typeof fetch === 'function') {
-        const res = await fetch('/demo_track.wav');
-        if (res.ok) {
-          const arrayBuffer = await res.arrayBuffer();
-          this.audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
-          this.durationMs = Math.round(this.audioBuffer.duration * 1000);
-          this.fileName = 'Musica de Coreo prueba.wav';
-          this.pausedAtTime = 0;
-
-          // Configuración exacta para la pista de prueba (140 BPM, compás 4/4)
-          this.metronome.setBpm(140);
-          this.metronome.setBeatsPerMeasure(4);
-
-          this.mediaSession.updateMetadata(this.fileName);
-          await this.checkBluetoothAndLatency();
-          this.emitStateChange();
-          return this.audioBuffer;
-        }
-      }
-    } catch (err) {
-      console.warn('[AudioEngine] No se pudo cargar /demo_track.wav, usando sintetizador fallback:', err);
-    }
-
-    // 2. Fallback sintético si no está disponible el archivo en disco
-    const sampleRate = this.ctx.sampleRate;
-    const durationSec = 120; // 2 minutos
-    const numSamples = sampleRate * durationSec;
-    const buffer = this.ctx.createBuffer(2, numSamples, sampleRate);
-
-    const leftChannel = buffer.getChannelData(0);
-    const rightChannel = buffer.getChannelData(1);
-
-    const bpm = 120;
-    const beatInterval = 60 / bpm;
-
-    for (let i = 0; i < numSamples; i++) {
-      const t = i / sampleRate;
-      const beatProgress = (t % beatInterval) / beatInterval;
-      const beatNum = Math.floor(t / beatInterval) % 3;
-      let sample = 0;
-
-      if (beatNum === 0) {
-        const env = Math.exp(-beatProgress * 15);
-        sample += Math.sin(2 * Math.PI * 70 * (1 - beatProgress * 0.5) * t) * env * 0.6;
-      } else {
-        const env = Math.exp(-beatProgress * 8);
-        const freq = beatNum === 1 ? 440 : 523.25;
-        sample += Math.sin(2 * Math.PI * freq * t) * env * 0.25;
-      }
-
-      const melodyFreq = 220 + Math.sin(t * 0.5) * 80;
-      sample += Math.sin(2 * Math.PI * melodyFreq * t) * 0.08;
-
-      leftChannel[i] = sample;
-      rightChannel[i] = sample;
-    }
-
-    this.audioBuffer = buffer;
-    this.durationMs = durationSec * 1000;
-    this.fileName = 'Pista_RollArt_CarlosTango_Demo.wav';
-    this.pausedAtTime = 0;
-
-    this.mediaSession.updateMetadata(this.fileName);
-    await this.checkBluetoothAndLatency();
-    this.emitStateChange();
-    return buffer;
-  }
+  // NOTA: se eliminó `generateDemoTrack()`. La aplicación arranca en «lienzo en
+  // blanco»: no se pre-carga ninguna pista de música de ejemplo. El usuario
+  // importa su propia música con «Cargar Audio».
 
   public ensureAudioBuffer(): AudioBuffer {
     if (this.audioBuffer) return this.audioBuffer;

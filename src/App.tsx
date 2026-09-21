@@ -14,7 +14,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Music,
   X, ChevronDown, MoreVertical,
-  Upload, Save, HardDrive
+  Upload, Save, HardDrive, Trash2
 } from 'lucide-react';
 import { Skater, Program, ElementLog, AudioEngineState } from './types';
 import { RinkCanvas } from './components/RinkCanvas';
@@ -34,6 +34,7 @@ import { AudioStudioView } from './components/AudioStudio/AudioStudioView';
 import { NodePlacementTray } from './components/NodePlacementTray';
 import { RinkAudioPlayer } from './components/RinkAudioPlayer';
 import { RinkContextTools } from './components/rink/RinkContextTools';
+import { ConfirmDialog } from './components/ConfirmDialog';
 import { HomeView } from './components/HomeView';
 import {
   BottomNav,
@@ -74,6 +75,8 @@ export function App() {
   const [savedOfflineSuccess, setSavedOfflineSuccess] = useState(false);
   const [showSkaters, setShowSkaters] = useState(false);
   const [preRollSec, setPreRollSec]   = useState(3);
+  /** Confirmación del borrado total de la pista 2D (acción destructiva). */
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
 
   // Input file hidden refs
   const audioInputRef = useRef<HTMLInputElement | null>(null);
@@ -87,7 +90,9 @@ export function App() {
 
   // ── Data loading & Offline Autoload ─────────────────────
   const loadData = useCallback(async () => {
-    await dbService.seedInitialData();
+    // Estado inicial limpio («lienzo en blanco»): no se siembran atletas,
+    // programas ni rutas de demostración. Si la base de datos está vacía, la
+    // interfaz guía al usuario a crear su primer perfil y proyecto.
     const allSkaters = await dbService.getAllSkaters();
     setSkaters(allSkaters);
     if (allSkaters.length > 0) {
@@ -192,29 +197,29 @@ export function App() {
 
   const handleUndo = useCallback(() => undo(), [undo]);
 
-  // Limpiar toda la pista 2D en un solo toque
-  const handleClearRink = useCallback(() => {
+  /**
+   * «Limpiar Pista 2D» ahora está a un toque en la interfaz principal, así que
+   * se protege con un modal de confirmación (en lugar de `window.confirm`) para
+   * evitar pérdidas accidentales de trabajo en pantallas táctiles.
+   */
+  const requestClearRink = useCallback(() => {
     if (points.length === 0) return;
-    if (window.confirm(`¿Limpiar toda la pista 2D? Se eliminarán los ${points.length} nodos creados.`)) {
-      clearAllPoints();
-      audioEngine.setNodes([]);
-      if (selectedProgram) {
-        handleProgramUpdated({
-          ...selectedProgram,
-          choreography_path: []
-        });
-      }
-    }
-  }, [points.length, clearAllPoints, selectedProgram]);
+    setConfirmClearOpen(true);
+  }, [points.length]);
 
-  const handleResetDemo = async () => {
-    const store = useChoreographyStore.getState();
-    if (store.points.length > 0 && !window.confirm('¿Reemplazar nodos con la coreografía demo?')) return;
-    const { DEFAULT_CHOREOGRAPHY_POINTS } = await import('./store/useChoreographyStore');
-    store.pushHistory();
-    store.loadProgramPoints(DEFAULT_CHOREOGRAPHY_POINTS);
-    try { await audioEngine.generateDemoTrack(); } catch { /* ignore */ }
-  };
+  const handleClearRink = useCallback(() => {
+    setConfirmClearOpen(false);
+    if (points.length === 0) return;
+
+    clearAllPoints();
+    audioEngine.setNodes([]);
+    if (selectedProgram) {
+      handleProgramUpdated({
+        ...selectedProgram,
+        choreography_path: []
+      });
+    }
+  }, [points.length, clearAllPoints, selectedProgram, handleProgramUpdated]);
 
   const handleNodeSelect = useCallback((id: string | null) => {
     if (typeof window !== 'undefined' && window.innerWidth < 1024) {
@@ -470,6 +475,26 @@ export function App() {
               />
             </div>
           )}
+          {/* Limpiar Pista 2D — acción rápida de la barra principal (desktop).
+              En móvil/tablet vive en el rail de herramientas de la pista. */}
+          {activeView === 'rink' && (
+            <button
+              type="button"
+              onClick={requestClearRink}
+              disabled={points.length === 0}
+              className="press hidden min-h-touch min-w-touch items-center justify-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3 text-xs font-bold text-red-400 hover:bg-red-500/20 disabled:pointer-events-none disabled:opacity-30 lg:flex"
+              title={
+                points.length === 0
+                  ? 'La pista ya está vacía'
+                  : `Limpiar pista 2D (${points.length} nodos)`
+              }
+              aria-label="Limpiar toda la pista 2D"
+            >
+              <Trash2 className="h-4 w-4 shrink-0 stroke-[2]" />
+              <span className="hidden xl:inline">Limpiar Pista</span>
+            </button>
+          )}
+
           {/* Botón Cargar Audio (CTA primario único) */}
           <button
             type="button"
@@ -578,7 +603,7 @@ export function App() {
             {activeView === 'rink' && (
               <RinkContextTools
                 layout="rail"
-                onClear={handleClearRink}
+                onClear={requestClearRink}
                 inspectorOpen={sheetOpen}
                 onToggleInspector={handleToggleInspector}
               />
@@ -627,8 +652,7 @@ export function App() {
                 preRollSec={preRollSec}
                 onPreRollSecChange={setPreRollSec}
                 onUndo={handleUndo}
-                onResetDemo={handleResetDemo}
-                onClearRink={handleClearRink}
+                                onClearRink={requestClearRink}
                 onOpenAudioStudio={() => setActiveView('studio')}
               />
             </aside>
@@ -777,7 +801,7 @@ export function App() {
       {activeView === 'rink' && (
         <RinkContextTools
           layout="bar"
-          onClear={handleClearRink}
+          onClear={requestClearRink}
           inspectorOpen={sheetOpen}
           onToggleInspector={handleToggleInspector}
         />
@@ -887,8 +911,7 @@ export function App() {
             preRollSec={preRollSec}
             onPreRollSecChange={setPreRollSec}
             onUndo={handleUndo}
-            onResetDemo={handleResetDemo}
-            onClearRink={handleClearRink}
+                        onClearRink={requestClearRink}
             onOpenAudioStudio={() => { setDrawerOpen(false); setActiveView('studio'); }}
             showHeader={false}
             isMobileModal={true}
@@ -926,6 +949,23 @@ export function App() {
           </div>
         </div>
       )}
+
+      {/* ═══════════════════════════════════════════════
+          CONFIRMACIÓN DE ACCIÓN DESTRUCTIVA
+          «Limpiar Pista 2D» está a un toque: se confirma siempre.
+          ═══════════════════════════════════════════════ */}
+      <ConfirmDialog
+        isOpen={confirmClearOpen}
+        tone="danger"
+        title="¿Estás seguro de limpiar toda la pista?"
+        message={`Se eliminarán los ${points.length} ${
+          points.length === 1 ? 'nodo' : 'nodos'
+        } de la coreografía actual. Esta acción no se puede deshacer.`}
+        confirmLabel="Sí, limpiar pista"
+        cancelLabel="Cancelar"
+        onConfirm={handleClearRink}
+        onCancel={() => setConfirmClearOpen(false)}
+      />
       </div>
     </ProtectedLayout>
   );

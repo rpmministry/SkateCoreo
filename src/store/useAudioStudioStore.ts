@@ -16,6 +16,7 @@ import {
 import { BpmDetector } from '../core/audio/BpmDetector';
 import { snapToZeroCrossing } from '../core/audio/zeroCrossing';
 import { audioEngine } from '../core/audio/AudioEngine';
+import { ttsService } from '../services/ttsService';
 import { useChoreographyStore } from './useChoreographyStore';
 import { renderStudioMixdown, bounceStudioClipsToBuffer } from '../core/audio/studioMixdown';
 
@@ -443,6 +444,9 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
       };
       const isEnabled = state.metronomeConfig.enabled && !newMuted;
       audioEngine.metronome.setEnabled(isEnabled);
+      // Silencio ABSOLUTO e inmediato del sub-bus: también corta los clics que
+      // el lookahead ya había programado (setEnabled solo evita los futuros).
+      audioEngine.setMetronomeMuted(newMuted);
       return {
         globalControls: updatedControls,
         tracks: {
@@ -498,6 +502,12 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         voiceGuide: { ...state.globalControls.voiceGuide, muted: newMuted },
       };
       audioEngine.voiceCueEngine.setConfig({ enabled: !newMuted && state.globalControls.voiceGuide.enabled });
+      // Silencio ABSOLUTO del sub-bus de voz: corta también la locución en curso
+      // (y los cues ya agendados) sin detener la pista maestra ni su sincronía.
+      audioEngine.setVoiceGuideMuted(newMuted);
+      // El fallback del navegador (SpeechSynthesis) no pasa por el grafo Web
+      // Audio, así que además se cancela explícitamente al silenciar.
+      if (newMuted) ttsService.stop();
       return {
         globalControls: updatedControls,
         tracks: {
@@ -1141,12 +1151,19 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         };
         updatedTracks[resolvedKey] = updatedTrack;
 
+        // Silenciadores ABSOLUTOS por GainNode: además de la lógica de habilitado,
+        // se fuerza el sub-bus a 0 para cortar cualquier sonido ya programado por
+        // el lookahead, sin detener ni desincronizar la pista maestra.
         if (resolvedKey === 'music') {
           audioEngine.setMusicVolume(newMuted ? 0 : updatedTrack.volume);
+          audioEngine.setMusicMuted(newMuted);
         } else if (resolvedKey === 'metronome') {
           audioEngine.metronome.setEnabled(!newMuted && state.metronomeConfig.enabled);
+          audioEngine.setMetronomeMuted(newMuted);
         } else if (resolvedKey === 'voice') {
           audioEngine.voiceCueEngine.setConfig({ enabled: !newMuted });
+          audioEngine.setVoiceGuideMuted(newMuted);
+          if (newMuted) ttsService.stop();
         }
       } else {
         updatedAdditional = updatedAdditional.map((t) =>

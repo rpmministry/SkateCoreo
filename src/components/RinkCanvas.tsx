@@ -32,7 +32,7 @@ import { useAudioEngine } from '../hooks/useAudioEngine';
 import { audioEngine } from '../core/audio/AudioEngine';
 import { RinkMath, DEFAULT_RINK_DIMENSIONS, CanvasViewportMetrics } from '../core/canvas/RinkMath';
 import { RinkRenderer } from '../core/canvas/RinkRenderer';
-import { useChoreographyStore, DEFAULT_CHOREOGRAPHY_POINTS } from '../store/useChoreographyStore';
+import { useChoreographyStore } from '../store/useChoreographyStore';
 import { isSpeakableFigure } from '../core/audio/VoiceCueEngine';
 import { InteractiveWaveform } from './InteractiveWaveform';
 import { useCanvasCamera } from '../hooks/useCanvasCamera';
@@ -1265,19 +1265,8 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     }
   };
 
-  // Restablecer la coreografía demo y cargar la pista de prueba (con confirmación de seguridad)
-  const handleResetDemoPath = async () => {
-    if (points.length > 0 && !window.confirm('¿Deseas reemplazar los nodos actuales de la pista por la coreografía demo?')) {
-      return;
-    }
-    pushHistory();
-    loadProgramPoints(DEFAULT_CHOREOGRAPHY_POINTS);
-    try {
-      await audio.loadDemoTrack();
-    } catch (e) {
-      console.warn('Error al cargar pista demo:', e);
-    }
-  };
+  // NOTA: se eliminó `handleResetDemoPath`. La app arranca en «lienzo en blanco»
+  // sin coreografía ni música de demostración.
 
   // Atajos de teclado
   useEffect(() => {
@@ -1370,7 +1359,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
             <button
               type="button"
               onClick={togglePaperTraceVisibility}
-              className={`p-1.5 rounded-lg transition-all ${
+              className={`press flex h-12 w-12 min-h-touch min-w-touch shrink-0 items-center justify-center rounded-lg ${
                 paperTraceOverlay.visible ? 'text-cyan bg-cyan/15' : 'text-slate-400 hover:text-white bg-slate-900'
               }`}
               title={paperTraceOverlay.visible ? "Ocultar calco de papel" : "Mostrar calco de papel"}
@@ -1395,7 +1384,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
             <button
               type="button"
               onClick={clearPaperTraceOverlay}
-              className="p-1.5 text-slate-400 hover:text-coral rounded-lg hover:bg-coral/10 transition-colors ml-1"
+              className="press ml-1 flex h-12 w-12 min-h-touch min-w-touch shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-coral/10 hover:text-coral"
               title="Quitar imagen de calco"
             >
               <X className="w-3.5 h-3.5" />
@@ -1408,24 +1397,27 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
           <button
             type="button"
             onClick={() => zoomOut(canvasRef.current)}
-            className="w-6 h-6 flex items-center justify-center rounded-lg bg-slate-900/90 hover:bg-slate-800 text-slate-200 active:scale-95 text-sm font-bold transition-all border border-white/5 pointer-events-auto"
+            className="press pointer-events-auto flex h-12 w-12 min-h-touch min-w-touch items-center justify-center rounded-lg border border-white/5 bg-slate-900/90 text-sm font-bold text-slate-200 hover:bg-slate-800"
             title="Alejar (Zoom Out -10%)"
+            aria-label="Alejar vista"
           >
             −
           </button>
           <button
             type="button"
             onClick={resetCamera}
-            className="px-1.5 h-6 flex items-center justify-center rounded-lg bg-slate-900/90 hover:bg-slate-800 text-cyan active:scale-95 text-[10px] font-mono font-bold transition-all border border-white/5 pointer-events-auto"
+            className="press pointer-events-auto flex h-12 min-h-touch min-w-touch items-center justify-center rounded-lg border border-white/5 bg-slate-900/90 px-2 font-mono text-[10px] font-bold text-cyan hover:bg-slate-800"
             title="Restablecer Vista (100% y centrar)"
+            aria-label="Restablecer vista"
           >
             {Math.round(camera.zoom * 100)}%
           </button>
           <button
             type="button"
             onClick={() => zoomIn(canvasRef.current)}
-            className="w-6 h-6 flex items-center justify-center rounded-lg bg-slate-900/90 hover:bg-slate-800 text-slate-200 active:scale-95 text-sm font-bold transition-all border border-white/5 pointer-events-auto"
+            className="press pointer-events-auto flex h-12 w-12 min-h-touch min-w-touch items-center justify-center rounded-lg border border-white/5 bg-slate-900/90 text-sm font-bold text-slate-200 hover:bg-slate-800"
             title="Acercar (Zoom In +10%)"
+            aria-label="Acercar vista"
           >
             +
           </button>
@@ -1986,18 +1978,6 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
           </button>
         </div>
 
-        {/* Cargar Demo */}
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleResetDemoPath}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-800 font-bold text-xs transition-all active:scale-[0.96] shadow-sm"
-            title="Cargar coreografía de prueba y pista demo oficial"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-teal-400" />
-            <span className="hidden sm:inline">Cargar Demo</span>
-          </button>
-        </div>
       </div>
 
       {/* 3. INTERFAZ AUDIO-FIRST: ONDA MUSICAL INTERACTIVA Y GENERADOR DE NODOS */}

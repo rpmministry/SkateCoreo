@@ -45,8 +45,9 @@ interface LeftSidebarPanelProps {
   preRollSec: number;
   onPreRollSecChange: (sec: number) => void;
   onUndo: () => void;
-  onResetDemo: () => void;
   onClearRink?: () => void;
+  // NOTA: se eliminó `onResetDemo`. La app arranca sin datos de prueba
+  // (lienzo en blanco) y ya no existe coreografía ni música de demostración.
   onOpenAudioStudio?: () => void;
   showHeader?: boolean;
   isMobileModal?: boolean;
@@ -61,7 +62,6 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
   preRollSec,
   onPreRollSecChange,
   onUndo,
-  onResetDemo,
   onClearRink,
   onOpenAudioStudio,
   showHeader = true,
@@ -647,34 +647,19 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
               <Undo2 className="w-3.5 h-3.5 text-coral" />
               Deshacer
             </button>
-            <button
-              type="button"
-              onClick={onResetDemo}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold bg-neon-card hover:bg-neon-hover text-slate-300 hover:text-white shadow-soft-elevation interactive-tap"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-cyan" />
-              Demo
-            </button>
           </div>
           <button
             type="button"
             onClick={() => { audio.pause(); audio.seek(0); }}
-            className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold bg-neon-card hover:bg-neon-hover text-slate-300 hover:text-white shadow-soft-elevation interactive-tap"
+            className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-neon-card py-2.5 text-xs font-bold text-slate-300 shadow-soft-elevation hover:bg-neon-hover hover:text-white interactive-tap"
           >
             <SkipBack className="w-3.5 h-3.5 text-slate-400" />
             Volver al Inicio (00:00)
           </button>
 
-          {/* Botón de Limpiar Toda la Pista 2D en un solo toque */}
-          <button
-            type="button"
-            onClick={onClearRink}
-            className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold bg-coral/15 hover:bg-coral text-coral hover:text-white shadow-soft-elevation interactive-tap transition-all mt-1"
-            title="Borrar todos los nodos y reiniciar la pista 2D vacía"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            Limpiar Toda la Pista 2D
-          </button>
+          {/* «Limpiar Pista 2D» se movió a la barra principal (desktop) y al rail
+              de herramientas (móvil/tablet), con confirmación previa. Aquí se
+              evita duplicar la acción. */}
         </section>
 
         {/* ═══ SaaS / Sesión AlsizTech ═══════════════════════ */}

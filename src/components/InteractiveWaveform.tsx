@@ -141,14 +141,9 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     return () => unsubState();
   }, [durationMs, fileName, contentWidth, mixManifest]);
 
-  // Auto-cargar la pista de música de prueba oficial si no hay audio cargado
-  useEffect(() => {
-    if (!audioEngine.getState().hasAudioLoaded) {
-      audioEngine.generateDemoTrack().catch((err) => {
-        console.warn('[InteractiveWaveform] Fallback auto-load:', err);
-      });
-    }
-  }, []);
+  // NOTA: aquí se auto-cargaba una pista de demostración. Se eliminó para que la
+  // aplicación arranque en "lienzo en blanco": sin audio de ejemplo, el usuario
+  // carga su propia música con el botón «Cargar Audio».
 
   // Formato mm:ss.S
   const formatTime = (ms: number): string => {

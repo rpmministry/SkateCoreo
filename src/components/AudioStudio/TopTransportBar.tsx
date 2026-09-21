@@ -13,6 +13,7 @@ import {
   X
 } from 'lucide-react';
 import { useAudioStudioStore } from '../../store/useAudioStudioStore';
+import { usePressAction } from '../../hooks/usePressAction';
 
 interface TopTransportBarProps {
   onBackToRink?: () => void;
@@ -41,6 +42,8 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
   const currentTimeSec = useAudioStudioStore((s) => s.currentTimeSec);
 
   const globalControls = useAudioStudioStore((s) => s.globalControls);
+  // Activación táctil inmediata y fiable en móvil/tablet
+  const press = usePressAction();
   const setGlobalBpm = useAudioStudioStore((s) => s.setGlobalBpm);
   const toggleMetronomeMute = useAudioStudioStore((s) => s.toggleMetronomeMute);
   const setMetronomeVolume = useAudioStudioStore((s) => s.setMetronomeVolume);
@@ -310,8 +313,9 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
                 </span>
                 <button
                   type="button"
-                  onClick={toggleMetronomeMute}
-                  className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                  {...press(toggleMetronomeMute)}
+                  aria-pressed={globalControls.metronome.muted}
+                  className={`press min-h-touch min-w-touch rounded px-2.5 text-[10px] font-black uppercase ${
                     globalControls.metronome.muted ? 'bg-rose-500/20 text-rose-400' : 'bg-green-500/20 text-green-400'
                   }`}
                 >
@@ -337,8 +341,9 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
                 </span>
                 <button
                   type="button"
-                  onClick={toggleVoiceGuideMute}
-                  className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                  {...press(toggleVoiceGuideMute)}
+                  aria-pressed={globalControls.voiceGuide.muted}
+                  className={`press min-h-touch min-w-touch rounded px-2.5 text-[10px] font-black uppercase ${
                     globalControls.voiceGuide.muted ? 'bg-rose-500/20 text-rose-400' : 'bg-green-500/20 text-green-400'
                   }`}
                 >

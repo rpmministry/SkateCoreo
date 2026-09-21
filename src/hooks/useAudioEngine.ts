@@ -30,7 +30,6 @@ export interface UseAudioEngineReturn {
   setMusicVolume: (volume: number) => void;
   setCoachVolume: (volume: number) => void;
   loadAudioFile: (file: File | Blob, name?: string) => Promise<AudioBuffer>;
-  loadDemoTrack: () => Promise<AudioBuffer>;
   
   // Submódulo Metrónomo Headless
   metronome: {
@@ -128,10 +127,6 @@ export function useAudioEngine(): UseAudioEngineReturn {
     return await audioEngine.loadAudioFile(file, name);
   }, []);
 
-  const loadDemoTrack = useCallback(async () => {
-    return await audioEngine.generateDemoTrack();
-  }, []);
-
   // Metrónomo
   const toggleMetronome = useCallback(() => {
     const next = !audioEngine.metronome.getConfig().enabled;
@@ -206,7 +201,6 @@ export function useAudioEngine(): UseAudioEngineReturn {
     setMusicVolume,
     setCoachVolume,
     loadAudioFile,
-    loadDemoTrack,
 
     metronome,
     voiceGender,

@@ -1,5 +1,6 @@
 import { useAudioStudioStore } from './useAudioStudioStore';
 import { useChoreographyStore } from './useChoreographyStore';
+import { audioEngine } from '../core/audio/AudioEngine';
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -124,4 +125,62 @@ assert(manifest.masterTrack.id === 'track-music', 'Manifiesto identifica la pist
 assert(manifest.additionalTracks.length === 4, 'Manifiesto incluye las 4 pistas adicionales');
 assert(manifest.globalControls.metronome.volume === 0.75, 'Manifiesto refleja volumen del metrónomo');
 
-console.log('Resultado AudioStudioStore & Tray: 24/24 pruebas pasadas con éxito.\n');
+// 9. Silenciadores ABSOLUTOS por GainNode (regresión)
+//    La acción del store debe llegar al motor para fijar el sub-bus a 0, de modo
+//    que se silencie también lo ya programado por el lookahead (metrónomo/voces)
+//    sin detener ni desincronizar la pista maestra.
+// Se parte de un estado conocido (las pruebas anteriores ya alternaron mutes)
+audioEngine.syncBusMutes({ music: false, metronome: false, voiceGuide: false });
+assert(
+  audioEngine.isMusicMuted() === false &&
+    audioEngine.isMetronomeMuted() === false &&
+    audioEngine.isVoiceGuideMuted() === false,
+  'Estado de partida sin silenciar (syncBusMutes)'
+);
+
+// Las aserciones se basan en la transición real del estado (no en un valor
+// supuesto de partida), para que la prueba sea independiente del orden.
+const metroBefore = useAudioStudioStore.getState().globalControls.metronome.muted;
+useAudioStudioStore.getState().toggleMetronomeMute();
+assert(
+  audioEngine.isMetronomeMuted() === !metroBefore &&
+    useAudioStudioStore.getState().globalControls.metronome.muted === !metroBefore,
+  'Alternar el metrónomo sincroniza GainNode del motor y estado de la UI'
+);
+useAudioStudioStore.getState().toggleMetronomeMute();
+assert(
+  audioEngine.isMetronomeMuted() === metroBefore,
+  'Volver a alternar el metrónomo restaura el sub-bus'
+);
+
+const voiceBefore = useAudioStudioStore.getState().globalControls.voiceGuide.muted;
+useAudioStudioStore.getState().toggleVoiceGuideMute();
+assert(
+  audioEngine.isVoiceGuideMuted() === !voiceBefore &&
+    useAudioStudioStore.getState().globalControls.voiceGuide.muted === !voiceBefore,
+  'Alternar las voces guía sincroniza GainNode del motor y estado de la UI'
+);
+useAudioStudioStore.getState().toggleVoiceGuideMute();
+
+const musicBefore = useAudioStudioStore.getState().tracks.music.muted;
+useAudioStudioStore.getState().toggleTrackMute('music');
+assert(
+  audioEngine.isMusicMuted() === !musicBefore,
+  'Alternar la pista maestra sincroniza el GainNode de música'
+);
+useAudioStudioStore.getState().toggleTrackMute('music');
+assert(
+  audioEngine.isMusicMuted() === musicBefore &&
+    audioEngine.getState().isPlaying === false,
+  'Reactivar la música no altera la reproducción ni desincroniza la pista'
+);
+
+// Sincronización de arranque (hidratación)
+audioEngine.syncBusMutes({ music: true, metronome: true, voiceGuide: true });
+assert(
+  audioEngine.isMusicMuted() && audioEngine.isMetronomeMuted() && audioEngine.isVoiceGuideMuted(),
+  'syncBusMutes reaplica el estado de silencio tras hidratar'
+);
+audioEngine.syncBusMutes({ music: false, metronome: false, voiceGuide: false });
+
+console.log('Resultado AudioStudioStore & Tray: 32/32 pruebas pasadas con éxito.\n');
