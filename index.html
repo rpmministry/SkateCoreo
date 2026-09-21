@@ -32,11 +32,24 @@
 
     <script type="module" src="./src/main.tsx"></script>
     <script>
-      // Register Service Worker for Offline-First PWA
+      // Register Service Worker for Offline-First PWA with automatic update detection
       if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('./sw.js')
-            .then((reg) => console.log('[PWA] Service Worker registrado con éxito:', reg.scope))
+            .then((reg) => {
+              reg.update();
+              reg.addEventListener('updatefound', () => {
+                const newWorker = reg.installing;
+                if (newWorker) {
+                  newWorker.addEventListener('statechange', () => {
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                      console.log('[PWA] Nueva versión disponible. Actualizando...');
+                      window.location.reload();
+                    }
+                  });
+                }
+              });
+            })
             .catch((err) => console.warn('[PWA] Error al registrar Service Worker:', err));
         });
       }

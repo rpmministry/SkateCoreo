@@ -177,7 +177,16 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     return () => cancelAnimationFrame(animId);
   }, [isPlaying, currentTimeSec, totalDurationSec, contentWidth, headerWidth]);
 
-  // Atajos de teclado en escritorio (Espacio para Reproducir/Pausa, Ctrl+V para pegar clip)
+  // 1 Pista Principal (Música) + hasta 4 Pistas Adicionales (Total: hasta 5 pistas)
+  const arrangementTracks: AudioStudioTrack[] = useMemo(() => {
+    return [tracks.music, ...additionalTracks];
+  }, [tracks.music, additionalTracks]);
+
+  // Atajos de teclado en escritorio:
+  // - Espacio: Reproducir / Pausar
+  // - Ctrl + C: Copiar clip de la pista (seleccionado o bajo el cabezal)
+  // - Ctrl + V: Pegar clip copiado en la pista Master en la posición del cabezal
+  // - Supr / Backspace: Eliminar clip seleccionado
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const activeTag = (document.activeElement as HTMLElement)?.tagName;
@@ -186,23 +195,52 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
       if (e.code === 'Space') {
         e.preventDefault();
         handlePlayToggle();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        const store = useAudioStudioStore.getState();
+        let targetClipId = store.selectedClipId;
+
+        // Si no hay clip seleccionado explícitamente, buscar el clip que esté bajo el cabezal
+        if (!targetClipId) {
+          for (const t of arrangementTracks) {
+            const found = t.clips.find(
+              (c) => currentTimeSec >= c.startOffsetSec && currentTimeSec <= c.startOffsetSec + (c.trimEndSec - c.trimStartSec)
+            );
+            if (found) {
+              targetClipId = found.id;
+              store.setSelectedClipId(found.id);
+              break;
+            }
+          }
+        }
+
+        if (targetClipId) {
+          store.copyClip();
+          setExportNotice('📋 Clip copiado. Pega con Ctrl+V en el cabezal o en el lienzo Master');
+          setTimeout(() => setExportNotice(null), 2500);
+        }
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
         const clipboard = useAudioStudioStore.getState().audioClipboard;
         if (clipboard) {
           e.preventDefault();
           useAudioStudioStore.getState().pasteClip(tracks.music.id, currentTimeSec);
+          setExportNotice('✂️ Clip pegado con éxito en la Pista Master');
+          setTimeout(() => setExportNotice(null), 2500);
+        }
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        const selId = useAudioStudioStore.getState().selectedClipId;
+        if (selId) {
+          e.preventDefault();
+          useAudioStudioStore.getState().deleteClip();
+          setExportNotice('🗑️ Clip eliminado');
+          setTimeout(() => setExportNotice(null), 2000);
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isPlaying, currentTimeSec, tracks.music.id]);
-
-  // 1 Pista Principal (Música) + hasta 4 Pistas Adicionales (Total: hasta 5 pistas)
-  const arrangementTracks: AudioStudioTrack[] = useMemo(() => {
-    return [tracks.music, ...additionalTracks];
-  }, [tracks.music, additionalTracks]);
+  }, [isPlaying, currentTimeSec, tracks.music.id, arrangementTracks]);
 
   // Carga infalible de archivos de audio
   const handleUploadFile = async (trackId: string, file: File) => {
