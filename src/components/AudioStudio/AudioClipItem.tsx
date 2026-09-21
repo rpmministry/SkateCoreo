@@ -209,9 +209,9 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
         const deltaSec = mx / pxPerSec;
         const rawSec = Math.max(0, clip.startOffsetSec + deltaSec);
 
-        // Snapping magnético
+        // Snapping magnético estricto de 0.5s
         const snapResult = calculateSnapOffset
-          ? calculateSnapOffset(targetInfo.id, clip.id, rawSec, clipDurationSec, 0.20)
+          ? calculateSnapOffset(targetInfo.id, clip.id, rawSec, clipDurationSec, 0.50)
           : { snappedSec: rawSec, snapLineSec: null };
 
         setDragOffsetSec(snapResult.snappedSec);

@@ -49,9 +49,10 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
 
   const [activeTab, setActiveTab] = useState<'arrangement' | 'notes' | 'settings'>('arrangement');
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [notesText, setNotesText] = useState('Rutina SkateCoreo: Programa Corto');
   const [showNotesModal, setShowNotesModal] = useState(false);
-  const [snapEnabled, setSnapEnabled] = useState(true);
+  const [notesText, setNotesText] = useState('');
+  const snapEnabled = useAudioStudioStore((s) => s.snapEnabled);
+  const setSnapEnabled = useAudioStudioStore((s) => s.setSnapEnabled);
 
   // Tap tempo
   const tapTimesRef = useRef<number[]>([]);

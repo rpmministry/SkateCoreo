@@ -16,7 +16,7 @@ import {
 import { BpmDetector } from '../core/audio/BpmDetector';
 import { audioEngine } from '../core/audio/AudioEngine';
 import { useChoreographyStore } from './useChoreographyStore';
-import { renderStudioMixdown } from '../core/audio/studioMixdown';
+import { renderStudioMixdown, bounceStudioClipsToBuffer } from '../core/audio/studioMixdown';
 
 export interface AudioStudioStoreState {
   // Pistas del editor multitrack (1 principal de música + auxiliares)
@@ -94,6 +94,8 @@ export interface AudioStudioStoreState {
   totalDurationSec: number;
   isPlaying: boolean;
   zoom: number; // Factor de zoom horizontal (1 a 35)
+  snapEnabled: boolean;
+  setSnapEnabled: (enabled: boolean | ((prev: boolean) => boolean)) => void;
 
   // Metrónomo y BPM (retrocompatible con MetronomeConfig)
   metronomeConfig: StudioMetronomeConfig;
@@ -239,12 +241,20 @@ const initialTracks = {
   },
 };
 
-let studioConsolidateTimer: any = null;
 export const triggerStudioConsolidation = () => {
-  if (studioConsolidateTimer) clearTimeout(studioConsolidateTimer);
-  studioConsolidateTimer = setTimeout(() => {
-    useAudioStudioStore.getState().consolidateStudioAudio().catch(() => {});
-  }, 100);
+  try {
+    const state = useAudioStudioStore.getState();
+    const arrangementTracks = [state.tracks.music, ...state.additionalTracks];
+    const hasAnyClips = arrangementTracks.some((t) => (t.clips && t.clips.length > 0) || t.buffer);
+    if (!hasAnyClips) return;
+
+    const buffer = bounceStudioClipsToBuffer(arrangementTracks, state.totalDurationSec);
+    if (buffer) {
+      audioEngine.setAudioBuffer(buffer, 'Mezcla_Estudio_Consolidada.wav');
+    }
+  } catch (e) {
+    // silent fallback
+  }
 };
 
 export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => ({
@@ -254,62 +264,80 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   draggingGhost: null,
   setDraggingGhost: (ghost) => set({ draggingGhost: ghost }),
 
-  calculateSnapOffset: (targetTrackId, clipId, rawOffsetSec, clipDurationSec, thresholdSec = 0.18) => {
+  calculateSnapOffset: (targetTrackId, clipId, rawOffsetSec, clipDurationSec, thresholdSec = 0.5) => {
     const state = get();
     const targetTrack = isMasterId(targetTrackId)
       ? state.tracks.music
       : (state.tracks[targetTrackId] || state.additionalTracks.find((t) => t.id === targetTrackId));
 
-    const snapPoints: number[] = [0.0]; // 0.0s inicio de la pista
+    const snapThreshold = thresholdSec;
+    let bestSnappedOffset = Math.max(0, rawOffsetSec);
+    let minDistance = snapThreshold;
+    let snapLineSec: number | null = null;
 
-    // Playhead
-    snapPoints.push(state.currentTimeSec);
+    let isClipSnapped = false;
 
-    // BPM Grid snap points (beats)
-    const bpm = state.globalControls.bpm || 120;
-    const beatSec = 60 / bpm;
-    const minSnapTime = Math.max(0, rawOffsetSec - 1);
-    const maxSnapTime = rawOffsetSec + clipDurationSec + 1;
-    const startBeat = Math.floor(minSnapTime / beatSec);
-    const endBeat = Math.ceil(maxSnapTime / beatSec);
-    for (let b = startBeat; b <= endBeat; b++) {
-      snapPoints.push(Math.round(b * beatSec * 1000) / 1000);
-    }
-
-    // Bordes de otros clips en la misma pista (snap clip-to-clip)
+    // 1. Snapping estricto a bordes de clips existentes en la pista destino (Prioridad Máxima)
     if (targetTrack?.clips) {
       for (const other of targetTrack.clips) {
         if (other.id === clipId) continue;
-        const otherDur = Math.max(0.05, other.trimEndSec - other.trimStartSec);
+        const otherDur = Math.max(0.01, other.trimEndSec - other.trimStartSec);
         const otherStart = other.startOffsetSec;
         const otherEnd = otherStart + otherDur;
-        snapPoints.push(otherStart);
-        snapPoints.push(otherEnd);
+
+        // Caso A: Acoplamiento perfecto al final del clip adyacente anterior (newClip.start = prevClip.end)
+        const distToEnd = Math.abs(rawOffsetSec - otherEnd);
+        if (distToEnd <= minDistance) {
+          minDistance = distToEnd;
+          bestSnappedOffset = otherEnd;
+          snapLineSec = otherEnd;
+          isClipSnapped = true;
+        }
+
+        // Caso B: Acoplamiento perfecto al inicio del clip adyacente siguiente (newClip.end = nextClip.start)
+        const distToStart = Math.abs((rawOffsetSec + clipDurationSec) - otherStart);
+        if (distToStart <= minDistance) {
+          minDistance = distToStart;
+          bestSnappedOffset = Math.max(0, otherStart - clipDurationSec);
+          snapLineSec = otherStart;
+          isClipSnapped = true;
+        }
+
+        // Caso C: Alinear exactamente inicios de clips
+        const distStartToStart = Math.abs(rawOffsetSec - otherStart);
+        if (distStartToStart <= minDistance) {
+          minDistance = distStartToStart;
+          bestSnappedOffset = otherStart;
+          snapLineSec = otherStart;
+          isClipSnapped = true;
+        }
       }
     }
 
-    let bestSnappedOffset = rawOffsetSec;
-    let minDistance = thresholdSec;
-    let snapLineSec: number | null = null;
-
-    // 1. Probar snap en el inicio del clip (clipStart -> snapPoint)
-    for (const pt of snapPoints) {
-      const dist = Math.abs(rawOffsetSec - pt);
-      if (dist < minDistance) {
-        minDistance = dist;
-        bestSnappedOffset = pt;
-        snapLineSec = pt;
-      }
+    // 2. Snapping al origen de la pista (0.0s)
+    if (Math.abs(rawOffsetSec) <= minDistance) {
+      minDistance = Math.abs(rawOffsetSec);
+      bestSnappedOffset = 0.0;
+      snapLineSec = 0.0;
     }
 
-    // 2. Probar snap en el fin del clip (clipEnd -> snapPoint => clipStart = snapPoint - clipDurationSec)
-    const rawEndSec = rawOffsetSec + clipDurationSec;
-    for (const pt of snapPoints) {
-      const dist = Math.abs(rawEndSec - pt);
-      if (dist < minDistance) {
-        minDistance = dist;
-        bestSnappedOffset = Math.max(0, pt - clipDurationSec);
-        snapLineSec = pt;
+    // 3. Snapping al Cabezal de Reproducción (Playhead)
+    const distToPlayhead = Math.abs(rawOffsetSec - state.currentTimeSec);
+    if (distToPlayhead <= minDistance) {
+      minDistance = distToPlayhead;
+      bestSnappedOffset = state.currentTimeSec;
+      snapLineSec = state.currentTimeSec;
+    }
+
+    // 4. Snapping a la Cuadrícula BPM (solo si no se acopló a un borde de clip o elemento previo)
+    if (!isClipSnapped && minDistance >= snapThreshold / 2 && state.snapEnabled) {
+      const bpm = state.globalControls.bpm || 120;
+      const beatSec = 60 / bpm;
+      const nearestBeat = Math.round(rawOffsetSec / beatSec) * beatSec;
+      const distToBeat = Math.abs(rawOffsetSec - nearestBeat);
+      if (distToBeat <= snapThreshold / 2) {
+        bestSnappedOffset = Math.max(0, Math.round(nearestBeat * 1000) / 1000);
+        snapLineSec = bestSnappedOffset;
       }
     }
 
@@ -326,14 +354,13 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
     if (!hasAnyClips) return null;
 
     try {
-      const mixResult = await renderStudioMixdown(
+      const buffer = bounceStudioClipsToBuffer(
         arrangementTracks,
-        state.totalDurationSec,
-        state.metronomeConfig
+        state.totalDurationSec
       );
-      if (mixResult && mixResult.buffer) {
-        audioEngine.setAudioBuffer(mixResult.buffer, 'Mezcla_Estudio_Consolidada.wav');
-        return mixResult.buffer;
+      if (buffer) {
+        audioEngine.setAudioBuffer(buffer, 'Mezcla_Estudio_Consolidada.wav');
+        return buffer;
       }
     } catch (err) {
       console.warn('[AudioStudioStore] Fallo al consolidar buffer de estudio:', err);
@@ -777,18 +804,23 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   },
 
   pasteClip: (trackId, atTimeSec) => {
-    const { clipboardClip, audioClipboard, currentTimeSec, activeTrackId } = get();
+    const { clipboardClip, audioClipboard, currentTimeSec, activeTrackId, calculateSnapOffset } = get();
     const clipToPaste = clipboardClip || audioClipboard;
     if (!clipToPaste) return null;
 
     // Si no se especifica pista, pegar en la pista activa o master
     const targetTrackId = trackId || activeTrackId || 'music';
     const targetTime = atTimeSec !== undefined ? atTimeSec : currentTimeSec;
+    const clipDur = Math.max(0.01, clipToPaste.trimEndSec - clipToPaste.trimStartSec);
+
+    // Snapping estricto de 0.5s al pegar para acoplamiento milimétrico
+    const snap = calculateSnapOffset(targetTrackId, null, Math.max(0, targetTime), clipDur, 0.5);
+    const startOffsetSec = snap.snappedSec;
 
     const newClip: AudioClip = {
       ...clipToPaste,
       id: `clip-paste-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      startOffsetSec: Math.max(0, targetTime),
+      startOffsetSec,
     };
 
     set((state) => {
@@ -931,6 +963,8 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   totalDurationSec: 120, // 2 minutos por defecto
   isPlaying: false,
   zoom: 1,
+  snapEnabled: true,
+  setSnapEnabled: (arg) => set((s) => ({ snapEnabled: typeof arg === 'function' ? arg(s.snapEnabled) : arg })),
 
   metronomeConfig: DEFAULT_METRONOME_CONFIG,
   detectedBpm: null,

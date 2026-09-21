@@ -66,12 +66,13 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
   const voiceVolume = globalControls.voiceGuide.volume;
   const voiceMuted = globalControls.voiceGuide.muted;
 
-  // Handlers de Transporte
-  const handlePlayPause = async () => {
+  // Handlers de Transporte instantáneos
+  const handlePlayPause = () => {
+    audioEngine.initAudioContext();
     if (isPlaying) {
       audioEngine.pause();
     } else {
-      await audioEngine.play();
+      audioEngine.play();
     }
   };
 
@@ -98,12 +99,17 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
 
   return (
     <div className="relative z-30 select-none font-sans">
-      {/* ── BARRA PRINCIPAL DEL MOSTRADOR (Cápsula Flotante Glassmorphism) ── */}
-      <div className="flex items-center gap-1.5 sm:gap-2 bg-zinc-950/90 backdrop-blur-xl border border-white/10 px-2 sm:px-3 py-1.5 rounded-2xl shadow-xl shadow-black/50">
+      {/* ── BARRA PRINCIPAL COMPACTA (Floating Pill) ── */}
+      <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-zinc-950/90 border border-white/10 shadow-2xl backdrop-blur-md">
         
         {/* Botón Principal: Play / Pause */}
         <button
           type="button"
+          onPointerDown={(e) => {
+            if (!hasAudioLoaded) return;
+            e.preventDefault();
+            handlePlayPause();
+          }}
           onClick={handlePlayPause}
           disabled={!hasAudioLoaded}
           className={`w-12 h-12 min-w-touch min-h-touch rounded-xl flex items-center justify-center transition-all active:scale-95 shadow-md ${
@@ -123,6 +129,11 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
         {/* Botón Stop */}
         <button
           type="button"
+          onPointerDown={(e) => {
+            if (!hasAudioLoaded) return;
+            e.preventDefault();
+            handleStop();
+          }}
           onClick={handleStop}
           disabled={!hasAudioLoaded}
           className="w-12 h-12 min-w-touch min-h-touch rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-25"

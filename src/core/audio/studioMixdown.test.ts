@@ -203,8 +203,78 @@ async function runMixdownTest() {
 
   const soloResult = await renderStudioMixdown([soloTrack, normalTrack], 5);
   assert(soloResult.durationSec === 5, 'renderStudioMixdown procesa correctamente pistas con solo');
+
+  // ── Test 4: bounceStudioClipsToBuffer Concatenación Rápida Gapless ──
+  const { bounceStudioClipsToBuffer } = await import('./studioMixdown');
+  const clipA: AudioClip = {
+    id: 'clip-a',
+    name: 'Fragmento A',
+    buffer: new MockAudioBuffer({ numberOfChannels: 2, length: 44100 * 3, sampleRate: 44100 }) as unknown as AudioBuffer,
+    startOffsetSec: 0.0,
+    trimStartSec: 0.0,
+    trimEndSec: 3.0,
+    fadeInSec: 0,
+    fadeOutSec: 0,
+  };
+  const clipB: AudioClip = {
+    id: 'clip-b',
+    name: 'Fragmento B',
+    buffer: new MockAudioBuffer({ numberOfChannels: 2, length: 44100 * 4, sampleRate: 44100 }) as unknown as AudioBuffer,
+    startOffsetSec: 3.0,
+    trimStartSec: 0.0,
+    trimEndSec: 4.0,
+    fadeInSec: 0,
+    fadeOutSec: 0,
+  };
+  const testTrack: AudioStudioTrack = {
+    id: 'music',
+    name: 'Master',
+    type: 'music',
+    buffer: null,
+    clips: [clipA, clipB],
+    volume: 1.0,
+    muted: false,
+    solo: false,
+    color: '#00F0FF',
+    trimStartSec: 0,
+    trimEndSec: 7.0,
+    fadeInSec: 0,
+    fadeOutSec: 0,
+  };
+
+  const bounced = bounceStudioClipsToBuffer([testTrack], 7.0);
+  assert(bounced !== null, 'bounceStudioClipsToBuffer genera un buffer consolidado');
+  assert(Math.abs(bounced!.duration - 7.0) < 0.01, 'Duración exacta de fragmentos concatenados es 7.0s');
+
+  // ── Test 5: Algoritmo Estricto de Snapping (0.5s threshold: newClip.start = prevClip.end) ──
+  const { useAudioStudioStore } = await import('../../store/useAudioStudioStore');
+  useAudioStudioStore.setState((s) => ({
+    tracks: {
+      ...s.tracks,
+      music: { ...s.tracks.music, clips: [clipA] }, // Clip termina en 3.0s
+    },
+  }));
+
+  // Caso 1: Soltar a los 3.3s (distancia 0.3s <= 0.5s) -> debe acoplarse exactamente en 3.0s
+  const snap1 = useAudioStudioStore.getState().calculateSnapOffset('music', 'clip-new', 3.3, 2.0, 0.5);
+  assert(snap1.snappedSec === 3.0, `Snapping estricto: 3.3s se acopla exactamente a prevClip.end (3.0s), obtenido: ${snap1.snappedSec}s`);
+  assert(snap1.snapLineSec === 3.0, 'Línea visual de snap generada en 3.0s');
+
+  // Caso 2: Soltar a los 2.7s (distancia 0.3s <= 0.5s) -> debe acoplarse exactamente en 3.0s
+  const snap2 = useAudioStudioStore.getState().calculateSnapOffset('music', 'clip-new', 2.7, 2.0, 0.5);
+  assert(snap2.snappedSec === 3.0, `Snapping estricto: 2.7s se acopla exactamente a prevClip.end (3.0s), obtenido: ${snap2.snappedSec}s`);
+
+  // Caso 3: Soltar a los 4.5s (distancia 1.5s > 0.5s) -> no debe acoplarse a 3.0s
+  const snap3 = useAudioStudioStore.getState().calculateSnapOffset('music', 'clip-new', 4.5, 2.0, 0.5);
+  assert(snap3.snappedSec !== 3.0, `Fuera de umbral (>0.5s): 4.5s no se fuerza a 3.0s, obtenido: ${snap3.snappedSec}s`);
+
+  // Caso 4: Con snapEnabled desactivado, 4.5s permanece exactamente en 4.5s
+  useAudioStudioStore.getState().setSnapEnabled(false);
+  const snap4 = useAudioStudioStore.getState().calculateSnapOffset('music', 'clip-new', 4.5, 2.0, 0.5);
+  assert(snap4.snappedSec === 4.5, `Con snapEnabled desactivado: 4.5s permanece en 4.5s, obtenido: ${snap4.snappedSec}s`);
+  useAudioStudioStore.getState().setSnapEnabled(true);
 }
 
 runMixdownTest().then(() => {
-  console.log('✅ TODAS LAS PRUEBAS DE STUDIOMIXDOWN COMPLETADAS CON ÉXITO\n');
+  console.log('✅ TODAS LAS PRUEBAS DE STUDIOMIXDOWN Y SNAPPING COMPLETADAS CON ÉXITO\n');
 });

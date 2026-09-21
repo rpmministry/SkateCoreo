@@ -372,15 +372,15 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     };
   }, [onBackToRink]);
 
-  // Play / Pause Toggle con consolidación en tiempo real para reproducción continua
-  const handlePlayToggle = async () => {
+  // Play / Pause Toggle instantáneo sin latencia (Web Audio API)
+  const handlePlayToggle = () => {
+    audioEngine.initAudioContext();
     if (isPlaying) {
       audioEngine.pause();
       setIsPlaying(false);
     } else {
-      // Consolidar clips de todas las pistas para garantizar flujo ininterrumpido en Web Audio API
-      await consolidateStudioAudio();
-      await audioEngine.play();
+      consolidateStudioAudio();
+      audioEngine.play(currentTimeSec * 1000);
       setIsPlaying(true);
     }
   };
@@ -614,6 +614,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           {/* Rewind to 0:00 */}
           <button
             type="button"
+            onPointerDown={(e) => { e.preventDefault(); handleRewind(); }}
             onClick={handleRewind}
             className="w-12 h-12 min-w-touch min-h-touch rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors active:scale-95"
             title="Volver al inicio (0:00)"
@@ -624,6 +625,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           {/* Stop / Detener */}
           <button
             type="button"
+            onPointerDown={(e) => { e.preventDefault(); handleStop(); }}
             onClick={handleStop}
             className="w-12 h-12 min-w-touch min-h-touch rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors active:scale-95"
             title="Detener reproducción y reiniciar posición"
@@ -634,6 +636,17 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           {/* Cortar en cabezal */}
           <button
             type="button"
+            onPointerDown={(e) => {
+              if (selectedClipId) {
+                e.preventDefault();
+                for (const t of arrangementTracks) {
+                  if (t.clips.some((c) => c.id === selectedClipId)) {
+                    splitClip(t.id, selectedClipId, currentTimeSec);
+                    break;
+                  }
+                }
+              }
+            }}
             onClick={() => {
               if (selectedClipId) {
                 for (const t of arrangementTracks) {
@@ -656,6 +669,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
         <div className="flex items-center gap-3 shrink-0">
           <button
             type="button"
+            onPointerDown={(e) => { e.preventDefault(); handlePlayToggle(); }}
             onClick={handlePlayToggle}
             className={`w-14 h-14 min-w-touch min-h-touch rounded-full flex items-center justify-center shadow-lg transition-transform active:scale-95 ${
               isPlaying 
