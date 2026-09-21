@@ -80,7 +80,47 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     initialZoom: 1.0,
     widthOffset: headerWidth,
     enableWheelPan: true,
+    onZoomChange: (z) => useAudioStudioStore.getState().setZoom(z),
   });
+
+  // Estado y manejadores de arrastre del Playhead (Hitbox ensanchado de 32px)
+  const isDraggingPlayheadRef = useRef(false);
+
+  const handlePlayheadPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    e.preventDefault();
+    isDraggingPlayheadRef.current = true;
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch (err) {}
+  };
+
+  const handlePlayheadPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingPlayheadRef.current) return;
+    const container = timelineContainerRef.current;
+    if (!container) return;
+
+    const rect = container.getBoundingClientRect();
+    const clickX = e.clientX - rect.left + container.scrollLeft - headerWidth;
+    const dur = Math.max(10, totalDurationSec);
+    const ratio = Math.max(0, Math.min(1, clickX / contentWidth));
+    const targetTimeSec = Math.round(ratio * dur * 100) / 100;
+
+    setCurrentTimeSec(targetTimeSec);
+    audioEngine.seek(targetTimeSec * 1000);
+    if (playheadLineRef.current) {
+      playheadLineRef.current.style.transform = `translateX(${headerWidth + ratio * contentWidth}px)`;
+    }
+  };
+
+  const handlePlayheadPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isDraggingPlayheadRef.current) {
+      isDraggingPlayheadRef.current = false;
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch (err) {}
+    }
+  };
 
   // Gesto Pinch-to-Zoom con dos dedos sobre el timeline
   usePinch(
@@ -114,11 +154,11 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     }
   }, [currentTimeSec, isPlaying, zoom, contentWidth, totalDurationSec, headerWidth, timelineContainerRef]);
 
-  // Actualización del cabezal a 60 FPS
+  // Actualización del cabezal a 60 FPS (pausado durante arrastre manual)
   useEffect(() => {
     let animId: number;
     const updatePlayhead = () => {
-      if (playheadLineRef.current) {
+      if (playheadLineRef.current && !isDraggingPlayheadRef.current) {
         const timeSec = isPlaying ? audioEngine.getCurrentTimeMs() / 1000 : currentTimeSec;
         const dur = Math.max(10, totalDurationSec);
         const ratio = Math.max(0, Math.min(1, timeSec / dur));
@@ -136,6 +176,28 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     }
     return () => cancelAnimationFrame(animId);
   }, [isPlaying, currentTimeSec, totalDurationSec, contentWidth, headerWidth]);
+
+  // Atajos de teclado en escritorio (Espacio para Reproducir/Pausa, Ctrl+V para pegar clip)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeTag = (document.activeElement as HTMLElement)?.tagName;
+      if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        handlePlayToggle();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+        const clipboard = useAudioStudioStore.getState().audioClipboard;
+        if (clipboard) {
+          e.preventDefault();
+          useAudioStudioStore.getState().pasteClip(tracks.music.id, currentTimeSec);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isPlaying, currentTimeSec, tracks.music.id]);
 
   // 1 Pista Principal (Música) + hasta 4 Pistas Adicionales (Total: hasta 5 pistas)
   const arrangementTracks: AudioStudioTrack[] = useMemo(() => {
@@ -159,15 +221,16 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   const handleImportGlobal = async (file: File) => {
     try {
       const buffer = await audioEngine.decodeAudioFile(file);
-      if (!tracks.music.buffer || tracks.music.clips.length === 0) {
+      // Caso 1: Modo Pista Única (sin pistas adicionales y Master libre) -> Carga rápida directa en Master
+      if (additionalTracks.length === 0 && (!tracks.music.buffer || tracks.music.clips.length === 0)) {
         setTrackBuffer('music', buffer, file.name);
         audioEngine.setAudioBuffer(buffer, file.name);
       } else if (additionalTracks.length < 4) {
+        // Caso 2: Modo Multipista -> La Master es lienzo de ensamblaje; se importa en pista adicional
         const newTrack = addAudioTrack(file.name.replace(/\.[^/.]+$/, ''), buffer, file.name);
         setTrackBuffer(newTrack.id, buffer, file.name);
       } else {
-        setTrackBuffer('music', buffer, file.name);
-        audioEngine.setAudioBuffer(buffer, file.name);
+        alert('Límite de pistas alcanzado (1 Master + 4 adicionales). En modo multipista, utiliza las pistas adicionales para cortar y pegar hacia el lienzo Master.');
       }
     } catch (err: any) {
       alert('Error al importar audio: ' + (err?.message || 'Archivo no compatible'));
@@ -418,13 +481,21 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             )}
           </div>
 
-          {/* Aguja de Reproducción Global Única (Playhead) */}
+          {/* Aguja de Reproducción Global Única (Playhead con Hitbox Táctil Ensanchado de 32px) */}
           <div
             ref={playheadLineRef}
-            className="absolute top-0 bottom-0 w-[2px] bg-white pointer-events-none z-40 transition-none shadow-glow-cyan"
+            onPointerDown={handlePlayheadPointerDown}
+            onPointerMove={handlePlayheadPointerMove}
+            onPointerUp={handlePlayheadPointerUp}
+            onPointerCancel={handlePlayheadPointerUp}
+            className="absolute top-0 bottom-0 w-8 -translate-x-4 z-40 pointer-events-auto cursor-ew-resize flex justify-center group select-none touch-none"
             style={{ left: 0, transform: `translateX(${headerWidth}px)` }}
+            title="Arrastra el cabezal de tiempo para desplazarte libremente"
           >
-            <div className="w-3 h-3 bg-white rotate-45 -translate-x-[5px] -translate-y-1 rounded-xs shadow-md" />
+            {/* Línea visible de 2px centrada en el hitbox con iluminación cyan en hover/drag */}
+            <div className="w-[2px] h-full bg-white group-hover:bg-cyan group-active:bg-cyan shadow-glow-cyan relative flex justify-center transition-colors">
+              <div className="w-3.5 h-3.5 bg-white group-hover:bg-cyan group-active:bg-cyan rotate-45 -translate-y-1 rounded-xs shadow-md shrink-0 transition-colors" />
+            </div>
           </div>
         </div>
       </div>

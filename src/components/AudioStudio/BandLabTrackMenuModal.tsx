@@ -10,7 +10,8 @@ import {
   Palette, 
   Edit3, 
   X,
-  Check
+  Check,
+  Layers
 } from 'lucide-react';
 import { AudioStudioTrack, CARBON_TRACK_COLORS } from '../../types/audioStudio';
 import { useAudioStudioStore } from '../../store/useAudioStudioStore';
@@ -196,25 +197,38 @@ export const BandLabTrackMenuModal: React.FC<BandLabTrackMenuModalProps> = ({
 
         {/* Acciones de la Pista (Estilo BandLab) */}
         <div className="py-2 flex flex-col gap-1">
-          {/* Cargar / Reemplazar Audio */}
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="w-full py-2.5 px-3 rounded-lg flex items-center justify-between text-xs font-bold text-cyan hover:bg-cyan/10 transition-colors"
-          >
-            <span className="flex items-center gap-2">
-              <Upload className="w-4 h-4" />
-              <span>Cargar / Reemplazar Audio</span>
-            </span>
-            <span className="text-[10px] text-slate-400">MP3, WAV, M4A</span>
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="audio/*"
-            className="hidden"
-            onChange={handleFileSelected}
-          />
+          {/* Cargar / Reemplazar Audio (Bloqueado en Master si hay más pistas) */}
+          {isMaster && totalTracks > 1 ? (
+            <div className="w-full py-2.5 px-3 rounded-lg bg-cyan-950/30 border border-cyan/20 text-slate-400 text-xs flex flex-col gap-1">
+              <span className="font-bold text-cyan flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5" /> Lienzo de Ensamblaje Master
+              </span>
+              <span className="text-[11px] text-slate-300 leading-snug">
+                En modo multipista, la Pista Master sirve como lienzo de ensamblaje. Corta trozos en las pistas auxiliares y pégalos aquí.
+              </span>
+            </div>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full py-2.5 px-3 rounded-lg flex items-center justify-between text-xs font-bold text-cyan hover:bg-cyan/10 transition-colors"
+              >
+                <span className="flex items-center gap-2">
+                  <Upload className="w-4 h-4" />
+                  <span>Cargar / Reemplazar Audio</span>
+                </span>
+                <span className="text-[10px] text-slate-400">MP3, WAV, M4A</span>
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="audio/*"
+                className="hidden"
+                onChange={handleFileSelected}
+              />
+            </>
+          )}
 
           {/* Reordenar: Subir / Bajar Pista */}
           {!isMaster && (
@@ -328,3 +342,4 @@ export const BandLabTrackMenuModal: React.FC<BandLabTrackMenuModalProps> = ({
     </div>
   );
 };
+

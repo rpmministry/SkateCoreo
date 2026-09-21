@@ -12,7 +12,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Play, Pause, Square, Music,
+  Music,
   Menu, X, ChevronDown, MoreVertical,
   Undo2, Route, PenTool, Eraser, Users,
   Upload, Save, Trash2, HardDrive
@@ -32,12 +32,7 @@ import { exportCoreoProject, importCoreoProject } from './services/coreoPackage'
 import { ProtectedLayout } from './components/ProtectedLayout';
 import { AudioStudioView } from './components/AudioStudio/AudioStudioView';
 import { NodePlacementTray } from './components/NodePlacementTray';
-
-// ── Helpers ────────────────────────────────────────────────────
-const fmtTime = (ms: number): string => {
-  const s = Math.floor(ms / 1000);
-  return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
-};
+import { RinkAudioPlayer } from './components/RinkAudioPlayer';
 
 // ── Component ──────────────────────────────────────────────────
 export function App() {
@@ -432,49 +427,15 @@ export function App() {
             </button>
           </div>
 
-          {/* Master Transport Controls */}
-          <div className="flex items-center gap-1 sm:gap-1.5 bg-white/[0.03] px-1.5 sm:px-2 py-1 rounded-xl border border-white/10 shadow-soft-elevation">
-            <button
-              type="button"
-              onClick={() => {
-                if (isAudioActive) {
-                  audioEngine.pause();
-                } else {
-                  if (phase === 'plot' && canDraw) setPhase('curve');
-                  audioEngine.play();
-                }
-              }}
-              disabled={!audioState.hasAudioLoaded}
-              title={isAudioActive ? 'Pausar' : 'Reproducir'}
-              className={`min-w-[44px] min-h-[44px] w-11 h-11 rounded-lg flex items-center justify-center transition-all interactive-tap ${
-                isAudioActive
-                  ? 'bg-coral text-white shadow-glow-coral'
-                  : 'bg-white/10 hover:bg-white/15 text-white'
-              } disabled:opacity-25 disabled:pointer-events-none`}
-            >
-              {isAudioActive ? (
-                <Pause className="w-4 h-4 fill-current stroke-none" />
-              ) : (
-                <Play className="w-4 h-4 fill-current stroke-none ml-0.5" />
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => audioEngine.stop()}
-              disabled={!audioState.hasAudioLoaded}
-              className="min-w-[44px] min-h-[44px] w-11 h-11 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 interactive-tap disabled:opacity-25 disabled:pointer-events-none"
-              title="Detener"
-            >
-              <Square className="w-3.5 h-3.5 fill-current stroke-none" />
-            </button>
-
-            <div className="font-mono text-[11px] px-1 text-slate-300 flex items-center gap-1 select-none">
-              <span className="text-cyan font-bold">{fmtTime(currentTimeMs)}</span>
-              <span className="text-slate-600 hidden xs:inline">/</span>
-              <span className="text-slate-400 hidden xs:inline">{fmtTime(audioState.durationMs || 240000)}</span>
-            </div>
-          </div>
+          {/* Mostrador de Audio y Mini-Mezclador Integrado */}
+          <RinkAudioPlayer
+            currentTimeMs={currentTimeMs}
+            durationMs={audioState.durationMs || 240000}
+            isPlaying={isAudioActive}
+            hasAudioLoaded={audioState.hasAudioLoaded}
+            fileName={audioState.fileName}
+            onOpenStudio={() => setActiveView('studio')}
+          />
         </div>
 
         {/* ── ZONA 3 (Derecha): CTA Principal & Menú de Desbordamiento Carbon ── */}

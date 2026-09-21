@@ -158,25 +158,45 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
             />
           ))}
 
-          {/* Estado vacío: Botón directo para cargar archivo de audio */}
+          {/* Estado vacío: Condicional de Pista Master vs Pista Única / Pistas Adicionales */}
           {(!track.clips || track.clips.length === 0) && (
-            <div className="absolute inset-0 flex items-center justify-center p-2 pointer-events-auto">
-              <label 
-                htmlFor={`file-upload-${track.id}`}
-                className="cursor-pointer h-8 px-3 rounded-full flex items-center gap-1.5 text-xs font-bold text-slate-300 hover:text-white bg-white/10 hover:bg-white/20 border border-white/15 transition-all shadow-sm active:scale-95"
-              >
-                <Upload className="w-3.5 h-3.5 text-cyan" />
-                <span>Cargar archivo de audio</span>
-              </label>
-              <input
-                id={`file-upload-${track.id}`}
-                ref={fileInputRef}
-                type="file"
-                accept="audio/*"
-                className="sr-only"
-                onChange={handleFileChange}
-              />
-            </div>
+            isMasterTrack && totalTracks > 1 ? (
+              <div className="absolute inset-0 flex items-center justify-center p-2 pointer-events-auto">
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-cyan-950/40 border border-cyan/25 text-cyan text-xs font-medium backdrop-blur-xs">
+                  <Layers className="w-3.5 h-3.5 text-cyan shrink-0" />
+                  <span className="hidden sm:inline">Lienzo Master: Pega clips cortados de las pistas auxiliares</span>
+                  <span className="sm:hidden">Lienzo Master (Ensamblaje)</span>
+                  {audioClipboard && (
+                    <button
+                      type="button"
+                      onClick={() => pasteClip(track.id, 0)}
+                      className="ml-1 px-2.5 py-0.5 rounded-full bg-cyan text-slate-950 text-[11px] font-black hover:bg-cyan-300 transition-all shadow-md active:scale-95"
+                      title="Pegar clip copiado al inicio de la Pista Master"
+                    >
+                      Pegar Clip (Ctrl+V)
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center p-2 pointer-events-auto">
+                <label 
+                  htmlFor={`file-upload-${track.id}`}
+                  className="cursor-pointer h-8 px-3 rounded-full flex items-center gap-1.5 text-xs font-bold text-slate-300 hover:text-white bg-white/10 hover:bg-white/20 border border-white/15 transition-all shadow-sm active:scale-95"
+                >
+                  <Upload className="w-3.5 h-3.5 text-cyan" />
+                  <span>Cargar archivo de audio</span>
+                </label>
+                <input
+                  id={`file-upload-${track.id}`}
+                  ref={fileInputRef}
+                  type="file"
+                  accept="audio/*"
+                  className="sr-only"
+                  onChange={handleFileChange}
+                />
+              </div>
+            )
           )}
         </div>
       </div>

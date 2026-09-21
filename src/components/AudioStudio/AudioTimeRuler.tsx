@@ -26,24 +26,51 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
   const setSelectedNodeId = useAudioStudioStore((s) => s.setSelectedNodeId);
 
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
+  const isScrubbingRulerRef = useRef(false);
 
   const duration = Math.max(10, totalDurationSec);
   const effectiveWidth = contentWidth || 1000;
 
-  // Clic en la regla para agregar un nodo temporal o saltar en el tiempo
-  const handleRulerClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  // Scrubbing continuo con arrastre del ratón sobre la regla de tiempo
+  const handleRulerPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest('[data-marker]')) return;
     if (!rulerRef.current) return;
+
     const rect = rulerRef.current.getBoundingClientRect();
     const w = contentWidth || rect.width;
     const px = e.clientX - rect.left;
     const ratio = Math.max(0, Math.min(1, px / w));
     const clickedSec = Math.round(ratio * duration * 100) / 100;
 
-    // Si hizo clic con Shift o doble clic, añade un nodo; de lo contrario salta a esa posición
+    // Doble clic o Shift + clic crea marcador de nodo
     if (e.shiftKey || e.detail >= 2) {
       addTimeNode(clickedSec);
-    } else {
-      onSeek(clickedSec);
+      return;
+    }
+
+    isScrubbingRulerRef.current = true;
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch (err) {}
+    onSeek(clickedSec);
+  };
+
+  const handleRulerPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isScrubbingRulerRef.current || !rulerRef.current) return;
+    const rect = rulerRef.current.getBoundingClientRect();
+    const w = contentWidth || rect.width;
+    const px = e.clientX - rect.left;
+    const ratio = Math.max(0, Math.min(1, px / w));
+    const newSec = Math.round(ratio * duration * 100) / 100;
+    onSeek(newSec);
+  };
+
+  const handleRulerPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isScrubbingRulerRef.current) {
+      isScrubbingRulerRef.current = false;
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch (err) {}
     }
   };
 
@@ -134,12 +161,15 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
         </div>
       </div>
 
-      {/* ── Contenedor de la Regla Graduada ── */}
+      {/* ── Contenedor de la Regla Graduada con Scrubbing Continuo ── */}
       <div
         ref={rulerRef}
-        onClick={handleRulerClick}
+        onPointerDown={handleRulerPointerDown}
+        onPointerMove={handleRulerPointerMove}
+        onPointerUp={handleRulerPointerUp}
+        onPointerCancel={handleRulerPointerUp}
         style={{ width: contentWidth ? `${contentWidth}px` : '100%' }}
-        className="relative h-12 cursor-crosshair bg-[#060911] overflow-hidden"
+        className="relative h-12 cursor-pointer bg-[#060911] overflow-hidden select-none"
       >
         {/* Sub-ticks sutiles */}
         {subTicks.map((tSec) => {
@@ -201,6 +231,7 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
           return (
             <div
               key={node.id}
+              data-marker="true"
               onPointerDown={(e) => handleNodePointerDown(node.id, e)}
               onPointerMove={(e) => handleNodePointerMove(node.id, e)}
               onPointerUp={(e) => handleNodePointerUp(node.id, e)}

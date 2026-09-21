@@ -3,7 +3,7 @@ import {
   ArrowLeft, 
   Settings, 
   Upload, 
-  Download, 
+  Send, 
   FileText, 
   Layers, 
   Bell, 
@@ -181,16 +181,27 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
             onChange={handleFileChange}
           />
 
-          {/* Botón Guardar / Exportar Mix a Coreografía (Cloud Icon) */}
+          {/* Botón Acción Principal: Enviar Mezcla a la Pista 2D */}
           {onExportToRink && (
             <button
               type="button"
               onClick={onExportToRink}
               disabled={isExporting}
-              className="w-8 h-8 rounded-full flex items-center justify-center bg-cyan text-black hover:bg-cyan-300 transition-all active:scale-95 shadow-md shadow-cyan/20 disabled:opacity-50"
-              title="Guardar mezcla y enviar a la Pista 2D"
+              className="h-8 px-3 rounded-full flex items-center gap-1.5 bg-gradient-to-r from-cyan to-teal-400 text-black hover:brightness-110 transition-all active:scale-95 shadow-md shadow-cyan/25 font-bold text-xs disabled:opacity-50"
+              title="Transferir mezcla terminada y nodos al mostrador de audio de la Pista 2D"
             >
-              <Download className="w-4 h-4 stroke-[2.5]" />
+              {isExporting ? (
+                <>
+                  <div className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin shrink-0" />
+                  <span className="hidden sm:inline">Enviando...</span>
+                </>
+              ) : (
+                <>
+                  <Send className="w-3.5 h-3.5 fill-black stroke-none shrink-0" />
+                  <span className="hidden sm:inline">Enviar a Pista 2D</span>
+                  <span className="sm:hidden">Enviar</span>
+                </>
+              )}
             </button>
           )}
         </div>
