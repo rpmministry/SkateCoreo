@@ -475,6 +475,19 @@ async function runTests() {
 
   metroMute.stop();
 
+  // 14. PRE-ROLL determinista: selector OFF/3/5/8 y banco de voz único
+  const preRollProbe = new VoiceCueEngine({ enabled: true });
+  preRollProbe.setIntroDelay(0);
+  assert(preRollProbe.getConfig().introDelaySec === 0, 'Pre-roll OFF = 0s (arranque inmediato)');
+  preRollProbe.setIntroDelay(3);
+  assert(preRollProbe.getConfig().introDelaySec === 3, 'Pre-roll 3s aplicado al motor');
+  preRollProbe.setIntroDelay(5);
+  assert(preRollProbe.getConfig().introDelaySec === 5, 'Pre-roll 5s aplicado al motor');
+  preRollProbe.setIntroDelay(8);
+  assert(preRollProbe.getConfig().introDelaySec === 8, 'Pre-roll 8s aplicado al motor');
+  assert(preRollProbe.isCountdownBankReady() === false, 'El banco de voz del conteo arranca sin preparar (offline-safe)');
+  assert(preRollProbe.getCountdownBuffer('3') === null, 'Sin banco natural no hay buffer: se usará UNA voz del navegador para todo el conteo');
+
   console.log(`\nResultado Módulo 1: ${passed}/${total} pruebas pasadas con éxito.\n`);
 }
 

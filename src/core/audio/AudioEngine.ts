@@ -97,9 +97,14 @@ export class AudioEngine {
   private animationFrameId: number | null = null;
 
 
-  // Pre-roll state
+  // Pre-roll state — ÚNICA fuente de verdad del conteo de entrada a pista.
   private isPreRollActive = false;
   private preRollCountdown = 0;
+  private preRollState: 'idle' | 'preparing' | 'counting' | 'starting' | 'cancelled' = 'idle';
+  private preRollCancelToken = 0;
+  private preRollTickerId: number | null = null;
+  private preRollTimers: ReturnType<typeof setTimeout>[] = [];
+  private preRollSources: AudioBufferSourceNode[] = [];
 
   // Listeners
   private timeUpdateCallbacks: Set<TimeUpdateCallback> = new Set();
@@ -156,6 +161,10 @@ export class AudioEngine {
       } catch (e) {
         /* No es crítico: solo es un refuerzo del desbloqueo. */
       }
+
+      // Pre-genera el banco de voz del conteo en el primer gesto real: así el
+      // Play no tiene que sintetizar nada en el instante crítico.
+      void this.voiceCueEngine.prepareCountdownBank();
 
       document.removeEventListener('pointerdown', unlock, true);
       document.removeEventListener('touchend', unlock, true);
@@ -608,6 +617,10 @@ export class AudioEngine {
       loadProgress.report(92, 'Analizando tempo (BPM)…');
       this.detectAndApplyBpm(this.audioBuffer);
 
+      // Pre-calienta el banco de voz del conteo (una sola voz) mientras el
+      // usuario aún está en la pantalla de carga: cero delay al pulsar Play.
+      void this.voiceCueEngine.prepareCountdownBank();
+
       this.mediaSession.updateMetadata(this.fileName);
       await this.checkBluetoothAndLatency();
       loadProgress.report(100, 'Listo');
@@ -984,34 +997,230 @@ export class AudioEngine {
   }
 
   /**
-   * Cuenta atrás de entrada a pista ("3, 2, 1, ¡Ya!").
-   * Se separa de `play` para mantener el arranque legible y reutilizable.
+   * Pre-Inicio (countdown) DETERMINISTA y perfectamente sincronizado.
+   *
+   * Arquitectura:
+   *  1. `prepareCountdownBank()` pre-genera TODO el conteo con la voz estándar
+   *     (una sola voz, lista antes del instante crítico → cero delay).
+   *  2. Se elige un instante FUTURO exacto `musicStart` en el reloj de audio.
+   *  3. Se agendan los números y el "¡Ya!" en ese mismo reloj, y la fuente de
+   *     música con `start(musicStart, offset)`. Sin cadenas de `setTimeout`
+   *     midiendo el tiempo → sin deriva.
+   *  4. Un ÚNICO bucle de frames (reloj de audio) actualiza el número visible y
+   *     conmuta a "playing" en `musicStart`.
    */
   private startPreRoll() {
-    if (!this.ctx) return;
+    const ctx = this.ctx;
+    if (!ctx) return;
 
+    const n = Math.max(0, Math.min(30, Math.round(this.voiceCueEngine.getConfig().introDelaySec)));
+    if (n <= 0) {
+      this.executePlay(this.pausedAtTime);
+      return;
+    }
+
+    // Idempotencia: cancelar cualquier pre-roll previo (nada de countdowns dobles).
+    this.cancelPreRoll(true);
+    const token = ++this.preRollCancelToken;
+
+    this.preRollState = 'preparing';
     this.isPreRollActive = true;
+    this.preRollCountdown = n;
+    // El metrónomo se detiene durante el conteo (la intro manda).
+    this.metronome.stop();
     this.emitStateChange();
 
-    // Detener el metrónomo durante el conteo: la intro manda y evita colisiones
-    // rítmicas (nada de dobles pulsos durante el "3, 2, 1").
-    this.metronome.stop();
+    void (async () => {
+      // 1. Voz pregenerada (una sola voz) lista ANTES de contar.
+      await this.voiceCueEngine.prepareCountdownBank();
+      if (token !== this.preRollCancelToken || !this.ctx) return;
 
-    this.voiceCueEngine.startPreRoll(
-      (remaining) => {
-        this.preRollCountdown = remaining;
-        // El click del conteo lo emite el propio motor de voz (`playTickTone`).
-        // NO se añade aquí otro acento del metrónomo: eso producía DOS clicks
-        // simultáneos por segundo (el "doble metrónomo" en móvil).
-        this.emitStateChange();
-      },
-      () => {
-        this.isPreRollActive = false;
-        this.preRollCountdown = 0;
-        this.executePlay(0);
-      },
-      1.0
+      // 2. Instante exacto de arranque de la música (con margen de agendado).
+      const lead = 0.12;
+      const musicStart = this.ctx.currentTime + lead + n;
+      this.preRollState = 'counting';
+
+      // 3. Música agendada para `musicStart` (silenciosa hasta entonces).
+      if (!this.scheduleMusicSourceAt(musicStart, 0)) {
+        this.cancelPreRoll();
+        return;
+      }
+
+      // 3b. Voces: n…1 en cada segundo y "¡Ya!" justo antes del inicio.
+      for (let i = 0; i < n; i++) {
+        this.schedulePreRollVoice(String(n - i), musicStart - n + i);
+      }
+      const yaBuffer = this.voiceCueEngine.getCountdownBuffer('ya');
+      const yaDur = yaBuffer ? yaBuffer.duration : 0.42;
+      this.schedulePreRollVoice('ya', Math.max(musicStart - n + 0.05, musicStart - yaDur));
+
+      this.preRollState = 'starting';
+
+      // 4. Ticker único basado en el reloj de audio (no acumula error).
+      const tick = () => {
+        if (token !== this.preRollCancelToken || !this.ctx) return;
+        const remaining = musicStart - this.ctx.currentTime;
+        // El rótulo visual sigue EXACTAMENTE a la voz: durante el último tramo
+        // (duración del "¡Ya!") se muestra 0 → la UI pinta "¡YA!" mientras la
+        // voz lo dice, y la música entra justo después.
+        const display = remaining <= yaDur ? 0 : Math.ceil(remaining - yaDur);
+        if (display !== this.preRollCountdown) {
+          this.preRollCountdown = display;
+          this.emitStateChange();
+        }
+        if (remaining <= 0) {
+          this.preRollTickerId = null;
+          this.beginPlaybackAt(musicStart, 0);
+          return;
+        }
+        this.preRollTickerId = globalThis.requestAnimationFrame(tick);
+      };
+      this.preRollTickerId = globalThis.requestAnimationFrame(tick);
+    })();
+  }
+
+  /** Agenda la fuente de música para un instante EXACTO del reloj de audio. */
+  private scheduleMusicSourceAt(whenCtxTime: number, offsetMs: number): boolean {
+    if (!this.ctx || !this.musicGainNode) return false;
+    if (!this.audioBuffer) this.ensureAudioBuffer();
+    if (!this.audioBuffer) return false;
+
+    if (this.isPlaying) this.stopSource();
+
+    const clampedOffsetSec = Math.max(0, Math.min(offsetMs / 1000, this.audioBuffer.duration));
+
+    this.sourceNode = this.ctx.createBufferSource();
+    this.sourceNode.buffer = this.audioBuffer;
+    this.sourceNode.playbackRate.value = this.playbackRate;
+    this.sourceNode.connect(this.musicGainNode);
+    this.updateMatrixGains();
+
+    this.sourceNode.onended = () => {
+      if (this.isPlaying && this.getCurrentTimeMs() >= this.durationMs - 150) {
+        this.stop();
+      }
+    };
+
+    this.startTime = whenCtxTime - clampedOffsetSec / this.playbackRate;
+    this.sourceNode.start(whenCtxTime, clampedOffsetSec);
+    return true;
+  }
+
+  /** Conmuta a "playing" exactamente en el instante agendado de la música. */
+  private beginPlaybackAt(whenCtxTime: number, offsetMs: number) {
+    const clampedOffsetSec = Math.max(0, Math.min(offsetMs / 1000, this.audioBuffer?.duration ?? 0));
+
+    this.isPreRollActive = false;
+    this.preRollState = 'idle';
+    this.preRollCountdown = 0;
+    this.isPlaying = true;
+
+    // Metrónomo y voz anclados al MISMO instante absoluto que la música.
+    this.metronome.start(clampedOffsetSec, this.playbackRate, whenCtxTime);
+    // UNA SOLA FUENTE RÍTMICA: con el metrónomo sonando, se silencian los beeps
+    // de acento de los cues (sin "doble metrónomo").
+    const metronomeAudible = this.metronome.getConfig().enabled && !this.metronomeMuted;
+    this.voiceCueEngine.setCueTicksEnabled(!metronomeAudible);
+    this.voiceCueEngine.resetTriggeredCues(offsetMs);
+    this.voiceCueEngine.startSync(
+      whenCtxTime - clampedOffsetSec / this.playbackRate,
+      this.playbackRate
     );
+
+    this.mediaSession.updatePlaybackState(true);
+    this.mediaSession.updatePositionState(this.durationMs / 1000, clampedOffsetSec, this.playbackRate);
+
+    this.lastTimeEmitMs = -1;
+    this.startTracking();
+    this.emitStateChange();
+  }
+
+  /**
+   * Reproduce una voz del conteo con UNA ÚNICA voz estándar.
+   * Si el banco natural está listo, usa el AudioBuffer agendado (cero delay);
+   * si no, cae al sintetizador del navegador (misma voz para todo el conteo).
+   */
+  private schedulePreRollVoice(value: string, whenCtxTime: number) {
+    const ctx = this.ctx;
+    if (!ctx) return;
+
+    const buffer = this.voiceCueEngine.getCountdownBuffer(value);
+    const volume = Math.max(0, Math.min(1, this.voiceCueEngine.getConfig().volume ?? 1));
+
+    if (buffer && this.coachBusGainNode) {
+      try {
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        const gain = ctx.createGain();
+        gain.gain.value = volume;
+        source.connect(gain);
+        gain.connect(this.coachBusGainNode);
+        this.preRollSources.push(source);
+        source.onended = () => {
+          this.preRollSources = this.preRollSources.filter((s) => s !== source);
+          try {
+            source.disconnect();
+            gain.disconnect();
+          } catch {
+            /* ya desconectado */
+          }
+        };
+        source.start(Math.max(ctx.currentTime, whenCtxTime));
+        return;
+      } catch {
+        /* cae al respaldo de voz del navegador */
+      }
+    }
+
+    const words: Record<string, string> = {
+      '1': 'uno', '2': 'dos', '3': 'tres', '4': 'cuatro',
+      '5': 'cinco', '6': 'seis', '7': 'siete', '8': 'ocho', 'ya': '¡Ya!',
+    };
+    const text = words[value] ?? value;
+    const token = this.preRollCancelToken;
+    const delayMs = Math.max(0, (whenCtxTime - ctx.currentTime) * 1000);
+    const id = globalThis.setTimeout(() => {
+      if (token === this.preRollCancelToken) this.voiceCueEngine.speakCountdown(text);
+    }, delayMs);
+    this.preRollTimers.push(id);
+  }
+
+  /**
+   * Cancela el pre-roll por completo: timers, ticker, voces agendadas y la
+   * música pendiente. No deja procesos huérfanos en segundo plano.
+   */
+  private cancelPreRoll(silent = false) {
+    this.preRollCancelToken++;
+
+    if (this.preRollTickerId !== null) {
+      globalThis.cancelAnimationFrame(this.preRollTickerId);
+      this.preRollTickerId = null;
+    }
+    for (const id of this.preRollTimers) globalThis.clearTimeout(id);
+    this.preRollTimers = [];
+
+    for (const src of this.preRollSources) {
+      try {
+        src.stop();
+        src.disconnect();
+      } catch {
+        /* ya detenido */
+      }
+    }
+    this.preRollSources = [];
+
+    // La música pudo quedar agendada en el futuro: se descarta.
+    if (this.preRollState === 'counting' || this.preRollState === 'starting') {
+      this.stopSource();
+    }
+
+    const changed = this.isPreRollActive || this.preRollCountdown !== 0 || this.preRollState !== 'idle';
+    this.isPreRollActive = false;
+    this.preRollCountdown = 0;
+    this.preRollState = 'idle';
+
+    this.voiceCueEngine.cancelPreRoll();
+    if (changed && !silent) this.emitStateChange();
   }
 
   private executePlay(offsetMs: number) {
@@ -1022,62 +1231,14 @@ export class AudioEngine {
       void this.ctx.resume();
     }
 
-    if (!this.audioBuffer) {
-      this.ensureAudioBuffer();
-    }
-
-    if (!this.audioBuffer) return;
-
-    if (this.isPlaying) {
-      this.stopSource();
-    }
-
-    const startOffsetSec = offsetMs / 1000;
-    const clampedOffsetSec = Math.max(0, Math.min(startOffsetSec, this.audioBuffer.duration));
-
-    this.sourceNode = this.ctx.createBufferSource();
-    this.sourceNode.buffer = this.audioBuffer;
-    this.sourceNode.playbackRate.value = this.playbackRate;
-
-    // Conectar música a bus de música
-    this.sourceNode.connect(this.musicGainNode);
-    this.updateMatrixGains();
-
-    this.sourceNode.onended = () => {
-      if (this.isPlaying && this.getCurrentTimeMs() >= this.durationMs - 150) {
-        this.stop();
-      }
-    };
-
-    this.startTime = this.ctx.currentTime - clampedOffsetSec / this.playbackRate;
-    this.sourceNode.start(0, clampedOffsetSec);
-    this.isPlaying = true;
-
-    // Arrancar metrónomo y secuenciador vocal sincronizados al reloj absoluto de la música
-    this.metronome.start(clampedOffsetSec, this.playbackRate);
-    // UNA SOLA FUENTE RÍTMICA: si el metrónomo va a sonar, se silencian los
-    // beeps de acento de los cues para que NUNCA se perciba un "doble metrónomo".
-    const metronomeAudible = this.metronome.getConfig().enabled && !this.metronomeMuted;
-    this.voiceCueEngine.setCueTicksEnabled(!metronomeAudible);
-    this.voiceCueEngine.resetTriggeredCues(offsetMs);
-    this.voiceCueEngine.startSync(this.startTime, this.playbackRate);
-
-    this.mediaSession.updatePlaybackState(true);
-    this.mediaSession.updatePositionState(this.durationMs / 1000, clampedOffsetSec, this.playbackRate);
-
-    // Reinicia el throttle de notificación: la etiqueta de tiempo debe
-    // refrescarse en el primer frame tras reanudar.
-    this.lastTimeEmitMs = -1;
-    this.startTracking();
-    this.emitStateChange();
+    const when = this.ctx.currentTime;
+    if (!this.scheduleMusicSourceAt(when, offsetMs)) return;
+    this.beginPlaybackAt(when, offsetMs);
   }
 
   public pause() {
-    if (this.isPreRollActive) {
-      this.voiceCueEngine.cancelPreRoll();
-      this.isPreRollActive = false;
-      this.preRollCountdown = 0;
-    }
+    // Cancela por completo cualquier pre-roll (ticker, voces, música agendada).
+    this.cancelPreRoll(true);
 
     this.metronome.stop();
     this.voiceCueEngine.stop();
@@ -1105,11 +1266,8 @@ export class AudioEngine {
   }
 
   public stop() {
-    if (this.isPreRollActive) {
-      this.voiceCueEngine.cancelPreRoll();
-      this.isPreRollActive = false;
-      this.preRollCountdown = 0;
-    }
+    // Cancela por completo cualquier pre-roll (ticker, voces, música agendada).
+    this.cancelPreRoll(true);
 
     this.stopSource();
     this.metronome.stop();
@@ -1133,6 +1291,9 @@ export class AudioEngine {
     if (this.isPlaying) {
       this.executePlay(clamped);
     } else {
+      // Cualquier seek (incluido volver a 0:00) cancela un pre-roll pendiente:
+      // nunca quedan voces ni música agendada de un conteo abandonado.
+      this.cancelPreRoll();
       this.emitTimeUpdate(clamped);
       this.mediaSession.updatePositionState(this.durationMs / 1000, clamped / 1000, this.playbackRate);
       this.emitStateChange();

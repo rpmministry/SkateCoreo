@@ -118,6 +118,34 @@ export function App() {
   const [selectedProgram, setSelectedProgram] = useState<Program | null>(null);
   const [elements, setElements] = useState<ElementLog[]>([]);
 
+  // ── Intro / Pre-Inicio (countdown) ─────────────────────────────────────────
+  // ÚNICA fuente de verdad del pre-roll en la UI. Se persiste en localStorage y
+  // se sincroniza con el motor de audio (que la usa para el conteo real).
+  const [preRollSec, setPreRollSec] = useState<number>(() => {
+    try {
+      const saved = Number(localStorage.getItem('skatecoreo_preroll_sec'));
+      return [0, 3, 5, 8].includes(saved) ? saved : 3;
+    } catch {
+      return 3;
+    }
+  });
+
+  const handlePreRollSecChange = useCallback((sec: number) => {
+    const value = [0, 3, 5, 8].includes(sec) ? sec : 3;
+    setPreRollSec(value);
+    audioEngine.voiceCueEngine.setIntroDelay(value);
+    try {
+      localStorage.setItem('skatecoreo_preroll_sec', String(value));
+    } catch {
+      /* almacenamiento no disponible */
+    }
+  }, []);
+
+  // Mantiene el motor sincronizado con la selección (incluido el arranque).
+  useEffect(() => {
+    audioEngine.voiceCueEngine.setIntroDelay(preRollSec);
+  }, [preRollSec]);
+
   // ── Audio ──────────────────────────────────────────────
   const [audioState, setAudioState] = useState<AudioEngineState>(audioEngine.getState());
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
@@ -132,7 +160,6 @@ export function App() {
   const [isSavingOffline, setIsSavingOffline] = useState(false);
   const [savedOfflineSuccess, setSavedOfflineSuccess] = useState(false);
   const [showSkaters, setShowSkaters] = useState(false);
-  const [preRollSec, setPreRollSec]   = useState(3);
   /** Confirmación del borrado total de la pista 2D (acción destructiva). */
   const [confirmClearOpen, setConfirmClearOpen] = useState(false);
 
@@ -762,7 +789,7 @@ export function App() {
             <aside className="hidden lg:flex lg:w-[272px] xl:w-[288px] shrink-0 flex-col bg-neon-surface border-r border-white/5 overflow-hidden shadow-soft-elevation">
               <LeftSidebarPanel
                 preRollSec={preRollSec}
-                onPreRollSecChange={setPreRollSec}
+                onPreRollSecChange={handlePreRollSecChange}
                 onUndo={handleUndo}
                                 onClearRink={requestClearRink}
                 onOpenAudioStudio={() => setActiveView('studio')}
@@ -1030,7 +1057,7 @@ export function App() {
         >
           <LeftSidebarPanel
             preRollSec={preRollSec}
-            onPreRollSecChange={setPreRollSec}
+            onPreRollSecChange={handlePreRollSecChange}
             onUndo={handleUndo}
                         onClearRink={requestClearRink}
             onOpenAudioStudio={() => { setDrawerOpen(false); setActiveView('studio'); }}

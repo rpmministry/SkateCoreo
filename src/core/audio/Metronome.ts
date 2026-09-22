@@ -237,14 +237,21 @@ export class Metronome {
    * invalida la generación del bucle y silencia los nodos vivos. Llamar a
    * `start()` dos veces no puede dejar dos planificadores en marcha.
    */
-  public start(syncAudioTimeSec: number = 0, playbackRate: number = 1.0) {
+  public start(
+    syncAudioTimeSec: number = 0,
+    playbackRate: number = 1.0,
+    startCtxTime?: number
+  ) {
     this.stop();
 
     if (!this.ctx || !this.outputNode) return;
     this.isRunning = true;
     this.playbackRate = Math.max(0.1, playbackRate || 1.0);
 
-    this.audioZeroCtxTime = this.ctx.currentTime - (syncAudioTimeSec / this.playbackRate);
+    // `startCtxTime` permite anclar el pulso a un instante FUTURO exacto del
+    // reloj de audio (p. ej., el final del pre-roll) en lugar de "ahora".
+    const anchor = startCtxTime !== undefined ? startCtxTime : this.ctx.currentTime;
+    this.audioZeroCtxTime = anchor - (syncAudioTimeSec / this.playbackRate);
 
     this.lastScheduledBeatIndex = -1;
     this.pendingResync = false;

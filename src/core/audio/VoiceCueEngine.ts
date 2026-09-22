@@ -223,6 +223,102 @@ export class VoiceCueEngine {
     this.cueTicksEnabled = enabled;
   }
 
+  // ── Banco de VOZ para el COUNTDOWN (una única voz estándar) ────────────────
+  // Los números del pre-roll se sintetizan UNA vez con la voz femenina latina
+  // estándar y se reproducen como AudioBuffers agendados en el reloj de audio.
+  // Esto elimina dos fallos de raíz: (a) la mezcla de voces (natural vs.
+  // navegador) dentro de un mismo conteo, y (b) el retraso de sintetizar la voz
+  // justo en el instante crítico.
+  private countdownBank = new Map<string, AudioBuffer>();
+  private countdownBankPromise: Promise<void> | null = null;
+  private countdownBankReady = false;
+
+  private static readonly COUNTDOWN_WORDS: Array<{ key: string; text: string }> = [
+    { key: '1', text: 'uno' },
+    { key: '2', text: 'dos' },
+    { key: '3', text: 'tres' },
+    { key: '4', text: 'cuatro' },
+    { key: '5', text: 'cinco' },
+    { key: '6', text: 'seis' },
+    { key: '7', text: 'siete' },
+    { key: '8', text: 'ocho' },
+    { key: 'ya', text: '¡Ya!' },
+  ];
+
+  /**
+   * Pre-genera y cachea TODOS los audios del conteo (1..8 + ¡Ya!) con la voz
+   * estándar. Idempotente y compartido: varias llamadas concurrentes comparten
+   * la misma promesa. Si el backend de voz natural no está disponible, el banco
+   * queda vacío y el pre-roll usará UNA sola voz del navegador para todo el
+   * conteo (nunca una mezcla).
+   */
+  public async prepareCountdownBank(): Promise<void> {
+    if (this.countdownBankReady) return;
+    if (this.countdownBankPromise) return this.countdownBankPromise;
+
+    this.countdownBankPromise = (async () => {
+      const results = await Promise.all(
+        VoiceCueEngine.COUNTDOWN_WORDS.map(async ({ key, text }) => {
+          try {
+            const buffer = await ttsService.getAudioBufferForText(text, {
+              force: true,
+              speed: this.config.voiceSpeed,
+              gender: 'female',
+              language: this.config.language,
+              voiceName: this.config.googleVoiceName,
+            });
+            return [key, buffer] as const;
+          } catch {
+            return [key, null] as const;
+          }
+        })
+      );
+
+      const bank = new Map<string, AudioBuffer>();
+      for (const [key, buffer] of results) {
+        if (buffer) bank.set(key, buffer);
+      }
+
+      // Solo se acepta el banco COMPLETO: así el conteo nunca mezcla voces.
+      if (bank.size === VoiceCueEngine.COUNTDOWN_WORDS.length) {
+        this.countdownBank = bank;
+        this.countdownBankReady = true;
+      } else {
+        this.countdownBank = new Map();
+        this.countdownBankReady = false;
+      }
+    })()
+      .catch(() => {
+        this.countdownBank = new Map();
+        this.countdownBankReady = false;
+      })
+      .finally(() => {
+        this.countdownBankPromise = null;
+      });
+
+    return this.countdownBankPromise;
+  }
+
+  /** ¿Está el banco de voz del conteo listo para reproducirse sin retardo? */
+  public isCountdownBankReady(): boolean {
+    return this.countdownBankReady;
+  }
+
+  /** AudioBuffer pregrabado de un elemento del conteo ('1'..'8' | 'ya'). */
+  public getCountdownBuffer(key: string): AudioBuffer | null {
+    return this.countdownBank.get(key) ?? null;
+  }
+
+  /**
+   * Voz de respaldo del conteo: SIEMPRE el sintetizador del navegador, con una
+   * única voz, para que todos los números suenen igual aunque el banco natural
+   * no esté disponible.
+   */
+  public speakCountdown(text: string) {
+    if (!this.config.enabled || this.config.volume <= 0) return;
+    this.speakBrowser(text);
+  }
+
   constructor(config?: Partial<VoiceCueConfig>) {
     // ── Voz natural: endpoint propio o clave local del usuario ────
     // Clave local del usuario (solo auto-hospedaje). La credencial de la app
