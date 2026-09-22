@@ -11,6 +11,13 @@
 --   · No modifica ni elimina las modalidades existentes (PayPal, /club, etc.).
 -- ==============================================================================
 
+-- 0. EXTENSIÓN CRIPTOGRÁFICA (Bcrypt)
+--    Supabase instala pgcrypto en el esquema `extensions`. Se crea con ese
+--    esquema y las funciones incluyen `extensions` en su search_path para que
+--    `crypt()` y `gen_salt()` resuelvan siempre (en `public` o en `extensions`).
+CREATE SCHEMA IF NOT EXISTS extensions;
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
+
 -- 1. CAMPOS DE CAMPAÑA / ESTADO / AUDITORÍA EN activation_codes --------------
 ALTER TABLE public.activation_codes
   ADD COLUMN IF NOT EXISTS campaign           TEXT        NOT NULL DEFAULT 'GENERAL',
@@ -71,7 +78,7 @@ CREATE OR REPLACE FUNCTION public.redeem_promo_code(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
 DECLARE
   v_code        RECORD;
@@ -196,7 +203,7 @@ CREATE OR REPLACE FUNCTION public.admin_list_activation_codes(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
 DECLARE
   v_email    TEXT := LOWER(TRIM(p_admin_email));
@@ -261,7 +268,7 @@ CREATE OR REPLACE FUNCTION public.login_custom_user(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
 DECLARE
   v_user RECORD;
@@ -376,3 +383,7 @@ VALUES
   ('SC-BETA-BWH9-DJ43-CBW7', 'BETA_TESTER', 'GIFT', 30, 1, 0, 'AVAILABLE', 'beta_tester', 'BETA_TESTER · acceso 30 días', NOW() + INTERVAL '30 days'),
   ('SC-BETA-5RHX-VADY-EFPV', 'BETA_TESTER', 'GIFT', 30, 1, 0, 'AVAILABLE', 'beta_tester', 'BETA_TESTER · acceso 30 días', NOW() + INTERVAL '30 days')
 ON CONFLICT (code) DO NOTHING;
+
+-- 8. Refrescar la cach� de esquema de PostgREST (evita 404 al llamar al RPC
+--    reci�n creado hasta que Supabase recarga el esquema).
+NOTIFY pgrst, 'reload schema';
