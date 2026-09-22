@@ -75,12 +75,18 @@ export const PDF_LAYOUT = {
   /** Bloque inferior: instrucciones + crédito de desarrollo. */
   instructions: {
     x: 10,
-    y: 187,
+    y: 186.5,
     w: 277,
-    h: 13,
-    titleBaseline: 192,
-    lineBaselines: [195.5, 198.5],
-    creditBaseline: 199.5,
+    h: 13.5,
+    /** Baselines con espaciado editorial: título → cuerpo (×2) → crédito. */
+    titleBaseline: 190,
+    lineBaselines: [193.2, 196.2],
+    creditBaseline: 199.4,
+    /** Margen interno de seguridad respecto a los bordes del bloque. */
+    paddingX: 4,
+    bodyLinePitch: 3,
+    titleToBodyGap: 3.2,
+    bodyToCreditGap: 3.4,
   },
 } as const;
 
@@ -318,30 +324,48 @@ export class PdfTemplateGenerator {
     this.drawFiducialMarker(doc, RINK_X + RINK_W, RINK_Y + RINK_H);
     this.drawFiducialMarker(doc, RINK_X, RINK_Y + RINK_H);
 
-    /* ── 7. BLOQUE INFERIOR: instrucciones + crédito ──────────────── */
+    /* ── 7. BLOQUE INFERIOR: instrucciones + crédito ────────────────
+       Maquetación editorial: cada instrucción se ajusta al ancho útil con
+       `splitTextToSize` (nada de líneas que se salgan del bloque) y las
+       baselines se calculan con un paso constante; el crédito siempre queda
+       separado del cuerpo para que NUNCA se superpongan textos. */
     const I = L.instructions;
     doc.setFillColor(248, 250, 252);
     doc.setDrawColor(203, 213, 225);
     doc.setLineWidth(0.3);
     doc.roundedRect(I.x, I.y, I.w, I.h, 2, 2, 'FD');
 
+    // Título del bloque
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
     doc.setTextColor(...SLATE_900);
     doc.text(T.instructionsTitle, centerX, I.titleBaseline, { align: 'center' });
 
+    // Cuerpo: ancho útil con margen interno; salto de línea real si hace falta.
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.5);
     doc.setTextColor(51, 65, 85);
-    T.instructions.forEach((line, index) => {
-      doc.text(line, I.x + 4, I.lineBaselines[index] ?? I.lineBaselines[I.lineBaselines.length - 1]);
+
+    const bodyWidth = I.w - I.paddingX * 2;
+    const bodyLines: string[] = [];
+    T.instructions.forEach((line) => {
+      bodyLines.push(...(doc.splitTextToSize(line, bodyWidth) as string[]));
     });
 
-    // Crédito de desarrollo, centrado y en tono secundario
+    const bodyTop = I.titleBaseline + I.titleToBodyGap;
+    let lastBodyBaseline = bodyTop;
+    bodyLines.forEach((line, index) => {
+      const baseline = bodyTop + index * I.bodyLinePitch;
+      doc.text(line, I.x + I.paddingX, baseline);
+      lastBodyBaseline = baseline;
+    });
+
+    // Crédito de desarrollo: siempre POR DEBAJO del cuerpo (separación mínima).
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(6);
     doc.setTextColor(...SLATE_600);
-    doc.text(T.credit, centerX, I.creditBaseline, { align: 'center' });
+    const creditBaseline = Math.max(I.creditBaseline, lastBodyBaseline + I.bodyToCreditGap);
+    doc.text(T.credit, centerX, creditBaseline, { align: 'center' });
 
     return doc;
   }

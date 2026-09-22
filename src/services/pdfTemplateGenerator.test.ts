@@ -196,6 +196,48 @@ assert(
   'El título del bloque de instrucciones se imprime en mayúsculas'
 );
 
+/* ── 8b. Estándar editorial: sin textos superpuestos ni desbordados ── */
+const INST = PDF_LAYOUT.instructions;
+assert(
+  INST.titleBaseline < INST.lineBaselines[0] &&
+    INST.lineBaselines[0] - INST.titleBaseline >= 2.8,
+  'El título del bloque y la primera línea de instrucciones no se solapan'
+);
+assert(
+  INST.lineBaselines[1] - INST.lineBaselines[0] >= INST.bodyLinePitch - 0.01,
+  'Las líneas del cuerpo respetan el interlineado (sin solaparse)'
+);
+assert(
+  INST.lineBaselines[0] - INST.titleBaseline >= INST.bodyLinePitch - 0.4,
+  'El cuerpo arranca con separación suficiente bajo el título'
+);
+assert(
+  INST.creditBaseline - INST.lineBaselines[1] >= 3.0,
+  'El crédito queda separado de la última línea del cuerpo (sin superposición)'
+);
+assert(
+  INST.creditBaseline <= INST.y + INST.h,
+  'El crédito cabe dentro del bloque inferior'
+);
+assert(
+  INST.y + INST.h <= PDF_LAYOUT.page.height - PDF_LAYOUT.margin + 0.6,
+  'El bloque inferior respeta el margen inferior de página'
+);
+
+// Ningún renglón de instrucciones puede desbordar el ancho útil del bloque.
+doc.setFont('helvetica', 'normal');
+doc.setFontSize(6.5);
+const instBodyWidth = INST.w - INST.paddingX * 2;
+for (const line of PDF_TEXTS.instructions) {
+  const wrapped = doc.splitTextToSize(line, instBodyWidth) as string[];
+  for (const segment of wrapped) {
+    assert(
+      doc.getTextWidth(segment) <= instBodyWidth + 0.5,
+      'Ningún renglón de instrucciones desborda el bloque inferior'
+    );
+  }
+}
+
 /* ── 9. Compilación binaria con branding ────────────────────────── */
 const metadata: TemplateMetadata = {
   title: 'Rutina Libre Senior 2026',
