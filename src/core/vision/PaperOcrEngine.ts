@@ -1,11 +1,20 @@
 /**
- * PaperOcrEngine — Motor de Reconocimiento Óptico de Nodos Manuscritos (1, 2, 3...)
+ * PaperOcrEngine — Reconocimiento ÓPTICO de nodos numerados (1, 2, 3…).
  *
- * Identifica los círculos y números dibujados a mano sobre la pista de papel,
- * extrayendo sus coordenadas espaciales exactas en metros (X, Y) y su secuencia temporal.
+ * ── REGLA DE ARQUITECTURA (crítica) ─────────────────────────────────────────
+ * El ÚNICO evento que instancia un nodo es la IDENTIFICACIÓN EXPLÍCITA DE UN
+ * CARÁCTER NUMÉRICO (texto nativo/OCR). Queda terminantemente prohibido derivar
+ * nodos de bordes, líneas, curvas, polígonos o vértices del trazado: eso era lo
+ * que generaba decenas de nodos "fantasma" (p. ej. 30 nodos sobre una hoja con 5
+ * números).
  *
- * Funciona de forma 100% offline mediante análisis morfométrico de blobs,
- * con soporte para Google Cloud Vision API si se dispone de clave de entorno.
+ * Motores soportados, en orden de preferencia:
+ *   1. Google Cloud Vision (si VITE_GOOGLE_VISION_API_KEY está configurada).
+ *   2. Tesseract.js (OCR local, importado de forma dinámica; nada de blobs).
+ *   3. Sin motor disponible → 0 nodos (nunca se inventan nodos).
+ *
+ * Mapeo ESTRICTO 1 a 1: un número reconocido = un nodo, usando el CENTRO del
+ * bounding box del texto. La secuencia del nodo es el número LEÍDO, no el orden.
  */
 
 import { Point2D } from '../math/FreehandPathEngine';
@@ -19,164 +28,158 @@ export interface DetectedNodeMarker {
   rawBoundingBox: { x: number; y: number; width: number; height: number };
 }
 
+/** Token numérico válido: solo dígitos (^\\d+$) y en rango razonable de nodos. */
+function parseSequenceToken(raw: string | null | undefined): number | null {
+  if (raw == null) return null;
+  const token = String(raw).trim();
+  if (!/^\d+$/.test(token)) return null;
+  const value = Number.parseInt(token, 10);
+  if (!Number.isFinite(value) || value < 1 || value > 50) return null;
+  return value;
+}
+
 export class PaperOcrEngine {
   /**
-   * Detecta y extrae los nodos numerados dibujados sobre la pista
+   * Detecta y extrae los nodos numerados. Devuelve exactamente un nodo por
+   * número reconocido (0 si ningún motor puede leer dígitos).
    */
   public static async detectNumberedNodes(
     warpedCanvas: HTMLCanvasElement,
     rink: RinkDimensions = DEFAULT_RINK_DIMENSIONS
   ): Promise<DetectedNodeMarker[]> {
-    const ctx = warpedCanvas.getContext('2d');
-    if (!ctx) return [];
+    const w = warpedCanvas.width;
+    const h = warpedCanvas.height;
+    if (w <= 0 || h <= 0) return [];
 
-    // 1. Si existe clave de Google Cloud Vision, intentar OCR en la nube
+    // 1) Google Cloud Vision (mejor precisión; requiere clave de entorno).
     const visionApiKey = (import.meta as any).env?.VITE_GOOGLE_VISION_API_KEY;
     if (visionApiKey) {
       try {
         const cloudNodes = await this.detectWithGoogleVision(warpedCanvas, visionApiKey, rink);
-        if (cloudNodes.length > 0) return cloudNodes;
+        if (cloudNodes.length > 0) return this.sanitize(cloudNodes, w, h, rink);
       } catch (err) {
-        console.warn('[PaperOcrEngine] Fallback a motor morfológico local:', err);
+        console.warn('[PaperOcrEngine] Falló Google Vision, se intentará OCR local:', err);
       }
     }
 
-    // 2. Motor Morfológico Local (100% Offline): Detección de Blobs Circulares
-    return this.detectCircularBlobsOffline(warpedCanvas, rink);
+    // 2) Tesseract.js local (sin blobs, sin trazados). Import dinámico: no pesa
+    //    en el bundle principal y, si no está disponible/offline, se degrada.
+    try {
+      const localNodes = await this.detectWithTesseract(warpedCanvas, rink);
+      if (localNodes.length > 0) return this.sanitize(localNodes, w, h, rink);
+    } catch (err) {
+      console.warn('[PaperOcrEngine] OCR local no disponible:', err);
+    }
+
+    // 3) Sin lectura semántica de números → CERO nodos (nunca nodos fantasma).
+    return [];
   }
 
   /**
-   * Algoritmo de detección offline de nodos circulares dibujados
+   * Normaliza y valida el resultado: solo números válidos, un nodo por número,
+   * y siempre dentro del bounding box de la hoja A4.
    */
-  private static detectCircularBlobsOffline(
-    canvas: HTMLCanvasElement,
-    rink: RinkDimensions
-  ): DetectedNodeMarker[] {
-    const w = canvas.width;
-    const h = canvas.height;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return [];
-
-    const imgData = ctx.getImageData(0, 0, w, h);
-    const d = imgData.data;
-
-    // Mascara de tinta oscura (umbral < 110)
-    const binary = new Uint8Array(w * h);
-    for (let i = 0; i < w * h; i++) {
-      const idx = i * 4;
-      const lum = 0.299 * d[idx] + 0.587 * d[idx + 1] + 0.114 * d[idx + 2];
-      binary[i] = lum < 110 ? 1 : 0;
-    }
-
-    // Búsqueda de componentes compactos (círculos de nodos de ~15px a ~60px)
-    const visited = new Uint8Array(w * h);
-    const candidates: { minX: number; maxX: number; minY: number; maxY: number; count: number }[] = [];
-
-    const step = 4;
-    for (let y = 15; y < h - 15; y += step) {
-      for (let x = 15; x < w - 15; x += step) {
-        const idx = y * w + x;
-        if (binary[idx] === 1 && visited[idx] === 0) {
-          const blob = { minX: x, maxX: x, minY: y, maxY: y, count: 0 };
-          this.exploreBlob(binary, visited, w, h, x, y, blob);
-
-          const bw = blob.maxX - blob.minX;
-          const bh = blob.maxY - blob.minY;
-          const aspect = bw / Math.max(1, bh);
-
-          // Un nodo dibujado a mano suele ser aproximadamente circular (aspect ratio 0.6 a 1.6)
-          // y tener un tamaño entre 12px y 70px
-          if (bw >= 12 && bw <= 75 && bh >= 12 && bh <= 75 && aspect >= 0.55 && aspect <= 1.8 && blob.count >= 20) {
-            candidates.push(blob);
-          }
-        }
-      }
-    }
-
-    // Convertir a metros y ordenar secuencialmente (de izquierda a derecha o por proximidad)
-    const scaleX = rink.lengthMeters / w;
-    const scaleY = rink.widthMeters / h;
-
-    // ── VALIDACIÓN ESPACIAL (BOUNDING BOX A4) ────────────────────────────────
-    // El lienzo deformado ES la hoja A4. Cualquier blob que toque o rebase el
-    // borde (marcos de la hoja, manchas fuera del área útil) se descarta para no
-    // generar nodos "huérfanos" fuera de la pista escaneada.
-    const inset = 2;
-    const insideSheet = candidates.filter((c) => {
-      const cx = (c.minX + c.maxX) / 2;
-      const cy = (c.minY + c.maxY) / 2;
-      return (
-        c.minX > inset &&
-        c.minY > inset &&
-        c.maxX < w - inset &&
-        c.maxY < h - inset &&
-        cx > 0 && cx < w &&
-        cy > 0 && cy < h
-      );
-    });
-
-    // Ordenar de izquierda a derecha (o por X ascendente como aproximación temporal primaria)
-    insideSheet.sort((a, b) => (a.minX + a.maxX) / 2 - (b.minX + b.maxX) / 2);
-
-    return insideSheet.map((c, i) => {
-      const cx = (c.minX + c.maxX) / 2;
-      const cy = (c.minY + c.maxY) / 2;
-
-      return {
-        sequenceNumber: i + 1,
-        positionMeters: {
-          x: Math.round(cx * scaleX * 10) / 10,
-          y: Math.round(cy * scaleY * 10) / 10,
-        },
-        confidence: 0.85,
-        rawBoundingBox: {
-          x: c.minX,
-          y: c.minY,
-          width: c.maxX - c.minX,
-          height: c.maxY - c.minY,
-        },
-      };
-    });
-  }
-
-  private static exploreBlob(
-    binary: Uint8Array,
-    visited: Uint8Array,
+  private static sanitize(
+    nodes: DetectedNodeMarker[],
     w: number,
     h: number,
-    x: number,
-    y: number,
-    blob: { minX: number; maxX: number; minY: number; maxY: number; count: number }
-  ): void {
-    const queue: [number, number][] = [[x, y]];
-    visited[y * w + x] = 1;
+    rink: RinkDimensions
+  ): DetectedNodeMarker[] {
+    const byNumber = new Map<number, DetectedNodeMarker>();
 
-    let limit = 2000;
-    while (queue.length > 0 && limit-- > 0) {
-      const [cx, cy] = queue.shift()!;
-      blob.count++;
-      if (cx < blob.minX) blob.minX = cx;
-      if (cx > blob.maxX) blob.maxX = cx;
-      if (cy < blob.minY) blob.minY = cy;
-      if (cy > blob.maxY) blob.maxY = cy;
+    for (const node of nodes) {
+      // Filtro de descarte: tipo numérico validado (^\\d+$).
+      const seq = parseSequenceToken(String(node.sequenceNumber));
+      if (seq === null) continue;
 
-      const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1]];
-      for (const [dx, dy] of dirs) {
-        const nx = cx + dx;
-        const ny = cy + dy;
-        if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
-          const nidx = ny * w + nx;
-          if (binary[nidx] === 1 && visited[nidx] === 0) {
-            visited[nidx] = 1;
-            queue.push([nx, ny]);
-          }
-        }
+      // Validación espacial (bounding box A4): fuera de la hoja se descarta.
+      if (
+        node.positionMeters.x <= 0 ||
+        node.positionMeters.x >= rink.lengthMeters ||
+        node.positionMeters.y <= 0 ||
+        node.positionMeters.y >= rink.widthMeters
+      ) {
+        continue;
       }
+      const bb = node.rawBoundingBox;
+      if (!bb || bb.width <= 0 || bb.height <= 0) continue;
+      // Tolerancia de 2px por redondeos del OCR antes de considerar "fuera".
+      if (bb.x < -2 || bb.y < -2 || bb.x + bb.width > w + 2 || bb.y + bb.height > h + 2) continue;
+
+      // Mapeo 1 a 1: si el número se repite, se conserva la mejor confianza.
+      const existing = byNumber.get(seq);
+      if (!existing || node.confidence > existing.confidence) {
+        byNumber.set(seq, { ...node, sequenceNumber: seq });
+      }
+    }
+
+    return [...byNumber.values()].sort((a, b) => a.sequenceNumber - b.sequenceNumber);
+  }
+
+  /**
+   * OCR local con Tesseract.js. Se pide salida TSV para obtener el texto y el
+   * bounding box por palabra, y solo se aceptan tokens numéricos.
+   */
+  private static async detectWithTesseract(
+    canvas: HTMLCanvasElement,
+    rink: RinkDimensions
+  ): Promise<DetectedNodeMarker[]> {
+    // Import dinámico: Tesseract (y sus workers) solo se descargan al digitalizar.
+    const Tesseract = await import('tesseract.js');
+    const createWorker = (Tesseract as any).createWorker;
+    if (typeof createWorker !== 'function') return [];
+
+    const worker = await createWorker('eng');
+    try {
+      // `output.tsv` da columnas: level page block par line word left top width height conf text
+      const result = await worker.recognize(canvas, {}, { tsv: true });
+      const tsv: string | undefined = result?.data?.tsv;
+      if (!tsv) return [];
+
+      const scaleX = rink.lengthMeters / canvas.width;
+      const scaleY = rink.widthMeters / canvas.height;
+      const found: DetectedNodeMarker[] = [];
+
+      for (const line of tsv.split('\n')) {
+        const cols = line.split('\t');
+        if (cols.length < 12) continue;
+
+        const level = cols[0];
+        if (level !== '5') continue; // 5 = nivel "word"
+
+        const left = Number(cols[6]);
+        const top = Number(cols[7]);
+        const width = Number(cols[8]);
+        const height = Number(cols[9]);
+        const conf = Number(cols[10]);
+        const text = cols[11];
+
+        const seq = parseSequenceToken(text);
+        if (seq === null) continue;
+        if (!Number.isFinite(left) || !Number.isFinite(top) || width <= 0 || height <= 0) continue;
+
+        const cx = left + width / 2;
+        const cy = top + height / 2;
+
+        found.push({
+          sequenceNumber: seq,
+          positionMeters: {
+            x: Math.round(cx * scaleX * 10) / 10,
+            y: Math.round(cy * scaleY * 10) / 10,
+          },
+          confidence: Number.isFinite(conf) ? Math.max(0.5, conf / 100) : 0.7,
+          rawBoundingBox: { x: left, y: top, width, height },
+        });
+      }
+
+      return found;
+    } finally {
+      await worker.terminate();
     }
   }
 
   /**
-   * Integración con Google Cloud Vision API si está provista en variables de entorno
+   * Google Cloud Vision: lee números y mapea el centro de su bounding box.
    */
   private static async detectWithGoogleVision(
     canvas: HTMLCanvasElement,
@@ -206,45 +209,37 @@ export class PaperOcrEngine {
     const scaleX = rink.lengthMeters / canvas.width;
     const scaleY = rink.widthMeters / canvas.height;
 
-    // El primer elemento es todo el texto agrupado, los subsecuentes son palabras
+    // El primer elemento es todo el texto agrupado; los siguientes son palabras.
     for (let i = 1; i < annotations.length; i++) {
       const item = annotations[i];
-      const num = parseInt(item.description, 10);
-      if (!isNaN(num) && num >= 1 && num <= 50) {
-        const verts = item.boundingPoly?.vertices || [];
-        if (verts.length >= 2) {
-          const cx = (verts[0].x + (verts[2]?.x || verts[1]?.x || verts[0].x)) / 2;
-          const cy = (verts[0].y + (verts[2]?.y || verts[1]?.y || verts[0].y)) / 2;
+      const seq = parseSequenceToken(item?.description);
+      if (seq === null) continue;
 
-          nodes.push({
-            sequenceNumber: num,
-            positionMeters: {
-              x: Math.round(cx * scaleX * 10) / 10,
-              y: Math.round(cy * scaleY * 10) / 10,
-            },
-            confidence: 0.95,
-            rawBoundingBox: {
-              x: verts[0].x,
-              y: verts[0].y,
-              width: Math.abs((verts[1]?.x || cx) - verts[0].x),
-              height: Math.abs((verts[2]?.y || cy) - verts[0].y),
-            },
-          });
-        }
-      }
+      const verts = item.boundingPoly?.vertices || [];
+      if (verts.length < 2) continue;
+
+      const xs = verts.map((v: any) => Number(v.x) || 0);
+      const ys = verts.map((v: any) => Number(v.y) || 0);
+      const minX = Math.min(...xs);
+      const maxX = Math.max(...xs);
+      const minY = Math.min(...ys);
+      const maxY = Math.max(...ys);
+      const width = Math.max(1, maxX - minX);
+      const height = Math.max(1, maxY - minY);
+      const cx = minX + width / 2;
+      const cy = minY + height / 2;
+
+      nodes.push({
+        sequenceNumber: seq,
+        positionMeters: {
+          x: Math.round(cx * scaleX * 10) / 10,
+          y: Math.round(cy * scaleY * 10) / 10,
+        },
+        confidence: 0.95,
+        rawBoundingBox: { x: minX, y: minY, width, height },
+      });
     }
 
-    nodes.sort((a, b) => a.sequenceNumber - b.sequenceNumber);
-
-    // Validación espacial: descartar detecciones fuera de la hoja A4 (el rango
-    // métrico equivale exactamente al área de la hoja deformada).
-    return nodes.filter(
-      (n) =>
-        n.positionMeters.x > 0 &&
-        n.positionMeters.x < rink.lengthMeters &&
-        n.positionMeters.y > 0 &&
-        n.positionMeters.y < rink.widthMeters
-    );
+    return nodes;
   }
 }
-

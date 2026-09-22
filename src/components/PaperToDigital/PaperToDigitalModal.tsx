@@ -314,11 +314,19 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
           setPoints(generatedPoints);
           setPhase('curve'); // Pasa directamente a modo curva interactiva
           alert(
-            `¡Digitalización Exitosa! Se detectaron ${detectedNodes.length} nodos principales numerados. ` +
-            `La Pista 2D muestra únicamente estos puntos (sin el trazado del dibujo original).`
+            `¡Digitalización Exitosa! Se reconocieron ${detectedNodes.length} ` +
+            `${detectedNodes.length === 1 ? 'número' : 'números'} y se crearon exactamente ` +
+            `${generatedPoints.length} ${generatedPoints.length === 1 ? 'nodo' : 'nodos'} (1 a 1). ` +
+            `No se generan nodos a partir del trazado.`
           );
         } else {
-          alert('No se detectaron números manuscritos físicos (1, 2, 3...) para crear nodos interactivos. La hoja rectificada se ha aplicado como fondo de calco para que coloques los nodos con un toque.');
+          alert(
+            'No se reconocieron números (1, 2, 3…) en la hoja, así que NO se creó ningún nodo ' +
+            '(nunca se inventan nodos a partir del trazado).\n\n' +
+            'Para la digitalización automática se necesita lectura de texto (OCR): ' +
+            'conexión a internet para el OCR local, o configurar la clave de Google Vision. ' +
+            'También puedes usar «Usar como Fondo de Calco» y colocar los nodos manualmente.'
+          );
         }
 
         setIsProcessing(false);
@@ -333,10 +341,15 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/80 backdrop-blur-md animate-in fade-in">
-      <div className="w-full max-w-4xl max-h-[92vh] flex flex-col bg-[#0D1322] border border-cyan/30 rounded-3xl shadow-2xl overflow-hidden text-slate-100">
+    <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-slate-950/80 p-0 backdrop-blur-md animate-in fade-in sm:items-center sm:p-6">
+      {/*
+        Layout móvil seguro: ocupa exactamente el viewport dinámico (dvh) con
+        áreas seguras del notch/barra, header y footer fijos y SOLO el cuerpo con
+        scroll interno. Evita que el modal se salga de la pantalla del navegador.
+      */}
+      <div className="flex h-[100dvh] w-full max-w-4xl flex-col overflow-hidden border-0 border-cyan/30 bg-[#0D1322] text-slate-100 shadow-2xl pt-safe pb-safe sm:h-auto sm:max-h-[90dvh] sm:rounded-3xl sm:border">
         {/* ── Modal Header ── */}
-        <div className="h-14 px-5 border-b border-white/10 flex items-center justify-between bg-slate-950/70 shrink-0">
+        <div className="flex h-14 shrink-0 items-center justify-between border-b border-white/10 bg-slate-950/70 px-4 sm:px-5">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-cyan/15 text-cyan flex items-center justify-center border border-cyan/30">
               <Camera className="w-4 h-4" />
