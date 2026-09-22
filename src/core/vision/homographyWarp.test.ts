@@ -1,6 +1,7 @@
 import { HomographyWarp, Point2D } from './HomographyWarp';
 import { PaperOcrEngine } from './PaperOcrEngine';
 import { FiducialDetector } from './FiducialDetector';
+import { isMarkerInk, rgbToHsv } from './PaperColorDetector';
 
 function runHomographyTests() {
   console.log('--- EJECUTANDO PRUEBAS DEL MOTOR DE VISIÓN: HOMOGRAFÍA Y PERSPECTIVA ---');
@@ -178,6 +179,19 @@ function runOcrMapperTests() {
   check(
     rotated.topRight.x === 50 && rotated.topRight.y === 0,
     'orderCornersFromOrigin es invariante a la rotación de la foto'
+  );
+
+  // Segmentación por color (truco del marcador rojo/azul)
+  check(isMarkerInk(220, 40, 40) === true, 'Rojo de marcador se detecta como tinta');
+  check(isMarkerInk(30, 60, 200) === true, 'Azul de marcador se detecta como tinta');
+  check(isMarkerInk(0, 0, 0) === false, 'Negro (impresión) NO se detecta como tinta');
+  check(isMarkerInk(130, 130, 130) === false, 'Gris de la pista NO se detecta como tinta');
+  check(isMarkerInk(0, 240, 255) === false, 'Cian de marca NO se detecta como tinta');
+  check(isMarkerInk(255, 255, 255) === false, 'Blanco del papel NO se detecta como tinta');
+  const hsv = rgbToHsv(255, 0, 0);
+  check(
+    Math.abs(hsv.h) < 1 && hsv.s > 0.9 && hsv.v > 0.9,
+    'rgbToHsv convierte rojo puro correctamente'
   );
 
   console.log(`\nOK PRUEBAS DEL MAPEO OCR PASARON: ${ok}/${t}`);

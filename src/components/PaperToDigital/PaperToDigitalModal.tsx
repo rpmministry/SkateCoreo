@@ -11,7 +11,6 @@ import {
 } from 'lucide-react';
 import { QuadCorners, HomographyWarp } from '../../core/vision/HomographyWarp';
 import { FiducialDetector } from '../../core/vision/FiducialDetector';
-import { PaperPreprocessor } from '../../core/vision/PaperPreprocessor';
 import { PaperVectorizer } from '../../core/vision/PaperVectorizer';
 import { PaperOcrEngine, OcrDebugEntry } from '../../core/vision/PaperOcrEngine';
 import { CornerPinAdjuster } from './CornerPinAdjuster';
@@ -49,7 +48,9 @@ function buildOcrDebugOverlay(binarized: HTMLCanvasElement, debug: OcrDebugEntry
     const label = d.rejected
       ? 'FILTRADO'
       : d.accepted
-        ? `OK: ${d.text}`
+        ? d.text
+          ? `OK: ${d.text}`
+          : 'NODO'
         : d.text
           ? `X: ${d.text}`
           : 'PENDIENTE';
@@ -214,7 +215,8 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
     ctx.stroke();
 
     // Trazos simulados a mano de la entrenadora (tinta azul oscura)
-    ctx.strokeStyle = '#1E3A8A';
+    // Trayectoria neutra (gris, NO saturada) → no interfiere con la máscara de color.
+    ctx.strokeStyle = '#64748B';
     ctx.lineWidth = 5;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -305,25 +307,18 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
 
         // ── REGLA DE RENDERIZADO LIMPIO ───────────────────────────────────────
         // El trazado de tinta del dibujo original NO se usa ni se renderiza en la
-        // Pista 2D (solo los puntos numerados). Al desactivarlo se evita incluso
-        // el coste de vectorizar los trazos.
+        // Pista 2D (solo los puntos numerados).
         const INCLUDE_TRACED_STROKES = false;
         const strokes = INCLUDE_TRACED_STROKES ? PaperVectorizer.extractStrokes(warpedCanvas) : [];
 
-        // Paso 2/3: preprocesado (grises + contraste + Otsu) sobre la imagen alineada.
-        setStatusMessage('Paso 2/3: Preprocesando imagen (grises, contraste, Otsu)...');
-        const pre = PaperPreprocessor.preprocess(warpedCanvas);
+        // Paso 2/3: reconocimiento SOBRE LA IMAGEN YA ALINEADA (nunca la original).
+        //   · Con clave de Cloud Vision → HTR (lee el número manuscrito).
+        //   · Sin clave → "truco del marcador": segmentación por COLOR rojo/azul.
+        setStatusMessage('Paso 2/3: Reconociendo nodos (IA de visión o segmentación por color)...');
+        const ocrResult = await PaperOcrEngine.detectNumberedNodesWithDebug(warpedCanvas);
 
-        // Paso 3/3: detección de círculos + OCR de UN carácter sobre cada ROI limpio.
-        setStatusMessage('Paso 3/3: Detectando círculos y leyendo el número central...');
-        const ocrResult = await PaperOcrEngine.detectNumberedNodesWithDebug(
-          warpedCanvas,
-          undefined,
-          pre.binarized
-        );
-
-        // Debug visual: overlay con centroides y lo que leyó el OCR.
-        setPreviewUrl(buildOcrDebugOverlay(pre.binarized, ocrResult.debug));
+        // Debug visual: overlay con los nodos detectados sobre la hoja alineada.
+        setPreviewUrl(buildOcrDebugOverlay(warpedCanvas, ocrResult.debug));
         const rawDetectedNodes = ocrResult.nodes;
 
         // ── FAIL-SAFE ─────────────────────────────────────────────────────────
@@ -408,15 +403,15 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
             `¡Digitalización Exitosa! Se detectaron ${detectedNodes.length} ` +
             `${detectedNodes.length === 1 ? 'nodo' : 'nodos'}` +
             (pendingCount > 0
-              ? ` (${recognizedNodes.length} con número reconocido y ${pendingCount} pendientes en naranja).`
+              ? ` (${recognizedNodes.length} con número leído por IA y ${pendingCount} pendientes en naranja).`
               : ' con su número reconocido.') +
             '\n\nLos nodos pendientes aparecen en naranja: haz DOBLE CLIC sobre ellos en la Pista 2D para escribir su número.'
           );
         } else {
           alert(
-            'No se detectó ningún contorno de nodo en la hoja escaneada.\n\n' +
-            'Dibuja un círculo alrededor de cada número y vuelve a escanear con buena luz. ' +
-            'También puedes usar «Usar como Fondo de Calco» y colocar los nodos manualmente.'
+            'No se detectó ningún nodo.\n\n' +
+            'Dibuja cada nodo (círculo + número) con un bolígrafo/marcador ROJO o AZUL sobre la pista de la hoja, ' +
+            'y vuelve a escanear con buena luz. También puedes usar «Usar como Fondo de Calco» y colocar los nodos manualmente.'
           );
         }
 
@@ -633,10 +628,13 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
 
               <div className="mt-auto space-y-1.5 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-[10px] leading-relaxed text-slate-400">
                 <p>
-                  Se digitalizan <strong className="text-cyan">solo los nodos numerados</strong> (1, 2, 3…).
+                  <strong className="text-rose-300">Dibuja los nodos con bolígrafo/marcador ROJO o AZUL</strong>{' '}
+                  (círculo + número). La plantilla impresa desaparece y cada mancha se detecta como un nodo.
                 </p>
-                <p>El trazado del dibujo original no se copia ni se muestra en la pista.</p>
-                <p>Los puntos fuera de la hoja A4 se descartan automáticamente.</p>
+                <p>
+                  Con Google Cloud Vision configurado, la IA lee además el número manuscrito.
+                </p>
+                <p>Si un número no se lee, aparece en naranja: haz doble clic en la Pista 2D para escribirlo.</p>
               </div>
             </aside>
           </div>

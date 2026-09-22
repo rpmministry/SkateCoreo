@@ -105,8 +105,8 @@ export const PDF_TEXTS = {
   judgesPanel: 'PANEL DE JUECES (WORLD SKATE)',
   instructionsTitle: 'INSTRUCCIONES (PAPER-TO-DIGITAL)',
   instructions: [
-    '1) Trace las trayectorias sobre la pista con tinta oscura.   2) Numere los nodos en secuencia (1, 2, 3…).   3) Fotografíe la hoja completa y bien iluminada.',
-    '4) En SkateCoreo pulse «Digitalizar Papel» y suba la foto: la perspectiva se corrige sola. Mantenga las 4 marcas de esquina visibles y la hoja sin doblar.',
+    '1) Dibuja cada nodo (círculo + número) con bolígrafo o marcador ROJO o AZUL sobre la pista.   2) Numera los nodos en secuencia (1, 2, 3…).   3) Fotografía la hoja completa y bien iluminada.',
+    '4) En SkateCoreo pulsa «Digitalizar Papel» y sube la foto: la orientación y la perspectiva se corrigen solas. Mantén las 4 marcas de esquina visibles y la hoja sin doblar.',
   ],
   credit: 'Desarrollado por AlsisTech | Asesoría Técnica: Avril Andrade Sanchez',
 } as const;
@@ -117,8 +117,10 @@ const SLATE_900: [number, number, number] = [15, 23, 42];
 const SLATE_400: [number, number, number] = [148, 163, 184];
 const SLATE_600: [number, number, number] = [71, 85, 105];
 const CYAN: [number, number, number] = [0, 240, 255];
-const SKY: [number, number, number] = [2, 132, 199];
-const PURPLE: [number, number, number] = [168, 85, 247];
+/** Grises NEUTROS para las marcas de la pista: no deben entrar en la máscara de
+ *  color del "truco del marcador" (tinta roja/azul del usuario). */
+const RINK_GRAY: [number, number, number] = [130, 130, 130];
+const RINK_DARK: [number, number, number] = [90, 90, 90];
 
 export class PdfTemplateGenerator {
   /** Genera el documento PDF A4 horizontal y retorna la instancia jsPDF. */
@@ -291,7 +293,7 @@ export class PdfTemplateGenerator {
     const midY = RINK_Y + RINK_H / 2;
     const midX = RINK_X + RINK_W / 2;
 
-    doc.setDrawColor(...SKY);
+    doc.setDrawColor(...RINK_GRAY);
     doc.setLineWidth(0.35);
     doc.setLineDashPattern([3, 2], 0);
     doc.line(RINK_X, midY, RINK_X + RINK_W, midY);
@@ -299,12 +301,12 @@ export class PdfTemplateGenerator {
     doc.setLineDashPattern([], 0);
 
     // Círculo central (radio 3 m)
-    doc.setDrawColor(...SKY);
+    doc.setDrawColor(...RINK_GRAY);
     doc.setLineWidth(0.3);
     doc.circle(midX, midY, 3 * scaleMmPerMeter, 'S');
 
     // Diagonales de evaluación
-    doc.setDrawColor(...PURPLE);
+    doc.setDrawColor(...RINK_GRAY);
     doc.setLineWidth(0.25);
     doc.setLineDashPattern([2, 3], 0);
     doc.line(RINK_X, RINK_Y, RINK_X + RINK_W, RINK_Y + RINK_H);
@@ -312,7 +314,7 @@ export class PdfTemplateGenerator {
     doc.setLineDashPattern([], 0);
 
     // Marcas de 3/4 de eje largo: SOLO la marca gráfica, sin ningún rótulo.
-    doc.setFillColor(...SKY);
+    doc.setFillColor(...RINK_DARK);
     doc.rect(RINK_X + RINK_W * 0.25 - 0.5, midY - 3, 1, 6, 'F');
     doc.rect(RINK_X + RINK_W * 0.75 - 0.5, midY - 3, 1, 6, 'F');
 

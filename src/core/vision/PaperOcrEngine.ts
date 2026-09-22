@@ -1,33 +1,34 @@
 /**
- * PaperOcrEngine — Detección HEURÍSTICA y tolerante de nodos numerados.
+ * PaperOcrEngine — Reconocimiento de nodos con IA de visión + segmentación por color.
  *
- * ── PRINCIPIOS (fail-safe) ──────────────────────────────────────────────────
- *  1. DETECCIÓN RELAJADA: nada de circularidad estricta ni HoughCircles. Se
- *     buscan contornos cerrados/semi-cerrados (componentes conexas de tinta) y
- *     se validan SOLO por ÁREA (0.5%–4% de la hoja) y ASPECTO (0.5–1.8).
- *  2. REGISTRO INMEDIATO: todo contorno que pase el filtro ES UN NODO. Su
- *     centroide se guarda al momento, ANTES de leer el número.
- *  3. CROP CENTRAL: no se limpia el aro del círculo (eso borra el número). Se
- *     recorta el 60% central del bounding box (se descarta el 20% por lado).
- *  4. OCR: el recorte se escala ×3 y se le añade padding blanco de 24 px; se lee
- *     con PSM 10 (un carácter) y whitelist 0-9.
- *  5. FAIL-SAFE: si el OCR falla, el nodo IGUAL existe con número 0 (se marca
- *     como no reconocido para editarlo a mano en la pista). Nunca se descarta.
- *  6. MAPEO: el centroide (px de la imagen YA ALINEADA) se convierte a metros de
- *     pista con la misma escala que usa el lienzo 2D.
+ * Se ABANDONA Tesseract (no lee números manuscritos dentro de círculos). Dos rutas:
+ *
+ *  OPCIÓN 1 · HTR en la nube (si `VITE_GOOGLE_VISION_API_KEY` está configurada):
+ *    Google Cloud Vision (Document Text Detection) lee el número manuscrito y su
+ *    bounding box con alta precisión, ignorando el círculo. Se filtran tokens
+ *    ^\d+$ y se crea un nodo por número.
+ *
+ *  OPCIÓN 2 · "Truco del marcador" (offline, por defecto):
+ *    El usuario dibuja con bolígrafo/marcador ROJO o AZUL. Se aísla esa tinta en
+ *    HSV, desapareciendo la plantilla impresa; cada mancha es un nodo. El número
+ *    se puede digitar a mano tocando el nodo en la Pista 2D.
+ *
+ * REGLA ABSOLUTA DE COORDENADAS: todo se calcula SOBRE LA IMAGEN YA ALINEADA
+ * (warp perspective con las 4 marcas), nunca sobre la foto original.
  */
 
 import { Point2D } from '../math/FreehandPathEngine';
 import { RinkDimensions } from '../../types/choreography';
 import { DEFAULT_RINK_DIMENSIONS } from '../canvas/RinkMath';
+import { PaperColorDetector } from './PaperColorDetector';
 
 export interface DetectedNodeMarker {
-  /** Número leído por el OCR. 0 = no reconocido (nodo pendiente de editar). */
+  /** Número leído por la IA. 0 = no reconocido (usuario lo digita a mano). */
   sequenceNumber: number;
   positionMeters: Point2D;
   confidence: number;
   rawBoundingBox: { x: number; y: number; width: number; height: number };
-  /** true si el OCR no pudo leer el número (nodo fail-safe pendiente). */
+  /** true si el número aún no se conoce (nodo pendiente de edición). */
   unrecognized: boolean;
 }
 
@@ -37,7 +38,6 @@ export interface OcrDebugEntry {
   radius: number;
   text: string;
   accepted: boolean;
-  /** true si el contorno fue RECHAZADO por los filtros (se pinta en azul). */
   rejected?: boolean;
   reason?: string;
 }
@@ -45,30 +45,14 @@ export interface OcrDebugEntry {
 export interface OcrResult {
   nodes: DetectedNodeMarker[];
   debug: OcrDebugEntry[];
-  method: 'vision' | 'contours' | 'none';
+  method: 'vision' | 'color' | 'none';
 }
 
-interface ContourRect {
-  minX: number;
-  maxX: number;
-  minY: number;
-  maxY: number;
-  area: number;
-  bboxArea: number;
-  cx: number;
-  cy: number;
-}
-
-/* ── Umbrales ESTRICTOS de filtrado de nodos manuscritos ── */
-/** Área mínima relativa: 0.15% del área total (mata polvo, ruido y letras). */
+/* Umbrales conservados para utilidades de validación/portabilidad. */
 const MIN_AREA_RATIO = 0.0015;
-/** Área máxima relativa: 3.5% (descarta el círculo central y elementos grandes). */
 const MAX_AREA_RATIO = 0.035;
-/** Proporción del bounding box aceptada (círculos/cuadrados imperfectos). */
 const MIN_ASPECT = 0.6;
 const MAX_ASPECT = 1.5;
-/** Zona muerta central: radio relativo al lado menor de la imagen alineada. */
-const DEAD_ZONE_RADIUS_RATIO = 0.13;
 
 /** Token numérico válido: solo dígitos (^\\d+$) y en rango razonable de nodos. */
 function parseSequenceToken(raw: string | null | undefined): number | null {
@@ -92,122 +76,75 @@ export class PaperOcrEngine {
   public static async detectNumberedNodesWithDebug(
     warpedCanvas: HTMLCanvasElement,
     rink: RinkDimensions = DEFAULT_RINK_DIMENSIONS,
-    binarized?: HTMLCanvasElement
+    _binarized?: HTMLCanvasElement
   ): Promise<OcrResult> {
-    const work = binarized && binarized.width > 0 ? binarized : warpedCanvas;
-    const w = work.width;
-    const h = work.height;
+    const w = warpedCanvas.width;
+    const h = warpedCanvas.height;
     if (w <= 0 || h <= 0) return { nodes: [], debug: [], method: 'none' };
 
-    // 1) Google Cloud Vision (si hay clave): lectura directa y precisa.
+    // ── OPCIÓN 1: HTR en la nube (Google Cloud Vision) ─────────────────────
     const visionApiKey = (import.meta as any).env?.VITE_GOOGLE_VISION_API_KEY;
     if (visionApiKey) {
       try {
-        const cloudNodes = await this.detectWithGoogleVision(work, visionApiKey, rink);
+        const cloudNodes = await this.detectWithGoogleVision(warpedCanvas, visionApiKey, rink);
         const nodes = this.sanitize(cloudNodes, rink);
-        if (nodes.length > 0) return { nodes, debug: [], method: 'vision' };
+        if (nodes.length > 0) {
+          const debug: OcrDebugEntry[] = nodes.map((n) => ({
+            x: (n.positionMeters.x / rink.lengthMeters) * w,
+            y: (n.positionMeters.y / rink.widthMeters) * h,
+            radius: Math.max(8, Math.max(n.rawBoundingBox.width, n.rawBoundingBox.height) / 2),
+            text: String(n.sequenceNumber),
+            accepted: true,
+          }));
+          return { nodes, debug, method: 'vision' };
+        }
       } catch (err) {
-        console.warn('[PaperOcrEngine] Falló Google Vision, se usará el pipeline local:', err);
+        console.warn('[PaperOcrEngine] Falló Cloud Vision; se usará el modo color:', err);
       }
     }
 
-    // 2) Contornos con FILTRADO ESTRICTO + OCR de un carácter (con fail-safe).
-    const { accepted, rejected } = this.findInkContours(work);
+    // ── OPCIÓN 2: segmentación por COLOR (offline, fail-safe) ──────────────
+    // Cada mancha ROJA/AZUL es un nodo. El número se digita tocando el nodo.
+    const blobs = PaperColorDetector.detectInkBlobs(warpedCanvas);
+    if (blobs.length > 0) {
+      const nodes: DetectedNodeMarker[] = blobs.map((b) => ({
+        sequenceNumber: 0,
+        positionMeters: this.pixelsToMeters(b.cx, b.cy, w, h, rink),
+        confidence: 0.5,
+        rawBoundingBox: {
+          x: b.minX,
+          y: b.minY,
+          width: b.maxX - b.minX,
+          height: b.maxY - b.minY,
+        },
+        unrecognized: true,
+      }));
 
-    const debug: OcrDebugEntry[] = rejected.map((c) => ({
-      x: c.cx,
-      y: c.cy,
-      radius: Math.max(c.maxX - c.minX, c.maxY - c.minY) / 2,
-      text: '',
-      accepted: false,
-      rejected: true,
-      reason: 'Rechazado: área/proporción fuera de rango',
-    }));
+      const debug: OcrDebugEntry[] = blobs.map((b) => ({
+        x: b.cx,
+        y: b.cy,
+        radius: Math.max(b.maxX - b.minX, b.maxY - b.minY) / 2,
+        text: '',
+        accepted: true,
+        reason: 'Nodo por color · digita el número con doble clic',
+      }));
 
-    if (accepted.length === 0) return { nodes: [], debug, method: 'none' };
-
-    const nodes: DetectedNodeMarker[] = [];
-
-    // El nodo se registra SIEMPRE; el OCR solo intenta asignarle número.
-    const Tesseract = await import('tesseract.js');
-    const createWorker = (Tesseract as any).createWorker;
-    let worker: any = null;
-    if (typeof createWorker === 'function') {
-      try {
-        worker = await createWorker('eng');
-        await worker.setParameters({
-          tessedit_char_whitelist: '0123456789',
-          tessedit_pageseg_mode: '10', // Single Character
-        });
-      } catch {
-        worker = null;
-      }
+      return { nodes: this.sanitize(nodes, rink), debug, method: 'color' };
     }
 
-    try {
-      for (const c of accepted) {
-        const radius = Math.max(c.maxX - c.minX, c.maxY - c.minY) / 2;
-        const entry: OcrDebugEntry = { x: c.cx, y: c.cy, radius, text: '', accepted: false };
-
-        let seq = 0;
-        if (worker) {
-          try {
-            const roi = this.buildCentralCropRoi(work, c);
-            if (roi) {
-              const r = await worker.recognize(roi);
-              const text = String(r?.data?.text ?? '').replace(/\s+/g, '');
-              entry.text = text;
-              const parsed = parseSequenceToken(text);
-              if (parsed !== null) {
-                seq = parsed;
-                entry.accepted = true;
-              } else {
-                entry.reason = 'Sin dígito (nodo pendiente de edición)';
-              }
-            } else {
-              entry.reason = 'ROI vacío';
-            }
-          } catch {
-            entry.reason = 'Error OCR (nodo pendiente de edición)';
-          }
-        } else {
-          entry.reason = 'OCR no disponible (nodo pendiente de edición)';
-        }
-
-        debug.push(entry);
-
-        // FAIL-SAFE: el nodo se crea SIEMPRE (seq 0 si el OCR falló).
-        nodes.push({
-          sequenceNumber: seq,
-          positionMeters: this.pixelsToMeters(c.cx, c.cy, w, h, rink),
-          confidence: seq > 0 ? 0.9 : 0.3,
-          rawBoundingBox: {
-            x: c.minX,
-            y: c.minY,
-            width: c.maxX - c.minX,
-            height: c.maxY - c.minY,
-          },
-          unrecognized: seq <= 0,
-        });
-      }
-    } finally {
-      if (worker) {
-        try {
-          await worker.terminate();
-        } catch {
-          /* worker ya cerrado */
-        }
-      }
-    }
-
-    return { nodes: this.sanitize(nodes, rink), debug, method: 'contours' };
+    // Sin IA ni manchas de color → 0 nodos (nunca fantasmas).
+    return { nodes: [], debug: [], method: 'none' };
   }
 
   /* ══════════════════════════════════════════════════════════════════════
      MAPEO DE COORDENADAS (estricto)
      ══════════════════════════════════════════════════════════════════════ */
 
-  /** Centroide (px de la imagen ALINEADA) → metros de pista. */
+  /**
+   * Centroide (px de la imagen ALINEADA) → metros de pista.
+   *   metro = px × (tamaño_pista / tamaño_imagen_normalizada)
+   * Es la misma relación que usa el lienzo 2D (metros → px de pantalla).
+   */
   public static pixelsToMeters(
     cx: number,
     cy: number,
@@ -222,20 +159,14 @@ export class PaperOcrEngine {
     };
   }
 
-  /**
-   * FILTRO ESTRICTO de área relativa: el contorno debe representar entre el
-   * 0.15% y el 3.5% del área total de la hoja alineada.
-   */
+  /** Valida un candidato por área relativa (0.15–3.5%). */
   public static passesAreaFilter(bboxArea: number, totalArea: number): boolean {
     if (totalArea <= 0) return false;
     const ratio = bboxArea / totalArea;
     return ratio >= MIN_AREA_RATIO && ratio <= MAX_AREA_RATIO;
   }
 
-  /**
-   * Filtro de contorno: área relativa (0.15–3.5%) y aspecto (0.6–1.5).
-   * `minArea`/`maxArea` permiten inyectar los límites en pruebas unitarias.
-   */
+  /** Valida un candidato por área y proporción (0.6–1.5). */
   public static isCircleCandidate(
     bboxW: number,
     bboxH: number,
@@ -251,166 +182,14 @@ export class PaperOcrEngine {
   }
 
   /* ══════════════════════════════════════════════════════════════════════
-     DETECCIÓN DE CONTORNOS (componentes conexas de tinta)
+     VALIDACIÓN (fail-safe)
      ══════════════════════════════════════════════════════════════════════ */
 
-  private static findInkContours(
-    canvas: HTMLCanvasElement
-  ): { accepted: ContourRect[]; rejected: ContourRect[] } {
-    const w = canvas.width;
-    const h = canvas.height;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return { accepted: [], rejected: [] };
-    const { data } = ctx.getImageData(0, 0, w, h);
-
-    const totalArea = w * h;
-    const minArea = Math.ceil(totalArea * MIN_AREA_RATIO);
-    const maxArea = Math.floor(totalArea * MAX_AREA_RATIO);
-
-    // ── ZONA MUERTA CENTRAL ────────────────────────────────────────────────
-    // El círculo central de la plantilla es un elemento ESTRUCTURAL grande.
-    // Se "borra" (se pinta como fondo) antes de buscar contornos.
-    const czx = w / 2;
-    const czy = h / 2;
-    const deadR = Math.min(w, h) * DEAD_ZONE_RADIUS_RATIO;
-    const deadR2 = deadR * deadR;
-
-    const ink = new Uint8Array(w * h);
-    for (let i = 0; i < w * h; i++) {
-      const idx = i * 4;
-      const lum = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
-      if (lum >= 128) continue; // fondo
-      const x = i % w;
-      const y = (i - x) / w;
-      const dx = x - czx;
-      const dy = y - czy;
-      if (dx * dx + dy * dy <= deadR2) continue; // dentro de la zona muerta
-      ink[i] = 1;
-    }
-
-    const visited = new Uint8Array(w * h);
-    const components: ContourRect[] = [];
-    const stack: number[] = [];
-
-    for (let start = 0; start < w * h; start++) {
-      if (ink[start] !== 1 || visited[start] === 1) continue;
-
-      const rect: ContourRect = { minX: w, maxX: 0, minY: h, maxY: 0, area: 0, bboxArea: 0, cx: 0, cy: 0 };
-      stack.length = 0;
-      stack.push(start);
-      visited[start] = 1;
-
-      while (stack.length > 0) {
-        const idx = stack.pop()!;
-        const x = idx % w;
-        const y = (idx - x) / w;
-        rect.area++;
-        if (x < rect.minX) rect.minX = x;
-        if (x > rect.maxX) rect.maxX = x;
-        if (y < rect.minY) rect.minY = y;
-        if (y > rect.maxY) rect.maxY = y;
-
-        if (x > 0) { const n = idx - 1; if (ink[n] === 1 && visited[n] === 0) { visited[n] = 1; stack.push(n); } }
-        if (x < w - 1) { const n = idx + 1; if (ink[n] === 1 && visited[n] === 0) { visited[n] = 1; stack.push(n); } }
-        if (y > 0) { const n = idx - w; if (ink[n] === 1 && visited[n] === 0) { visited[n] = 1; stack.push(n); } }
-        if (y < h - 1) { const n = idx + w; if (ink[n] === 1 && visited[n] === 0) { visited[n] = 1; stack.push(n); } }
-      }
-
-      const bw = rect.maxX - rect.minX + 1;
-      const bh = rect.maxY - rect.minY + 1;
-      rect.bboxArea = bw * bh;
-      rect.cx = (rect.minX + rect.maxX) / 2;
-      rect.cy = (rect.minY + rect.maxY) / 2;
-      components.push(rect);
-    }
-
-    // ── JERARQUÍA (aproximada) ─────────────────────────────────────────────
-    // Un componente LOCALIZADO mayor que el área máxima (p. ej. un círculo
-    // grande) rechaza a los candidatos contenidos en él. El marco de la pista
-    // (bbox ≈ toda la hoja) NO actúa como contenedor: solo se rechaza a sí mismo,
-    // para no anular todos los nodos.
-    const localizedBig = components.filter(
-      (c) => c.bboxArea > maxArea && c.bboxArea < totalArea * 0.6
-    );
-    const contains = (outer: ContourRect, inner: ContourRect): boolean =>
-      outer !== inner &&
-      outer.bboxArea > inner.bboxArea &&
-      outer.minX <= inner.minX &&
-      outer.maxX >= inner.maxX &&
-      outer.minY <= inner.minY &&
-      outer.maxY >= inner.maxY;
-
-    const rejected: ContourRect[] = [];
-    const candidates: ContourRect[] = [];
-
-    for (const c of components) {
-      const bw = c.maxX - c.minX + 1;
-      const bh = c.maxY - c.minY + 1;
-      const isBigParent = c.bboxArea > maxArea;
-      const nestedInBig = localizedBig.some((b) => contains(b, c));
-
-      if (isBigParent || nestedInBig || !this.isCircleCandidate(bw, bh, c.bboxArea, minArea, maxArea)) {
-        rejected.push(c);
-      } else {
-        candidates.push(c);
-      }
-    }
-
-    // Si un candidato está contenido en otro candidato (p. ej. el dígito dentro
-    // del círculo), se conserva el EXTERIOR y se rechaza el interior.
-    const accepted = candidates.filter((c) => !candidates.some((o) => contains(o, c)));
-    for (const c of candidates) {
-      if (!accepted.includes(c)) rejected.push(c);
-    }
-
-    return { accepted, rejected };
-  }
-
-  /**
-   * Crop CENTRAL del bounding box (60% central: descarta el 20% por lado), luego
-   * escala ×3 y añade padding blanco de 24 px. Sin limpieza morfológica.
-   */
-  private static buildCentralCropRoi(canvas: HTMLCanvasElement, c: ContourRect): HTMLCanvasElement | null {
-    const w = canvas.width;
-    const h = canvas.height;
-
-    const bw = c.maxX - c.minX + 1;
-    const bh = c.maxY - c.minY + 1;
-    const cropW = Math.max(3, Math.round(bw * 0.6));
-    const cropH = Math.max(3, Math.round(bh * 0.6));
-    const x0 = Math.max(0, Math.min(w - cropW, Math.round(c.cx - cropW / 2)));
-    const y0 = Math.max(0, Math.min(h - cropH, Math.round(c.cy - cropH / 2)));
-    if (cropW <= 2 || cropH <= 2) return null;
-
-    const scale = 3; // ~200% más grande
-    const padding = 24; // borde blanco sólido
-    const out = document.createElement('canvas');
-    out.width = cropW * scale + padding * 2;
-    out.height = cropH * scale + padding * 2;
-    const octx = out.getContext('2d');
-    if (!octx) return null;
-
-    octx.fillStyle = '#FFFFFF';
-    octx.fillRect(0, 0, out.width, out.height);
-    octx.imageSmoothingEnabled = false;
-    octx.drawImage(canvas, x0, y0, cropW, cropH, padding, padding, cropW * scale, cropH * scale);
-
-    return out;
-  }
-
-  /* ══════════════════════════════════════════════════════════════════════
-     VALIDACIÓN / NORMALIZACIÓN (fail-safe: conserva nodos con seq 0)
-     ══════════════════════════════════════════════════════════════════════ */
-
-  private static sanitize(
-    nodes: DetectedNodeMarker[],
-    rink: RinkDimensions
-  ): DetectedNodeMarker[] {
+  private static sanitize(nodes: DetectedNodeMarker[], rink: RinkDimensions): DetectedNodeMarker[] {
     const recognized = new Map<number, DetectedNodeMarker>();
     const unrecognized: DetectedNodeMarker[] = [];
 
     for (const node of nodes) {
-      // Posición dentro de la hoja/pista (bounding box A4).
       if (
         node.positionMeters.x < 0 ||
         node.positionMeters.x > rink.lengthMeters ||
@@ -429,7 +208,6 @@ export class PaperOcrEngine {
           recognized.set(seq, { ...node, sequenceNumber: seq, unrecognized: false });
         }
       } else {
-        // Fail-safe: se conservan TODOS los nodos no reconocidos.
         unrecognized.push({ ...node, sequenceNumber: 0, unrecognized: true });
       }
     }
@@ -440,12 +218,16 @@ export class PaperOcrEngine {
     ];
   }
 
+  /**
+   * Google Cloud Vision · Document Text Detection (HTR). Filtra tokens ^\\d+$ y
+   * extrae el CENTRO del bounding box de cada número manuscrito.
+   */
   private static async detectWithGoogleVision(
     canvas: HTMLCanvasElement,
     apiKey: string,
     rink: RinkDimensions
   ): Promise<DetectedNodeMarker[]> {
-    const base64 = canvas.toDataURL('image/jpeg', 0.85).replace(/^data:image\/jpeg;base64,/, '');
+    const base64 = canvas.toDataURL('image/jpeg', 0.9).replace(/^data:image\/jpeg;base64,/, '');
 
     const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
       method: 'POST',
