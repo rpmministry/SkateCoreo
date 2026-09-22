@@ -12,6 +12,7 @@ import {
   AudioTrackMetadata,
   AudioClipMetadata,
   DraggingGhostState,
+  TrashDragState,
 } from '../types/audioStudio';
 import { BpmDetector } from '../core/audio/BpmDetector';
 import { snapToZeroCrossing } from '../core/audio/zeroCrossing';
@@ -58,6 +59,15 @@ export interface AudioStudioStoreState {
   contextMenu: ClipContextMenuState | null;
   openContextMenu: (trackId: string, clipId: string, x: number, y: number) => void;
   closeContextMenu: () => void;
+
+  // Modo "arrastrar a la basura" (pulsación larga en móvil/táctil)
+  trashDrag: TrashDragState;
+  /** Activa el modo basura para un clip (disparado por `useLongPress`). */
+  beginTrashDrag: (trackId: string, clipId: string) => void;
+  /** Actualiza si el puntero está sobre la Dropzone (resalta el basurero). */
+  setTrashHover: (overTrash: boolean) => void;
+  /** Sale del modo basura sin borrar (cancelación). */
+  endTrashDrag: () => void;
 
   // Manifiesto reactivo ligero de la mezcla para sincronización sin buffers pesados
   mixManifest: MixProjectMetadata;
@@ -438,6 +448,27 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
     });
   },
   closeContextMenu: () => set({ contextMenu: null }),
+
+  // ── Modo "arrastrar a la basura" (pulsación larga en móvil) ──
+  trashDrag: { active: false, trackId: null, clipId: null, overTrash: false },
+  beginTrashDrag: (trackId, clipId) => {
+    set({
+      trashDrag: { active: true, trackId, clipId, overTrash: false },
+      selectedClipId: clipId,
+      // El modo basura reemplaza al menú contextual para no solaparse.
+      contextMenu: null,
+    });
+  },
+  setTrashHover: (overTrash) => {
+    const current = get().trashDrag;
+    if (!current.active || current.overTrash === overTrash) return;
+    set({ trashDrag: { ...current, overTrash } });
+  },
+  endTrashDrag: () => {
+    const current = get().trashDrag;
+    if (!current.active) return;
+    set({ trashDrag: { active: false, trackId: null, clipId: null, overTrash: false } });
+  },
 
   mixManifest: buildManifest(initialTracks, [], DEFAULT_GLOBAL_CONTROLS, 120),
   getMixManifest: () => {

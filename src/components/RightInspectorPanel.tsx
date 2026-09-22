@@ -18,7 +18,7 @@ import {
   FIGURAS_LIBRES_Y_ARTISTICAS 
 } from '../constants/reglamento';
 
-import { isSpeakableFigure } from '../core/audio/VoiceCueEngine';
+import { collectNodeFigures } from '../core/audio/VoiceCueEngine';
 import { useAudioEngine } from '../hooks/useAudioEngine';
 
 const formatTime = (ms: number): string => {
@@ -397,8 +397,7 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
             </div>
 
             {/* Secuencia Vocal Preview */}
-            {selectedPoint.label &&
-              isSpeakableFigure(selectedPoint.label, selectedPoint.type) && (
+            {collectNodeFigures(selectedPoint).length > 0 && (
                 <div className="bg-neon-card shadow-soft-elevation rounded-2xl p-3 space-y-1.5">
                   <div className="flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-mint shrink-0" />
@@ -407,7 +406,7 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                     </span>
                   </div>
                   <p className="text-xs text-white font-bold">
-                    "{selectedPoint.label}, en tres, dos, uno, ¡ya!"
+                    "{collectNodeFigures(selectedPoint).join(', ')}, en tres, dos, uno, ¡ya!"
                   </p>
                   <p className="text-[10px] text-slate-500">
                     Aviso: {Math.max(0, (selectedPoint.time_ms - 4200) / 1000).toFixed(1)}s →

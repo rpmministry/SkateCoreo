@@ -87,6 +87,18 @@ export interface ClipContextMenuState {
   clipId: string;
 }
 
+/**
+ * Estado del modo "arrastrar a la basura" activado por pulsación larga en móvil.
+ * Mientras está activo se muestra una Dropzone con icono de basurero; al soltar
+ * el clip sobre ella se elimina del timeline.
+ */
+export interface TrashDragState {
+  active: boolean;
+  trackId: string | null;
+  clipId: string | null;
+  overTrash: boolean;
+}
+
 export interface DraggingGhostState {
   clip: AudioClip;
   fromTrackId: string;

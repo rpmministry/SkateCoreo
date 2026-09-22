@@ -1,5 +1,5 @@
 import { Metronome } from './Metronome';
-import { VoiceCueEngine, isSpeakableFigure, cleanFigureNameForSpeech } from './VoiceCueEngine';
+import { VoiceCueEngine, isSpeakableFigure, cleanFigureNameForSpeech, collectNodeFigures } from './VoiceCueEngine';
 import { ElementLog, ChoreographyPathPoint } from '../../types/choreography';
 import { ttsService } from '../../services/ttsService';
 
@@ -281,6 +281,31 @@ async function runTests() {
   assert(!mixedCues.some(c => c.elementId === 'node-inicio'), 'Nodo inicio sin figura no genera ningún aviso vocal');
   assert(!mixedCues.some(c => c.elementId === 'node-fin'), 'Nodo fin sin figura no genera ningún aviso vocal');
   assert(mixedCues.some(c => c.text.includes('Salchow')), 'VoiceCueEngine conserva figura técnica real "Salchow"');
+
+  // ── Regresión: la Voz Guía lee OBLIGATORIAS + MANUALES del nodo ──
+  // Antes solo se leían figuras del catálogo y se descartaban las manuales.
+  const manualNode = {
+    id: 'node-manual',
+    x: 30,
+    y: 12,
+    time_ms: 30000,
+    label: 'Salchow y Axel',
+    type: 'Jump',
+    manual_figures: ['Trompo Casero'],
+  };
+  const collected = collectNodeFigures(manualNode as any);
+  assert(collected.some((f) => /salchow/i.test(f)), 'collectNodeFigures incluye la figura obligatoria/principal');
+  assert(collected.some((f) => /axel/i.test(f)), 'collectNodeFigures incluye la segunda figura de la etiqueta');
+  assert(collected.some((f) => /trompo casero/i.test(f)), 'collectNodeFigures incluye la figura manual (no catalogada)');
+  assert(collectNodeFigures({ id: 'x', x: 0, y: 0, time_ms: 1000, label: 'Nodo 3' } as any).length === 0, 'collectNodeFigures sigue descartando etiquetas estructurales');
+
+  voiceEngine.loadNodes([manualNode] as any);
+  const manualCues = voiceEngine.getCues();
+  const nameCue = manualCues.find((c) => c.type === 'figure-name');
+  assert(
+    nameCue !== undefined && /Salchow/i.test(nameCue.text) && /Trompo Casero/i.test(nameCue.text),
+    'El aviso vocal del nodo concatena figuras obligatorias y manuales en orden'
+  );
 
   // 8. Pruebas del Servicio Global de TTS (TTSService Singleton)
   assert(typeof ttsService.speak === 'function', 'ttsService expone método speak universal');

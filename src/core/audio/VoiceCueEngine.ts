@@ -4,6 +4,7 @@ import { ttsService } from '../../services/ttsService';
 import {
   cleanFigureNameForSpeech,
   sanitizeSpeechText,
+  splitFigureList,
 } from './voiceCueSanitizer';
 import {
   voiceMatchesGender,
@@ -66,8 +67,16 @@ function scoreBrowserVoice(voice: SpeechSynthesisVoice, lang: 'es' | 'en'): numb
  * isSpeakableFigure — Delega en el sanitizador estricto (whitelist del catálogo
  * oficial). Un nodo solo es "hablable" si tiene un código de elemento asignado o
  * una etiqueta que corresponde a una figura reglamentaria real.
+ *
+ * `options.allowManual` admite además FIGURAS MANUALES del usuario (no presentes
+ * en el catálogo): se siguen aplicando los rechazos de estructura/metadatos.
  */
-export function isSpeakableFigure(label?: string | null, type?: string | null, element_id?: string | null): boolean {
+export function isSpeakableFigure(
+  label?: string | null,
+  type?: string | null,
+  element_id?: string | null,
+  options?: { allowManual?: boolean }
+): boolean {
   if (element_id && element_id.trim() !== '') return true;
 
   if (!label) return false;
@@ -79,7 +88,52 @@ export function isSpeakableFigure(label?: string | null, type?: string | null, e
     if (/^(marcador|marker|beat|punto|point|nodo|node|curve|curva)\b/i.test(trimmed)) return false;
   }
 
-  return sanitizeSpeechText(trimmed) !== null;
+  return sanitizeSpeechText(trimmed, options) !== null;
+}
+
+/**
+ * collectNodeFigures — Payload de texto COMPLETO de un nodo para la Voz Guía.
+ *
+ * Concatena, en orden y sin duplicados, TODAS las figuras del nodo:
+ *   1. La figura principal/obligatoria (`label`, admite varias separadas por
+ *      coma, barra o " y ").
+ *   2. Las figuras manuales (`manual_figures` / `figures_manuales`).
+ *   3. Respaldo: el código de elemento RollArt (`element_id`) si no hay etiquetas.
+ *
+ * Se usa el modo manual del sanitizador para que las figuras escritas a mano por
+ * el usuario se lean (antes se descartaban por no estar en el catálogo), sin
+ * perder los filtros que bloquean "Nodo 3", "Papel", notas o archivos.
+ */
+export function collectNodeFigures(node: {
+  label?: string | null;
+  element_id?: string | null;
+  manual_figures?: string[] | null;
+  figures_manuales?: string[] | null;
+}): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+
+  const push = (raw?: string | null) => {
+    const cleaned = sanitizeSpeechText(raw, { allowManual: true });
+    if (!cleaned) return;
+    const key = cleaned.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push(cleaned);
+  };
+
+  for (const part of splitFigureList(node.label)) push(part);
+  for (const raw of node.manual_figures || []) {
+    for (const part of splitFigureList(raw)) push(part);
+  }
+  for (const raw of node.figures_manuales || []) {
+    for (const part of splitFigureList(raw)) push(part);
+  }
+
+  // Respaldo heredado: si el nodo solo trae el código de elemento, se lee ese.
+  if (out.length === 0) push(node.element_id);
+
+  return out;
 }
 
 export class VoiceCueEngine {
@@ -561,19 +615,24 @@ export class VoiceCueEngine {
     const isEs = this.config.language === 'es';
     const newCues: VoiceCueEvent[] = [];
 
-    // Filtrar estrictamente solo nodos que tengan una figura deportiva seleccionada real
-    // Si un nodo no tiene figura (ej. Inicio Trazo, Fin Trazo, Vértice, Nodo 1, etc.), se omite por completo
-    const speakableNodes = nodes.filter(n => n.time_ms > 0 && isSpeakableFigure(n.label, n.type, n.element_id));
+    // Nodos hablables: figura obligatoria Y/O figuras manuales del usuario.
+    // `collectNodeFigures` concatena todas las figuras del nodo (obligatorias +
+    // manuales) y descarta los nodos puramente estructurales (Inicio Trazo,
+    // Vértice, Nodo 1, Beat…), que se omiten por completo.
+    const speakableNodes = nodes
+      .filter((n) => n.time_ms > 0)
+      .map((node) => ({ node, figures: collectNodeFigures(node) }))
+      .filter((entry) => entry.figures.length > 0);
 
     // Antelación total de la INSTRUCCIÓN: conteo (3s) + anticipación del usuario.
     // Con los valores por defecto (3 + 1.5) la figura se anuncia 4.5s antes del
     // nodo, siempre antes de que arranque el conteo "tres, dos, uno".
     const nameLeadMs = this.getAnticipationLeadMs();
 
-    for (const node of speakableNodes) {
-      const rawFigureName = (node.label && node.label.trim()) ? cleanFigureNameForSpeech(node.label) : (node.element_id || '').trim();
-      if (!rawFigureName) continue;
-      const figureName = rawFigureName;
+    for (const { node, figures } of speakableNodes) {
+      // Se leen TODAS las figuras del nodo en orden, separadas por coma.
+      const figureName = figures.join(', ');
+      if (!figureName) continue;
       const targetTimeMs = node.time_ms;
 
       // 1. Lectura anticipada del nombre de la figura deportiva:
@@ -647,8 +706,8 @@ export class VoiceCueEngine {
     if (this.config.ttsEngine === 'google-cloud' && this.config.googleApiKey) {
       const phrasesToPreload = [
         'tres', 'dos', 'uno', '¡ya!', 'three', 'two', 'one', 'go!',
-        ...speakableNodes.map(n => {
-          const name = (n.label && n.label.trim()) ? cleanFigureNameForSpeech(n.label) : (n.element_id || '').trim();
+        ...speakableNodes.map(({ figures }) => {
+          const name = figures.join(', ');
           return isEs ? `${name}, en` : `${name}, in`;
         })
       ];

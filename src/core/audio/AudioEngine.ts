@@ -938,7 +938,14 @@ export class AudioEngine {
   }
 
   /**
-   * Inicia reproducción (con soporte de intro delay pre-roll configurable)
+   * Inicia reproducción INMEDIATA (zero-latency).
+   *
+   * El audio principal arranca en el mismo instante del toque: no se espera a
+   * ninguna promesa de síntesis de voz (TTS) ni a buffers externos. Las
+   * indicaciones de voz NO se lanzan aquí; se programan únicamente desde los
+   * nodos de la Pista 2D (`setNodes` → `voiceCueEngine.loadNodes`) y se agendan
+   * contra el reloj del timeline en `voiceCueEngine.startSync`, ya dentro de
+   * `executePlay`.
    */
   public play(offsetMs?: number) {
     this.initAudioContext();
@@ -948,7 +955,24 @@ export class AudioEngine {
       void this.ctx.resume();
     }
 
-    // Si estamos en pausa en 0ms y el pre-roll está configurado, lanzar pre-roll
+    const currentOffset = offsetMs !== undefined ? offsetMs : this.pausedAtTime;
+    this.executePlay(currentOffset);
+  }
+
+  /**
+   * Reproducción con cuenta atrás hablada global (opt-in).
+   *
+   * Se conserva para flujos que quieran el "3, 2, 1, ¡Ya!" previo al audio. El
+   * Play estándar (`play`) NO lo usa: arranca instantáneo.
+   */
+  public playWithPreRoll(offsetMs?: number) {
+    this.initAudioContext();
+    if (!this.ctx) return;
+
+    if (this.ctx.state === 'suspended') {
+      void this.ctx.resume();
+    }
+
     const currentOffset = offsetMs !== undefined ? offsetMs : this.pausedAtTime;
     const isAtStart = currentOffset < 100;
 

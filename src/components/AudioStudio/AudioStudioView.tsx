@@ -12,6 +12,7 @@ import {
   Square,
   Sliders,
   Bell,
+  Trash2,
 } from 'lucide-react';
 import { useAudioStudioStore, flushPendingConsolidation } from '../../store/useAudioStudioStore';
 import { audioEngine } from '../../services/audioEngine';
@@ -27,6 +28,7 @@ import { AudioTimeRuler } from './AudioTimeRuler';
 import { MultitrackTrackRow } from './MultitrackTrackRow';
 import { FloatingClipContextMenu } from './FloatingClipContextMenu';
 import { BandLabMixerDrawer } from './BandLabMixerDrawer';
+import { TRASH_ZONE_ID } from './AudioClipItem';
 
 interface AudioStudioViewProps {
   onExportToRink?: () => void;
@@ -70,6 +72,8 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   const splitClip = useAudioStudioStore((s) => s.splitClip);
   const draggingGhost = useAudioStudioStore((s) => s.draggingGhost);
   const consolidateStudioAudio = useAudioStudioStore((s) => s.consolidateStudioAudio);
+  const trashDrag = useAudioStudioStore((s) => s.trashDrag);
+  const endTrashDrag = useAudioStudioStore((s) => s.endTrashDrag);
 
   const [isExporting, setIsExporting] = useState(false);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
@@ -537,6 +541,18 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     );
   }, []);
 
+  /**
+   * Auto-cancelación del modo basurero: si el usuario activa la pulsación larga
+   * pero no arrastra, tras 8s se cierra solo para no dejar la UI en un estado
+   * modal "pegado" (frecuente en táctil cuando se levanta el dedo sin soltar
+   * sobre la Dropzone).
+   */
+  useEffect(() => {
+    if (!trashDrag.active) return;
+    const timer = window.setTimeout(() => endTrashDrag(), 8000);
+    return () => window.clearTimeout(timer);
+  }, [trashDrag.active, endTrashDrag]);
+
   // Play / Pause Toggle instantáneo sin latencia (Web Audio API)
   // Lee el estado REAL del motor (no la clausura de React) para que un toque
   // nunca invierta el sentido equivocado por un render pendiente.
@@ -794,7 +810,10 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           CERO recorte. La altura es automática (no fija) para que la safe-area
           inferior nunca corte los botones. Todos los controles quedan siempre
           visibles y alcanzables en pantallas estrechas. */}
-      <footer className="shrink-0 flex flex-wrap items-center justify-center gap-x-1 gap-y-1 border-t border-white/10 bg-zinc-950 px-1.5 py-1.5 text-xs z-30 select-none pb-safe sm:justify-between sm:gap-x-3 sm:px-4 sm:py-2">
+      <footer
+        className="relative z-40 shrink-0 flex flex-wrap items-center justify-center gap-x-1 gap-y-1 border-t border-white/10 bg-zinc-950 px-1.5 py-1.5 text-xs select-none pb-safe sm:justify-between sm:gap-x-3 sm:px-4 sm:py-2"
+        onPointerDownCapture={(e) => e.stopPropagation()}
+      >
         {/* Izquierda: Mezclador + Rewind + Stop + Tijeras */}
         <div className="flex shrink-0 items-center gap-0.5 sm:gap-1.5">
           {/* Botón Mezclador (Abre BandLabMixerDrawer) */}
@@ -808,13 +827,15 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             <Sliders className="w-5 h-5 text-cyan" />
           </button>
 
-          {/* Rewind to 0:00 */}
+          {/* Rewind to 0:00
+              Se usa `onClick` (evento unificado ratón/táctil/teclado) en lugar de
+              depender de pointerdown/touchend: es la vía más fiable en todos los
+              navegadores. Nunca se deshabilita: con audio ausente es un no-op. */}
           <button
             type="button"
-            {...press(handleRewind, { enabled: hasTransportAudio })}
-            disabled={!hasTransportAudio}
-            className="press w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 disabled:opacity-25 disabled:pointer-events-none"
-            title={hasTransportAudio ? 'Volver al inicio (0:00)' : 'Carga audio para usar el transporte'}
+            onClick={handleRewind}
+            className={`press w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 ${hasTransportAudio ? '' : 'opacity-40'}`}
+            title="Volver al inicio (0:00)"
             aria-label="Volver al inicio"
           >
             <SkipBack className="w-5 h-5" />
@@ -823,24 +844,22 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           {/* Stop / Detener */}
           <button
             type="button"
-            {...press(handleStop, { enabled: hasTransportAudio })}
-            disabled={!hasTransportAudio}
-            className="press w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 disabled:opacity-25 disabled:pointer-events-none"
-            title={hasTransportAudio ? 'Detener reproducción y reiniciar posición' : 'Carga audio para usar el transporte'}
+            onClick={handleStop}
+            className={`press w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 ${hasTransportAudio ? '' : 'opacity-40'}`}
+            title="Detener reproducción y reiniciar posición"
             aria-label="Detener reproducción"
           >
             <Square className="w-4 h-4 fill-current" />
           </button>
 
           {/* Cortar en cabezal (precisión al cruce por cero).
-              Habilitado con cualquier audio: si no hay clip seleccionado, corta el
-              clip que está bajo el cabezal. */}
+              Habilitado siempre: si no hay clip seleccionado, corta el clip que
+              está bajo el cabezal; si no hay ninguno, muestra un aviso. */}
           <button
             type="button"
-            {...press(handleSplitAtPlayhead, { enabled: hasTransportAudio })}
-            disabled={!hasTransportAudio}
-            className="press w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 disabled:opacity-25 disabled:pointer-events-none"
-            title={hasTransportAudio ? 'Dividir clip en el cabezal (corte milimétrico)' : 'Carga audio para cortar'}
+            onClick={handleSplitAtPlayhead}
+            className={`press w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 ${hasTransportAudio ? '' : 'opacity-40'}`}
+            title="Dividir clip en el cabezal (corte milimétrico)"
             aria-label="Dividir clip en el cabezal"
           >
             <Scissors className="w-5 h-5 text-mint" />
@@ -933,6 +952,28 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           </div>
         </div>
       </footer>
+
+      {/* ── DROPZONE DE BASURA (modo pulsación larga en móvil/táctil) ──
+          `pointer-events-none`: el objetivo se detecta por geometría desde el
+          gesto del clip, así la zona nunca intercepta ni bloquea el arrastre. */}
+      {trashDrag.active && (
+        <div
+          id={TRASH_ZONE_ID}
+          className={`pointer-events-none fixed bottom-24 left-1/2 z-[70] flex -translate-x-1/2 flex-col items-center gap-1.5 rounded-3xl border-2 px-6 py-4 backdrop-blur-md transition-all duration-200 ${
+            trashDrag.overTrash
+              ? 'scale-110 border-rose-400 bg-rose-500/25 shadow-2xl shadow-rose-500/40'
+              : 'border-rose-500/50 bg-rose-950/70'
+          }`}
+        >
+          <Trash2 className={`h-8 w-8 ${trashDrag.overTrash ? 'text-rose-100' : 'text-rose-400'}`} />
+          <span className="text-[11px] font-black uppercase tracking-wider text-rose-100">
+            {trashDrag.overTrash ? 'Suelta para borrar' : 'Arrastra aquí'}
+          </span>
+          <span className="text-[9px] font-mono text-rose-300/80">
+            {trashDrag.clipId ? 'Fragmento seleccionado' : ''}
+          </span>
+        </div>
+      )}
 
       {/* ── 4. MENÚ CONTEXTUAL TÁCTIL FLOTANTE (Pill Menu) ── */}
       <FloatingClipContextMenu />

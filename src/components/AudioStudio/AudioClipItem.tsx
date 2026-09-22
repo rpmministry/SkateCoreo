@@ -2,6 +2,10 @@ import React, { useRef, useEffect, useState } from 'react';
 import { useDrag } from '@use-gesture/react';
 import { AudioClip } from '../../types/audioStudio';
 import { useAudioStudioStore } from '../../store/useAudioStudioStore';
+import { useLongPress } from '../../hooks/useLongPress';
+
+/** Id DOM de la Dropzone (basurero) compartido con `AudioStudioView`. */
+export const TRASH_ZONE_ID = 'studio-trash-zone';
 
 interface AudioClipItemProps {
   clip: AudioClip;
@@ -38,10 +42,26 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
   const calculateSnapOffset = useAudioStudioStore((s) => s.calculateSnapOffset);
   const setDraggingGhost = useAudioStudioStore((s) => s.setDraggingGhost);
   const additionalTracks = useAudioStudioStore((s) => s.additionalTracks);
+  const beginTrashDrag = useAudioStudioStore((s) => s.beginTrashDrag);
+  const setTrashHover = useAudioStudioStore((s) => s.setTrashHover);
+  const endTrashDrag = useAudioStudioStore((s) => s.endTrashDrag);
+  const deleteClip = useAudioStudioStore((s) => s.deleteClip);
 
   const [isDraggingClip, setIsDraggingClip] = useState(false);
   const [dragOffsetSec, setDragOffsetSec] = useState<number | null>(null);
   const [dragDeltaY, setDragDeltaY] = useState(0);
+
+  // Tras una pulsación larga, el "click" sintético que sigue al soltar debe
+  // ignorarse para no abrir el menú contextual encima del modo basurero.
+  const suppressClickRef = useRef(false);
+
+  /** ¿El puntero está dentro de la Dropzone de basura? (para resaltarla y borrar). */
+  const isPointOverTrash = (x: number, y: number) => {
+    const el = document.getElementById(TRASH_ZONE_ID);
+    if (!el) return false;
+    const r = el.getBoundingClientRect();
+    return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  };
 
   // Estados locales para arrastre de tiradores de Fade
   const [isAdjustingFadeIn, setIsAdjustingFadeIn] = useState(false);
@@ -206,6 +226,54 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
         return;
       }
 
+      // ── MODO BASURERO (activado por pulsación larga) ──
+      // Mientras el clip está "cogido" para borrar, NO se mueve en el timeline:
+      // solo sigue al puntero y se resalta el basurero cuando se pasa por encima.
+      const trash = useAudioStudioStore.getState().trashDrag;
+      const isTrashMode = trash.active && trash.clipId === clip.id;
+
+      if (isTrashMode) {
+        const over = isPointOverTrash(clientX, clientY);
+
+        if (first) {
+          setIsDraggingClip(true);
+          if ('vibrate' in navigator) navigator.vibrate(10);
+        }
+
+        if (down) {
+          setTrashHover(over);
+          setDragDeltaY(my);
+          setDraggingGhost({
+            clip,
+            fromTrackId: trackId,
+            targetTrackIndex: trackIndex,
+            targetTrackId: trackId,
+            targetTrackName: over ? 'Eliminar' : 'Basurero',
+            startOffsetSec: clip.startOffsetSec,
+            cursorX: clientX,
+            cursorY: clientY,
+            isOverMaster: false,
+            snapLineSec: null,
+          });
+        }
+
+        if (last) {
+          setIsDraggingClip(false);
+          setDraggingGhost(null);
+          setDragDeltaY(0);
+          // Suelta sobre el basurero → elimina el fragmento del timeline.
+          if (isPointOverTrash(clientX, clientY)) {
+            if ('vibrate' in navigator) navigator.vibrate(24);
+            deleteClip(trackId, clip.id);
+          }
+          endTrashDrag();
+        }
+        return;
+      }
+
+      // Cualquier arrastre normal cancela un modo basurero abierto en otro clip.
+      if (trash.active) endTrashDrag();
+
       const laneOffset = Math.round(my / trackLaneHeight);
       const safeTotal = Math.max(1, totalTracks);
       const targetIndex = Math.max(0, Math.min(safeTotal - 1, trackIndex + laneOffset));
@@ -269,7 +337,39 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
     }
   );
 
+  /**
+   * Pulsación larga (~500 ms) → activa el modo basurero.
+   * En móvil/tablet es la vía táctil para borrar fragmentos cortados sin depender
+   * del menú contextual. El temporizador se cancela si hay desplazamiento previo.
+   */
+  const longPress = useLongPress({
+    delay: 500,
+    moveTolerance: 10,
+    onLongPress: () => {
+      suppressClickRef.current = true;
+      beginTrashDrag(trackId, clip.id);
+      setSelectedClipId(clip.id);
+      if ('vibrate' in navigator) navigator.vibrate(20);
+    },
+  });
+
+  const dragBind = bindDrag() as Record<string, ((e: React.PointerEvent) => void) | undefined>;
+
   const handleClick = (e: React.MouseEvent) => {
+    // Click sintético posterior a una pulsación larga: ignorar.
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    // Si el basurero está abierto, un tap simple lo cancela en vez de abrir menú.
+    if (useAudioStudioStore.getState().trashDrag.active) {
+      e.preventDefault();
+      e.stopPropagation();
+      endTrashDrag();
+      return;
+    }
     e.stopPropagation();
     setSelectedClipId(clip.id);
     useAudioStudioStore.getState().setActiveTrackId(trackId);
@@ -333,7 +433,30 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
   return (
     <div
       ref={clipRef}
-      {...(bindDrag() as any)}
+      {...dragBind}
+      onPointerDown={(e) => {
+        dragBind.onPointerDown?.(e);
+        longPress.onPointerDown(e);
+      }}
+      onPointerMove={(e) => {
+        dragBind.onPointerMove?.(e);
+        longPress.onPointerMove(e);
+      }}
+      onPointerUp={(e) => {
+        dragBind.onPointerUp?.(e);
+        longPress.onPointerUp(e);
+        // Si el modo basurero quedó abierto (pulsación larga sin arrastre), se
+        // cierra al levantar el dedo. Si el gesto ya hizo el "drop", es no-op.
+        const trash = useAudioStudioStore.getState().trashDrag;
+        if (trash.active && trash.clipId === clip.id) {
+          setTrashHover(false);
+          endTrashDrag();
+        }
+      }}
+      onPointerCancel={(e) => {
+        dragBind.onPointerCancel?.(e);
+        longPress.onPointerCancel(e);
+      }}
       onClick={handleClick}
       className={`absolute top-1 select-none cursor-pointer rounded-lg overflow-hidden transition-all ${
         isDraggingClip ? 'z-30 shadow-2xl scale-[1.02] opacity-95' : 'z-10'

@@ -33,7 +33,7 @@ import { audioEngine } from '../core/audio/AudioEngine';
 import { RinkMath, DEFAULT_RINK_DIMENSIONS, CanvasViewportMetrics } from '../core/canvas/RinkMath';
 import { RinkRenderer } from '../core/canvas/RinkRenderer';
 import { useChoreographyStore } from '../store/useChoreographyStore';
-import { isSpeakableFigure } from '../core/audio/VoiceCueEngine';
+import { collectNodeFigures } from '../core/audio/VoiceCueEngine';
 import { InteractiveWaveform } from './InteractiveWaveform';
 import { useCanvasCamera } from '../hooks/useCanvasCamera';
 import { FreehandPathEngine, Point2D } from '../core/math/FreehandPathEngine';
@@ -2238,7 +2238,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
           </div>
 
           {/* Banner de Alerta Anticipada Sincronizada (Nombre de figura primero + cuenta atrás) */}
-          {selectedPoint.label && isSpeakableFigure(selectedPoint.label, selectedPoint.type) && (
+          {collectNodeFigures(selectedPoint).length > 0 && (
             <div className="mt-3 bg-zinc-900/90 border border-zinc-800 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs font-mono text-zinc-200">
               <div className="flex items-center gap-2.5">
                 <Sparkles className="w-4 h-4 text-teal-400 flex-shrink-0" />
@@ -2247,7 +2247,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
                     Secuencia Vocal Sincronizada:
                   </span>
                   <p className="text-xs text-white font-semibold mt-0.5">
-                    "{selectedPoint.label}, en tres, dos, uno, ¡ya!"
+                    "{collectNodeFigures(selectedPoint).join(', ')}, en tres, dos, uno, ¡ya!"
                   </p>
                   <span className="text-[10px] text-zinc-400">
                     (Aviso previo: {Math.max(0, (selectedPoint.time_ms - 4200) / 1000).toFixed(1)}s → Conteo: {Math.max(0, (selectedPoint.time_ms - 3000) / 1000).toFixed(1)}s → Salto/Ejecución: {(selectedPoint.time_ms / 1000).toFixed(1)}s)

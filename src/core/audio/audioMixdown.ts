@@ -8,7 +8,7 @@
  */
 
 import { ChoreographyPathPoint } from '../../types/choreography';
-import { isSpeakableFigure } from './VoiceCueEngine';
+import { collectNodeFigures } from './VoiceCueEngine';
 import { ttsService } from '../../services/ttsService';
 
 export interface MixdownOptions {
@@ -111,16 +111,18 @@ export async function renderChoreographyMixdown(
 
   // 4. Inserción de Avisos Vocales y Conteos (Voice Cues) sobre el Canal L
   if (voiceCuesEnabled && points.length > 0) {
-    const speakableNodes = points.filter(
-      (p) => p.time_ms > 0 && isSpeakableFigure(p.label, p.type)
-    );
+    // Se incluyen figuras obligatorias Y manuales del nodo (payload completo).
+    const speakableNodes = points
+      .filter((p) => p.time_ms > 0)
+      .map((p) => ({ node: p, figures: collectNodeFigures(p) }))
+      .filter((entry) => entry.figures.length > 0);
 
-    for (const node of speakableNodes) {
+    for (const { node, figures } of speakableNodes) {
       const figureTimeSec = (node.time_ms / 1000) / effectivePlaybackRate;
       const leadTimeSec = Math.max(1, warningLeadTimeSec) / effectivePlaybackRate;
       const cueTimeSec = Math.max(0, figureTimeSec - leadTimeSec);
 
-      const figureName = node.label!.trim();
+      const figureName = figures.join(', ');
 
       // Generar o recuperar audio sintetizado para el nombre de la figura
       try {

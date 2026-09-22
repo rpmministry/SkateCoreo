@@ -59,6 +59,10 @@ export interface ChoreographyPathPoint {
   type?: string;     // 'Jump' | 'Spin' | 'Step' | 'Choreo' | 'Marker' | etc.
   label?: string;    // Technical figure or note
   element_id?: string;
+  /** Figuras agregadas manualmente por el usuario (además de la obligatoria). */
+  manual_figures?: string[];
+  /** Alias heredado de `manual_figures` (compatibilidad de datos persistidos). */
+  figures_manuales?: string[];
   isMainNode?: boolean; // Indicador explícito de Nodo Principal / Maestro
   path?: Array<{ x: number; y: number }>; // Huella de alta fidelidad (Catmull-Rom Spline) conectando este nodo con el siguiente
 }

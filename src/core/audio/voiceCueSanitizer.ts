@@ -61,6 +61,8 @@ const BLOCKED_PATTERNS: RegExp[] = [
   // Marcas de UI / placeholders
   /\b(sin|ningun|ningún|ninguna|none|null|undefined|vacio|vacío|default|custom|otro|personalizado)\b/,
   /\b(selecciona|seleccionar|elegir|elige|placeholder|ejemplo|demo|test|prueba)\b/,
+  // Placeholders numerados de estructura ("Step 3", "Paso 2", "Movimiento 4")
+  /\b(paso|pasos|step|steps|movimiento|movimientos)\s*\d+\b/,
 ];
 
 /** Longitud máxima razonable para el nombre de una figura. */
@@ -214,8 +216,17 @@ export function hasBlockedContent(text: string): boolean {
 /**
  * Veredicto final: devuelve el texto listo para sintetizar o `null` si debe
  * descartarse silenciosamente.
+ *
+ * `options.allowManual` habilita las FIGURAS MANUALES: etiquetas escritas por el
+ * usuario que no pertenecen al catálogo oficial. Sin esta opción la voz solo lee
+ * figuras obligatorias/conocidas (filtro estricto de la digitalización de papel).
+ * Aun en modo manual se mantienen TODOS los rechazos de seguridad (estructura,
+ * notas, metadatos, longitud y archivos), así que "Nodo 3 (Papel)" sigue mudos.
  */
-export function sanitizeSpeechText(raw: string | null | undefined): string | null {
+export function sanitizeSpeechText(
+  raw: string | null | undefined,
+  options?: { allowManual?: boolean }
+): string | null {
   if (!raw) return null;
 
   const collapsed = String(raw).replace(/\s+/g, ' ').trim();
@@ -240,7 +251,7 @@ export function sanitizeSpeechText(raw: string | null | undefined): string | nul
   // Rechazo de texto libre largo: notas al margen y descripciones
   if (collapsed.length > MAX_SPEECH_CHARS) return null;
 
-  // Rechazo por contenido estructural/metadatos
+  // Rechazo por contenido estructural/metadatos (aplica SIEMPRE, también manual)
   if (hasBlockedContent(collapsed)) return null;
 
   // (b) Nombre de figura oficial, con sufijo de aviso permitido
@@ -252,7 +263,28 @@ export function sanitizeSpeechText(raw: string | null | undefined): string | nul
   const cleaned = cleanFigureNameForSpeech(candidate);
   if (!cleaned) return null;
   if (cleaned.length > MAX_SPEECH_CHARS) return null;
+
+  // (c) FIGURA MANUAL: se acepta aunque no esté en el catálogo oficial, siempre
+  // que haya superado los rechazos de estructura/metadatos anteriores.
+  if (options?.allowManual) {
+    return suffix ? `${cleaned} ${suffix}` : cleaned;
+  }
+
   if (!isKnownFigure(cleaned)) return null;
 
   return suffix ? `${cleaned} ${suffix}` : cleaned;
 }
+
+/**
+ * Divide una etiqueta en figuras individuales.
+ * Admite separadores habituales: coma, punto y coma, barra y " y " / "&".
+ * Así un nodo con "Salchow, Axel y Lutz" produce tres figuras legibles.
+ */
+export function splitFigureList(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  return String(raw)
+    .split(/\s*(?:,|;|\/|\||&|\by\b)\s*/gi)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
