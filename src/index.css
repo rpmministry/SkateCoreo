@@ -107,20 +107,33 @@
 
 html {
   height: 100%;
+  width: 100%;
   overflow: hidden;
+  /* WebKit/iOS: sin rebote (rubber-band) ni pull-to-refresh. El rebote hacía
+     "colapsar" el layout fijo al navegar y disparaba reflows en bucle. */
+  overscroll-behavior: none;
   font-size: 16px;
   -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
   margin: 0;
   height: 100%;
+  width: 100%;
   overflow: hidden;
+  overscroll-behavior: none;
   background-color: var(--color-canvas);
   color: var(--color-text-primary);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* El contenedor de React hereda la altura segura del documento. */
+#root {
+  height: 100%;
+  width: 100%;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -330,6 +343,35 @@ body {
   height: 100vh;
   height: 100svh;
   height: 100dvh;
+  /* `svh` es la altura con las barras del navegador VISIBLES: garantiza que el
+     contenido nunca quede tapado por la barra de Safari (clave en landscape,
+     donde la barra superior ocultaba las pestañas de la app). */
+  min-height: 100svh;
+  max-height: 100lvh;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   SAFE AREAS EN LANDSCAPE (notch lateral del iPhone/iPad)
+
+   Con `viewport-fit=cover` el contenido puede invadir el notch y el home
+   indicator. Estas utilidades reservan el espacio en los bordes laterales y
+   superior, sin depender de media queries frágiles.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0px) !important;
+}
+
+.safe-area-x {
+  padding-left: env(safe-area-inset-left, 0px) !important;
+  padding-right: env(safe-area-inset-right, 0px) !important;
+}
+
+/* Cabecera: nunca menos que el notch/barra de estado; crece si hace falta.
+   Se evita forzar `height` fijo en landscape para que el padding de área
+   segura no recorte las pestañas superiores. */
+.header-safe-top {
+  padding-top: max(var(--safe-top), 0px) !important;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -399,16 +441,18 @@ body {
 }
 
 /* Compact header: only in landscape mobile/tablet (< 1024px).
-   Desktop is always landscape but needs full 60px header height. */
+   Desktop is always landscape but needs full 60px header height.
+   Se usa `min-height` (no `height` fijo) para que el padding de área segura
+   superior crezca sin recortar los botones/pestañas de la cabecera. */
 .header-compact {
 }
 @media (orientation: landscape) and (max-width: 1023px) {
   .header-compact {
-    height: 40px !important;
+    min-height: 40px !important;
   }
   .header-compact-inner {
-    min-height: 0 !important;
-    height: 40px !important;
+    min-height: 40px !important;
+    height: auto !important;
   }
 }
 

@@ -10,7 +10,7 @@
  *  - Atribución AlsisTech con enlace a alsiztech.com
  */
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, startTransition } from 'react';
 import {
   Music,
   X, ChevronDown, MoreVertical,
@@ -39,6 +39,7 @@ import { RinkContextTools } from './components/rink/RinkContextTools';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { HomeView } from './components/HomeView';
 import { useIosFileCapture } from './hooks/useIosFileCapture';
+import { LoadProgressBar } from './components/LoadProgressBar';
 import {
   BottomNav,
   DesktopHeaderNav,
@@ -93,6 +94,11 @@ export function App() {
   const loadProgramPoints = useChoreographyStore((s) => s.loadProgramPoints);
 
   // ── Data loading & Offline Autoload ─────────────────────
+  // Carga INICIAL única. Se eliminaron `selectedSkater`/`selectedProgram` de las
+  // dependencias: al actualizarse dentro del propio callback, la identidad de
+  // `loadData` cambiaba y el efecto se re-ejecutaba en bucle (lecturas repetidas
+  // a IndexedDB + re-render continuo), lo que en Safari iOS se percibía como
+  // congelamiento al navegar entre pestañas.
   const loadData = useCallback(async () => {
     // Estado inicial limpio («lienzo en blanco»): no se siembran atletas,
     // programas ni rutas de demostración. Si la base de datos está vacía, la
@@ -100,14 +106,13 @@ export function App() {
     const allSkaters = await dbService.getAllSkaters();
     setSkaters(allSkaters);
     if (allSkaters.length > 0) {
-      const active = selectedSkater || allSkaters[0];
+      const active = allSkaters[0];
       setSelectedSkater(active);
       const progs = await dbService.getProgramsBySkater(active.id);
       setPrograms(progs);
       if (progs.length > 0) {
-        const prog = selectedProgram || progs[0];
-        setSelectedProgram(prog);
-        setElements(await dbService.getElementsByProgram(prog.id));
+        setSelectedProgram(progs[0]);
+        setElements(await dbService.getElementsByProgram(progs[0].id));
       }
     }
 
@@ -123,9 +128,9 @@ export function App() {
     } catch (e) {
       console.warn('No se pudo restaurar la sesión offline de IndexedDB:', e);
     }
-  }, [selectedSkater, selectedProgram, loadProgramPoints]);
+  }, [loadProgramPoints]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { void loadData(); }, [loadData]);
 
   // ── Audio subscriptions ───────────────────────────────
   useEffect(() => {
@@ -383,8 +388,22 @@ export function App() {
 
   const navBadges = useMemo(() => ({ rink: unplacedNodes.length }), [unplacedNodes.length]);
 
+  /**
+   * Guardia anti doble-disparo táctil.
+   *
+   * En iOS/WebKit un toque puede generar `touchend` + `click` (y a veces un
+   * segundo `click` sintético), lo que montaba dos veces la vista destino y, con
+   * el lienzo pesado, congelaba el hilo principal. Se ignoran activaciones
+   * repetidas dentro de una ventana corta.
+   */
+  const navLockRef = useRef(0);
+
   // Navegación principal unificada para Bottom Nav, Sidebar y Barra Desktop
   const handleNav = useCallback((tab: AppTab) => {
+    const now = performance.now();
+    if (now - navLockRef.current < 260) return;
+    navLockRef.current = now;
+
     if (tab === 'skaters') {
       setSheetOpen(false);
       setDrawerOpen(false);
@@ -400,7 +419,9 @@ export function App() {
     setDrawerOpen(false);
     setSheetOpen(false);
     useChoreographyStore.getState().setSelectedPointId(null);
-    setActiveView(tab);
+    // Cambio de vista como transición: el montaje del lienzo pesado no bloquea
+    // la respuesta táctil del sistema en WebKit.
+    startTransition(() => setActiveView(tab));
   }, []);
 
   const handleToggleInspector = useCallback(() => {
@@ -411,7 +432,9 @@ export function App() {
   // ── Render ────────────────────────────────────────────
   return (
     <ProtectedLayout>
-      <div className="app-viewport-height w-screen overflow-hidden flex flex-col bg-neon-canvas text-white select-none font-sans">
+      {/* Indicador global de carga: barra superior no invasiva */}
+      <LoadProgressBar />
+      <div className="app-viewport-height w-full overflow-hidden flex flex-col bg-neon-canvas text-white select-none font-sans">
 
         {/* Hidden file inputs */}
       <input

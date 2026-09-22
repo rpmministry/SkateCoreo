@@ -78,7 +78,7 @@ interface NavProps {
 export const BottomNav: React.FC<NavProps> = ({ active, onSelect, badges }) => (
   <nav
     aria-label="Navegación principal"
-    className="lg:hidden landscape:hidden shrink-0 z-40 grid grid-cols-5 items-stretch glass-hud border-t border-white/10 nav-safe-bottom pl-safe pr-safe"
+    className="lg:hidden landscape:hidden shrink-0 z-40 grid grid-cols-5 items-stretch glass-hud border-t border-white/10 nav-safe-bottom pl-safe pr-safe touch-manipulation overscroll-contain"
   >
     {APP_TABS.map((tab) => {
       const Icon = tab.icon;
@@ -138,7 +138,7 @@ export const LandscapeNavRail: React.FC<LandscapeRailProps> = ({
 }) => (
   <nav
     aria-label="Navegación lateral compacta"
-    className="rail-landscape-only min-w-[72px] shrink-0 flex-col items-center gap-1.5 glass-panel border-r border-white/10 py-2 pl-safe pr-1 scroll-touch overflow-y-auto"
+    className="rail-landscape-only min-w-[72px] shrink-0 flex-col items-center gap-1.5 glass-panel border-r border-white/10 py-2 pl-safe pr-1 scroll-touch overflow-y-auto touch-manipulation overscroll-contain"
   >
     {APP_TABS.map((tab) => {
       const Icon = tab.icon;
@@ -185,7 +185,7 @@ export const LandscapeNavRail: React.FC<LandscapeRailProps> = ({
 export const DesktopHeaderNav: React.FC<NavProps> = ({ active, onSelect, badges }) => (
   <nav
     aria-label="Navegación principal"
-    className="hidden lg:flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.04] p-1 shadow-soft-elevation shrink-0"
+    className="hidden lg:flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.04] p-1 shadow-soft-elevation shrink-0 touch-manipulation"
   >
     {DESKTOP_TABS.map((tab) => {
       const Icon = tab.icon;

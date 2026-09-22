@@ -11,6 +11,7 @@ import { MediaSessionManager } from './MediaSession';
 import { BpmDetector, BpmDetectionResult } from './BpmDetector';
 import { renderChoreographyMixdown } from './audioMixdown';
 import { adquirirPantallaActiva, liberarPantallaActiva } from '../system/wakeLock';
+import { loadProgress } from '../../store/loadProgressStore';
 
 /**
  * Lee un Blob/File como ArrayBuffer priorizando `FileReader`.
@@ -21,13 +22,22 @@ import { adquirirPantallaActiva, liberarPantallaActiva } from '../system/wakeLoc
  * es la ruta clásica y estable en WebKit, así que se usa como vía principal y
  * `Blob.arrayBuffer()` queda como respaldo moderno.
  */
-function readBlobAsArrayBuffer(file: Blob): Promise<ArrayBuffer> {
+function readBlobAsArrayBuffer(
+  file: Blob,
+  onProgress?: (fraction: number) => void
+): Promise<ArrayBuffer> {
   if (typeof FileReader !== 'undefined') {
     return new Promise<ArrayBuffer>((resolve, reject) => {
       const reader = new FileReader();
+      reader.onprogress = (e) => {
+        if (onProgress && e.lengthComputable && e.total > 0) {
+          onProgress(Math.max(0, Math.min(1, e.loaded / e.total)));
+        }
+      };
       reader.onload = () => {
         const result = reader.result;
         if (result instanceof ArrayBuffer && result.byteLength > 0) {
+          onProgress?.(1);
           resolve(result);
         } else {
           reject(new Error('El archivo está vacío o no se pudo leer.'));
@@ -39,7 +49,12 @@ function readBlobAsArrayBuffer(file: Blob): Promise<ArrayBuffer> {
     });
   }
 
-  if (typeof file.arrayBuffer === 'function') return file.arrayBuffer();
+  if (typeof file.arrayBuffer === 'function') {
+    return file.arrayBuffer().then((buf) => {
+      onProgress?.(1);
+      return buf;
+    });
+  }
   return Promise.reject(new Error('Este navegador no puede leer archivos binarios.'));
 }
 
@@ -500,9 +515,18 @@ export class AudioEngine {
   }
 
   /**
-   * Decodifica cualquier archivo o Blob de audio sin alterar el buffer maestro ni detener la reproducción
+   * Núcleo de lectura + decodificación, con reporte de progreso real.
+   *
+   * El porcentaje informado combina dos fases medidas de verdad:
+   *  - Lectura del archivo (FileReader.onprogress): 2% → 70%.
+   *  - Decodificación por hardware (`decodeAudioData`): 74% → 88%.
+   * No se inventan temporizadores: si la lectura es instantánea, el porcentaje
+   * salta de inmediato a la fase de decodificación.
    */
-  public async decodeAudioFile(file: File | Blob): Promise<AudioBuffer> {
+  private async readAndDecode(
+    file: File | Blob,
+    onStage?: (percent: number, label: string) => void
+  ): Promise<AudioBuffer> {
     this.initAudioContext();
     if (!this.ctx) throw new Error('No se pudo inicializar AudioContext');
 
@@ -510,17 +534,23 @@ export class AudioEngine {
       await this.ctx.resume().catch(() => {});
     }
 
+    onStage?.(2, 'Leyendo archivo…');
+
     // Lectura Safari-safe (FileReader) + copia defensiva: `decodeAudioData` de
     // WebKit antiguo "consume" (detacha) el ArrayBuffer, así que se le entrega
     // siempre un buffer propio que no rompa el blob original.
-    const arrayBuffer = await readBlobAsArrayBuffer(file);
+    const arrayBuffer = await readBlobAsArrayBuffer(file, (fraction) => {
+      onStage?.(2 + fraction * 68, 'Leyendo archivo…');
+    });
     const copy = arrayBuffer.slice(0);
 
-    return new Promise<AudioBuffer>((resolve, reject) => {
+    onStage?.(74, 'Decodificando audio…');
+
+    const decoded = await new Promise<AudioBuffer>((resolve, reject) => {
       // Fallback dual promesa/callback para compatibilidad con Safari iOS y Android Chrome
       const promise = this.ctx!.decodeAudioData(
         copy,
-        (decoded) => resolve(decoded),
+        (decodedBuffer) => resolve(decodedBuffer),
         (err) => reject(err || new Error('Fallo al decodificar audio. Verifique que sea un archivo de audio compatible (.mp3, .wav, .m4a, .aac).'))
       );
       if (promise && typeof promise.then === 'function') {
@@ -529,6 +559,26 @@ export class AudioEngine {
         });
       }
     });
+
+    onStage?.(88, 'Preparando pista…');
+    return decoded;
+  }
+
+  /**
+   * Decodifica cualquier archivo o Blob de audio sin alterar el buffer maestro ni detener la reproducción.
+   * Reporta el progreso real al indicador global.
+   */
+  public async decodeAudioFile(file: File | Blob): Promise<AudioBuffer> {
+    loadProgress.begin('Cargando audio…');
+    try {
+      const decoded = await this.readAndDecode(file, (percent, label) =>
+        loadProgress.report(percent, label)
+      );
+      loadProgress.report(100, 'Listo');
+      return decoded;
+    } finally {
+      loadProgress.done();
+    }
   }
 
   public async loadAudioFile(file: File | Blob, name?: string): Promise<AudioBuffer> {
@@ -539,25 +589,33 @@ export class AudioEngine {
     // en iOS, si la pantalla se apaga, la pestaña se suspende a mitad de la carga.
     await adquirirPantallaActiva();
 
+    loadProgress.begin('Cargando pista…');
+
     try {
       this.stop();
       this.fileName = name || (file instanceof File ? file.name : 'pista_audio.wav');
       this.rawBlob = file instanceof Blob ? file : new Blob([file]);
 
-      const decoded = await this.decodeAudioFile(file);
+      // Lectura + decodificación (0–88%) con progreso real medido.
+      const decoded = await this.readAndDecode(file, (percent, label) =>
+        loadProgress.report(percent, label)
+      );
       this.audioBuffer = decoded;
       this.durationMs = Math.round(decoded.duration * 1000);
       this.pausedAtTime = 0;
 
       // Detectar y ajustar BPM automáticamente si la pista tiene transitorios rítmicos claros
+      loadProgress.report(92, 'Analizando tempo (BPM)…');
       this.detectAndApplyBpm(this.audioBuffer);
 
       this.mediaSession.updateMetadata(this.fileName);
       await this.checkBluetoothAndLatency();
+      loadProgress.report(100, 'Listo');
       this.emitStateChange();
       return this.audioBuffer;
     } finally {
       void liberarPantallaActiva();
+      loadProgress.done();
     }
   }
 
