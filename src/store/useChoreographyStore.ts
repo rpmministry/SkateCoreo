@@ -53,6 +53,8 @@ export interface ChoreographyStoreState {
   updateControlPoint2: (id: string, x: number, y: number) => void;
   updateSegmentControlPoints: (id: string, cp1: { x: number; y: number }, cp2: { x: number; y: number }) => void;
   updatePointMetadata: (id: string, label: string, type?: string, element_id?: string) => void;
+  /** Asigna el número de nodo (escáner/manual). null = dejar pendiente. */
+  setPointNumber: (id: string, nodeNumber: number | null) => void;
   deletePoint: (id: string) => void;
   clearAllPoints: () => void;
   straightenSegment: (id: string) => void;
@@ -457,10 +459,24 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
     set({ points: updated });
   },
 
-  /**
-   * ELIMINACIÓN SINCRONIZADA:
-   * Al eliminar un punto, desaparece instantáneamente tanto del Canvas como del Waveform.
-   */
+  /** Asigna el número de nodo y lo marca como reconocido/conectado. */
+  setPointNumber: (id: string, nodeNumber: number | null) => {
+    const { points, pushHistory } = get();
+    pushHistory();
+
+    const updated = points.map((p) => {
+      if (p.id !== id) return p;
+      return {
+        ...p,
+        nodeNumber: nodeNumber ?? undefined,
+        unrecognized: nodeNumber != null ? false : p.unrecognized,
+        // Numerar un nodo digitalizado lo integra en la coreografía.
+        unlinked: nodeNumber != null ? false : p.unlinked,
+      };
+    });
+
+    set({ points: updated });
+  },
   deletePoint: (id: string) => {
     const { points, selectedPointId, pushHistory } = get();
     pushHistory();

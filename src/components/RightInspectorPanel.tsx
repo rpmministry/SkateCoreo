@@ -9,7 +9,8 @@ import {
   Route,
   Undo2,
   SlidersHorizontal,
-  Eraser
+  Eraser,
+  Hash
 } from 'lucide-react';
 
 import { useChoreographyStore } from '../store/useChoreographyStore';
@@ -50,6 +51,7 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
   const selectedPointId = useChoreographyStore((s) => s.selectedPointId);
   const setSelectedPointId = useChoreographyStore((s) => s.setSelectedPointId);
   const updatePointMetadata = useChoreographyStore((s) => s.updatePointMetadata);
+  const setPointNumber = useChoreographyStore((s) => s.setPointNumber);
   const deletePoint = useChoreographyStore((s) => s.deletePoint);
   const setPoints = useChoreographyStore((s) => s.setPoints);
   const pushHistory = useChoreographyStore((s) => s.pushHistory);
@@ -288,16 +290,46 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
             {/* Identidad del nodo con halo Menta */}
             <div className="flex items-center gap-3 bg-neon-card p-3 rounded-2xl shadow-soft-elevation">
               <span className="w-8 h-8 rounded-xl bg-mint text-neon-canvas shadow-glow-mint flex items-center justify-center text-xs font-mono font-black shrink-0">
-                #{selectedPointIndex + 1}
+                #{selectedPoint.nodeNumber ?? selectedPointIndex + 1}
               </span>
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-bold text-white truncate-safe">
-                  {selectedPoint.label || 'Nodo sin asignar'}
+                  {selectedPoint.unrecognized
+                    ? 'Nodo pendiente de numerar'
+                    : selectedPoint.label || 'Nodo sin asignar'}
                 </p>
                 <p className="text-[10px] font-mono text-slate-400">
                   X: {selectedPoint.x.toFixed(1)}m · Y: {selectedPoint.y.toFixed(1)}m
                 </p>
               </div>
+            </div>
+
+            {/* Número del nodo (leído por el escáner o escrito a mano) */}
+            <div className="space-y-1.5">
+              <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                <Hash className="w-3.5 h-3.5 text-cyan" />
+                Número de nodo
+              </label>
+              <input
+                type="number"
+                min={1}
+                inputMode="numeric"
+                value={selectedPoint.nodeNumber ?? ''}
+                onChange={(e) => {
+                  const raw = e.target.value.trim();
+                  setPointNumber(
+                    selectedPoint.id,
+                    raw === '' ? null : Math.max(1, Number.parseInt(raw, 10) || 1)
+                  );
+                }}
+                placeholder="1, 2, 3…"
+                className="w-full rounded-xl bg-neon-card px-3 py-2.5 font-mono text-sm text-slate-100 outline-none shadow-soft-elevation focus:bg-neon-hover"
+              />
+              {selectedPoint.unrecognized && (
+                <p className="text-[10px] font-semibold text-orange-400">
+                  Nodo pendiente: escribe su número para integrarlo.
+                </p>
+              )}
             </div>
 
             {/* Selector de Figura Técnica Reglamentaria */}

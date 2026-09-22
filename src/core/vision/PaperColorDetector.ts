@@ -47,13 +47,30 @@ export function rgbToHsv(r: number, g: number, b: number): { h: number; s: numbe
 }
 
 /** Umbrales de saturación/valor (OpenCV: 50/255 ≈ 0.196). */
-const MIN_SAT = 0.20;
-const MIN_VAL = 0.20;
+const MIN_SAT = 0.16;
+const MIN_VAL = 0.15;
+
+export interface ColorDetectOptions {
+  minSat?: number;
+  minVal?: number;
+  /** Radio de erosión extra (fracción del lado menor). */
+  erodeRatio?: number;
+  minAspect?: number;
+  maxAspect?: number;
+  minAreaRatio?: number;
+  maxAreaRatio?: number;
+}
 
 /** ¿El píxel es tinta de marcador AZUL o ROJO? (Ignora negro/gris/blanco). */
-export function isMarkerInk(r: number, g: number, b: number): boolean {
+export function isMarkerInk(
+  r: number,
+  g: number,
+  b: number,
+  minSat: number = MIN_SAT,
+  minVal: number = MIN_VAL
+): boolean {
   const { h, s, v } = rgbToHsv(r, g, b);
-  if (s < MIN_SAT || v < MIN_VAL) return false;
+  if (s < minSat || v < minVal) return false;
 
   // AZUL (OpenCV H 100–140)
   const isBlue = h >= 200 && h <= 280;
@@ -65,29 +82,31 @@ export function isMarkerInk(r: number, g: number, b: number): boolean {
 
 export class PaperColorDetector {
   /** Máscara binaria (1 = tinta de color) de la imagen alineada. */
-  public static buildMask(canvas: HTMLCanvasElement): Uint8Array {
+  public static buildMask(canvas: HTMLCanvasElement, options: ColorDetectOptions = {}): Uint8Array {
     const w = canvas.width;
     const h = canvas.height;
     const ctx = canvas.getContext('2d');
     if (!ctx) return new Uint8Array(0);
     const { data } = ctx.getImageData(0, 0, w, h);
 
+    const minSat = options.minSat ?? MIN_SAT;
+    const minVal = options.minVal ?? MIN_VAL;
     const mask = new Uint8Array(w * h);
     for (let i = 0; i < w * h; i++) {
       const idx = i * 4;
-      mask[i] = isMarkerInk(data[idx], data[idx + 1], data[idx + 2]) ? 1 : 0;
+      mask[i] = isMarkerInk(data[idx], data[idx + 1], data[idx + 2], minSat, minVal) ? 1 : 0;
     }
 
     // Cierre morfológico (dilate → erode): rellena huecos del bolígrafo y une la
     // tinta del número con la del círculo.
-    const r = Math.max(1, Math.round(Math.min(w, h) * 0.004));
-    const dilated = this.morph(mask, w, h, r, true);
-    const closed = this.morph(dilated, w, h, r, false);
+    const closeR = Math.max(1, Math.round(Math.min(w, h) * 0.005));
+    const dilated = this.morph(mask, w, h, closeR, true);
+    const closed = this.morph(dilated, w, h, closeR, false);
 
-    // EROSIÓN FUERTE: adelgaza los trazos hasta desconectar/eliminar las LÍNEAS
-    // delgadas (recorrido), dejando las masas centrales (círculos con número).
-    const rErode = Math.max(1, Math.round(Math.min(w, h) * 0.007));
-    return this.morph(closed, w, h, rErode, false);
+    // Erosión controlada: adelgaza los trazos finos (líneas) sin destruir los
+    // círculos. Configurable por si la hoja tiene trazos gruesos/finos.
+    const erodeR = Math.max(0, Math.round(Math.min(w, h) * (options.erodeRatio ?? 0.004)));
+    return erodeR > 0 ? this.morph(closed, w, h, erodeR, false) : closed;
   }
 
   /** Canvas de la máscara: fondo NEGRO puro y trazos de color en BLANCO puro. */
@@ -129,17 +148,19 @@ export class PaperColorDetector {
    * Componentes conexas de la máscara (ya cerrada). Filtro de ruido:
    * área entre 0.2% y 5% de la imagen. Cada mancha es un nodo.
    */
-  public static detectInkBlobs(canvas: HTMLCanvasElement): ColorBlob[] {
+  public static detectInkBlobs(canvas: HTMLCanvasElement, options: ColorDetectOptions = {}): ColorBlob[] {
     const w = canvas.width;
     const h = canvas.height;
     if (w <= 0 || h <= 0) return [];
 
-    const mask = this.buildMask(canvas);
+    const mask = this.buildMask(canvas, options);
     if (mask.length === 0) return [];
 
     const total = w * h;
-    const minArea = Math.round(total * 0.002); // 0.2%
-    const maxArea = Math.round(total * 0.05);  // 5%
+    const minArea = Math.round(total * (options.minAreaRatio ?? 0.002)); // 0.2%
+    const maxArea = Math.round(total * (options.maxAreaRatio ?? 0.05));  // 5%
+    const minAspect = options.minAspect ?? 0.5;
+    const maxAspect = options.maxAspect ?? 2.0;
 
     const visited = new Uint8Array(w * h);
     const blobs: ColorBlob[] = [];
@@ -175,7 +196,7 @@ export class PaperColorDetector {
       // Un nodo (círculo) es ~1:1; una línea de recorrido es muy alargada.
       const bw = blob.maxX - blob.minX + 1;
       const bh = blob.maxY - blob.minY + 1;
-      if (!this.passesAspectFilter(bw, bh)) continue; // ES UNA LÍNEA → DESCARTAR
+      if (!this.passesAspectFilter(bw, bh, minAspect, maxAspect)) continue;
 
       blob.cx = (blob.minX + blob.maxX) / 2;
       blob.cy = (blob.minY + blob.maxY) / 2;
@@ -183,6 +204,25 @@ export class PaperColorDetector {
     }
 
     return blobs;
+  }
+
+  /**
+   * Detección ADAPTATIVA: si los ajustes estrictos no devuelven nodos, prueba
+   * presets progresivamente más tolerantes (menos erosión, aspecto más amplio,
+   * umbrales de color más bajos). Mantiene el filtro anti-líneas por aspecto.
+   */
+  public static detectInkBlobsAdaptive(canvas: HTMLCanvasElement): ColorBlob[] {
+    const presets: ColorDetectOptions[] = [
+      {}, // ajustes recomendados
+      { erodeRatio: 0.002, minAspect: 0.4, maxAspect: 2.6, minSat: 0.12, minVal: 0.12, minAreaRatio: 0.0012 },
+      { erodeRatio: 0, minAspect: 0.35, maxAspect: 3.2, minSat: 0.1, minVal: 0.1, minAreaRatio: 0.001 },
+    ];
+
+    for (const preset of presets) {
+      const blobs = this.detectInkBlobs(canvas, preset);
+      if (blobs.length > 0) return blobs;
+    }
+    return [];
   }
 
   /**

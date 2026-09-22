@@ -785,7 +785,9 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       // (fail-safe del escáner: los nodos en naranja se numeran aquí).
       const nowTap = performance.now();
       const lastTap = lastNodeTapRef.current;
-      if (lastTap && lastTap.id === hitNode.id && nowTap - lastTap.time < 350) {
+      const isDoubleTap =
+        (lastTap && lastTap.id === hitNode.id && nowTap - lastTap.time < 350) || e.detail >= 2;
+      if (isDoubleTap) {
         lastNodeTapRef.current = null;
         if (longPressTimerRef.current) {
           clearTimeout(longPressTimerRef.current);

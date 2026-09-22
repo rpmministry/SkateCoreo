@@ -368,30 +368,30 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
 
           setPoints(generatedPoints);
           setPhase('curve'); // Pasa directamente a modo curva interactiva
-          const pendingCount = pendingNodes.length;
-          alert(
-            `¡Digitalización Exitosa! Se detectaron ${detectedNodes.length} ` +
-            `${detectedNodes.length === 1 ? 'nodo' : 'nodos'}` +
-            (pendingCount > 0
-              ? ` (${recognizedNodes.length} con número leído por IA y ${pendingCount} pendientes en naranja).`
-              : ' con su número reconocido.') +
-            '\n\nLos nodos pendientes aparecen en naranja: haz DOBLE CLIC sobre ellos en la Pista 2D para escribir su número.'
-          );
-        } else {
-          alert(
-            'No se detectó ningún nodo.\n\n' +
-            'Dibuja cada nodo (círculo + número) con un bolígrafo/marcador ROJO o AZUL sobre la pista de la hoja, ' +
-            'y vuelve a escanear con buena luz. También puedes usar «Usar como Fondo de Calco» y colocar los nodos manualmente.'
-          );
+
+          // Navegación garantizada: la app conmuta a la Pista 2D al terminar.
+          // (Sin `alert()`: los diálogos bloqueantes podían cerrar/suspender la PWA.)
+          try {
+            window.dispatchEvent(new CustomEvent('skatecoreo:goto-rink'));
+          } catch {
+            /* entorno sin window (SSR/tests) */
+          }
+
+          setIsProcessing(false);
+          setStatusMessage(null);
+          onClose();
+          return;
         }
 
+        // Sin nodos: NO se cierra el modal, para que el usuario revise la máscara.
         setIsProcessing(false);
-        setStatusMessage(null);
-        onClose();
+        setStatusMessage(
+          'No se detectaron nodos. Abre «Vista previa → Máscara de color»: dibuja los círculos con marcador ROJO o AZUL ' +
+          'y vuelve a intentar. Si la máscara se ve bien, sube MIN_AREA o baja el filtro de aspecto.'
+        );
       } catch (err: any) {
-        alert('Error en la digitalización automática: ' + (err?.message || err));
         setIsProcessing(false);
-        setStatusMessage(null);
+        setStatusMessage('Error en la digitalización: ' + (err?.message || err));
       }
     };
   };

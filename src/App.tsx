@@ -548,6 +548,14 @@ export function App() {
     startTransition(() => setActiveView(tab));
   }, []);
 
+  // El digitalizador solicita volver a la Pista 2D al terminar (sin diálogos
+  // bloqueantes). Este listener garantiza la navegación inmediata.
+  useEffect(() => {
+    const goRink = () => handleNav('rink');
+    window.addEventListener('skatecoreo:goto-rink', goRink);
+    return () => window.removeEventListener('skatecoreo:goto-rink', goRink);
+  }, [handleNav]);
+
   const handleToggleInspector = useCallback(() => {
     setDrawerOpen(false);
     setSheetOpen((open) => !open);

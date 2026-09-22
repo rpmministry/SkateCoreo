@@ -87,7 +87,7 @@ export class PaperOcrEngine {
     // ── PASO PRINCIPAL: segmentación por COLOR (marcador rojo/azul) ─────────
     // Cada mancha de color es un NODO. El número se intenta leer con IA (HTR);
     // si falla, queda pendiente (0) y se digita con doble clic en la Pista 2D.
-    const blobs = PaperColorDetector.detectInkBlobs(warpedCanvas);
+    const blobs = PaperColorDetector.detectInkBlobsAdaptive(warpedCanvas);
 
     if (blobs.length > 0) {
       // Números detectados por IA (si está configurada), para casarlos por cercanía.
@@ -100,8 +100,8 @@ export class PaperOcrEngine {
         }
       }
 
-      // Radio de emparejamiento: ~8% del lado menor de la pista.
-      const matchRadius = Math.max(1.5, Math.min(rink.lengthMeters, rink.widthMeters) * 0.08);
+      // Radio de emparejamiento: ~12% del lado menor de la pista.
+      const matchRadius = Math.max(2, Math.min(rink.lengthMeters, rink.widthMeters) * 0.12);
 
       const nodes: DetectedNodeMarker[] = blobs.map((b) => {
         const meters = this.pixelsToMeters(b.cx, b.cy, w, h, rink);
