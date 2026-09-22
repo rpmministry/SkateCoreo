@@ -1,7 +1,7 @@
 import { HomographyWarp, Point2D } from './HomographyWarp';
 import { PaperOcrEngine } from './PaperOcrEngine';
 import { FiducialDetector } from './FiducialDetector';
-import { isMarkerInk, rgbToHsv } from './PaperColorDetector';
+import { isMarkerInk, rgbToHsv, PaperColorDetector } from './PaperColorDetector';
 
 function runHomographyTests() {
   console.log('--- EJECUTANDO PRUEBAS DEL MOTOR DE VISIÓN: HOMOGRAFÍA Y PERSPECTIVA ---');
@@ -180,6 +180,12 @@ function runOcrMapperTests() {
     rotated.topRight.x === 50 && rotated.topRight.y === 0,
     'orderCornersFromOrigin es invariante a la rotación de la foto'
   );
+
+  // Filtro anti-líneas (proporción 0.6–1.6)
+  check(PaperColorDetector.passesAspectFilter(100, 100) === true, 'Círculo 1:1 se acepta');
+  check(PaperColorDetector.passesAspectFilter(100, 70) === true, 'Óvalo 1.43 dentro del límite se acepta');
+  check(PaperColorDetector.passesAspectFilter(300, 30) === false, 'Línea horizontal alargada se descarta');
+  check(PaperColorDetector.passesAspectFilter(30, 300) === false, 'Línea vertical alargada se descarta');
 
   // Segmentación por color (truco del marcador rojo/azul)
   check(isMarkerInk(220, 40, 40) === true, 'Rojo de marcador se detecta como tinta');

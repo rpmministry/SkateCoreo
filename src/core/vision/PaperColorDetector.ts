@@ -82,7 +82,12 @@ export class PaperColorDetector {
     // tinta del número con la del círculo.
     const r = Math.max(1, Math.round(Math.min(w, h) * 0.004));
     const dilated = this.morph(mask, w, h, r, true);
-    return this.morph(dilated, w, h, r, false);
+    const closed = this.morph(dilated, w, h, r, false);
+
+    // EROSIÓN FUERTE: adelgaza los trazos hasta desconectar/eliminar las LÍNEAS
+    // delgadas (recorrido), dejando las masas centrales (círculos con número).
+    const rErode = Math.max(1, Math.round(Math.min(w, h) * 0.007));
+    return this.morph(closed, w, h, rErode, false);
   }
 
   /** Canvas de la máscara: fondo NEGRO puro y trazos de color en BLANCO puro. */
@@ -108,6 +113,16 @@ export class PaperColorDetector {
       octx.putImageData(img, 0, 0);
     }
     return out;
+  }
+
+  /**
+   * FILTRO GEOMÉTRICO ANTI-LÍNEAS: un nodo (círculo) es ~1:1; una línea de
+   * recorrido es muy alargada. Solo se acepta 0.6 ≤ w/h ≤ 1.6.
+   */
+  public static passesAspectFilter(bw: number, bh: number, min = 0.6, max = 1.6): boolean {
+    if (bw <= 0 || bh <= 0) return false;
+    const aspect = bw / bh;
+    return aspect >= min && aspect <= max;
   }
 
   /**
@@ -155,6 +170,13 @@ export class PaperColorDetector {
       }
 
       if (blob.area < minArea || blob.area > maxArea) continue;
+
+      // ── FILTRO GEOMÉTRICO ANTI-LÍNEAS ──────────────────────────────────
+      // Un nodo (círculo) es ~1:1; una línea de recorrido es muy alargada.
+      const bw = blob.maxX - blob.minX + 1;
+      const bh = blob.maxY - blob.minY + 1;
+      if (!this.passesAspectFilter(bw, bh)) continue; // ES UNA LÍNEA → DESCARTAR
+
       blob.cx = (blob.minX + blob.maxX) / 2;
       blob.cy = (blob.minY + blob.maxY) / 2;
       blobs.push(blob);

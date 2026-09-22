@@ -70,6 +70,12 @@ export interface ChoreographyPathPoint {
   unrecognized?: boolean;
   /** Número de nodo leído por el escáner (o escrito a mano). */
   nodeNumber?: number;
+  /**
+   * Nodo recién digitalizado SIN conexión: el escáner solo sube coordenadas
+   * sueltas. La Pista 2D no dibuja trazos hacia/desde estos nodos hasta que el
+   * usuario los edite/conecte.
+   */
+  unlinked?: boolean;
   isMainNode?: boolean; // Indicador explícito de Nodo Principal / Maestro
   path?: Array<{ x: number; y: number }>; // Huella de alta fidelidad (Catmull-Rom Spline) conectando este nodo con el siguiente
 }

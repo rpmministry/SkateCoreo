@@ -232,6 +232,19 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
   const placeTrayNode = useChoreographyStore((state) => state.placeTrayNode);
 
   const setPoints = useChoreographyStore((state) => state.setPoints);
+
+  /**
+   * Commit de edición: al interactuar con el lienzo se elimina el estado
+   * `unlinked` de los nodos digitalizados. El escáner sube puntos sueltos y el
+   * usuario, al editar/conectar, vuelve a mostrar las trayectorias.
+   */
+  const commitPoints = useCallback(
+    (arr: ChoreographyPoint[]) => {
+      const hasUnlinked = arr.some((p) => p.unlinked);
+      setPoints(hasUnlinked ? arr.map((p) => (p.unlinked ? { ...p, unlinked: false } : p)) : arr);
+    },
+    [setPoints]
+  );
   const setSelectedPointId = useChoreographyStore((state) => state.setSelectedPointId);
   const setSkaterGender = useChoreographyStore((state) => state.setSkaterGender);
   const setPhase = useChoreographyStore((state) => state.setPhase);
@@ -786,7 +799,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
             const updated = points.map((p) =>
               p.id === hitNode.id ? { ...p, nodeNumber: num, unrecognized: false, label: '' } : p
             );
-            setPoints(updated);
+      commitPoints(updated);
             audio.setNodes(updated);
             if (currentProgram && onProgramUpdated) {
               onProgramUpdated({ ...currentProgram, choreography_path: updated });
@@ -1289,7 +1302,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
           setSelectedPointId(stamped[1].id);
         }
 
-        setPoints(finalPoints);
+        commitPoints(finalPoints);
         if (finalPoints.length >= 2) {
           setPhase('curve');
         }
@@ -1451,7 +1464,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
             updatedPoints.push(newPoint);
             updatedPoints.sort((a, b) => a.time_ms - b.time_ms);
 
-            setPoints(updatedPoints);
+            commitPoints(updatedPoints);
             setSelectedPointId(newPointId);
             onNodeSelect?.(newPointId);
 
@@ -1508,7 +1521,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
   const handleUpdatePointTime = (id: string, time_ms: number) => {
     pushHistory();
     const updated = points.map(p => p.id === id ? { ...p, time_ms, timestamp: time_ms } : p).sort((a, b) => a.timestamp - b.timestamp);
-    setPoints(updated);
+      commitPoints(updated);
   };
 
   // Limpiar pista por completo

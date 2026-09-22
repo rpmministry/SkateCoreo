@@ -315,6 +315,11 @@ export class RinkRenderer {
       const p0 = sorted[i];
       const p1 = sorted[i + 1];
 
+      // Los nodos recién DIGITALIZADOS no tienen conexión (unlinked): la pista
+      // solo muestra puntos sueltos, sin trazos de unión, hasta que el usuario
+      // los edite/conecte.
+      if (p0.unlinked || p1.unlinked) continue;
+
       const isSegmentSelected = options.selectedPointId === p0.id || options.selectedPointId === p1.id;
       const hasSplinePath = Boolean(p0.path && p0.path.length >= 2);
       const hasCustomCps = p0.cp1x !== undefined && p0.cp2x !== undefined;

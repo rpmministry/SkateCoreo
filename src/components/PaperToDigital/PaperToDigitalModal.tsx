@@ -11,7 +11,6 @@ import {
 } from 'lucide-react';
 import { QuadCorners, HomographyWarp } from '../../core/vision/HomographyWarp';
 import { FiducialDetector } from '../../core/vision/FiducialDetector';
-import { PaperVectorizer } from '../../core/vision/PaperVectorizer';
 import { PaperOcrEngine, OcrDebugEntry } from '../../core/vision/PaperOcrEngine';
 import { PaperColorDetector } from '../../core/vision/PaperColorDetector';
 import { CornerPinAdjuster } from './CornerPinAdjuster';
@@ -310,11 +309,9 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
       try {
         const warpedCanvas = HomographyWarp.warpPerspective(img, corners, 2000, 1000);
 
-        // ── REGLA DE RENDERIZADO LIMPIO ───────────────────────────────────────
-        // El trazado de tinta del dibujo original NO se usa ni se renderiza en la
-        // Pista 2D (solo los puntos numerados).
-        const INCLUDE_TRACED_STROKES = false;
-        const strokes = INCLUDE_TRACED_STROKES ? PaperVectorizer.extractStrokes(warpedCanvas) : [];
+        // ── BLOQUEO ABSOLUTO DE VECTORES/TRAZOS ───────────────────────────────
+        // El escáner NO extrae ni sube líneas: solo coordenadas de nodos. No se
+        // vectoriza nada y el array de trazos queda vacío por diseño.
 
         // Paso 2/3: reconocimiento SOBRE LA IMAGEN YA ALINEADA (nunca la original).
         //   · Con clave de Cloud Vision → HTR (lee el número manuscrito).
@@ -337,47 +334,11 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
         const pendingNodes = detectedNodes.filter((n) => n.sequenceNumber < 1);
         const sortedOcrNodes = [...recognizedNodes].sort((a, b) => a.sequenceNumber - b.sequenceNumber).concat(pendingNodes);
 
-        const allStrokePoints: Array<{ x: number; y: number }> = INCLUDE_TRACED_STROKES
-          ? strokes.flatMap((s) => s.pointsMeters)
-          : [];
-
         if (detectedNodes.length > 0) {
 
+          // Solo se generan NODOS sueltos (sin path ni segmentos de unión).
           const generatedPoints: ChoreographyPoint[] = sortedOcrNodes.map((node, idx) => {
             const timeMs = idx * 4000; // Distribución temporal base
-
-            // Asociar trazo continuo de tinta entre este nodo y el siguiente para node.path
-            let segmentPath: Array<{ x: number; y: number }> | undefined = undefined;
-
-            if (allStrokePoints.length > 1) {
-              const nextNode = sortedOcrNodes[idx + 1];
-              if (nextNode) {
-                let bestStartIdx = 0;
-                let bestEndIdx = allStrokePoints.length - 1;
-                let minDistStart = Infinity;
-                let minDistEnd = Infinity;
-
-                allStrokePoints.forEach((pt, pIdx) => {
-                  const dStart = Math.hypot(pt.x - node.positionMeters.x, pt.y - node.positionMeters.y);
-                  const dEnd = Math.hypot(pt.x - nextNode.positionMeters.x, pt.y - nextNode.positionMeters.y);
-                  if (dStart < minDistStart) {
-                    minDistStart = dStart;
-                    bestStartIdx = pIdx;
-                  }
-                  if (dEnd < minDistEnd) {
-                    minDistEnd = dEnd;
-                    bestEndIdx = pIdx;
-                  }
-                });
-
-                if (bestStartIdx < bestEndIdx) {
-                  segmentPath = allStrokePoints.slice(bestStartIdx, bestEndIdx + 1);
-                } else if (bestEndIdx < bestStartIdx) {
-                  segmentPath = allStrokePoints.slice(bestEndIdx, bestStartIdx + 1).reverse();
-                }
-              }
-            }
-
             const recognized = node.sequenceNumber >= 1;
 
             return {
@@ -399,7 +360,9 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
               isMainNode: true,
               unrecognized: !recognized,
               nodeNumber: recognized ? node.sequenceNumber : undefined,
-              path: segmentPath && segmentPath.length > 1 ? segmentPath : undefined,
+              // El escáner sube SOLO coordenadas sueltas: sin trazos ni uniones.
+              unlinked: true,
+              path: undefined,
             };
           });
 
