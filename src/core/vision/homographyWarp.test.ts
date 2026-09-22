@@ -1,4 +1,5 @@
 import { HomographyWarp, Point2D } from './HomographyWarp';
+import { PaperOcrEngine } from './PaperOcrEngine';
 
 function runHomographyTests() {
   console.log('--- EJECUTANDO PRUEBAS DEL MOTOR DE VISIÓN: HOMOGRAFÍA Y PERSPECTIVA ---');
@@ -105,4 +106,46 @@ function runHomographyTests() {
 }
 
 runHomographyTests();
+
+/* ── Extras: mapeo estricto de coordenadas y filtro de círculos (OCR) ── */
+function runOcrMapperTests() {
+  let t = 0;
+  let ok = 0;
+  const check = (cond: boolean, msg: string) => {
+    t++;
+    if (!cond) {
+      console.error(`FAILED: ${msg}`);
+      process.exit(1);
+    }
+    ok++;
+  };
+
+  // Centroide del lienzo alineado (2000x1000 px = 50x25 m) -> 25, 12.5 m
+  const center = PaperOcrEngine.pixelsToMeters(1000, 500, 2000, 1000);
+  check(
+    Math.abs(center.x - 25) < 0.11 && Math.abs(center.y - 12.5) < 0.11,
+    'pixelsToMeters mapea el centro del lienzo a 25 x 12.5 m'
+  );
+
+  // Esquina superior izquierda -> (0, 0)
+  const tl = PaperOcrEngine.pixelsToMeters(0, 0, 2000, 1000);
+  check(tl.x === 0 && tl.y === 0, 'pixelsToMeters mapea (0,0) a (0,0)');
+
+  // Filtro de círculos: disco válido; línea y mancha pequeña se descartan.
+  check(
+    PaperOcrEngine.isCircleCandidate(40, 40, 1256, 60, 5000) === true,
+    'isCircleCandidate acepta un disco (área y extensión correctas)'
+  );
+  check(
+    PaperOcrEngine.isCircleCandidate(40, 10, 400, 60, 5000) === false,
+    'isCircleCandidate descarta una línea (relación de aspecto)'
+  );
+  check(
+    PaperOcrEngine.isCircleCandidate(40, 40, 50, 60, 5000) === false,
+    'isCircleCandidate descarta una mancha por debajo del área mínima'
+  );
+
+  console.log(`\nOK PRUEBAS DEL MAPEO OCR PASARON: ${ok}/${t}`);
+}
+runOcrMapperTests();
 

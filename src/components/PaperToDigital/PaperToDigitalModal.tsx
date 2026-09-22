@@ -13,10 +13,50 @@ import { QuadCorners, HomographyWarp } from '../../core/vision/HomographyWarp';
 import { FiducialDetector } from '../../core/vision/FiducialDetector';
 import { PaperPreprocessor } from '../../core/vision/PaperPreprocessor';
 import { PaperVectorizer } from '../../core/vision/PaperVectorizer';
-import { PaperOcrEngine } from '../../core/vision/PaperOcrEngine';
+import { PaperOcrEngine, OcrDebugEntry } from '../../core/vision/PaperOcrEngine';
 import { CornerPinAdjuster } from './CornerPinAdjuster';
 import { useChoreographyStore } from '../../store/useChoreographyStore';
 import { ChoreographyPoint } from '../../types/choreography';
+
+/**
+ * Overlay de depuración: dibuja el centroide detectado de cada círculo (punto
+ * rojo) y, al lado, el texto que el OCR ha leído (o el motivo de descarte).
+ */
+function buildOcrDebugOverlay(binarized: HTMLCanvasElement, debug: OcrDebugEntry[]): string {
+  const canvas = document.createElement('canvas');
+  canvas.width = binarized.width;
+  canvas.height = binarized.height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return binarized.toDataURL('image/png');
+
+  ctx.drawImage(binarized, 0, 0);
+
+  for (const d of debug) {
+    // Círculo del ROI
+    ctx.beginPath();
+    ctx.arc(d.x, d.y, Math.max(8, d.radius), 0, Math.PI * 2);
+    ctx.strokeStyle = d.accepted ? '#FF0000' : '#FF9900';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // Centroide exacto
+    ctx.beginPath();
+    ctx.arc(d.x, d.y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#FF0000';
+    ctx.fill();
+
+    // Texto leído por el OCR
+    const label = d.accepted ? `OK: ${d.text}` : d.text ? `X: ${d.text}` : `X: ${d.reason || 'sin lectura'}`;
+    ctx.font = 'bold 20px monospace';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.strokeText(label, d.x + 12, d.y - 10);
+    ctx.fillStyle = d.accepted ? '#B00020' : '#B45309';
+    ctx.fillText(label, d.x + 12, d.y - 10);
+  }
+
+  return canvas.toDataURL('image/png');
+}
 
 interface PaperToDigitalModalProps {
   isOpen: boolean;
@@ -257,11 +297,18 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
         // Paso 2/3: preprocesado (grises + contraste + Otsu) sobre la imagen alineada.
         setStatusMessage('Paso 2/3: Preprocesando imagen (grises, contraste, Otsu)...');
         const pre = PaperPreprocessor.preprocess(warpedCanvas);
-        setPreviewUrl(pre.binarized.toDataURL('image/png'));
 
-        // Paso 3/3: OCR de dígitos SOLO sobre la imagen preprocesada/binarizada.
-        setStatusMessage('Paso 3/3: Reconociendo nodos numerados (OCR de dígitos)...');
-        const rawDetectedNodes = await PaperOcrEngine.detectNumberedNodes(warpedCanvas, undefined, pre.binarized);
+        // Paso 3/3: detección de círculos + OCR de UN carácter sobre cada ROI limpio.
+        setStatusMessage('Paso 3/3: Detectando círculos y leyendo el número central...');
+        const ocrResult = await PaperOcrEngine.detectNumberedNodesWithDebug(
+          warpedCanvas,
+          undefined,
+          pre.binarized
+        );
+
+        // Debug visual: overlay con centroides y lo que leyó el OCR.
+        setPreviewUrl(buildOcrDebugOverlay(pre.binarized, ocrResult.debug));
+        const rawDetectedNodes = ocrResult.nodes;
 
         // ── REGLA ESTRICTA DE EXTRACCIÓN ──────────────────────────────────────
         // Solo se extraen NODOS PRINCIPALES con numeración explícita (1, 2, 3…).
