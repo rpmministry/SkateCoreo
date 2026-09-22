@@ -13,6 +13,7 @@ import { QuadCorners, HomographyWarp } from '../../core/vision/HomographyWarp';
 import { FiducialDetector } from '../../core/vision/FiducialDetector';
 import { PaperVectorizer } from '../../core/vision/PaperVectorizer';
 import { PaperOcrEngine, OcrDebugEntry } from '../../core/vision/PaperOcrEngine';
+import { PaperColorDetector } from '../../core/vision/PaperColorDetector';
 import { CornerPinAdjuster } from './CornerPinAdjuster';
 import { useChoreographyStore } from '../../store/useChoreographyStore';
 import { ChoreographyPoint } from '../../types/choreography';
@@ -84,6 +85,9 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
   const [alignmentError, setAlignmentError] = useState<string | null>(null);
   /** Preview de la imagen preprocesada/binarizada (modo debug). */
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  /** Máscara de color (fondo negro, trazos del marcador en blanco) para depurar. */
+  const [maskUrl, setMaskUrl] = useState<string | null>(null);
+  const [debugView, setDebugView] = useState<'nodes' | 'mask'>('nodes');
   const [showDebug, setShowDebug] = useState<boolean>(false);
   /** Orientación detectada respecto a la hoja "de pie" (0/90/180/270 aprox.). */
   const [orientationDeg, setOrientationDeg] = useState<number>(0);
@@ -114,6 +118,7 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
     setIsProcessing(true);
     setStatusMessage('Detectando marcas fiduciales (targets QR)...');
     setPreviewUrl(null);
+    setMaskUrl(null);
 
     const img = new Image();
     img.src = src;
@@ -317,8 +322,10 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
         setStatusMessage('Paso 2/3: Reconociendo nodos (IA de visión o segmentación por color)...');
         const ocrResult = await PaperOcrEngine.detectNumberedNodesWithDebug(warpedCanvas);
 
-        // Debug visual: overlay con los nodos detectados sobre la hoja alineada.
+        // Debug visual: overlay con los nodos detectados sobre la hoja alineada
+        // y la MÁSCARA DE COLOR (negro + trazos del marcador en blanco).
         setPreviewUrl(buildOcrDebugOverlay(warpedCanvas, ocrResult.debug));
+        setMaskUrl(PaperColorDetector.buildMaskCanvas(warpedCanvas).toDataURL('image/png'));
         const rawDetectedNodes = ocrResult.nodes;
 
         // ── FAIL-SAFE ─────────────────────────────────────────────────────────
@@ -596,7 +603,7 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
                 </div>
               )}
 
-              {/* Modo debug: preview de la imagen preprocesada/binarizada */}
+              {/* Modo debug: nodos detectados y MÁSCARA DE COLOR */}
               {imageSrc && (
                 <div className="space-y-2">
                   <button
@@ -604,16 +611,37 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
                     onClick={() => setShowDebug((v) => !v)}
                     className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-semibold text-slate-200 transition-all hover:bg-white/10"
                   >
-                    <span>Vista previa (preprocesado)</span>
+                    <span>Vista previa (depuración)</span>
                     <span className="text-cyan">{showDebug ? 'Ocultar' : 'Mostrar'}</span>
                   </button>
 
                   {showDebug && (
-                    <div className="rounded-xl border border-white/10 bg-black/40 p-2">
-                      {previewUrl ? (
+                    <div className="space-y-2 rounded-xl border border-white/10 bg-black/40 p-2">
+                      <div className="flex gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setDebugView('nodes')}
+                          className={`flex-1 rounded-lg px-2 py-1.5 text-[10px] font-bold transition-colors ${
+                            debugView === 'nodes' ? 'bg-cyan text-slate-950' : 'bg-white/10 text-slate-300'
+                          }`}
+                        >
+                          Nodos
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDebugView('mask')}
+                          className={`flex-1 rounded-lg px-2 py-1.5 text-[10px] font-bold transition-colors ${
+                            debugView === 'mask' ? 'bg-cyan text-slate-950' : 'bg-white/10 text-slate-300'
+                          }`}
+                        >
+                          Máscara de color
+                        </button>
+                      </div>
+
+                      {(debugView === 'mask' ? maskUrl : previewUrl) ? (
                         <img
-                          src={previewUrl}
-                          alt="Imagen alineada y binarizada"
+                          src={(debugView === 'mask' ? maskUrl : previewUrl) as string}
+                          alt={debugView === 'mask' ? 'Máscara de color' : 'Nodos detectados'}
                           className="w-full rounded-lg border border-white/10 object-contain"
                         />
                       ) : (

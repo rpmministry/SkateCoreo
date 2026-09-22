@@ -82,8 +82,68 @@ export class PaperOcrEngine {
     const h = warpedCanvas.height;
     if (w <= 0 || h <= 0) return { nodes: [], debug: [], method: 'none' };
 
-    // ── OPCIÓN 1: HTR en la nube (Google Cloud Vision) ─────────────────────
     const visionApiKey = (import.meta as any).env?.VITE_GOOGLE_VISION_API_KEY;
+
+    // ── PASO PRINCIPAL: segmentación por COLOR (marcador rojo/azul) ─────────
+    // Cada mancha de color es un NODO. El número se intenta leer con IA (HTR);
+    // si falla, queda pendiente (0) y se digita con doble clic en la Pista 2D.
+    const blobs = PaperColorDetector.detectInkBlobs(warpedCanvas);
+
+    if (blobs.length > 0) {
+      // Números detectados por IA (si está configurada), para casarlos por cercanía.
+      let numbers: DetectedNodeMarker[] = [];
+      if (visionApiKey) {
+        try {
+          numbers = await this.detectWithGoogleVision(warpedCanvas, visionApiKey, rink);
+        } catch (err) {
+          console.warn('[PaperOcrEngine] HTR no disponible; nodos quedan pendientes:', err);
+        }
+      }
+
+      // Radio de emparejamiento: ~8% del lado menor de la pista.
+      const matchRadius = Math.max(1.5, Math.min(rink.lengthMeters, rink.widthMeters) * 0.08);
+
+      const nodes: DetectedNodeMarker[] = blobs.map((b) => {
+        const meters = this.pixelsToMeters(b.cx, b.cy, w, h, rink);
+
+        let seq = 0;
+        let bestDist = Infinity;
+        for (const n of numbers) {
+          const dist = Math.hypot(n.positionMeters.x - meters.x, n.positionMeters.y - meters.y);
+          if (dist < bestDist) {
+            bestDist = dist;
+            seq = n.sequenceNumber;
+          }
+        }
+        if (bestDist > matchRadius) seq = 0;
+
+        return {
+          sequenceNumber: seq,
+          positionMeters: meters,
+          confidence: seq > 0 ? 0.9 : 0.5,
+          rawBoundingBox: {
+            x: b.minX,
+            y: b.minY,
+            width: b.maxX - b.minX,
+            height: b.maxY - b.minY,
+          },
+          unrecognized: seq <= 0,
+        };
+      });
+
+      const debug: OcrDebugEntry[] = blobs.map((b, i) => ({
+        x: b.cx,
+        y: b.cy,
+        radius: Math.max(b.maxX - b.minX, b.maxY - b.minY) / 2,
+        text: nodes[i].sequenceNumber > 0 ? String(nodes[i].sequenceNumber) : '',
+        accepted: true,
+        reason: 'Nodo por color · digita el número con doble clic',
+      }));
+
+      return { nodes: this.sanitize(nodes, rink), debug, method: 'color' };
+    }
+
+    // ── Compatibilidad: sin manchas de color, si hay IA se usan sus números ──
     if (visionApiKey) {
       try {
         const cloudNodes = await this.detectWithGoogleVision(warpedCanvas, visionApiKey, rink);
@@ -99,40 +159,11 @@ export class PaperOcrEngine {
           return { nodes, debug, method: 'vision' };
         }
       } catch (err) {
-        console.warn('[PaperOcrEngine] Falló Cloud Vision; se usará el modo color:', err);
+        console.warn('[PaperOcrEngine] Falló Cloud Vision:', err);
       }
     }
 
-    // ── OPCIÓN 2: segmentación por COLOR (offline, fail-safe) ──────────────
-    // Cada mancha ROJA/AZUL es un nodo. El número se digita tocando el nodo.
-    const blobs = PaperColorDetector.detectInkBlobs(warpedCanvas);
-    if (blobs.length > 0) {
-      const nodes: DetectedNodeMarker[] = blobs.map((b) => ({
-        sequenceNumber: 0,
-        positionMeters: this.pixelsToMeters(b.cx, b.cy, w, h, rink),
-        confidence: 0.5,
-        rawBoundingBox: {
-          x: b.minX,
-          y: b.minY,
-          width: b.maxX - b.minX,
-          height: b.maxY - b.minY,
-        },
-        unrecognized: true,
-      }));
-
-      const debug: OcrDebugEntry[] = blobs.map((b) => ({
-        x: b.cx,
-        y: b.cy,
-        radius: Math.max(b.maxX - b.minX, b.maxY - b.minY) / 2,
-        text: '',
-        accepted: true,
-        reason: 'Nodo por color · digita el número con doble clic',
-      }));
-
-      return { nodes: this.sanitize(nodes, rink), debug, method: 'color' };
-    }
-
-    // Sin IA ni manchas de color → 0 nodos (nunca fantasmas).
+    // Sin manchas de color ni IA → 0 nodos (nunca fantasmas).
     return { nodes: [], debug: [], method: 'none' };
   }
 

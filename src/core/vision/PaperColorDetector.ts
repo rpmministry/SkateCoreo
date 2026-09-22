@@ -1,14 +1,18 @@
 /**
  * PaperColorDetector — Segmentación por COLOR (HSV) del "truco del marcador".
  *
- * El usuario dibuja los nodos (círculo + número) con bolígrafo/marcador ROJO o
- * AZUL. Al aislar esos píxeles en HSV, TODA la plantilla impresa (textos, marco,
- * círculo central, etc.) desaparece y solo quedan las manchas manuscritas.
+ * El usuario dibuja los nodos (círculo + número) con bolígrafo/marcador AZUL o
+ * ROJO. Al aislar esos píxeles en HSV, TODA la tinta negra/gris de la plantilla
+ * impresa (textos, marco, círculo central) desaparece y solo quedan las manchas
+ * del marcador. Sobre esa máscara limpia, cada mancha ES UN NODO.
  *
- * Sobre esa máscara limpia, cada componente conexa ES UN NODO: se guarda su
- * centroide (en píxeles del lienzo ALINEADO) para mapearlo a la pista 2D.
+ * Se aplica SIEMPRE sobre la imagen ALINEADA (warp perspective), nunca sobre la
+ * foto cruda. El HSV es resistente a cambios de iluminación y sombras.
  *
- * No requiere OCR ni servicios externos: funciona 100% offline.
+ * Rangos (equivalentes a OpenCV: H 0-180 / S 0-255 / V 0-255):
+ *   · AZUL: H 100–140  → 200°–280° en escala 0-360
+ *   · ROJO: H 0–10 y 160–180 → 0°–20° y 320°–360° (se suman ambas máscaras)
+ *   · S > 50/255 y V > 50/255
  */
 
 export interface ColorBlob {
@@ -42,30 +46,30 @@ export function rgbToHsv(r: number, g: number, b: number): { h: number; s: numbe
   return { h, s, v: max };
 }
 
-/** ¿El píxel es tinta ROJA o AZUL (marcador)? */
+/** Umbrales de saturación/valor (OpenCV: 50/255 ≈ 0.196). */
+const MIN_SAT = 0.20;
+const MIN_VAL = 0.20;
+
+/** ¿El píxel es tinta de marcador AZUL o ROJO? (Ignora negro/gris/blanco). */
 export function isMarkerInk(r: number, g: number, b: number): boolean {
   const { h, s, v } = rgbToHsv(r, g, b);
-  if (v < 0.18) return false; // demasiado oscuro (sombra/negro)
-  if (s < 0.28) return false; // poco saturado (papel/grises)
+  if (s < MIN_SAT || v < MIN_VAL) return false;
 
-  // ROJO: entorno de 0°/360°
-  const isRed = h <= 20 || h >= 340;
-  // AZUL: azul de marcador (se excluye el cian de marca, ~189°)
-  const isBlue = h >= 200 && h <= 265;
+  // AZUL (OpenCV H 100–140)
+  const isBlue = h >= 200 && h <= 280;
+  // ROJO en dos extremos (OpenCV H 0–10 y 160–180)
+  const isRed = h <= 20 || h >= 320;
 
-  return isRed || isBlue;
+  return isBlue || isRed;
 }
 
 export class PaperColorDetector {
-  /**
-   * Devuelve las manchas de tinta roja/azul de la imagen ALINEADA.
-   * Cada mancha es un nodo potencial (círculo o número dibujado por el usuario).
-   */
-  public static detectInkBlobs(canvas: HTMLCanvasElement): ColorBlob[] {
+  /** Máscara binaria (1 = tinta de color) de la imagen alineada. */
+  public static buildMask(canvas: HTMLCanvasElement): Uint8Array {
     const w = canvas.width;
     const h = canvas.height;
     const ctx = canvas.getContext('2d');
-    if (!ctx) return [];
+    if (!ctx) return new Uint8Array(0);
     const { data } = ctx.getImageData(0, 0, w, h);
 
     const mask = new Uint8Array(w * h);
@@ -74,8 +78,53 @@ export class PaperColorDetector {
       mask[i] = isMarkerInk(data[idx], data[idx + 1], data[idx + 2]) ? 1 : 0;
     }
 
-    // Solo se descartan motas de polvo (área mínima relativa muy baja).
-    const minArea = Math.max(24, Math.round(w * h * 0.0002));
+    // Cierre morfológico (dilate → erode): rellena huecos del bolígrafo y une la
+    // tinta del número con la del círculo.
+    const r = Math.max(1, Math.round(Math.min(w, h) * 0.004));
+    const dilated = this.morph(mask, w, h, r, true);
+    return this.morph(dilated, w, h, r, false);
+  }
+
+  /** Canvas de la máscara: fondo NEGRO puro y trazos de color en BLANCO puro. */
+  public static buildMaskCanvas(canvas: HTMLCanvasElement): HTMLCanvasElement {
+    const w = canvas.width;
+    const h = canvas.height;
+    const mask = this.buildMask(canvas);
+
+    const out = document.createElement('canvas');
+    out.width = w;
+    out.height = h;
+    const octx = out.getContext('2d');
+    if (octx) {
+      const img = octx.createImageData(w, h);
+      for (let i = 0; i < w * h; i++) {
+        const v = mask[i] === 1 ? 255 : 0;
+        const idx = i * 4;
+        img.data[idx] = v;
+        img.data[idx + 1] = v;
+        img.data[idx + 2] = v;
+        img.data[idx + 3] = 255;
+      }
+      octx.putImageData(img, 0, 0);
+    }
+    return out;
+  }
+
+  /**
+   * Componentes conexas de la máscara (ya cerrada). Filtro de ruido:
+   * área entre 0.2% y 5% de la imagen. Cada mancha es un nodo.
+   */
+  public static detectInkBlobs(canvas: HTMLCanvasElement): ColorBlob[] {
+    const w = canvas.width;
+    const h = canvas.height;
+    if (w <= 0 || h <= 0) return [];
+
+    const mask = this.buildMask(canvas);
+    if (mask.length === 0) return [];
+
+    const total = w * h;
+    const minArea = Math.round(total * 0.002); // 0.2%
+    const maxArea = Math.round(total * 0.05);  // 5%
 
     const visited = new Uint8Array(w * h);
     const blobs: ColorBlob[] = [];
@@ -105,12 +154,56 @@ export class PaperColorDetector {
         if (y < h - 1) { const n = idx + w; if (mask[n] === 1 && visited[n] === 0) { visited[n] = 1; stack.push(n); } }
       }
 
-      if (blob.area < minArea) continue;
+      if (blob.area < minArea || blob.area > maxArea) continue;
       blob.cx = (blob.minX + blob.maxX) / 2;
       blob.cy = (blob.minY + blob.maxY) / 2;
       blobs.push(blob);
     }
 
     return blobs;
+  }
+
+  /**
+   * Filtro morfológico separable (máximo para dilatar, mínimo para erosionar)
+   * con radio `r`. Coste O(w·h·r) en lugar de O(w·h·r²).
+   */
+  private static morph(
+    src: Uint8Array,
+    w: number,
+    h: number,
+    r: number,
+    dilate: boolean
+  ): Uint8Array {
+    const tmp = new Uint8Array(w * h);
+    const out = new Uint8Array(w * h);
+    const pick = dilate ? 1 : 0;
+    const other = dilate ? 0 : 1;
+
+    // Horizontal
+    for (let y = 0; y < h; y++) {
+      const row = y * w;
+      for (let x = 0; x < w; x++) {
+        let value = other;
+        for (let dx = -r; dx <= r; dx++) {
+          const nx = x + dx;
+          if (nx < 0 || nx >= w) continue;
+          if (src[row + nx] === pick) { value = pick; break; }
+        }
+        tmp[row + x] = value;
+      }
+    }
+    // Vertical
+    for (let x = 0; x < w; x++) {
+      for (let y = 0; y < h; y++) {
+        let value = other;
+        for (let dy = -r; dy <= r; dy++) {
+          const ny = y + dy;
+          if (ny < 0 || ny >= h) continue;
+          if (tmp[ny * w + x] === pick) { value = pick; break; }
+        }
+        out[y * w + x] = value;
+      }
+    }
+    return out;
   }
 }
