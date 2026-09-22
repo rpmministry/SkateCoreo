@@ -112,10 +112,11 @@ export const AuthModal: React.FC = () => {
     }
 
     setCodeLoading(true);
-    // Los códigos de campaña (SC-BETA-…) conceden 30 días y los valida el
-    // backend; el resto usa el registro de regalo anual existente.
-    const isBetaPromo = activationCode.trim().toUpperCase().startsWith('SC-BETA-');
-    const res = isBetaPromo
+    // Los códigos de campaña (SC-BETA-… / CREATOR-…) los valida el backend y
+    // conceden su propia duración/plan; el resto usa el registro de regalo anual.
+    const normalizedCode = activationCode.trim().toUpperCase();
+    const isCampaignCode = normalizedCode.startsWith('SC-BETA-') || normalizedCode.startsWith('CREATOR-');
+    const res = isCampaignCode
       ? await redeemPromoCode(codeEmail, codePassword, codeName, activationCode)
       : await registerWithCode(codeEmail, codePassword, codeName, activationCode);
     setCodeLoading(false);
