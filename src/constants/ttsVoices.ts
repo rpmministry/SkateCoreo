@@ -4,9 +4,16 @@
  * Vive en `constants/` (datos puros, SIN dependencias) porque lo consumen tanto
  * el cliente (selector de voz en Ajustes de Pista) como el servidor
  * (`/api/tts`, que valida la voz solicitada contra esta lista blanca).
+ *
+ * ── DECISIÓN DE PRODUCTO (voz única) ────────────────────────────────────────
+ * La Voz Guía es SIEMPRE femenina, con acento latinoamericano nativo. Se
+ * eliminó por completo la selección de voz masculina (UI y lógica) porque
+ * sonaba como una variación artificial de la femenina y añadía ruido de
+ * configuración. Solo se ofrecen modelos premium (Neural2 / Journey) con
+ * respaldo Wavenet para proyectos donde Neural2 no esté habilitada.
  */
 
-export type TtsVoiceGender = 'female' | 'male';
+export type TtsVoiceGender = 'female';
 
 export interface GoogleTTSVoiceOption {
   name: string;
@@ -16,36 +23,30 @@ export interface GoogleTTSVoiceOption {
 }
 
 /**
- * Política de marca: se priorizan VOCES LATINAS (región es-US) en variantes
- * Neural2, Wavenet y Journey, tanto femenina como masculina. Las variantes
- * es-ES quedan como alternativa.
+ * Catálogo OFICIAL — exclusivamente voces femeninas latinas (región es-US).
+ *
+ * Orden: premium primero. `Neural2-A` es la voz por defecto por su dicción
+ * neutra latinoamericana; `Journey-F` ofrece la máxima expresividad.
  */
 export const GOOGLE_TTS_VOICES: GoogleTTSVoiceOption[] = [
-  // ── Latinas (prioritarias) ──
-  { name: 'es-US-Neural2-C', lang: 'es-US', label: 'Latino (es-US) · Neural2 C — Femenina', gender: 'female' },
-  { name: 'es-US-Neural2-B', lang: 'es-US', label: 'Latino (es-US) · Neural2 B — Masculina', gender: 'male' },
-  { name: 'es-US-Neural2-A', lang: 'es-US', label: 'Latino (es-US) · Neural2 A — Femenina', gender: 'female' },
-  { name: 'es-US-Wavenet-C', lang: 'es-US', label: 'Latino (es-US) · Wavenet C — Femenina', gender: 'female' },
-  { name: 'es-US-Wavenet-D', lang: 'es-US', label: 'Latino (es-US) · Wavenet D — Masculina', gender: 'male' },
-  { name: 'es-US-Wavenet-A', lang: 'es-US', label: 'Latino (es-US) · Wavenet A — Femenina', gender: 'female' },
-  { name: 'es-US-Wavenet-B', lang: 'es-US', label: 'Latino (es-US) · Wavenet B — Masculina', gender: 'male' },
-  { name: 'es-US-Journey-F', lang: 'es-US', label: 'Latino (es-US) · Journey F — Ultra natural (F)', gender: 'female' },
-  { name: 'es-US-Journey-O', lang: 'es-US', label: 'Latino (es-US) · Journey O — Ultra natural (M)', gender: 'male' },
-  // ── Alternativas de España ──
-  { name: 'es-ES-Neural2-A', lang: 'es-ES', label: 'Español (ES) · Neural2 A — Femenina', gender: 'female' },
-  { name: 'es-ES-Neural2-B', lang: 'es-ES', label: 'Español (ES) · Neural2 B — Masculina', gender: 'male' },
-  { name: 'es-ES-Neural2-C', lang: 'es-ES', label: 'Español (ES) · Neural2 C — Femenina', gender: 'female' },
-  { name: 'es-ES-Neural2-F', lang: 'es-ES', label: 'Español (ES) · Neural2 F — Masculina', gender: 'male' },
-  // ── Inglés ──
-  { name: 'en-US-Neural2-F', lang: 'en-US', label: 'English (US) · Neural2 F — Female', gender: 'female' },
-  { name: 'en-US-Neural2-D', lang: 'en-US', label: 'English (US) · Neural2 D — Male', gender: 'male' },
-  { name: 'en-US-Journey-F', lang: 'en-US', label: 'English (US) · Journey F — Expressive', gender: 'female' },
-  { name: 'en-US-Journey-O', lang: 'en-US', label: 'English (US) · Journey O — Expressive', gender: 'male' }
+  { name: 'es-US-Neural2-A', lang: 'es-US', label: 'Latino · Neural2 A — Premium', gender: 'female' },
+  { name: 'es-US-Neural2-C', lang: 'es-US', label: 'Latino · Neural2 C — Natural', gender: 'female' },
+  { name: 'es-US-Journey-F', lang: 'es-US', label: 'Latino · Journey F — Ultra natural', gender: 'female' },
+  { name: 'es-US-Wavenet-C', lang: 'es-US', label: 'Latino · Wavenet C — Compatibilidad', gender: 'female' }
 ];
 
-/** Voz latina femenina por defecto y su contraparte masculina. */
-export const DEFAULT_LATIN_FEMALE_VOICE = 'es-US-Neural2-C';
-export const DEFAULT_LATIN_MALE_VOICE = 'es-US-Neural2-B';
+/**
+ * Voces de máxima naturalidad (Neural2 / Journey). La app prioriza estas y solo
+ * cae a Wavenet si el proyecto de Google no tiene habilitadas las premium.
+ */
+export const PREMIUM_LATIN_FEMALE_VOICES: string[] = [
+  'es-US-Neural2-A',
+  'es-US-Neural2-C',
+  'es-US-Journey-F'
+];
+
+/** Voz femenina latina por defecto (premium). */
+export const DEFAULT_LATIN_FEMALE_VOICE = 'es-US-Neural2-A';
 
 /** Región latina por defecto para el español. */
 export const DEFAULT_LATIN_LANGUAGE_CODE = 'es-US';
@@ -60,13 +61,25 @@ export function isAllowedTtsVoice(voiceName: unknown): voiceName is string {
   return typeof voiceName === 'string' && GOOGLE_TTS_VOICES.some((v) => v.name === voiceName);
 }
 
-/** Voces latinas (es-US) — las que se ofrecen al usuario final. */
+/** Voces latinas (es-US) — el único conjunto ofrecido al usuario final. */
 export function getLatinTtsVoices(): GoogleTTSVoiceOption[] {
   return GOOGLE_TTS_VOICES.filter((voice) => voice.lang === DEFAULT_LATIN_LANGUAGE_CODE);
 }
 
 /**
- * Respaldo Wavenet del mismo idioma y género.
+ * Normaliza cualquier nombre de voz al catálogo oficial femenino.
+ *
+ * Es la garantía de que la Voz Guía nunca sintetice con una voz masculina,
+ * castellana o fuera de catálogo, aunque provenga de una preferencia guardada
+ * por una versión anterior de la app.
+ */
+export function resolveLatinFemaleVoice(voiceName?: string | null): string {
+  if (voiceName && findTtsVoice(voiceName)) return voiceName;
+  return DEFAULT_LATIN_FEMALE_VOICE;
+}
+
+/**
+ * Respaldo Wavenet del mismo idioma.
  * Se usa cuando Neural2/Journey no están habilitadas en el proyecto de Google.
  */
 export function pickWavenetFallbackVoice(voiceName: string): GoogleTTSVoiceOption | undefined {
@@ -75,30 +88,9 @@ export function pickWavenetFallbackVoice(voiceName: string): GoogleTTSVoiceOptio
   if (current.name.includes('Wavenet')) return undefined;
 
   const candidates = GOOGLE_TTS_VOICES.filter(
-    (v) => v.lang === current.lang && v.gender === current.gender && v.name.includes('Wavenet')
+    (v) => v.lang === current.lang && v.name.includes('Wavenet')
   );
   return candidates[0];
-}
-
-/** Voz del catálogo para un género y familia determinados (misma región). */
-export function pickVoiceByGender(
-  gender: TtsVoiceGender,
-  options?: { region?: string; tier?: string }
-): GoogleTTSVoiceOption | undefined {
-  const region = options?.region ?? DEFAULT_LATIN_LANGUAGE_CODE;
-  const tier = options?.tier;
-
-  const inRegion = GOOGLE_TTS_VOICES.filter(
-    (v) => v.lang === region && v.gender === gender
-  );
-  if (tier) {
-    const sameTier = inRegion.find((v) => v.name.toLowerCase().includes(tier));
-    if (sameTier) return sameTier;
-  }
-  if (inRegion.length > 0) return inRegion[0];
-
-  // Sin coincidencia en la región pedida: cualquier voz del género
-  return GOOGLE_TTS_VOICES.find((v) => v.gender === gender);
 }
 
 /** Familia (tier) de una voz del catálogo: neural2 | wavenet | journey | standard. */

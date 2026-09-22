@@ -26,7 +26,6 @@ import { RinkContextTools } from './rink/RinkContextTools';
 import { audioEngine } from '../services/audioEngine';
 import { GOOGLE_TTS_VOICES, DEFAULT_LATIN_FEMALE_VOICE } from '../core/audio/VoiceCueEngine';
 import { TIME_SIGNATURES } from '../core/audio/Metronome';
-import { detectGoogleVoiceGender } from '../core/audio/voiceGender';
 import {
   hasNaturalVoiceBackend,
   isTtsProxyEnabled,
@@ -111,21 +110,19 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
     () => audioEngine.voiceCueEngine.getConfig().googleApiKey || ''
   );
   const [apiKeyVisible, setApiKeyVisible] = React.useState(false);
+  // Sincronización anticipada de la Voz Guía (segundos antes del nodo).
+  const [anticipationSec, setAnticipationSec] = React.useState<number>(
+    () => audioEngine.voiceCueEngine.getConfig().anticipationSec
+  );
   // Con el endpoint propio (producción) el usuario NO configura nada.
   const proxyEnabled = React.useMemo(() => isTtsProxyEnabled(), []);
   const naturalVoiceAvailable = React.useMemo(() => hasNaturalVoiceBackend(), []);
 
   const handleVoiceModelChange = (voiceName: string) => {
     audioEngine.voiceCueEngine.setGoogleVoiceName(voiceName);
-    setGoogleVoiceName(voiceName);
-
-    // Mantener coherencia: si la voz elegida es de otro género, se actualiza el
-    // selector de género para que la UI no contradiga a la voz real.
-    const detected = detectGoogleVoiceGender(voiceName);
-    if (detected && detected !== audio.voiceGender) {
-      audio.setVoiceGender(detected);
-      setGoogleVoiceName(audioEngine.voiceCueEngine.getConfig().googleVoiceName);
-    }
+    // El motor normaliza la voz al catálogo femenino latino, así que la UI
+    // refleja el valor realmente aplicado (nunca una voz fuera de catálogo).
+    setGoogleVoiceName(audioEngine.voiceCueEngine.getConfig().googleVoiceName);
   };
 
   const handleTtsEngineChange = (engine: 'browser' | 'google-cloud') => {
@@ -138,13 +135,16 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
   };
 
   /**
-   * Cambio de género coherente: el motor re-selecciona la voz latina del mismo
-   * motor (Neural2/Wavenet/Journey) y aquí se refleja en el selector.
+   * Sincronización anticipada (Anticipatory Cues): cuánto antes del nodo se
+   * anuncia el nombre de la figura. El motor recalcula los avisos al instante.
    */
-  const handleVoiceGenderChange = (gender: 'female' | 'male') => {
-    audio.setVoiceGender(gender);
-    setGoogleVoiceName(audioEngine.voiceCueEngine.getConfig().googleVoiceName);
+  const handleAnticipationChange = (sec: number) => {
+    audioEngine.voiceCueEngine.setAnticipation(sec);
+    setAnticipationSec(audioEngine.voiceCueEngine.getConfig().anticipationSec);
   };
+
+  /** Opciones de antelación de la instrucción (segundos). */
+  const ANTICIPATION_OPTIONS = [1, 1.5, 2, 3] as const;
 
   /**
    * Etiqueta de compás real (p. ej. "6/8", no "6/4"). Se deriva del catálogo
@@ -423,34 +423,42 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
             onChange={(v) => audio.setCoachVolume(v)}
           />
 
-          {/* Voice Gender */}
+          {/* Sincronización Anticipada de la Voz Guía (Anticipatory Cues).
+              Sustituye al antiguo selector de género (eliminado): la Voz Guía es
+              siempre femenina latina, así que ese espacio se dedica a un ajuste
+              realmente útil para el patinador. */}
           <div className="space-y-1.5">
             <label className="text-[10px] font-semibold text-slate-500 flex items-center gap-1">
-              <Mic className="w-3 h-3" />
-              Tono de Guía Vocal
+              <Timer className="w-3 h-3" />
+              Anticipación de la Voz
             </label>
-            <div className="flex gap-1.5">
-              {(
-                [
-                  { gender: 'female', label: 'Femenina' },
-                  { gender: 'male', label: 'Masculina' },
-                ] as const
-              ).map(({ gender, label }) => (
-                <button
-                  key={gender}
-                  type="button"
-                  onClick={() => handleVoiceGenderChange(gender)}
-                  className={[
-                    'press min-h-touch flex-1 rounded-xl px-1 py-2 text-xs font-bold',
-                    audio.voiceGender === gender
-                      ? 'bg-cyan text-neon-canvas shadow-glow-cyan font-black'
-                      : 'bg-neon-card text-slate-400 hover:text-white hover:bg-neon-hover shadow-soft-elevation',
-                  ].join(' ')}
-                >
-                  {label}
-                </button>
-              ))}
+            <div className="grid grid-cols-4 gap-1">
+              {ANTICIPATION_OPTIONS.map((sec) => {
+                const isActive = Math.abs(anticipationSec - sec) < 0.01;
+                return (
+                  <button
+                    key={sec}
+                    type="button"
+                    onClick={() => handleAnticipationChange(sec)}
+                    aria-pressed={isActive}
+                    aria-label={`Anunciar la figura ${sec} segundos antes del nodo`}
+                    title={`La figura se anuncia ${sec} s antes del nodo`}
+                    className={[
+                      'min-h-[44px] w-full min-w-0 flex items-center justify-center rounded-lg px-1 text-[11px] font-bold tabular-nums interactive-tap transition-all',
+                      isActive
+                        ? 'bg-cyan text-neon-canvas shadow-glow-cyan font-black'
+                        : 'bg-neon-surface text-slate-400 hover:text-white hover:bg-neon-hover',
+                    ].join(' ')}
+                  >
+                    {sec}s
+                  </button>
+                );
+              })}
             </div>
+            <p className="text-[10px] leading-snug text-slate-500">
+              La figura se anuncia antes del conteo 3-2-1 para que el patinador
+              llegue preparado al punto de ejecución.
+            </p>
           </div>
 
           {/* Motor de Voz Guía: Google Cloud (natural) vs Navegador (offline) */}
@@ -526,7 +534,7 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
             )}
           </div>
 
-          {/* Modelo de Voz Guía (voces latinas Neural2 / Wavenet) */}
+          {/* Modelo de Voz Guía (voces latinas femeninas: Neural2 / Journey / Wavenet) */}
           <div className="space-y-1.5">
             <label className="flex items-center gap-1 text-[10px] font-semibold text-slate-500">
               <Mic className="w-3 h-3" />
@@ -536,7 +544,7 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
               value={googleVoiceName}
               onChange={(e) => handleVoiceModelChange(e.target.value)}
               className="w-full rounded-xl border border-white/10 bg-neon-card px-2.5 py-2 text-[11px] font-semibold text-slate-200 outline-none focus:border-cyan/60"
-              title="Voces latinas (es-US) Neural2 y Wavenet, femeninas y masculinas"
+              title="Voces latinas femeninas (es-US): Neural2, Journey y Wavenet"
             >
               {LATIN_VOICES.map((voice) => (
                 <option key={voice.name} value={voice.name}>

@@ -155,11 +155,30 @@ async function runTests() {
   voiceEngine.setGoogleApiKey('AIzaSyTEST_MOCK_KEY_12345');
   assert(voiceEngine.getConfig().googleApiKey === 'AIzaSyTEST_MOCK_KEY_12345', 'Clave API de Google Cloud guardada correctamente');
 
+  // VOZ ÚNICA FEMENINA LATINA: una voz castellana (es-ES) o masculina fuera del
+  // catálogo se normaliza a la voz premium latina por defecto.
   voiceEngine.setGoogleVoiceName('es-ES-Neural2-A');
-  assert(voiceEngine.getConfig().googleVoiceName === 'es-ES-Neural2-A', 'Voz Neural2 A seleccionada correctamente');
+  assert(
+    voiceEngine.getConfig().googleVoiceName === 'es-US-Neural2-A',
+    'Una voz fuera del catálogo (es-ES) se normaliza a la voz latina femenina premium'
+  );
 
   voiceEngine.setGoogleVoiceName('es-US-Journey-F');
   assert(voiceEngine.getConfig().googleVoiceName === 'es-US-Journey-F', 'Voz Journey F seleccionada correctamente');
+
+  voiceEngine.setGoogleVoiceName('es-US-Neural2-B'); // voz masculina eliminada
+  assert(
+    voiceEngine.getConfig().googleVoiceName !== 'es-US-Neural2-B' &&
+      voiceEngine.getConfig().voiceGender === 'female',
+    'La voz masculina queda eliminada: se fuerza el catálogo femenino latino'
+  );
+
+  // La anticipación es configurable y acota el rango válido.
+  voiceEngine.setAnticipation(2);
+  assert(voiceEngine.getConfig().anticipationSec === 2, 'Anticipación de la Voz Guía configurada a 2s');
+  voiceEngine.setAnticipation(99);
+  assert(voiceEngine.getConfig().anticipationSec === 5, 'Anticipación acotada al máximo de 5s');
+  voiceEngine.setAnticipation(1.5);
 
   // 6. Prueba de stop() en VoiceCueEngine
   voiceEngine.startPreRoll(() => {}, () => {});
@@ -188,10 +207,10 @@ async function runTests() {
   voiceEngine.loadNodes(mockNodes);
   const cues = voiceEngine.getCues();
 
-  // Para Salchow a 45.0s:
-  // 1. Nombre de la figura primero: T - 4200ms = 40.8s -> "Salchow, en"
+  // Para Salchow a 45.0s, con anticipación por defecto (conteo 3s + 1.5s):
+  // 1. Nombre de la figura ANTICIPADO: T - 4500ms = 40.5s -> "Salchow, en"
   const cueName = cues.find(c => c.id === 'cue-node-salchow-name');
-  assert(cueName !== undefined && cueName.timeMs === 40800 && cueName.text === 'Salchow, en', 'Aviso previo del nombre "Salchow, en" calculado antes del conteo');
+  assert(cueName !== undefined && cueName.timeMs === 40500 && cueName.text === 'Salchow, en', 'Aviso anticipado del nombre "Salchow, en" (offset negativo de 4.5s)');
 
   // 2. Conteo regresivo en palabras
   // T - 3000ms = 42.0s -> "tres"
@@ -270,10 +289,12 @@ async function runTests() {
   assert(ttsService.hasGoogleApiKey() === true, 'ttsService detecta API Key de Google configurada');
 
   ttsService.setVoiceGender('female');
-  assert(ttsService.getVoiceGender() === 'female', 'ttsService configura y recupera voz femenina');
+  assert(ttsService.getVoiceGender() === 'female', 'ttsService opera con voz femenina latina');
 
-  ttsService.setVoiceGender('male');
-  assert(ttsService.getVoiceGender() === 'male', 'ttsService configura y recupera voz masculina');
+  // La voz masculina se eliminó de la lógica: el servicio la ignora y conserva
+  // el catálogo femenino aunque se solicite explícitamente.
+  (ttsService as unknown as { setVoiceGender: (g: string) => void }).setVoiceGender('male');
+  assert(ttsService.getVoiceGender() === 'female', 'ttsService ignora la voz masculina (eliminada de la lógica)');
 
   ttsService.setLanguage('es');
   assert(ttsService.getLanguage() === 'es', 'ttsService configura idioma a español');

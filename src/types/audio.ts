@@ -40,6 +40,13 @@ export interface VoiceCueConfig {
   volume: number; // 0.0 to 1.0
   introDelaySec: number; // 0, 3, 5, 10s pre-roll delay before music starts
   warningLeadTimeSec: number; // 2 or 3s before technical element node
+  /**
+   * Sincronización anticipada (Anticipatory Cues): segundos ADICIONALES de
+   * antelación con los que se anuncia el nombre de la figura antes de que el
+   * Playhead alcance el nodo. El patinador necesita oír la instrucción antes
+   * de llegar al punto de ejecución, no en el instante exacto.
+   */
+  anticipationSec: number; // 0.0 to 5.0
   language: 'es' | 'en';
   voiceSpeed: number; // 0.7 to 1.5
   voicePitch: number; // 0.5 to 1.5
@@ -47,8 +54,11 @@ export interface VoiceCueConfig {
   ttsEngine: TTSEngineType;
   googleApiKey: string | null;
   googleVoiceName: string;
-  /** Género de la Voz Guía: determina la voz latina (Neural2/Wavenet/Journey). */
-  voiceGender: 'female' | 'male';
+  /**
+   * La Voz Guía es SIEMPRE femenina latina. El campo se conserva por
+   * compatibilidad de formato, pero su valor es fijo.
+   */
+  voiceGender: 'female';
 }
 
 // Tipado estricto para aislamiento de la voz guía (TTS)

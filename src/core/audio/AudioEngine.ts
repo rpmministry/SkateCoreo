@@ -348,17 +348,16 @@ export class AudioEngine {
   }
 
   /**
-   * Cambia el género de la Voz Guía en TODA la cadena:
-   * selecciona la voz latina correspondiente en Google Cloud TTS, invalida la
-   * voz del navegador fijada y propaga el género a `ttsService`.
+   * @deprecated La Voz Guía es SIEMPRE femenina latina. Se conserva por
+   * compatibilidad; el motor de cues fuerza el género femenino.
    */
-  public setVoiceGender(gender: 'female' | 'male') {
-    this.voiceCueEngine.setVoiceGender(gender);
+  public setVoiceGender(_gender?: 'female') {
+    this.voiceCueEngine.setVoiceGender('female');
     this.emitStateChange();
   }
 
-  /** Género activo de la Voz Guía (fuente única: el motor de cues). */
-  public getVoiceGender(): 'female' | 'male' {
+  /** Género de la Voz Guía (fuente única: el motor de cues). Siempre femenino. */
+  public getVoiceGender(): 'female' {
     return this.voiceCueEngine.getVoiceGender();
   }
 

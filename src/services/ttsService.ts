@@ -11,7 +11,7 @@ import {
   extractAudioContent,
 } from '../core/audio/ttsAudioCodec';
 
-export type VoiceGender = 'female' | 'male';
+export type VoiceGender = 'female';
 
 export interface TTSOptions {
   gender?: VoiceGender;
@@ -20,8 +20,8 @@ export interface TTSOptions {
   pitch?: number;
   urgent?: boolean;
   /**
-   * Nombre explícito de la voz Google Cloud (ej. `es-US-Neural2-B`).
-   * Tiene prioridad sobre el mapeo por género, para que la selección manual
+   * Nombre explícito de la voz Google Cloud (ej. `es-US-Neural2-A`).
+   * Tiene prioridad sobre el mapeo por idioma, para que la selección manual
    * del usuario no se pierda al sintetizar.
    */
   voiceName?: string;
@@ -39,33 +39,21 @@ export interface GoogleVoiceDefinition {
 }
 
 /**
- * Voces oficiales por idioma y género.
+ * Voz oficial por idioma — SIEMPRE femenina y latina.
  *
- * Para español se usan voces LATINAS (región es-US) en variantes Neural2, con
- * respaldo Wavenet. Las voces es-ES se evitan deliberadamente porque el acento
- * castellano no corresponde al público objetivo.
+ * Decisión de producto: se eliminó la voz masculina porque sonaba como una
+ * variación artificial de la femenina. Para español se usa una voz LATINA
+ * premium (Neural2, región es-US); las voces es-ES se descartan por acento.
  */
-const GOOGLE_VOICES_CONFIG: Record<string, Record<VoiceGender, string>> = {
-  es: {
-    female: 'es-US-Neural2-C',
-    male: 'es-US-Neural2-B'
-  },
-  en: {
-    female: 'en-US-Neural2-F',
-    male: 'en-US-Neural2-D'
-  }
+const GOOGLE_VOICES_CONFIG: Record<string, string> = {
+  es: 'es-US-Neural2-A',
+  en: 'en-US-Neural2-F'
 };
 
 /** Respaldo Wavenet latino si Neural2 no está habilitada en el proyecto. */
-const GOOGLE_VOICES_WAVENET_FALLBACK: Record<string, Record<VoiceGender, string>> = {
-  es: {
-    female: 'es-US-Wavenet-C',
-    male: 'es-US-Wavenet-D'
-  },
-  en: {
-    female: 'en-US-Wavenet-F',
-    male: 'en-US-Wavenet-D'
-  }
+const GOOGLE_VOICES_WAVENET_FALLBACK: Record<string, string> = {
+  es: 'es-US-Wavenet-C',
+  en: 'en-US-Wavenet-F'
 };
 
 /** Prioridad de regiones latinas para las voces del navegador. */
@@ -97,10 +85,10 @@ export class TTSService {
     this.resolveApiKey();
 
     if (typeof localStorage !== 'undefined') {
-      const savedGender = (localStorage.getItem('skatecoreo_voice_gender') || localStorage.getItem('skateart_voice_gender')) as VoiceGender;
-      if (savedGender === 'female' || savedGender === 'male') {
-        this.voiceGender = savedGender;
-      }
+      // Voz única: la Voz Guía es SIEMPRE femenina latina. Cualquier preferencia
+      // de género guardada por versiones anteriores se ignora deliberadamente.
+      this.voiceGender = 'female';
+
       const savedLang = (localStorage.getItem('skatecoreo_voice_lang') || localStorage.getItem('skateart_voice_lang')) as 'es' | 'en';
       if (savedLang === 'es' || savedLang === 'en') {
         this.language = savedLang;
@@ -296,13 +284,22 @@ export class TTSService {
   }
 
   public getVoiceGender(): VoiceGender {
-    return this.voiceGender;
+    return 'female';
   }
 
-  public setVoiceGender(gender: VoiceGender) {
-    this.voiceGender = gender;
+  /**
+   * @deprecated La Voz Guía es SIEMPRE femenina latina.
+   *
+   * Se conserva por compatibilidad de API: ignora el valor recibido y fuerza el
+   * género femenino, de modo que ninguna ruta del código pueda reintroducir la
+   * voz masculina que se eliminó de la interfaz y de la lógica.
+   */
+  public setVoiceGender(_gender?: VoiceGender) {
+    this.voiceGender = 'female';
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('skatecoreo_voice_gender', gender);
+      try {
+        localStorage.setItem('skatecoreo_voice_gender', 'female');
+      } catch (e) {}
     }
   }
 
@@ -449,7 +446,7 @@ export class TTSService {
     speed: number = 1.05
   ): Promise<ArrayBuffer | null> {
     const lang = this.language;
-    const vName = voiceName || GOOGLE_VOICES_CONFIG[lang]?.[this.voiceGender] || GOOGLE_VOICES_CONFIG['es']['female'];
+    const vName = voiceName || GOOGLE_VOICES_CONFIG[lang] || GOOGLE_VOICES_CONFIG['es'];
     const cacheKey = `${vName}_${speed.toFixed(2)}_${text.toLowerCase().trim()}`;
     return this.getFromIDB(cacheKey);
   }
@@ -607,18 +604,20 @@ export class TTSService {
    */
   public async synthesizeWithGoogleTTS(
     text: string,
-    gender: VoiceGender,
+    _gender: VoiceGender,
     lang: 'es' | 'en',
     speed: number = 1.05,
     voiceNameOverride?: string
   ): Promise<AudioBuffer | null> {
+    // La voz es femenina por definición; `_gender` se conserva por compatibilidad
+    // de firma con los llamadores existentes.
     const voiceName =
       voiceNameOverride ||
-      GOOGLE_VOICES_CONFIG[lang]?.[gender] ||
-      GOOGLE_VOICES_CONFIG['es']['female'];
+      GOOGLE_VOICES_CONFIG[lang] ||
+      GOOGLE_VOICES_CONFIG['es'];
     // Región latina (es-US) para el español; es-ES queda descartado por acento
     const languageCode = lang === 'es' ? 'es-US' : 'en-US';
-    const wavenetFallback = GOOGLE_VOICES_WAVENET_FALLBACK[lang]?.[gender];
+    const wavenetFallback = GOOGLE_VOICES_WAVENET_FALLBACK[lang];
     const cleanKey = text.toLowerCase().trim();
     const cacheKey = `${voiceName}_${speed.toFixed(2)}_${cleanKey}`;
 
@@ -764,10 +763,10 @@ export class TTSService {
 
         utterance.voice = matched;
 
-        // 3. Si la voz no declara su género, diferenciamos acústicamente el tono
-        //    para que la guía femenina y la masculina nunca suenen igual.
+        // 3. Si la voz no declara su género, se refuerza el timbre femenino con
+        //    el tono (la Voz Guía es siempre femenina).
         if (voiceMatchesGender(matched.name, gender) !== true) {
-          utterance.pitch = gender === 'male' ? 0.78 : 1.12;
+          utterance.pitch = 1.12;
         }
       }
 

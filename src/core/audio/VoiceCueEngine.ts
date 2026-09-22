@@ -6,15 +6,12 @@ import {
   sanitizeSpeechText,
 } from './voiceCueSanitizer';
 import {
-  detectGoogleVoiceGender,
   voiceMatchesGender,
   type VoiceGender,
 } from './voiceGender';
 import {
   DEFAULT_LATIN_FEMALE_VOICE,
-  findTtsVoice,
-  pickVoiceByGender,
-  getVoiceTier,
+  resolveLatinFemaleVoice,
 } from '../../constants/ttsVoices';
 import {
   getUserGoogleTtsApiKey,
@@ -35,12 +32,12 @@ export type PreRollCompleteCallback = () => void;
 export type { GoogleTTSVoiceOption, TtsVoiceGender } from '../../constants/ttsVoices';
 export {
   GOOGLE_TTS_VOICES,
+  PREMIUM_LATIN_FEMALE_VOICES,
   DEFAULT_LATIN_FEMALE_VOICE,
-  DEFAULT_LATIN_MALE_VOICE,
   DEFAULT_LATIN_LANGUAGE_CODE,
   findTtsVoice,
+  resolveLatinFemaleVoice,
   pickWavenetFallbackVoice,
-  pickVoiceByGender,
   getVoiceTier,
 } from '../../constants/ttsVoices';
 
@@ -94,6 +91,7 @@ export class VoiceCueEngine {
     volume: 0.9,
     introDelaySec: 5,
     warningLeadTimeSec: 3,
+    anticipationSec: 1.5,
     language: 'es',
     voiceSpeed: 1.05,
     voicePitch: 1.0,
@@ -113,15 +111,43 @@ export class VoiceCueEngine {
   private availableVoices: SpeechSynthesisVoice[] = [];
   private cues: VoiceCueEvent[] = [];
   private triggeredCueIds: Set<string> = new Set();
-  
-  // Nodo activo de reproducción de buffers de voz (cues con audio pre-sintetizado)
-  private activeBufferSource: AudioBufferSourceNode | null = null;
 
+  /**
+   * Últimos nodos cargados. Permite recalcular la secuencia de avisos al
+   * instante cuando el usuario cambia la antelación o el idioma, sin esperar a
+   * un nuevo ciclo de reproducción.
+   */
+  private lastNodes: ChoreographyPathPoint[] = [];
+  
   // Lookahead Web Audio Hardware Timeline Scheduler (Zero-Drift)
   private schedulerTimerId: any = null;
   private audioZeroCtxTime: number = 0;
   private playbackRate: number = 1.0;
   private scheduledCueIds: Set<string> = new Set();
+
+  /**
+   * PRERENDERIZADO (Pre-fetching): AudioBuffers ya decodificados por id de cue.
+   *
+   * Clave de la latencia cero: cuando `startSync` arranca, todas las frases se
+   * piden a Google Cloud TTS en segundo plano y se decodifican a `AudioBuffer`.
+   * En el momento exacto de disparo NO hay red ni promesas: el buffer ya está
+   * en memoria y se encola directamente en el reloj de hardware.
+   */
+  private prefetchedBuffers: Map<string, AudioBuffer> = new Map();
+  private prefetchPromise: Promise<void> | null = null;
+
+  /**
+   * Fuentes de voz activas. Cada cue usa su PROPIO `AudioBufferSourceNode`, de
+   * modo que dos figuras muy cercanas se mezclan nativamente en lugar de
+   * cortarse entre sí (que era el motivo de que se "omitieran" figuras).
+   */
+  private activeSources: Set<AudioBufferSourceNode> = new Set();
+
+  // Parámetros del scheduler de hardware
+  private readonly lookaheadMs = 20;
+  private readonly lookaheadSec = 0.25;
+  /** Margen para descartar cues cuyo instante ya pasó irreversiblemente. */
+  private readonly lateToleranceSec = 0.35;
 
   // Pre-roll countdown timer
   private preRollTimer: any = null;
@@ -169,26 +195,23 @@ export class VoiceCueEngine {
         this.config.googleVoiceName = savedGoogleVoice;
       }
 
-      // Migración única: cualquier voz castellana (es-ES) guardada por versiones
-      // anteriores se sustituye por la voz latina femenina por defecto, para que
-      // el acento de la Voz Guía sea siempre latinoamericano.
-      if (this.config.language === 'es' && /^es-ES-/i.test(this.config.googleVoiceName)) {
-        this.config.googleVoiceName = DEFAULT_LATIN_FEMALE_VOICE;
-        try {
-          localStorage.setItem('skatecoreo_google_voice', DEFAULT_LATIN_FEMALE_VOICE);
-        } catch (e) {}
+      const savedAnticipation = localStorage.getItem('skatecoreo_voice_anticipation');
+      if (savedAnticipation) {
+        const parsed = parseFloat(savedAnticipation);
+        if (Number.isFinite(parsed)) {
+          this.config.anticipationSec = Math.max(0, Math.min(5, parsed));
+        }
       }
 
-      // El GÉNERO se deriva del nombre de voz guardado (fuente de verdad), no de
-      // un valor independiente que pudiera quedar desincronizado.
-      const savedGender = localStorage.getItem('skatecoreo_voice_gender') || localStorage.getItem('skateart_voice_gender');
-      const detectedFromVoice = detectGoogleVoiceGender(this.config.googleVoiceName);
-      if (detectedFromVoice) {
-        this.config.voiceGender = detectedFromVoice;
-      } else if (savedGender === 'female' || savedGender === 'male') {
-        this.config.voiceGender = savedGender;
-      }
-
+      // VOZ ÚNICA: la Voz Guía es SIEMPRE femenina latina y premium. Cualquier
+      // preferencia heredada (voz castellana es-ES o masculina) se normaliza
+      // aquí, de modo que ninguna instalación antigua pueda síntetizar con una
+      // voz fuera del catálogo actual.
+      this.config.googleVoiceName = resolveLatinFemaleVoice(this.config.googleVoiceName);
+      try {
+        localStorage.setItem('skatecoreo_google_voice', this.config.googleVoiceName);
+      } catch (e) {}
+      this.config.voiceGender = 'female';
     }
 
     // Si hay voz natural disponible (endpoint propio o clave del usuario) y el
@@ -202,6 +225,10 @@ export class VoiceCueEngine {
     if (config) {
       this.config = { ...this.config, ...config };
     }
+    // Blindaje final: ni siquiera una configuración inyectada puede introducir
+    // una voz no femenina/latina.
+    this.config.voiceGender = 'female';
+    this.config.googleVoiceName = resolveLatinFemaleVoice(this.config.googleVoiceName);
     this.initVoices();
   }
 
@@ -289,44 +316,23 @@ export class VoiceCueEngine {
     return pool[0].voice;
   }
 
-  /** Género activo de la Voz Guía. */
-  public getVoiceGender(): VoiceGender {
-    return this.config.voiceGender;
+  /** Género activo de la Voz Guía. Siempre femenino. */
+  public getVoiceGender(): 'female' {
+    return 'female';
   }
 
   /**
-   * Cambia el género de la Voz Guía de forma coherente en TODOS los motores.
+   * @deprecated La Voz Guía es SIEMPRE femenina latina.
    *
-   * Antes este ajuste no tocaba el nombre de la voz de Google ni la voz del
-   * navegador fijada, así que la guía seguía sonando igual. Ahora:
-   *  - Selecciona la voz latina (es-US) del mismo motor (Neural2/Wavenet/Journey)
-   *    para el género pedido.
-   *  - Invalida la voz de navegador fijada para que se re-elija por género.
-   *  - Propaga el género a `ttsService` (API de Google Cloud).
+   * El selector de género se eliminó de la UI y de la lógica: la voz masculina
+   * sonaba como una variación artificial de la femenina. Este método se
+   * conserva solo por compatibilidad de API y fuerza el catálogo femenino.
    */
-  public setVoiceGender(gender: VoiceGender) {
-    this.config.voiceGender = gender;
+  public setVoiceGender(_gender?: VoiceGender) {
+    this.config.voiceGender = 'female';
     this.browserVoiceCache.clear();
-
-    // Voz del navegador: descartar la fijada si no coincide con el género
-    const pinned = this.config.selectedVoiceURI
-      ? this.getAvailableVoices().find((v) => v.voiceURI === this.config.selectedVoiceURI)
-      : null;
-    if (pinned && voiceMatchesGender(pinned.name, gender) === false) {
-      this.setSelectedVoice(null);
-    }
-
-    // Voz Google Cloud: misma familia (tier) y región, género pedido
-    const current = findTtsVoice(this.config.googleVoiceName);
-    const target = pickVoiceByGender(gender, {
-      region: current?.lang,
-      tier: getVoiceTier(this.config.googleVoiceName),
-    });
-    if (target) {
-      this.setGoogleVoiceName(target.name);
-    }
-
-    ttsService.setVoiceGender(gender);
+    this.config.googleVoiceName = resolveLatinFemaleVoice(this.config.googleVoiceName);
+    ttsService.setVoiceGender('female');
   }
 
   public init(ctx: AudioContext, outputNode: AudioNode) {
@@ -383,10 +389,15 @@ export class VoiceCueEngine {
     }
   }
 
+  /**
+   * Fija la voz de Google Cloud normalizándola SIEMPRE al catálogo femenino
+   * latino. Cualquier nombre fuera del catálogo (voz masculina, castellana o
+   * inexistente) cae a la voz premium por defecto.
+   */
   public setGoogleVoiceName(voiceName: string) {
-    this.config.googleVoiceName = voiceName;
+    this.config.googleVoiceName = resolveLatinFemaleVoice(voiceName);
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('skatecoreo_google_voice', voiceName);
+      localStorage.setItem('skatecoreo_google_voice', this.config.googleVoiceName);
     }
   }
 
@@ -446,6 +457,36 @@ export class VoiceCueEngine {
     this.config.warningLeadTimeSec = Math.max(1, Math.min(10, sec));
   }
 
+  /**
+   * Sincronización anticipada (Anticipatory Cues).
+   *
+   * Segundos ADICIONALES de antelación para anunciar el nombre de la figura
+   * antes de que el Playhead alcance el nodo. A diferencia de
+   * `warningLeadTimeSec` (que marca el inicio del conteo 3-2-1), este offset
+   * adelanta la INSTRUCCIÓN para que el patinador sepa qué viene antes de
+   * llegar al punto de ejecución.
+   */
+  public setAnticipation(sec: number) {
+    this.config.anticipationSec = Math.max(0, Math.min(5, sec));
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem('skatecoreo_voice_anticipation', String(this.config.anticipationSec));
+      } catch (e) {}
+    }
+    // Recalcula la secuencia de avisos con la nueva antelación: el cambio se
+    // aplica de inmediato, sin esperar al siguiente ciclo de reproducción.
+    if (this.lastNodes.length > 0) {
+      this.loadNodes(this.lastNodes);
+    }
+    // Los buffers pre-renderizados siguen siendo válidos: la clave es el id del
+    // cue y el texto no cambia al mover la antelación.
+  }
+
+  /** Antelación total (conteo + instrucción) en milisegundos. */
+  public getAnticipationLeadMs(): number {
+    return (this.config.warningLeadTimeSec + this.config.anticipationSec) * 1000;
+  }
+
   public setVolume(volume: number) {
     this.config.volume = Math.max(0, Math.min(1, volume));
   }
@@ -472,7 +513,8 @@ export class VoiceCueEngine {
    */
   public loadProgramElements(elements: ElementLog[]) {
     this.triggeredCueIds.clear();
-    const leadMs = this.config.warningLeadTimeSec * 1000;
+    const leadMs = this.getAnticipationLeadMs();
+    const leadSecSpoken = Math.ceil(leadMs / 1000);
     const isEs = this.config.language === 'es';
 
     this.cues = elements
@@ -486,8 +528,8 @@ export class VoiceCueEngine {
         if (!spokenName) return null;
 
         const text = isEs
-          ? `${spokenName} en ${this.config.warningLeadTimeSec}`
-          : `${spokenName} in ${this.config.warningLeadTimeSec}`;
+          ? `${spokenName} en ${leadSecSpoken}`
+          : `${spokenName} in ${leadSecSpoken}`;
 
         return {
           id: `cue-${el.id}`,
@@ -515,6 +557,7 @@ export class VoiceCueEngine {
    */
   public loadNodes(nodes: ChoreographyPathPoint[]) {
     this.triggeredCueIds.clear();
+    this.lastNodes = nodes;
     const isEs = this.config.language === 'es';
     const newCues: VoiceCueEvent[] = [];
 
@@ -522,23 +565,29 @@ export class VoiceCueEngine {
     // Si un nodo no tiene figura (ej. Inicio Trazo, Fin Trazo, Vértice, Nodo 1, etc.), se omite por completo
     const speakableNodes = nodes.filter(n => n.time_ms > 0 && isSpeakableFigure(n.label, n.type, n.element_id));
 
+    // Antelación total de la INSTRUCCIÓN: conteo (3s) + anticipación del usuario.
+    // Con los valores por defecto (3 + 1.5) la figura se anuncia 4.5s antes del
+    // nodo, siempre antes de que arranque el conteo "tres, dos, uno".
+    const nameLeadMs = this.getAnticipationLeadMs();
+
     for (const node of speakableNodes) {
       const rawFigureName = (node.label && node.label.trim()) ? cleanFigureNameForSpeech(node.label) : (node.element_id || '').trim();
       if (!rawFigureName) continue;
       const figureName = rawFigureName;
       const targetTimeMs = node.time_ms;
 
-      // 1. Lectura previa del nombre de la figura deportiva:
-      // Formato solicitado: "[Nombre de la figura], en tres, dos, uno, ya"
-      if (targetTimeMs >= 4000) {
+      // 1. Lectura anticipada del nombre de la figura deportiva:
+      // Formato: "[Nombre de la figura], en tres, dos, uno, ya"
+      // El evento se programa matemáticamente ANTES del nodo (offset negativo).
+      if (targetTimeMs >= nameLeadMs) {
         newCues.push({
           id: `cue-${node.id}-name`,
-          timeMs: targetTimeMs - 4200,
+          timeMs: targetTimeMs - nameLeadMs,
           text: isEs ? `${figureName}, en` : `${figureName}, in`,
           type: 'figure-name',
           elementId: node.id
         });
-      } else if (targetTimeMs >= 2000) {
+      } else if (targetTimeMs >= 1500) {
         newCues.push({
           id: `cue-${node.id}-name`,
           timeMs: 0,
@@ -612,8 +661,67 @@ export class VoiceCueEngine {
   }
 
   /**
-   * Inicia el planificador Web Audio de hardware (Lookahead Scheduler) para sincronización zero-drift.
-   * Encola la reproducción de voces y beeps directamente en el reloj de hardware de AudioContext.
+   * PRERENDERIZADO DE LA VOZ GUÍA (Pre-fetching).
+   *
+   * Solicita a Google Cloud TTS todas las frases de los cues y las decodifica a
+   * `AudioBuffer` ANTES de que hagan falta. Cuando llega el instante del nodo no
+   * hay red, ni promesas, ni decodificación: solo un `start(when)` en el reloj
+   * de hardware. Es lo que elimina la latencia y evita figuras omitidas.
+   */
+  public async prefetchCues(): Promise<void> {
+    // Sin AudioContext no hay dónde decodificar; sin voz natural no hay qué pedir.
+    if (!this.ctx) return;
+    if (!ttsService.hasNaturalVoice()) return;
+    if (this.cues.length === 0) return;
+
+    const opts = {
+      speed: this.config.voiceSpeed,
+      language: this.config.language,
+      voiceName: this.config.googleVoiceName,
+    };
+
+    const pending = this.cues.filter((cue) => !this.prefetchedBuffers.has(cue.id));
+    if (pending.length === 0) return;
+
+    const run = async () => {
+      // Lotes pequeños: paralelismo suficiente sin saturar la cuota de la API.
+      const BATCH_SIZE = 6;
+      for (let i = 0; i < pending.length; i += BATCH_SIZE) {
+        const batch = pending.slice(i, i + BATCH_SIZE);
+        await Promise.all(
+          batch.map(async (cue) => {
+            const safeText = sanitizeSpeechText(cue.text);
+            if (!safeText) return;
+            try {
+              // `ttsService` cachea por texto en memoria e IndexedDB, así que los
+              // textos repetidos ("tres", "dos", "uno"…) se piden una sola vez.
+              const buffer = await ttsService.getAudioBufferForText(safeText, opts);
+              if (buffer) this.prefetchedBuffers.set(cue.id, buffer);
+            } catch (err) {
+              /* Se reintentará en el siguiente arranque de reproducción. */
+            }
+          })
+        );
+      }
+    };
+
+    this.prefetchPromise = run().finally(() => {
+      this.prefetchPromise = null;
+    });
+    await this.prefetchPromise;
+  }
+
+  /**
+   * Inicia el planificador Web Audio de hardware (Lookahead Scheduler).
+   *
+   * Arquitectura (idéntica en espíritu al Metrónomo):
+   *  - CERO medida de tiempo musical con temporizadores: todo se calcula con
+   *    `AudioContext.currentTime`, el reloj de la tarjeta de sonido.
+   *  - `setTimeout` solo DESPIERTA el planificador cada 20 ms; no mide música.
+   *  - Los buffers se encolan con 250 ms de antelación (`lookaheadSec`).
+   *  - Cada cue usa su PROPIO `AudioBufferSourceNode`, de modo que dos figuras
+   *    muy cercanas se solapan o mezclan nativamente en vez de cortarse (que era
+   *    la causa de que se "omitieran" figuras).
    */
   public startSync(audioZeroCtxTime: number, playbackRate: number = 1.0) {
     this.stopSync();
@@ -623,79 +731,111 @@ export class VoiceCueEngine {
 
     if (!this.ctx || !this.config.enabled) return;
 
-    // Frecuencia de chequeo del scheduler: 20ms con anticipación de 0.20s
-    this.schedulerTimerId = setInterval(() => {
-      if (!this.ctx || !this.config.enabled || this.isPreRollActive) return;
-      const now = this.ctx.currentTime;
-      const scheduleAheadSec = 0.20;
+    // Pre-renderizado en segundo plano: no bloquea el arranque de la música.
+    void this.prefetchCues();
 
-      for (const cue of this.cues) {
-        if (!this.scheduledCueIds.has(cue.id) && !this.triggeredCueIds.has(cue.id)) {
-          const cueCtxTime = this.audioZeroCtxTime + (cue.timeMs / 1000) / this.playbackRate;
-          if (cueCtxTime >= now - 0.05 && cueCtxTime <= now + scheduleAheadSec) {
-            this.scheduledCueIds.add(cue.id);
-            this.triggeredCueIds.add(cue.id);
-            this.scheduleHardwareCue(cue, Math.max(now, cueCtxTime));
-          }
-        }
-      }
-    }, 20);
+    this.scheduler();
   }
 
   public stopSync() {
     if (this.schedulerTimerId !== null) {
-      clearInterval(this.schedulerTimerId);
+      globalThis.clearTimeout(this.schedulerTimerId);
       this.schedulerTimerId = null;
     }
   }
 
+  private scheduler = () => {
+    if (!this.ctx || !this.config.enabled || this.isPreRollActive) {
+      this.schedulerTimerId = globalThis.setTimeout(this.scheduler, this.lookaheadMs);
+      return;
+    }
+
+    const now = this.ctx.currentTime;
+    const horizon = now + this.lookaheadSec;
+
+    for (const cue of this.cues) {
+      if (this.scheduledCueIds.has(cue.id)) continue;
+
+      const cueCtxTime = this.audioZeroCtxTime + (cue.timeMs / 1000) / this.playbackRate;
+
+      // Demasiado en el futuro: aún no corresponde planificarlo.
+      if (cueCtxTime > horizon) continue;
+
+      // Ya pasó irreversiblemente: se descarta para no acumular deuda.
+      if (cueCtxTime < now - this.lateToleranceSec) {
+        this.scheduledCueIds.add(cue.id);
+        continue;
+      }
+
+      const when = Math.max(now + 0.005, cueCtxTime);
+      if (this.scheduleHardwareCue(cue, when)) {
+        this.scheduledCueIds.add(cue.id);
+        this.triggeredCueIds.add(cue.id);
+      }
+      // Si devolvió `false` (buffer aún no listo) se reintenta en el próximo tick.
+    }
+
+    this.schedulerTimerId = globalThis.setTimeout(this.scheduler, this.lookaheadMs);
+  };
+
   /**
-   * Encola un aviso en la línea de tiempo exacta de hardware
+   * Encola un aviso en la línea de tiempo exacta del reloj de hardware.
+   *
+   * @returns `true` si el audio quedó programado (o se comprometió el respaldo);
+   *          `false` si el buffer aún no está listo y conviene reintentar.
    */
-  private scheduleHardwareCue(cue: VoiceCueEvent, targetCtxTime: number) {
-    if (!this.ctx || !this.outputNode) return;
+  private scheduleHardwareCue(cue: VoiceCueEvent, targetCtxTime: number): boolean {
+    if (!this.ctx || !this.outputNode) return false;
 
-    // Filtro de Voz Guía: nada llega a la API de TTS sin pasar la whitelist
+    // Filtro de Voz Guía: nada llega al TTS sin pasar la whitelist.
     const safeText = sanitizeSpeechText(cue.text);
-    if (!safeText) return;
+    if (!safeText) return true; // No vocalizable: se da por resuelto.
 
-    // 1. Emitir tono percusivo exacto en el momento del evento
-    try {
-      const osc = this.ctx.createOscillator();
-      const oscGain = this.ctx.createGain();
-      const freq = cue.type === 'figure-arrival' ? 1000 : 650;
-      const vol = (this.config.volume || 0.8) * 0.35;
+    const tickFreq = cue.type === 'figure-arrival' ? 1000 : 650;
 
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, targetCtxTime);
-      oscGain.gain.setValueAtTime(vol, targetCtxTime);
-      oscGain.gain.exponentialRampToValueAtTime(0.0001, targetCtxTime + 0.04);
-
-      osc.connect(oscGain);
-      oscGain.connect(this.outputNode);
-      osc.start(targetCtxTime);
-      osc.stop(targetCtxTime + 0.04);
-    } catch (e) {}
-
-    // 2. Intentar reproducir buffer de voz TTS precargado si está disponible
-    void (async () => {
+    // ── Voz pre-renderizada: latencia cero y solapamiento nativo ──
+    const buffer = this.prefetchedBuffers.get(cue.id);
+    if (buffer) {
+      this.playTickTone(tickFreq, targetCtxTime);
       try {
-        const buffer = await ttsService.getAudioBufferForText(safeText, { speed: this.config.voiceSpeed });
-        if (buffer && this.ctx && this.outputNode) {
-          const source = this.ctx.createBufferSource();
-          source.buffer = buffer;
-          source.connect(this.outputNode);
-          source.start(targetCtxTime);
-          return;
-        }
-      } catch (err) {}
+        const source = this.ctx.createBufferSource();
+        source.buffer = buffer;
 
-      // Fallback a síntesis reactiva si no había buffer
-      const delayMs = Math.max(0, Math.round((targetCtxTime - (this.ctx?.currentTime || 0)) * 1000));
-      setTimeout(() => {
-        this.speakRaw(safeText);
-      }, delayMs);
-    })();
+        const gainNode = this.ctx.createGain();
+        gainNode.gain.value = Math.max(0, Math.min(1, this.config.volume));
+
+        source.connect(gainNode);
+        gainNode.connect(this.outputNode);
+
+        this.activeSources.add(source);
+        source.onended = () => {
+          this.activeSources.delete(source);
+          try {
+            source.disconnect();
+            gainNode.disconnect();
+          } catch (e) {}
+        };
+
+        source.start(targetCtxTime);
+        return true;
+      } catch (err) {
+        return false;
+      }
+    }
+
+    // ── Red de seguridad ──
+    // Si el buffer no llegó a tiempo y el instante es inminente, se usa el
+    // sintetizador del navegador para NO perder la figura. Si todavía hay
+    // margen, se devuelve `false` y se reintenta en el siguiente tick.
+    const delaySec = targetCtxTime - this.ctx.currentTime;
+    if (delaySec <= 0.3) {
+      this.playTickTone(tickFreq, targetCtxTime);
+      const delayMs = Math.max(0, Math.round(delaySec * 1000));
+      globalThis.setTimeout(() => this.speakRaw(safeText), delayMs);
+      return true;
+    }
+
+    return false;
   }
 
   /**
@@ -819,13 +959,15 @@ export class VoiceCueEngine {
         window.speechSynthesis.cancel();
       } catch (e) {}
     }
-    if (this.activeBufferSource) {
+    // Silencia TODAS las voces en vuelo: cada cue tiene su propia fuente, así
+    // que no basta con detener "la última".
+    for (const source of this.activeSources) {
       try {
-        this.activeBufferSource.stop();
-        this.activeBufferSource.disconnect();
+        source.stop();
+        source.disconnect();
       } catch (e) {}
-      this.activeBufferSource = null;
     }
+    this.activeSources.clear();
   }
 
   private static readonly NUMBER_WORDS_ES: Record<number, string> = {
@@ -922,20 +1064,15 @@ export class VoiceCueEngine {
   }
 
   /**
-   * Reproduce un AudioBuffer conectándolo al bus de salida del coach
+   * Reproduce un AudioBuffer conectándolo al bus de salida del coach.
+   *
+   * Crea una fuente INDEPENDIENTE y no interrumpe las voces ya en vuelo: es la
+   * base del solapamiento nativo cuando dos figuras caen muy cerca.
    */
   public playAudioBuffer(buffer: AudioBuffer) {
     if (!this.ctx || this.config.volume <= 0) return;
 
     try {
-      if (this.activeBufferSource) {
-        try {
-          this.activeBufferSource.stop();
-          this.activeBufferSource.disconnect();
-        } catch (e) {}
-        this.activeBufferSource = null;
-      }
-
       const source = this.ctx.createBufferSource();
       source.buffer = buffer;
 
@@ -949,11 +1086,13 @@ export class VoiceCueEngine {
         gainNode.connect(this.ctx.destination);
       }
 
-      this.activeBufferSource = source;
+      this.activeSources.add(source);
       source.onended = () => {
-        if (this.activeBufferSource === source) {
-          this.activeBufferSource = null;
-        }
+        this.activeSources.delete(source);
+        try {
+          source.disconnect();
+          gainNode.disconnect();
+        } catch (e) {}
       };
 
       source.start(0);
@@ -998,12 +1137,12 @@ export class VoiceCueEngine {
           utterance.lang = this.config.language === 'es' ? 'es-US' : 'en-US';
         }
 
-        // Si la voz elegida no declara su género, diferenciamos acústicamente
-        // con el tono para que Femenina y Masculina nunca suenen igual.
+        // Voz única femenina: si la voz del navegador elegida no declara su
+        // género, se refuerza el timbre femenino con el tono.
         const genderConfirmed = chosen
           ? voiceMatchesGender(chosen.name, gender) === true
           : false;
-        const pitchOffset = genderConfirmed ? 1 : gender === 'male' ? 0.78 : 1.12;
+        const pitchOffset = genderConfirmed ? 1 : 1.12;
 
         utterance.rate = this.config.voiceSpeed;
         utterance.pitch = Math.max(0.1, Math.min(2, this.config.voicePitch * pitchOffset));

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { audioEngine } from '../core/audio/AudioEngine';
 import { AudioEngineState, ChannelRoutingMode, MetronomeConfig } from '../types/audio';
 import { ChoreographyPathPoint } from '../types/choreography';
-import { ttsService, VoiceGender } from '../services/ttsService';
+import { ttsService } from '../services/ttsService';
 
 export interface UseAudioEngineReturn {
   // Estado reactivo Headless (Mínimo, bajo el capó)
@@ -43,9 +43,7 @@ export interface UseAudioEngineReturn {
     setVolume: (volume: number) => void;
   };
 
-  // Submódulo Voz TTS Global
-  voiceGender: 'female' | 'male';
-  setVoiceGender: (gender: 'female' | 'male') => void;
+  // Submódulo Voz TTS Global (siempre femenina latina)
   speak: (text: string) => Promise<void>;
 }
 
@@ -58,10 +56,6 @@ export function useAudioEngine(): UseAudioEngineReturn {
   const [audioState, setAudioState] = useState<AudioEngineState>(() => audioEngine.getState());
   const [currentTimeMs, setCurrentTimeMs] = useState<number>(0);
   const [metronomeConfig, setMetronomeConfig] = useState<MetronomeConfig>(() => audioEngine.metronome.getConfig());
-  // El motor de cues es la fuente de verdad (reconcilia género ↔ voz guardada)
-  const [voiceGender, setVoiceGenderState] = useState<VoiceGender>(() =>
-    audioEngine.getVoiceGender()
-  );
 
   // Suscripción al ciclo de eventos del AudioEngine
   useEffect(() => {
@@ -72,9 +66,6 @@ export function useAudioEngine(): UseAudioEngineReturn {
     const unsubState = audioEngine.onStateChange((state) => {
       setAudioState(state);
       setMetronomeConfig(audioEngine.metronome.getConfig());
-      // El motor de cues es la fuente de verdad del género: así la UI refleja
-      // cualquier cambio hecho desde otro punto (selector de modelo, etc.)
-      setVoiceGenderState(audioEngine.getVoiceGender());
     });
 
     return () => {
@@ -161,15 +152,8 @@ export function useAudioEngine(): UseAudioEngineReturn {
   }), [metronomeConfig, toggleMetronome, setMetronomeBpm, setMetronomeBeats, setMetronomeVolume]);
 
   // Control de Voz TTS Global
-  // Delegado en AudioEngine → VoiceCueEngine: así el género cambia también la
-  // voz de Google Cloud seleccionada y la voz del navegador activa, no solo el
-  // flag de ttsService (que era la causa de que ambas guías sonaran igual).
-  const setVoiceGender = useCallback((gender: VoiceGender) => {
-    audioEngine.setVoiceGender(gender);
-    ttsService.setVoiceGender(gender);
-    setVoiceGenderState(gender);
-  }, []);
-
+  // La Voz Guía es siempre femenina latina: el selector de género se eliminó de
+  // la interfaz y de la lógica, así que ya no se expone aquí.
   const speak = useCallback(async (text: string) => {
     await ttsService.speak(text);
   }, []);
@@ -203,8 +187,6 @@ export function useAudioEngine(): UseAudioEngineReturn {
     loadAudioFile,
 
     metronome,
-    voiceGender,
-    setVoiceGender,
     speak
   };
 }

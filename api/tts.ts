@@ -106,34 +106,26 @@ export const ALLOWED_FIGURES: string[] = [
 
 const ALLOWED_FIGURE_SET = new Set(ALLOWED_FIGURES);
 
-/* ── Catálogo de voces permitidas ────────────────────────────── */
+/* ── Catálogo de voces permitidas ──────────────────────────────
+   VOZ ÚNICA: solo voces FEMENINAS LATINAS (es-US) y su equivalente
+   inglesa femenina. Se eliminó la voz masculina de la interfaz y de la
+   lógica porque sonaba como una variación artificial de la femenina. */
 interface VoiceOption {
   name: string;
   lang: string;
-  gender: 'female' | 'male';
+  gender: 'female';
 }
 
 const VOICES: VoiceOption[] = [
-  { name: 'es-US-Neural2-C', lang: 'es-US', gender: 'female' },
-  { name: 'es-US-Neural2-B', lang: 'es-US', gender: 'male' },
   { name: 'es-US-Neural2-A', lang: 'es-US', gender: 'female' },
-  { name: 'es-US-Wavenet-C', lang: 'es-US', gender: 'female' },
-  { name: 'es-US-Wavenet-D', lang: 'es-US', gender: 'male' },
-  { name: 'es-US-Wavenet-A', lang: 'es-US', gender: 'female' },
-  { name: 'es-US-Wavenet-B', lang: 'es-US', gender: 'male' },
+  { name: 'es-US-Neural2-C', lang: 'es-US', gender: 'female' },
   { name: 'es-US-Journey-F', lang: 'es-US', gender: 'female' },
-  { name: 'es-US-Journey-O', lang: 'es-US', gender: 'male' },
-  { name: 'es-ES-Neural2-A', lang: 'es-ES', gender: 'female' },
-  { name: 'es-ES-Neural2-B', lang: 'es-ES', gender: 'male' },
-  { name: 'es-ES-Neural2-C', lang: 'es-ES', gender: 'female' },
-  { name: 'es-ES-Neural2-F', lang: 'es-ES', gender: 'male' },
+  { name: 'es-US-Wavenet-C', lang: 'es-US', gender: 'female' },
   { name: 'en-US-Neural2-F', lang: 'en-US', gender: 'female' },
-  { name: 'en-US-Neural2-D', lang: 'en-US', gender: 'male' },
   { name: 'en-US-Journey-F', lang: 'en-US', gender: 'female' },
-  { name: 'en-US-Journey-O', lang: 'en-US', gender: 'male' },
 ];
 
-const DEFAULT_VOICE = 'es-US-Neural2-C';
+const DEFAULT_VOICE = 'es-US-Neural2-A';
 const GOOGLE_TTS_ENDPOINT = 'https://texttospeech.googleapis.com/v1/text:synthesize';
 
 /* ══════════════════════════════════════════════════════════════

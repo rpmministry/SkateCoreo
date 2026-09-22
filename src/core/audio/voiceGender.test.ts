@@ -1,12 +1,14 @@
 /**
- * Unit Tests: Género de Voz Guía y proyección del Playhead.
+ * Unit Tests: Voz Guía (voz única femenina latina) y proyección del Playhead.
  *
- * Cubre los dos bugs reportados:
- *  1. La guía femenina y la masculina sonaban IDÉNTICAS.
- *  2. El playhead perdía sincronía con la música.
+ * Cubre las decisiones de producto actuales:
+ *  1. La Voz Guía es SIEMPRE femenina, con acento latinoamericano nativo.
+ *  2. El selector de voz masculina se eliminó de la UI y de la lógica: cualquier
+ *     ruta que intente fijarla se normaliza al catálogo femenino latino.
+ *  3. El playhead conserva precisión de coma flotante (sin micro-saltos).
  */
 
-import { VoiceCueEngine, GOOGLE_TTS_VOICES, DEFAULT_LATIN_FEMALE_VOICE, DEFAULT_LATIN_MALE_VOICE } from './VoiceCueEngine';
+import { VoiceCueEngine, GOOGLE_TTS_VOICES, DEFAULT_LATIN_FEMALE_VOICE, PREMIUM_LATIN_FEMALE_VOICES } from './VoiceCueEngine';
 import { detectGoogleVoiceGender, voiceMatchesGender } from './voiceGender';
 import { timeToPlayheadPx } from './PlaybackClock';
 
@@ -18,77 +20,76 @@ function assert(condition: boolean, msg: string) {
   console.log(`✅ PASSED: ${msg}`);
 }
 
-console.log('\n--- EJECUTANDO PRUEBAS DE VOZ GUÍA (GÉNERO) Y PLAYHEAD ---');
+console.log('\n--- EJECUTANDO PRUEBAS DE VOZ GUÍA (VOZ ÚNICA FEMENINA) Y PLAYHEAD ---');
 
 // ── 1. Convención de género de las voces Google Cloud ───────────
 assert(detectGoogleVoiceGender('es-US-Neural2-A') === 'female', 'Neural2-A se detecta como FEMENINA');
-assert(detectGoogleVoiceGender('es-US-Neural2-B') === 'male', 'Neural2-B se detecta como MASCULINA');
+assert(detectGoogleVoiceGender('es-US-Neural2-B') === 'male', 'Neural2-B se detecta como MASCULINA (solo detección)');
 assert(detectGoogleVoiceGender('es-US-Neural2-C') === 'female', 'Neural2-C se detecta como FEMENINA');
-assert(detectGoogleVoiceGender('es-US-Wavenet-D') === 'male', 'Wavenet-D se detecta como MASCULINA');
 assert(detectGoogleVoiceGender('es-US-Journey-F') === 'female', 'Journey-F se detecta como FEMENINA');
-assert(detectGoogleVoiceGender('es-US-Journey-O') === 'male', 'Journey-O se detecta como MASCULINA');
+assert(detectGoogleVoiceGender('es-US-Journey-O') === 'male', 'Journey-O se detecta como MASCULINA (solo detección)');
 
-// ── 2. Coincidencia de género ───────────────────────────────────
+// ── 2. Coincidencia de género (detección pura) ──────────────────
 assert(voiceMatchesGender('es-US-Neural2-C', 'female') === true, 'Neural2-C coincide con género femenino');
 assert(voiceMatchesGender('es-US-Neural2-C', 'male') === false, 'Neural2-C NO coincide con género masculino');
 assert(voiceMatchesGender('Microsoft Monica', 'female') === true, 'Voz del navegador "Monica" se detecta femenina');
-assert(voiceMatchesGender('Microsoft Jorge', 'male') === true, 'Voz del navegador "Jorge" se detecta masculina');
 assert(voiceMatchesGender('Voice 42', 'male') === null, 'Voz sin género en el nombre devuelve null (indeterminado)');
 
-// ── 3. El catálogo latino ofrece voces distintas por género ─────
-const femaleLatin = GOOGLE_TTS_VOICES.filter((v) => v.lang === 'es-US' && v.gender === 'female');
-const maleLatin = GOOGLE_TTS_VOICES.filter((v) => v.lang === 'es-US' && v.gender === 'male');
-assert(femaleLatin.length >= 2, `Hay al menos 2 voces latinas femeninas (${femaleLatin.length})`);
-assert(maleLatin.length >= 2, `Hay al menos 2 voces latinas masculinas (${maleLatin.length})`);
-// Se ensancha el tipo para poder comparar en tiempo de ejecución (TS conoce los
-// literales y consideraría la comparación siempre verdadera).
-const femaleDefault: string = DEFAULT_LATIN_FEMALE_VOICE;
-const maleDefault: string = DEFAULT_LATIN_MALE_VOICE;
+// ── 3. El catálogo es EXCLUSIVAMENTE femenino latino (es-US) ────
+const latinVoices = GOOGLE_TTS_VOICES.filter((v) => v.lang === 'es-US');
+const nonFemale = GOOGLE_TTS_VOICES.filter((v) => (v.gender as string) !== 'female');
+
+assert(nonFemale.length === 0, 'El catálogo no contiene ninguna voz masculina (eliminada)');
+assert(latinVoices.length >= 3, `Hay al menos 3 voces latinas femeninas (${latinVoices.length})`);
 assert(
-  femaleDefault !== maleDefault,
-  'La voz latina por defecto femenina y masculina son nombres DISTINTOS'
+  latinVoices.every((v) => v.name.startsWith('es-US-')),
+  'Todas las voces del catálogo son de acento latinoamericano (es-US)'
 );
 assert(
-  femaleLatin.some((v) => v.name === DEFAULT_LATIN_FEMALE_VOICE) &&
+  PREMIUM_LATIN_FEMALE_VOICES.some((n) => n.includes('Neural2')),
+  'El catálogo prioriza voces premium Neural2'
+);
+assert(
+  latinVoices.some((v) => v.name === DEFAULT_LATIN_FEMALE_VOICE) &&
     detectGoogleVoiceGender(DEFAULT_LATIN_FEMALE_VOICE) === 'female',
   `Voz femenina por defecto válida (${DEFAULT_LATIN_FEMALE_VOICE})`
 );
-assert(
-  maleLatin.some((v) => v.name === DEFAULT_LATIN_MALE_VOICE) &&
-    detectGoogleVoiceGender(DEFAULT_LATIN_MALE_VOICE) === 'male',
-  `Voz masculina por defecto válida (${DEFAULT_LATIN_MALE_VOICE})`
-);
 
-// ── 4. setVoiceGender cambia realmente la voz seleccionada ──────
+// ── 4. El motor fuerza SIEMPRE la voz femenina latina ───────────
 const engine = new VoiceCueEngine({ enabled: true, language: 'es' });
 
 engine.setVoiceGender('female');
 const femaleVoice = engine.getConfig().googleVoiceName;
-assert(engine.getVoiceGender() === 'female', 'getVoiceGender() devuelve female');
+assert(engine.getVoiceGender() === 'female', 'getVoiceGender() devuelve siempre female');
 assert(
   detectGoogleVoiceGender(femaleVoice) === 'female',
-  `setVoiceGender('female') selecciona una voz femenina (${femaleVoice})`
+  `La voz activa es femenina (${femaleVoice})`
 );
 
-engine.setVoiceGender('male');
-const maleVoice = engine.getConfig().googleVoiceName;
-assert(engine.getVoiceGender() === 'male', 'getVoiceGender() devuelve male');
-assert(
-  detectGoogleVoiceGender(maleVoice) === 'male',
-  `setVoiceGender('male') selecciona una voz masculina (${maleVoice})`
-);
-
-assert(
-  femaleVoice !== maleVoice,
-  `La voz femenina y la masculina son DIFERENTES (${femaleVoice} ≠ ${maleVoice})`
-);
-
-// Conserva la familia (tier) al alternar género
-engine.setGoogleVoiceName('es-US-Wavenet-C');
+// Aunque se solicite explícitamente la voz masculina por la API heredada, el
+// motor la ignora: se eliminó de la interfaz y de la lógica.
 engine.setVoiceGender('male');
 assert(
-  engine.getConfig().googleVoiceName.includes('Wavenet'),
-  `Alternar género conserva la familia Wavenet (${engine.getConfig().googleVoiceName})`
+  engine.getVoiceGender() === 'female',
+  'setVoiceGender("male") se ignora: la guía sigue siendo femenina'
+);
+assert(
+  detectGoogleVoiceGender(engine.getConfig().googleVoiceName) === 'female',
+  `Tras solicitar la masculina, la voz sigue siendo femenina (${engine.getConfig().googleVoiceName})`
+);
+
+// Una voz castellana (es-ES) fuera de catálogo se normaliza a la latina.
+engine.setGoogleVoiceName('es-ES-Neural2-A');
+assert(
+  engine.getConfig().googleVoiceName === DEFAULT_LATIN_FEMALE_VOICE,
+  'Una voz castellana se normaliza a la voz latina femenina por defecto'
+);
+
+// Una voz masculina del catálogo histórico también se rechaza.
+engine.setGoogleVoiceName('es-US-Neural2-B');
+assert(
+  engine.getConfig().googleVoiceName !== 'es-US-Neural2-B',
+  'Una voz masculina se rechaza y se sustituye por una femenina'
 );
 
 // ── 5. Proyección del playhead (coma flotante, sin redondeo) ────
