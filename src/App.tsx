@@ -14,7 +14,7 @@ import { useState, useEffect, useCallback, useMemo, useRef, startTransition, laz
 import {
   Music,
   X, ChevronDown, MoreVertical,
-  Upload, Save, HardDrive, Trash2, LogOut
+  Upload, Save, HardDrive, Trash2, LogOut, Sparkles
 } from 'lucide-react';
 import { Skater, Program, ElementLog, AudioEngineState } from './types';
 import { SkateCoreoBrand } from './components/brand/SkateCoreoBrand';
@@ -29,6 +29,7 @@ import { ConfirmDialog } from './components/ConfirmDialog';
 import { HomeView } from './components/HomeView';
 import { useIosFileCapture } from './hooks/useIosFileCapture';
 import { LoadProgressBar } from './components/LoadProgressBar';
+import { ensureDataOwnership, releaseWorkingSession } from './services/workingSession';
 import {
   BottomNav,
   DesktopHeaderNav,
@@ -110,6 +111,25 @@ export function App() {
   const unplacedNodes = useChoreographyStore((s) => s.unplacedNodes);
   const studioBpm = useAudioStudioStore((s) => s.globalControls.bpm);
   const logout = useAuthStore((s) => s.logout);
+  const authUser = useAuthStore((s) => s.user);
+  const authPlan = useAuthStore((s) => s.subscription_plan);
+  const getDaysRemaining = useAuthStore((s) => s.getDaysRemaining);
+  const getFormattedExpiration = useAuthStore((s) => s.getFormattedExpiration);
+
+  /**
+   * Propiedad de los datos locales: si se entra con una cuenta distinta a la que
+   * dejó datos en el dispositivo, se limpia la sesión de trabajo (audio,
+   * coreografía y Estudio) para que la nueva cuenta arranque en limpio.
+   */
+  useEffect(() => {
+    void ensureDataOwnership(authUser?.id ?? null);
+  }, [authUser?.id]);
+
+  /** Logout con limpieza: no debe quedar la sesión del usuario anterior. */
+  const handleLogout = useCallback(async () => {
+    await releaseWorkingSession();
+    logout();
+  }, [logout]);
 
   // ── DB / domain state ──────────────────────────────────
   const [skaters, setSkaters] = useState<Skater[]>([]);
@@ -185,7 +205,13 @@ export function App() {
     // interfaz guía al usuario a crear su primer perfil y proyecto.
     const allSkaters = await dbService.getAllSkaters();
     setSkaters(allSkaters);
-    if (allSkaters.length > 0) {
+
+    // Solo se restaura la SESIÓN DE TRABAJO si hay una cuenta con acceso activo
+    // (usuario registrado). Sin sesión, la app arranca limpia: no se muestra ni
+    // el último atleta/programa ni la pista/auditoría del usuario anterior.
+    const hasSession = useAuthStore.getState().hasActiveAccess();
+
+    if (hasSession && allSkaters.length > 0) {
       const active = allSkaters[0];
       setSelectedSkater(active);
       const progs = await dbService.getProgramsBySkater(active.id);
@@ -195,6 +221,8 @@ export function App() {
         setElements(await dbService.getElementsByProgram(progs[0].id));
       }
     }
+
+    if (!hasSession) return;
 
     // Auto-recuperar sesión sin conexión de IndexedDB si no hay audio cargado
     try {
@@ -570,6 +598,20 @@ export function App() {
               </span>
             )}
           </div>
+
+          {/* Insignia Beta Tester (acceso de 30 días) */}
+          {authPlan === 'beta_tester' && (
+            <div
+              className="ml-2 hidden items-center gap-1.5 rounded-full border border-coral/40 bg-coral/15 px-2.5 py-1 sm:flex"
+              title={`Acceso Beta Tester · vence el ${getFormattedExpiration() ?? '—'}`}
+            >
+              <Sparkles className="h-3.5 w-3.5 shrink-0 text-coral" />
+              <span className="text-[10px] font-black uppercase tracking-wide text-coral">Beta Tester</span>
+              <span className="rounded-full bg-black/30 px-1.5 py-0.5 font-mono text-[10px] font-bold text-white">
+                {getDaysRemaining()}d
+              </span>
+            </div>
+          )}
         </div>
 
         {/* ── CENTRO: Navegación principal de escritorio ── */}
@@ -624,7 +666,7 @@ export function App() {
           {/* Botón de Salir / Cerrar Sesión (siempre visible en header) */}
           <button
             type="button"
-            onClick={() => logout()}
+                  onClick={() => { void handleLogout(); }}
             className="press flex h-12 w-12 min-h-touch min-w-touch items-center justify-center rounded-xl border border-coral/20 bg-coral/[0.06] text-slate-300 hover:bg-coral/15 hover:text-coral"
             title="Cerrar sesión y salir de la aplicación"
             aria-label="Cerrar sesión"
@@ -712,7 +754,7 @@ export function App() {
 
                   <button
                     type="button"
-                    onClick={() => { setShowExportMenu(false); logout(); }}
+                        onClick={() => { setShowExportMenu(false); void handleLogout(); }}
                     className="press flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-medium text-slate-200 hover:bg-coral/10 hover:text-coral"
                   >
                     <LogOut className="w-4 h-4 text-coral shrink-0 stroke-[1.75]" />

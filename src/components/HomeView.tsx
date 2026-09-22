@@ -18,6 +18,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { SkateCoreoBrand } from './brand/SkateCoreoBrand';
+import { useAuthStore } from '../store/useAuthStore';
 
 export interface HomeViewProps {
   skaterName?: string | null;
@@ -155,12 +156,42 @@ export const HomeView: React.FC<HomeViewProps> = ({
     ? audioFileName.replace(/\.[^/.]+$/, '').replace(/[_-]+/g, ' ')
     : null;
 
+  // Indicador de promoción Beta Tester (30 días): el plan lo fija el backend.
+  const subscriptionPlan = useAuthStore((s) => s.subscription_plan);
+  const getDaysRemaining = useAuthStore((s) => s.getDaysRemaining);
+  const getFormattedExpiration = useAuthStore((s) => s.getFormattedExpiration);
+  const isBetaTester = subscriptionPlan === 'beta_tester';
+  const betaDays = isBetaTester ? getDaysRemaining() : 0;
+  const betaExpiry = isBetaTester ? getFormattedExpiration() : null;
+
   return (
     <section
       aria-label="Inicio"
       className="flex-1 min-h-0 overflow-y-auto scroll-touch bg-neon-canvas"
     >
       <div className="mx-auto w-full max-w-[1440px] px-3 pb-6 pt-3 sm:px-5 sm:pb-8 sm:pt-4 lg:px-8 lg:pt-6">
+        {/* ══════════ INDICADOR BETA TESTER (acceso de 30 días) ══════════ */}
+        {isBetaTester && (
+          <div
+            role="status"
+            className="mb-3 flex flex-wrap items-center gap-2 rounded-2xl border border-coral/40 bg-coral/12 px-4 py-3 sm:mb-4"
+          >
+            <Sparkles className="h-4 w-4 shrink-0 text-coral" />
+            <span className="text-xs font-black uppercase tracking-wide text-coral">
+              Acceso Beta Tester
+            </span>
+            <span className="rounded-full border border-coral/40 bg-black/30 px-2.5 py-0.5 font-mono text-[11px] font-bold text-white">
+              {betaDays} {betaDays === 1 ? 'día restante' : 'días restantes'}
+            </span>
+            {betaExpiry && (
+              <span className="text-[11px] text-slate-300">Vence el {betaExpiry}</span>
+            )}
+            <span className="ml-auto hidden text-[10px] text-slate-400 sm:inline">
+              Cortesía de 30 días · un solo uso
+            </span>
+          </div>
+        )}
+
         {/* ══════════ HERO HEADER ══════════ */}
         <header className="hero-aurora relative isolate overflow-hidden rounded-[24px] border border-white/10 glass-panel shadow-soft-elevation">
           <span aria-hidden="true" className="absolute inset-0 grid-veil opacity-70" />

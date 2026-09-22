@@ -524,6 +524,22 @@ export class AudioEngine {
   }
 
   /**
+   * Vacía por completo el audio cargado (sin reproducir nada). Se usa al cambiar
+   * de cuenta para que una sesión nueva arranque SIN la pista del usuario previo.
+   */
+  public clearAudioBuffer() {
+    this.stop();
+    this.audioBuffer = null;
+    this.rawBlob = null;
+    this.fileName = null;
+    this.durationMs = 0;
+    this.pausedAtTime = 0;
+    this.mediaSession.updateMetadata('Sin pista');
+    this.emitTimeUpdate(0);
+    this.emitStateChange();
+  }
+
+  /**
    * Núcleo de lectura + decodificación, con reporte de progreso real.
    *
    * El porcentaje informado combina dos fases medidas de verdad:

@@ -139,6 +139,8 @@ export interface AudioStudioStoreState {
   // Función Puente (Audio-to-Canvas Bridge) & Mixdown
   sendMixToChoreo: () => { nodes: AudioTimeNode[]; success: boolean };
   renderAndExportMixdown: () => Promise<{ success: boolean; durationSec: number }>;
+  /** Devuelve el Estudio a su estado inicial (cambio de cuenta / logout). */
+  resetStudio: () => void;
 }
 
 const DEFAULT_METRONOME_CONFIG: StudioMetronomeConfig = {
@@ -325,9 +327,30 @@ function releaseClipBuffers(clips: Array<AudioClip | undefined | null>): void {
   }
 }
 
+/**
+ * Instantánea del estado inicial del Estudio. Se captura justo después de crear
+ * el store y permite restaurar TODO (pistas, clips, controles, selección…) al
+ * cambiar de cuenta, sin enumerar campo por campo.
+ */
+let initialStudioSnapshot: AudioStudioStoreState | null = null;
+
 export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => ({
   tracks: initialTracks,
   additionalTracks: [],
+
+  /**
+   * Reset completo del Estudio (cambio de cuenta / logout). Libera los buffers
+   * de audio de los clips actuales antes de restaurar el estado inicial.
+   */
+  resetStudio: () => {
+    const snapshot = initialStudioSnapshot;
+    if (!snapshot) return;
+    const current = get();
+    releaseClipBuffers(current.tracks.music?.clips || []);
+    releaseClipBuffers(current.additionalTracks.flatMap((t) => t.clips || []));
+    pendingConsolidation = false;
+    set(snapshot);
+  },
 
   draggingGhost: null,
   setDraggingGhost: (ghost) => set({ draggingGhost: ghost }),
@@ -1563,3 +1586,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
     }
   },
 }));
+
+
+initialStudioSnapshot = useAudioStudioStore.getState();
+

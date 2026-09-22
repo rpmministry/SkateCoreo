@@ -316,6 +316,18 @@ class IndexedDBService {
       request.onerror = () => reject(request.error);
     });
   }
+
+  /** Elimina la sesión de trabajo offline (audio + puntos) al cambiar de cuenta. */
+  public async clearOfflineSession(): Promise<void> {
+    const db = await this.initDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('offline_sessions', 'readwrite');
+      const store = tx.objectStore('offline_sessions');
+      const request = store.delete('current_offline_session');
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
 }
 
 export const dbService = new IndexedDBService();
