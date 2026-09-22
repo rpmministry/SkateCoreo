@@ -192,6 +192,8 @@ export function App() {
   const points            = useChoreographyStore((s) => s.points);
   const clearAllPoints    = useChoreographyStore((s) => s.clearAllPoints);
   const loadProgramPoints = useChoreographyStore((s) => s.loadProgramPoints);
+  const clearPaperTraceOverlay = useChoreographyStore((s) => s.clearPaperTraceOverlay);
+  const hasPaperTraceOverlay = useChoreographyStore((s) => Boolean(s.paperTraceOverlay));
 
   // ── Data loading & Offline Autoload ─────────────────────
   // Carga INICIAL única. Se eliminaron `selectedSkater`/`selectedProgram` de las
@@ -320,15 +322,24 @@ export function App() {
    * evitar pérdidas accidentales de trabajo en pantallas táctiles.
    */
   const requestClearRink = useCallback(() => {
-    if (points.length === 0) return;
+    // Hay algo que limpiar si hay nodos/trazados O una hoja A4 de calco cargada.
+    if (points.length === 0 && !hasPaperTraceOverlay) return;
     setConfirmClearOpen(true);
-  }, [points.length]);
+  }, [points.length, hasPaperTraceOverlay]);
 
+  /**
+   * «Limpiar pista» — reset TOTAL del lienzo:
+   *  · elimina todos los nodos y trazados de la coreografía,
+   *  · elimina el calco/imagen de la hoja A4 escaneada (Paper-to-Digital),
+   *  · deja la pista completamente en blanco.
+   */
   const handleClearRink = useCallback(() => {
     setConfirmClearOpen(false);
-    if (points.length === 0) return;
+    if (points.length === 0 && !hasPaperTraceOverlay) return;
 
     clearAllPoints();
+    // Elimina la capa de la hoja A4 escaneada (onion skin) por completo.
+    clearPaperTraceOverlay();
     audioEngine.setNodes([]);
     if (selectedProgram) {
       handleProgramUpdated({
@@ -336,7 +347,7 @@ export function App() {
         choreography_path: []
       });
     }
-  }, [points.length, clearAllPoints, selectedProgram, handleProgramUpdated]);
+  }, [points.length, hasPaperTraceOverlay, clearAllPoints, clearPaperTraceOverlay, selectedProgram, handleProgramUpdated]);
 
   const handleNodeSelect = useCallback((id: string | null) => {
     if (typeof window !== 'undefined' && window.innerWidth < 1024) {
@@ -1150,7 +1161,7 @@ export function App() {
         title="¿Estás seguro de limpiar toda la pista?"
         message={`Se eliminarán los ${points.length} ${
           points.length === 1 ? 'nodo' : 'nodos'
-        } de la coreografía actual. Esta acción no se puede deshacer.`}
+        } de la coreografía actual${hasPaperTraceOverlay ? ' y la hoja A4 escaneada (calco)' : ''}. El lienzo quedará completamente en blanco. Esta acción no se puede deshacer.`}
         confirmLabel="Sí, limpiar pista"
         cancelLabel="Cancelar"
         onConfirm={handleClearRink}

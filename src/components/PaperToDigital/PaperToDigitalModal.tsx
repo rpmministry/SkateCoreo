@@ -225,17 +225,29 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
     img.onload = async () => {
       try {
         const warpedCanvas = HomographyWarp.warpPerspective(img, corners, 2000, 1000);
-        const warpedDataUrl = warpedCanvas.toDataURL('image/png');
 
         setStatusMessage('Paso 2/3: Extrayendo trazos de tinta con Ramer-Douglas-Peucker...');
         const strokes = PaperVectorizer.extractStrokes(warpedCanvas);
 
         setStatusMessage('Paso 3/3: Reconociendo nodos numerados mediante OCR...');
-        const detectedNodes = await PaperOcrEngine.detectNumberedNodes(warpedCanvas);
+        const rawDetectedNodes = await PaperOcrEngine.detectNumberedNodes(warpedCanvas);
 
-        // Vectorización estricta: strokes van EXCLUSIVAMENTE a la curva continua (node.path).
-        // Los Nodos Maestros interactivos (isMainNode: true) se crean ÚNICAMENTE para los números OCR detectados.
-        const allStrokePoints: Array<{ x: number; y: number }> = strokes.flatMap((s) => s.pointsMeters);
+        // ── REGLA ESTRICTA DE EXTRACCIÓN ──────────────────────────────────────
+        // Solo se extraen NODOS PRINCIPALES con numeración explícita (1, 2, 3…).
+        // Se descartan vértices intermedios, marcas de interpolación y cualquier
+        // detección sin número de orden válido.
+        const detectedNodes = rawDetectedNodes.filter(
+          (n) => Number.isInteger(n.sequenceNumber) && n.sequenceNumber > 0
+        );
+
+        // ── REGLA DE RENDERIZADO LIMPIO ───────────────────────────────────────
+        // El trazado de tinta del dibujo original NO se renderiza en la Pista 2D:
+        // la pista solo muestra los puntos numerados. El trazado entre nodos lo
+        // genera la propia app (curva Bézier de la coreografía).
+        const INCLUDE_TRACED_STROKES = false;
+        const allStrokePoints: Array<{ x: number; y: number }> = INCLUDE_TRACED_STROKES
+          ? strokes.flatMap((s) => s.pointsMeters)
+          : [];
 
         if (detectedNodes.length > 0) {
           // Orden estricto 1 -> 2 -> 3...
@@ -302,17 +314,13 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
 
           setPoints(generatedPoints);
           setPhase('curve'); // Pasa directamente a modo curva interactiva
-          alert(`¡Digitalización Exitosa! Se detectaron ${detectedNodes.length} nodos maestros numerados. Los trazos continuos se asociaron fielmente a la curva sin spam de nodos.`);
+          alert(
+            `¡Digitalización Exitosa! Se detectaron ${detectedNodes.length} nodos principales numerados. ` +
+            `La Pista 2D muestra únicamente estos puntos (sin el trazado del dibujo original).`
+          );
         } else {
           alert('No se detectaron números manuscritos físicos (1, 2, 3...) para crear nodos interactivos. La hoja rectificada se ha aplicado como fondo de calco para que coloques los nodos con un toque.');
         }
-
-        // Dejar también el fondo de calco para que la entrenadora pueda contrastar la precisión
-        setPaperTraceOverlay({
-          imageUrl: warpedDataUrl,
-          opacity: 0.45,
-          visible: true,
-        });
 
         setIsProcessing(false);
         setStatusMessage(null);
