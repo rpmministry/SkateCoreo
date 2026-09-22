@@ -66,21 +66,21 @@ export const PDF_LAYOUT = {
   /** Panel de jueces: centrado, siempre FUERA del área de la pista. */
   judges: { w: 46, h: 5, y: 61 },
 
-  /** Pista reglamentaria: proporción 2:1 exacta (220 × 110 mm). */
-  rink: { x: 38.5, y: 69, w: 220, h: 110 },
+  /** Pista reglamentaria: proporción 2:1 exacta (200 × 100 mm), centrada. */
+  rink: { x: 48.5, y: 76, w: 200, h: 100 },
 
-  /** Fiduciales: tamaño del cuadro negro y halo blanco de aislamiento. */
-  fiducial: { size: 10, halo: 2.5 },
+  /** Fiduciales: cuadrado negro de 15 mm (≥1.5 cm) + halo blanco de aislamiento. */
+  fiducial: { size: 15, halo: 2 },
 
   /** Bloque inferior: instrucciones + crédito de desarrollo. */
   instructions: {
     x: 10,
-    y: 188,
+    y: 187,
     w: 277,
-    h: 16,
-    titleBaseline: 193,
-    lineBaselines: [197, 200.4],
-    creditBaseline: 203,
+    h: 13,
+    titleBaseline: 192,
+    lineBaselines: [195.5, 198.5],
+    creditBaseline: 199.5,
   },
 } as const;
 
@@ -347,8 +347,10 @@ export class PdfTemplateGenerator {
   }
 
   /**
-   * Marca fiducial concéntrica de alto contraste (diana + cruz).
-   * `size` (10 mm) y `halo` (2.5 mm) provienen de `PDF_LAYOUT.fiducial`.
+   * Marca fiducial TIPO QR (target): cuadrado negro + anillo blanco cuadrado +
+   * núcleo negro. Alto contraste (negro puro sobre blanco) y ≥1.5 cm de lado para
+   * garantizar la detección bajo cualquier iluminación.
+   * `size` y `halo` provienen de `PDF_LAYOUT.fiducial`.
    */
   private static drawFiducialMarker(doc: jsPDF, cx: number, cy: number): void {
     const size = PDF_LAYOUT.fiducial.size;
@@ -361,23 +363,19 @@ export class PdfTemplateGenerator {
     doc.setFillColor(255, 255, 255);
     doc.rect(cx - half - halo, cy - half - halo, size + halo * 2, size + halo * 2, 'F');
 
-    // Cuadrante exterior negro
+    // Marco exterior negro (negro puro)
     doc.setFillColor(0, 0, 0);
     doc.rect(cx - half, cy - half, size, size, 'F');
 
-    // Anillo blanco
+    // Anillo blanco CUADRADO (62% del lado) — patrón verificable por el detector
+    const white = size * 0.62;
     doc.setFillColor(255, 255, 255);
-    doc.circle(cx, cy, 3.2, 'F');
+    doc.rect(cx - white / 2, cy - white / 2, white, white, 'F');
 
-    // Punto central negro
+    // Núcleo negro (30% del lado)
+    const core = size * 0.30;
     doc.setFillColor(0, 0, 0);
-    doc.circle(cx, cy, 1.4, 'F');
-
-    // Cruz de mira
-    doc.setDrawColor(255, 255, 255);
-    doc.setLineWidth(0.4);
-    doc.line(cx - half + 0.5, cy, cx + half - 0.5, cy);
-    doc.line(cx, cy - half + 0.5, cx, cy + half - 0.5);
+    doc.rect(cx - core / 2, cy - core / 2, core, core, 'F');
 
     doc.restoreGraphicsState();
   }

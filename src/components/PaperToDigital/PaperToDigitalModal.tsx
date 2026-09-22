@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { QuadCorners, HomographyWarp } from '../../core/vision/HomographyWarp';
 import { FiducialDetector } from '../../core/vision/FiducialDetector';
+import { PaperPreprocessor } from '../../core/vision/PaperPreprocessor';
 import { PaperVectorizer } from '../../core/vision/PaperVectorizer';
 import { PaperOcrEngine } from '../../core/vision/PaperOcrEngine';
 import { CornerPinAdjuster } from './CornerPinAdjuster';
@@ -32,6 +33,11 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
   const [corners, setCorners] = useState<QuadCorners | null>(null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  /** Error de alineación: bloquea la digitalización automática si es != null. */
+  const [alignmentError, setAlignmentError] = useState<string | null>(null);
+  /** Preview de la imagen preprocesada/binarizada (modo debug). */
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [showDebug, setShowDebug] = useState<boolean>(false);
 
   const setPaperTraceOverlay = useChoreographyStore((s) => s.setPaperTraceOverlay);
   const clearPaperTraceOverlay = useChoreographyStore((s) => s.clearPaperTraceOverlay);
@@ -56,14 +62,28 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
 
   const loadImageAndDetectCorners = (src: string) => {
     setIsProcessing(true);
-    setStatusMessage('Analizando marcas fiduciales en la hoja...');
+    setStatusMessage('Detectando marcas fiduciales (targets QR)...');
+    setPreviewUrl(null);
 
     const img = new Image();
     img.src = src;
     img.onload = () => {
       setImageSrc(src);
-      const detected = FiducialDetector.detectCorners(img);
-      setCorners(detected);
+
+      // Detección ESTRICTA: si no hay 4 marcas válidas, no se auto-generan nodos.
+      const result = FiducialDetector.detectMarkers(img);
+      if (result.corners) {
+        setCorners(result.corners);
+        setAlignmentError(null);
+      } else {
+        // Se ofrecen esquinas por defecto SOLO para que el usuario ajuste a mano.
+        setCorners(FiducialDetector.getDefaultCorners(img.naturalWidth, img.naturalHeight));
+        setAlignmentError(
+          `No se detectaron las 4 marcas fiduciales (encontradas: ${result.detected}). ` +
+          'Ajusta los 4 pines manualmente hasta las marcas o vuelve a escanear con mejor luz.'
+        );
+      }
+
       setIsProcessing(false);
       setStatusMessage(null);
     };
@@ -103,26 +123,17 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // 4 Marcas Fiduciales en las esquinas de la pista dibujada
+    // 4 Marcas Fiduciales tipo QR (target: negro + anillo blanco + núcleo negro)
     const drawFiducial = (x: number, y: number) => {
+      const S = 44; // ≥1.5 cm escalado, alto contraste
       ctx.fillStyle = '#000000';
-      ctx.fillRect(x - 14, y - 14, 28, 28);
+      ctx.fillRect(x - S / 2, y - S / 2, S, S);
       ctx.fillStyle = '#FFFFFF';
-      ctx.beginPath();
-      ctx.arc(x, y, 9, 0, Math.PI * 2);
-      ctx.fill();
+      const inner = S * 0.62;
+      ctx.fillRect(x - inner / 2, y - inner / 2, inner, inner);
       ctx.fillStyle = '#000000';
-      ctx.beginPath();
-      ctx.arc(x, y, 4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#FFFFFF';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(x - 12, y);
-      ctx.lineTo(x + 12, y);
-      ctx.moveTo(x, y - 12);
-      ctx.lineTo(x, y + 12);
-      ctx.stroke();
+      const core = S * 0.30;
+      ctx.fillRect(x - core / 2, y - core / 2, core, core);
     };
 
     const tl = { x: 130, y: 130 };
@@ -213,12 +224,22 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
     };
   };
 
-  // ── ETAPA 2: Digitalización Automática Completa (Vectorización + OCR) ──
+  // ── ETAPA 2: Digitalización Automática Completa (Alineación + OCR) ──
   const handleAutoVectorizeAndOcr = async () => {
     if (!imageSrc || !corners) return;
 
+    // REQUISITO: si las 4 esquinas no están alineadas, se pide re-escanear en
+    // lugar de generar nodos en coordenadas erróneas.
+    if (alignmentError) {
+      alert(
+        'La alineación no es fiable: no se detectaron las 4 marcas fiduciales.\n\n' +
+        'Vuelve a escanear la hoja con buena luz o ajusta manualmente los 4 pines hasta que coincidan con las marcas, y reintenta.'
+      );
+      return;
+    }
+
     setIsProcessing(true);
-        setStatusMessage('Paso 1/2: Corrigiendo perspectiva de la pista...');
+    setStatusMessage('Paso 1/3: Corrigiendo perspectiva (homografía)...');
 
     const img = new Image();
     img.src = imageSrc;
@@ -233,8 +254,14 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
         const INCLUDE_TRACED_STROKES = false;
         const strokes = INCLUDE_TRACED_STROKES ? PaperVectorizer.extractStrokes(warpedCanvas) : [];
 
-        setStatusMessage('Paso 2/2: Reconociendo nodos numerados mediante OCR...');
-        const rawDetectedNodes = await PaperOcrEngine.detectNumberedNodes(warpedCanvas);
+        // Paso 2/3: preprocesado (grises + contraste + Otsu) sobre la imagen alineada.
+        setStatusMessage('Paso 2/3: Preprocesando imagen (grises, contraste, Otsu)...');
+        const pre = PaperPreprocessor.preprocess(warpedCanvas);
+        setPreviewUrl(pre.binarized.toDataURL('image/png'));
+
+        // Paso 3/3: OCR de dígitos SOLO sobre la imagen preprocesada/binarizada.
+        setStatusMessage('Paso 3/3: Reconociendo nodos numerados (OCR de dígitos)...');
+        const rawDetectedNodes = await PaperOcrEngine.detectNumberedNodes(warpedCanvas, undefined, pre.binarized);
 
         // ── REGLA ESTRICTA DE EXTRACCIÓN ──────────────────────────────────────
         // Solo se extraen NODOS PRINCIPALES con numeración explícita (1, 2, 3…).
@@ -435,7 +462,11 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
                     <CornerPinAdjuster
                       imageSrc={imageSrc}
                       corners={corners}
-                      onChangeCorners={setCorners}
+                      onChangeCorners={(c) => {
+                        setCorners(c);
+                        // El ajuste manual confirma la alineación: permite continuar.
+                        if (alignmentError) setAlignmentError(null);
+                      }}
                     />
                   )}
                 </div>
@@ -482,6 +513,43 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
                 <div className="flex items-center gap-2 rounded-xl border border-cyan/30 bg-cyan/15 px-3 py-2 text-[11px] font-semibold text-cyan">
                   <RefreshCw className="h-3.5 w-3.5 shrink-0 animate-spin" />
                   <span>{statusMessage}</span>
+                </div>
+              )}
+
+              {/* Error de alineación: bloquea la digitalización automática */}
+              {alignmentError && (
+                <div className="rounded-xl border border-red-500/40 bg-red-500/15 px-3 py-2 text-[11px] font-semibold leading-relaxed text-red-200">
+                  {alignmentError}
+                </div>
+              )}
+
+              {/* Modo debug: preview de la imagen preprocesada/binarizada */}
+              {imageSrc && (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowDebug((v) => !v)}
+                    className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-semibold text-slate-200 transition-all hover:bg-white/10"
+                  >
+                    <span>Vista previa (preprocesado)</span>
+                    <span className="text-cyan">{showDebug ? 'Ocultar' : 'Mostrar'}</span>
+                  </button>
+
+                  {showDebug && (
+                    <div className="rounded-xl border border-white/10 bg-black/40 p-2">
+                      {previewUrl ? (
+                        <img
+                          src={previewUrl}
+                          alt="Imagen alineada y binarizada"
+                          className="w-full rounded-lg border border-white/10 object-contain"
+                        />
+                      ) : (
+                        <p className="p-2 text-center text-[10px] text-slate-500">
+                          La vista previa aparecerá al digitalizar (paso 2/3).
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 

@@ -45,27 +45,29 @@ export class PaperOcrEngine {
    */
   public static async detectNumberedNodes(
     warpedCanvas: HTMLCanvasElement,
-    rink: RinkDimensions = DEFAULT_RINK_DIMENSIONS
+    rink: RinkDimensions = DEFAULT_RINK_DIMENSIONS,
+    binarized?: HTMLCanvasElement
   ): Promise<DetectedNodeMarker[]> {
-    const w = warpedCanvas.width;
-    const h = warpedCanvas.height;
+    // El OCR se ejecuta SIEMPRE sobre la imagen preprocesada/binarizada si existe.
+    const ocrCanvas = binarized && binarized.width > 0 ? binarized : warpedCanvas;
+    const w = ocrCanvas.width;
+    const h = ocrCanvas.height;
     if (w <= 0 || h <= 0) return [];
 
     // 1) Google Cloud Vision (mejor precisión; requiere clave de entorno).
     const visionApiKey = (import.meta as any).env?.VITE_GOOGLE_VISION_API_KEY;
     if (visionApiKey) {
       try {
-        const cloudNodes = await this.detectWithGoogleVision(warpedCanvas, visionApiKey, rink);
+        const cloudNodes = await this.detectWithGoogleVision(ocrCanvas, visionApiKey, rink);
         if (cloudNodes.length > 0) return this.sanitize(cloudNodes, w, h, rink);
       } catch (err) {
         console.warn('[PaperOcrEngine] Falló Google Vision, se intentará OCR local:', err);
       }
     }
 
-    // 2) Tesseract.js local (sin blobs, sin trazados). Import dinámico: no pesa
-    //    en el bundle principal y, si no está disponible/offline, se degrada.
+    // 2) Tesseract.js local (whitelist de dígitos + segmentación por contornos).
     try {
-      const localNodes = await this.detectWithTesseract(warpedCanvas, rink);
+      const localNodes = await this.detectWithTesseract(ocrCanvas, rink);
       if (localNodes.length > 0) return this.sanitize(localNodes, w, h, rink);
     } catch (err) {
       console.warn('[PaperOcrEngine] OCR local no disponible:', err);
@@ -117,65 +119,195 @@ export class PaperOcrEngine {
   }
 
   /**
-   * OCR local con Tesseract.js. Se pide salida TSV para obtener el texto y el
-   * bounding box por palabra, y solo se aceptan tokens numéricos.
+   * OCR local con Tesseract.js, afinado para DÍGITOS:
+   *   · whitelist = 0-9 (sin letras ni símbolos),
+   *   · PSM 11 (texto disperso) para leer varios números en la hoja,
+   *   · si no encuentra nada, SEGMENTACIÓN POR CONTORNOS: aísla las manchas de
+   *     tinta y pasa cada recorte por OCR (PSM 7).
    */
   private static async detectWithTesseract(
     canvas: HTMLCanvasElement,
     rink: RinkDimensions
   ): Promise<DetectedNodeMarker[]> {
-    // Import dinámico: Tesseract (y sus workers) solo se descargan al digitalizar.
     const Tesseract = await import('tesseract.js');
     const createWorker = (Tesseract as any).createWorker;
     if (typeof createWorker !== 'function') return [];
 
     const worker = await createWorker('eng');
+    const scaleX = rink.lengthMeters / canvas.width;
+    const scaleY = rink.widthMeters / canvas.height;
+
     try {
-      // `output.tsv` da columnas: level page block par line word left top width height conf text
+      // ── Fase A: OCR sobre la hoja completa (solo dígitos) ──
+      await worker.setParameters({
+        tessedit_char_whitelist: '0123456789',
+        tessedit_pageseg_mode: '11',
+      });
+
       const result = await worker.recognize(canvas, {}, { tsv: true });
       const tsv: string | undefined = result?.data?.tsv;
-      if (!tsv) return [];
-
-      const scaleX = rink.lengthMeters / canvas.width;
-      const scaleY = rink.widthMeters / canvas.height;
       const found: DetectedNodeMarker[] = [];
 
-      for (const line of tsv.split('\n')) {
-        const cols = line.split('\t');
-        if (cols.length < 12) continue;
+      if (tsv) {
+        for (const line of tsv.split('\n')) {
+          const cols = line.split('\t');
+          if (cols.length < 12 || cols[0] !== '5') continue; // 5 = nivel "word"
 
-        const level = cols[0];
-        if (level !== '5') continue; // 5 = nivel "word"
+          const left = Number(cols[6]);
+          const top = Number(cols[7]);
+          const width = Number(cols[8]);
+          const height = Number(cols[9]);
+          const conf = Number(cols[10]);
+          const seq = parseSequenceToken(cols[11]);
+          if (seq === null) continue;
+          if (!Number.isFinite(left) || !Number.isFinite(top) || width <= 0 || height <= 0) continue;
 
-        const left = Number(cols[6]);
-        const top = Number(cols[7]);
-        const width = Number(cols[8]);
-        const height = Number(cols[9]);
-        const conf = Number(cols[10]);
-        const text = cols[11];
-
-        const seq = parseSequenceToken(text);
-        if (seq === null) continue;
-        if (!Number.isFinite(left) || !Number.isFinite(top) || width <= 0 || height <= 0) continue;
-
-        const cx = left + width / 2;
-        const cy = top + height / 2;
-
-        found.push({
-          sequenceNumber: seq,
-          positionMeters: {
-            x: Math.round(cx * scaleX * 10) / 10,
-            y: Math.round(cy * scaleY * 10) / 10,
-          },
-          confidence: Number.isFinite(conf) ? Math.max(0.5, conf / 100) : 0.7,
-          rawBoundingBox: { x: left, y: top, width, height },
-        });
+          found.push(this.toNode(seq, left + width / 2, top + height / 2, left, top, width, height, conf, scaleX, scaleY));
+        }
       }
 
-      return found;
+      if (found.length > 0) return found;
+
+      // ── Fase B: segmentación por contornos (fallback) ──
+      return await this.detectByContourSegmentation(worker, canvas, scaleX, scaleY);
     } finally {
       await worker.terminate();
     }
+  }
+
+  private static toNode(
+    seq: number,
+    cx: number,
+    cy: number,
+    left: number,
+    top: number,
+    width: number,
+    height: number,
+    conf: number,
+    scaleX: number,
+    scaleY: number
+  ): DetectedNodeMarker {
+    return {
+      sequenceNumber: seq,
+      positionMeters: {
+        x: Math.round(cx * scaleX * 10) / 10,
+        y: Math.round(cy * scaleY * 10) / 10,
+      },
+      confidence: Number.isFinite(conf) ? Math.max(0.5, conf / 100) : 0.7,
+      rawBoundingBox: { x: left, y: top, width, height },
+    };
+  }
+
+  /**
+   * Aísla manchas de tinta (números) por componentes conexas sobre la imagen
+   * binarizada y pasa cada recorte por OCR (PSM 7, solo dígitos).
+   */
+  private static async detectByContourSegmentation(
+    worker: any,
+    canvas: HTMLCanvasElement,
+    scaleX: number,
+    scaleY: number
+  ): Promise<DetectedNodeMarker[]> {
+    const w = canvas.width;
+    const h = canvas.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return [];
+    const { data } = ctx.getImageData(0, 0, w, h);
+
+    // Mapa de tinta: píxel oscuro = 1
+    const ink = new Uint8Array(w * h);
+    for (let i = 0; i < w * h; i++) {
+      const idx = i * 4;
+      const lum = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+      ink[i] = lum < 128 ? 1 : 0;
+    }
+
+    const minSize = Math.max(6, Math.round(w * 0.012));
+    const maxSize = Math.round(w * 0.075);
+    const blobs = this.findInkBlobs(ink, w, h, minSize, maxSize).slice(0, 40);
+    if (blobs.length === 0) return [];
+
+    await worker.setParameters({
+      tessedit_char_whitelist: '0123456789',
+      tessedit_pageseg_mode: '7',
+    });
+
+    const results: DetectedNodeMarker[] = [];
+
+    for (const b of blobs) {
+      const pad = Math.round(Math.max(b.maxX - b.minX, b.maxY - b.minY) * 0.15);
+      const x0 = Math.max(0, b.minX - pad);
+      const y0 = Math.max(0, b.minY - pad);
+      const cw = Math.min(w - x0, b.maxX - b.minX + pad * 2);
+      const ch = Math.min(h - y0, b.maxY - b.minY + pad * 2);
+      if (cw <= 2 || ch <= 2) continue;
+
+      const crop = document.createElement('canvas');
+      crop.width = cw;
+      crop.height = ch;
+      const cctx = crop.getContext('2d');
+      if (!cctx) continue;
+      cctx.drawImage(canvas, x0, y0, cw, ch, 0, 0, cw, ch);
+
+      try {
+        const r = await worker.recognize(crop);
+        const text: string = r?.data?.text ?? '';
+        const seq = parseSequenceToken(text.replace(/\s+/g, ''));
+        if (seq === null) continue;
+
+        const cx = (b.minX + b.maxX) / 2;
+        const cy = (b.minY + b.maxY) / 2;
+        results.push(
+          this.toNode(seq, cx, cy, b.minX, b.minY, b.maxX - b.minX, b.maxY - b.minY, 75, scaleX, scaleY)
+        );
+      } catch {
+        /* recorte ilegible: se ignora */
+      }
+    }
+
+    return results;
+  }
+
+  /** Componentes conexas de tinta dentro de un rango de tamaño. */
+  private static findInkBlobs(
+    ink: Uint8Array,
+    w: number,
+    h: number,
+    minSize: number,
+    maxSize: number
+  ): Array<{ minX: number; maxX: number; minY: number; maxY: number }> {
+    const visited = new Uint8Array(w * h);
+    const blobs: Array<{ minX: number; maxX: number; minY: number; maxY: number }> = [];
+    const stack: number[] = [];
+
+    for (let start = 0; start < w * h; start++) {
+      if (ink[start] !== 1 || visited[start] === 1) continue;
+
+      const blob = { minX: w, maxX: 0, minY: h, maxY: 0 };
+      stack.length = 0;
+      stack.push(start);
+      visited[start] = 1;
+
+      while (stack.length > 0) {
+        const idx = stack.pop()!;
+        const x = idx % w;
+        const y = (idx - x) / w;
+        if (x < blob.minX) blob.minX = x;
+        if (x > blob.maxX) blob.maxX = x;
+        if (y < blob.minY) blob.minY = y;
+        if (y > blob.maxY) blob.maxY = y;
+
+        if (x > 0) { const n = idx - 1; if (ink[n] === 1 && visited[n] === 0) { visited[n] = 1; stack.push(n); } }
+        if (x < w - 1) { const n = idx + 1; if (ink[n] === 1 && visited[n] === 0) { visited[n] = 1; stack.push(n); } }
+        if (y > 0) { const n = idx - w; if (ink[n] === 1 && visited[n] === 0) { visited[n] = 1; stack.push(n); } }
+        if (y < h - 1) { const n = idx + w; if (ink[n] === 1 && visited[n] === 0) { visited[n] = 1; stack.push(n); } }
+      }
+
+      const size = Math.max(blob.maxX - blob.minX, blob.maxY - blob.minY);
+      if (size >= minSize && size <= maxSize) blobs.push(blob);
+    }
+
+    return blobs;
   }
 
   /**
