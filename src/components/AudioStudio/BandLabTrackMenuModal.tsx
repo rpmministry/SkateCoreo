@@ -14,6 +14,7 @@ import {
   Layers
 } from 'lucide-react';
 import { AudioStudioTrack, CARBON_TRACK_COLORS } from '../../types/audioStudio';
+import { ACCEPTED_AUDIO_FORMATS } from '../../constants/mediaFormats';
 import { useAudioStudioStore } from '../../store/useAudioStudioStore';
 
 interface BandLabTrackMenuModalProps {
@@ -223,7 +224,7 @@ export const BandLabTrackMenuModal: React.FC<BandLabTrackMenuModalProps> = ({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="audio/*"
+                accept={ACCEPTED_AUDIO_FORMATS}
                 className="hidden"
                 onChange={handleFileSelected}
               />

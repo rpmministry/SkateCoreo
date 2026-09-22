@@ -66,6 +66,48 @@ interface DragState {
 import { STANDARD_FIGURES, ROLLART_STANDARD_FIGURES } from '../constants/figures';
 export { STANDARD_FIGURES, ROLLART_STANDARD_FIGURES };
 
+/**
+ * Límites de WebKit iOS para el backing store de un <canvas>.
+ *
+ * Safari descarta SILENCIOSAMENTE un canvas cuyo lado o área exceda sus límites
+ * de memoria: el elemento queda en blanco/negro sin lanzar ningún error. En un
+ * iPad a DPR 2 con una vista grande se puede superar el umbral de área.
+ */
+const MAX_CANVAS_SIDE = 8192;
+const MAX_CANVAS_AREA = 16_777_216; // 4096 × 4096 — umbral conservador y seguro
+
+/**
+ * Calcula el tamaño físico del backing store respetando los límites de iOS.
+ *
+ * Si la densidad de pantalla se pasa del límite, se reduce el DPR EFECTIVO
+ * (nunca por debajo de 1) para que el dibujo siga siendo correcto y nítido pero
+ * siempre dentro del rango soportado. Devuelve también la escala real aplicada,
+ * que debe usarse en `ctx.scale()` en lugar de asumir que es igual a `dpr`.
+ */
+function computeBackingStore(cssW: number, cssH: number, dpr: number) {
+  const safeW = Number.isFinite(cssW) && cssW > 0 ? cssW : 1000;
+  const safeH = Number.isFinite(cssH) && cssH > 0 ? cssH : 540;
+  const baseDpr = Number.isFinite(dpr) && dpr > 0 ? dpr : 1;
+
+  let scale = baseDpr;
+  if (safeW * scale > MAX_CANVAS_SIDE) scale = MAX_CANVAS_SIDE / safeW;
+  if (safeH * scale > MAX_CANVAS_SIDE) scale = Math.min(scale, MAX_CANVAS_SIDE / safeH);
+  if (safeW * safeH * scale * scale > MAX_CANVAS_AREA) {
+    scale = Math.sqrt(MAX_CANVAS_AREA / (safeW * safeH));
+  }
+  scale = Math.max(1, scale);
+
+  const physicalW = Math.max(1, Math.round(safeW * scale));
+  const physicalH = Math.max(1, Math.round(safeH * scale));
+
+  return {
+    physicalW,
+    physicalH,
+    scaleX: physicalW / safeW,
+    scaleY: physicalH / safeH,
+  };
+}
+
 
 export const RinkCanvas: React.FC<RinkCanvasProps> = ({
   currentProgram,
@@ -77,6 +119,13 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+
+  /**
+   * Tamaño CSS real medido del lienzo, actualizado en cada `renderFrame`.
+   * Es la fuente de verdad del hit-testing: sobrevive a los cambios de la barra
+   * dinámica de Safari (que no siempre disparan `resize` a tiempo en iOS).
+   */
+  const measuredSizeRef = useRef<{ width: number; height: number }>({ width: 1000, height: 540 });
 
   // Motor Headless de Audio (Web Audio API limpia y desacoplada)
   const audio = useAudioEngine();
@@ -100,26 +149,64 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
   });
 
   // Observador de Redimensionamiento Responsivo (100% Ancho y Altura)
+  //
+  // iOS/Safari no siempre dispara `resize` al cambiar la barra de direcciones ni
+  // al rotar, y `ResizeObserver` puede entregar 0×0 durante el primer layout.
+  // Se combinan varias fuentes + una re-medición diferida en el siguiente frame
+  // para que el contenedor NUNCA quede con un tamaño obsoleto (causa directa de
+  // que el lienzo se dibuje fuera del área visible).
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    const updateSize = () => {
+    let rafId = 0;
+
+    const measure = () => {
       const rect = container.getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) {
-        setContainerSize({
-          width: Math.round(rect.width),
-          height: Math.round(rect.height),
-        });
+      // Fallback en cascada: contenedor → propio lienzo → (si nada mide) nada.
+      const width = rect.width > 0
+        ? rect.width
+        : (canvasRef.current?.getBoundingClientRect().width ?? 0);
+      const height = rect.height > 0
+        ? rect.height
+        : (canvasRef.current?.getBoundingClientRect().height ?? 0);
+
+      if (width > 0 && height > 0) {
+        setContainerSize((prev) =>
+          prev.width === Math.round(width) && prev.height === Math.round(height)
+            ? prev
+            : { width: Math.round(width), height: Math.round(height) }
+        );
       }
     };
 
-    updateSize();
-    const ro = new ResizeObserver(() => {
-      updateSize();
-    });
+    const scheduleMeasure = () => {
+      measure();
+      // Re-medición diferida: en iOS la barra dinámica cambia DESPUÉS del evento.
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        measure();
+        rafId = requestAnimationFrame(measure);
+      });
+    };
+
+    scheduleMeasure();
+
+    const ro = new ResizeObserver(measure);
     ro.observe(container);
-    return () => ro.disconnect();
+
+    window.addEventListener('resize', scheduleMeasure);
+    window.addEventListener('orientationchange', scheduleMeasure);
+    // `visualViewport` es la fuente más fiable del alto visible en Safari iOS.
+    window.visualViewport?.addEventListener('resize', scheduleMeasure);
+
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      ro.disconnect();
+      window.removeEventListener('resize', scheduleMeasure);
+      window.removeEventListener('orientationchange', scheduleMeasure);
+      window.visualViewport?.removeEventListener('resize', scheduleMeasure);
+    };
   }, []);
 
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -286,8 +373,12 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
 
   // Viewport Metrics con cálculo adaptativo responsivo (Margen de seguridad para evitar colisión con controles)
   const getMetrics = useCallback((): CanvasViewportMetrics => {
-    const w = containerSize.width || 1000;
-    const h = containerSize.height || 540;
+    // Se usa el tamaño MEDIDO del lienzo (actualizado cada frame). Así el
+    // hit-testing de los punteros coincide siempre con lo dibujado, incluso si
+    // el estado `containerSize` aún no refleja el tamaño real (iOS/Safari).
+    const measured = measuredSizeRef.current;
+    const w = measured.width || containerSize.width || 1000;
+    const h = measured.height || containerSize.height || 540;
     const padding = w < 640 ? 24 : 36;
     return RinkMath.calculateViewportMetrics(w, h, DEFAULT_RINK_DIMENSIONS, padding);
   }, [containerSize]);
@@ -303,19 +394,36 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    // ── Medición DIRECTA del lienzo (iOS-safe) ──
+    // El <canvas> es `h-full w-full`, así que su caja CSS coincide SIEMPRE con
+    // el contenedor. Medir el propio elemento evita depender de un estado que
+    // pueda quedar obsoleto por la barra dinámica de Safari y garantiza que el
+    // backing store nunca se desfase respecto al tamaño real en pantalla.
+    const rect = canvas.getBoundingClientRect();
+    const cssW = Math.round(rect.width) || containerSize.width || 1000;
+    const cssH = Math.round(rect.height) || containerSize.height || 540;
+
     const dpr = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
-    const cssW = containerSize.width || 1000;
-    const cssH = containerSize.height || 540;
+    const { physicalW, physicalH, scaleX, scaleY } = computeBackingStore(cssW, cssH, dpr);
 
-    const physicalW = Math.round(cssW * dpr);
-    const physicalH = Math.round(cssH * dpr);
-
+    // Redimensionar el backing store REINICIA el lienzo (lo deja en negro hasta
+    // el siguiente trazo), así que solo se hace cuando el tamaño cambia de verdad.
     if (canvas.width !== physicalW || canvas.height !== physicalH) {
       canvas.width = physicalW;
       canvas.height = physicalH;
     }
 
-    const metrics = getMetrics();
+    // Tamaño medido como fuente de verdad para el hit-testing (pointer handlers).
+    measuredSizeRef.current = { width: cssW, height: cssH };
+
+    // Métricas derivadas del tamaño REALMENTE medido (no del estado), para que
+    // el dibujo y el hit-testing coincidan siempre.
+    const metrics = RinkMath.calculateViewportMetrics(
+      cssW,
+      cssH,
+      DEFAULT_RINK_DIMENSIONS,
+      cssW < 640 ? 24 : 36
+    );
     const currentPoints = useChoreographyStore.getState().points;
     const currentSelectedId = useChoreographyStore.getState().selectedPointId;
     const currentShowHandles = useChoreographyStore.getState().showControlHandles;
@@ -330,92 +438,104 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       ? RinkMath.interpolateSkaterPosition(currentPoints, currentPlayTime)
       : null;
 
+    // `try/finally` mantiene SIEMPRE equilibrada la pila de estados del contexto:
+    // una excepción de dibujo ya no puede dejar el lienzo vacío de forma
+    // permanente (que era otra vía de "pantalla en negro").
     ctx.save();
-    // 1. Escala para pantallas Retina/OLED de alta densidad
-    ctx.scale(dpr, dpr);
-    // 2. Limpieza total del frame anterior (Elimina cualquier rastro previo o artefactos visuales)
-    ctx.clearRect(0, 0, cssW, cssH);
+    try {
+      // 1. Escala al tamaño físico real (puede diferir de `dpr` por el límite iOS)
+      ctx.scale(scaleX, scaleY);
+      // 2. Limpieza total del frame anterior (elimina rastros o artefactos)
+      ctx.clearRect(0, 0, cssW, cssH);
 
-    // 3. Aplicación de la Cámara Virtual (Pan & Zoom)
-    ctx.translate(camera.x, camera.y);
-    ctx.scale(camera.zoom, camera.zoom);
+      // 3. Aplicación de la Cámara Virtual (Pan & Zoom)
+      ctx.translate(camera.x, camera.y);
+      ctx.scale(camera.zoom, camera.zoom);
 
-    const renderOpts = {
-      showRinkGrid: currentShowGrid,
-      showControlHandles: currentShowHandles,
-      selectedPointId: currentSelectedId,
-      activeSegmentIndex: currentAvatar?.activePointIndex ?? null,
-      isPathGenerated: currentPoints.length >= 2,
-      phase,
-      isPlaying: audio.isPlaying,
-      showFullTrailOverride: currentFullTrail,
-      currentTimeMs: currentPlayTime,
-      avatar: currentAvatar,
-      showReglamentaryGuides: currentRegGuides,
-      showCompulsoryFigures: currentCompFigures,
-      paperTraceOverlay: currentPaperOverlay,
-      paperTraceImageElement: paperImageRef.current,
-    };
+      const renderOpts = {
+        showRinkGrid: currentShowGrid,
+        showControlHandles: currentShowHandles,
+        selectedPointId: currentSelectedId,
+        activeSegmentIndex: currentAvatar?.activePointIndex ?? null,
+        isPathGenerated: currentPoints.length >= 2,
+        phase,
+        isPlaying: audio.isPlaying,
+        showFullTrailOverride: currentFullTrail,
+        currentTimeMs: currentPlayTime,
+        avatar: currentAvatar,
+        showReglamentaryGuides: currentRegGuides,
+        showCompulsoryFigures: currentCompFigures,
+        paperTraceOverlay: currentPaperOverlay,
+        paperTraceImageElement: paperImageRef.current,
+      };
 
-    // Capa 0: Pista reglamentaria y marcas World Skate
-    RinkRenderer.drawRinkFloor(ctx, metrics, DEFAULT_RINK_DIMENSIONS, renderOpts);
+      // Capa 0: Pista reglamentaria y marcas World Skate
+      RinkRenderer.drawRinkFloor(ctx, metrics, DEFAULT_RINK_DIMENSIONS, renderOpts);
 
-    // Capa 1: Curvas de trayectoria (Línea guía permanente en pausa, o Trazado Dinámico durante reproducción)
-    RinkRenderer.drawTrajectories(ctx, metrics, currentPoints, renderOpts);
+      // Capa 1: Curvas de trayectoria (Línea guía permanente en pausa, o Trazado Dinámico durante reproducción)
+      RinkRenderer.drawTrajectories(ctx, metrics, currentPoints, renderOpts);
 
-    // Capa 2: Puntos de anclaje de Nodos Principales exclusivamente (Menta Neón)
-    RinkRenderer.drawAnchorPoints(ctx, metrics, currentPoints, currentSelectedId);
+      // Capa 2: Puntos de anclaje de Nodos Principales exclusivamente (Menta Neón)
+      RinkRenderer.drawAnchorPoints(ctx, metrics, currentPoints, currentSelectedId);
 
-    // Capa 5: Elementos técnicos RollArt
-    RinkRenderer.drawTechnicalElements(ctx, metrics, currentPoints, elements);
+      // Capa 5: Elementos técnicos RollArt
+      RinkRenderer.drawTechnicalElements(ctx, metrics, currentPoints, elements);
 
-    // Capa 6: AVATAR CINEMÁTICO DEL PATINADOR/A (CAPA SUPERIOR)
-    if (currentPoints.length >= 2 && currentAvatar) {
-      RinkRenderer.drawSkaterAvatar(ctx, metrics, currentAvatar, skaterGender);
-    }
-
-    // Capa 7: Trazado a Mano Alzada en Tiempo Real (Active Freehand Glowing Trail)
-    const activeStroke = rawStrokeRef.current;
-    if (activeStroke && activeStroke.length >= 2) {
-      ctx.save();
-      // Resplandor exterior difuso (Cyan Outer Glow)
-      ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)';
-      ctx.lineWidth = 10;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.beginPath();
-      for (let i = 0; i < activeStroke.length; i++) {
-        const ptPx = RinkMath.metersToPixels(activeStroke[i].x, activeStroke[i].y, metrics);
-        if (i === 0) ctx.moveTo(ptPx.px, ptPx.py);
-        else ctx.lineTo(ptPx.px, ptPx.py);
+      // Capa 6: AVATAR CINEMÁTICO DEL PATINADOR/A (CAPA SUPERIOR)
+      if (currentPoints.length >= 2 && currentAvatar) {
+        RinkRenderer.drawSkaterAvatar(ctx, metrics, currentAvatar, skaterGender);
       }
-      ctx.stroke();
 
-      // Trazo central nítido (Cyan Core Line)
-      ctx.strokeStyle = '#00F0FF';
-      ctx.lineWidth = 3.5;
-      ctx.beginPath();
-      for (let i = 0; i < activeStroke.length; i++) {
-        const ptPx = RinkMath.metersToPixels(activeStroke[i].x, activeStroke[i].y, metrics);
-        if (i === 0) ctx.moveTo(ptPx.px, ptPx.py);
-        else ctx.lineTo(ptPx.px, ptPx.py);
+      // Capa 7: Trazado a Mano Alzada en Tiempo Real (Active Freehand Glowing Trail)
+      const activeStroke = rawStrokeRef.current;
+      if (activeStroke && activeStroke.length >= 2) {
+        // `try/finally` propio: si falla el trazo, la pila del contexto sigue
+        // equilibrada y el siguiente frame no hereda una transformación rota.
+        ctx.save();
+        try {
+          // Resplandor exterior difuso (Cyan Outer Glow)
+          ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)';
+          ctx.lineWidth = 10;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.beginPath();
+          for (let i = 0; i < activeStroke.length; i++) {
+            const ptPx = RinkMath.metersToPixels(activeStroke[i].x, activeStroke[i].y, metrics);
+            if (i === 0) ctx.moveTo(ptPx.px, ptPx.py);
+            else ctx.lineTo(ptPx.px, ptPx.py);
+          }
+          ctx.stroke();
+
+          // Trazo central nítido (Cyan Core Line)
+          ctx.strokeStyle = '#00F0FF';
+          ctx.lineWidth = 3.5;
+          ctx.beginPath();
+          for (let i = 0; i < activeStroke.length; i++) {
+            const ptPx = RinkMath.metersToPixels(activeStroke[i].x, activeStroke[i].y, metrics);
+            if (i === 0) ctx.moveTo(ptPx.px, ptPx.py);
+            else ctx.lineTo(ptPx.px, ptPx.py);
+          }
+          ctx.stroke();
+
+          // Punta luminosa en la coordenada exacta del dedo / puntero
+          const tip = activeStroke[activeStroke.length - 1];
+          const tipPx = RinkMath.metersToPixels(tip.x, tip.y, metrics);
+          ctx.fillStyle = '#FFFFFF';
+          ctx.shadowColor = '#00F0FF';
+          ctx.shadowBlur = 12;
+          ctx.beginPath();
+          ctx.arc(tipPx.px, tipPx.py, 5, 0, Math.PI * 2);
+          ctx.fill();
+        } finally {
+          ctx.restore();
+        }
       }
-      ctx.stroke();
-
-      // Punta luminosa en la coordenada exacta del dedo / puntero
-      const tip = activeStroke[activeStroke.length - 1];
-      const tipPx = RinkMath.metersToPixels(tip.x, tip.y, metrics);
-      ctx.fillStyle = '#FFFFFF';
-      ctx.shadowColor = '#00F0FF';
-      ctx.shadowBlur = 12;
-      ctx.beginPath();
-      ctx.arc(tipPx.px, tipPx.py, 5, 0, Math.PI * 2);
-      ctx.fill();
-
+    } catch (err) {
+      // Un fallo de dibujo ya no deja la Pista 2D en negro de forma permanente.
+      console.error('[RinkCanvas] Error al renderizar el frame:', err);
+    } finally {
       ctx.restore();
     }
-
-    ctx.restore();
   }, [
     containerSize,
     getMetrics,
@@ -1401,12 +1521,10 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
           style={{
-            width: `${containerSize.width}px`,
-            height: `${containerSize.height}px`,
             cursor: cursorStyle,
             touchAction: 'none'
           }}
-          className="block touch-none select-none"
+          className="block h-full w-full touch-none select-none"
         />
       </div>
     );

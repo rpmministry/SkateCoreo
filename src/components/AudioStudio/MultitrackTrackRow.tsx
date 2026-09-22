@@ -8,6 +8,7 @@ import {
   MoreVertical 
 } from 'lucide-react';
 import { AudioStudioTrack } from '../../types/audioStudio';
+import { ACCEPTED_AUDIO_FORMATS } from '../../constants/mediaFormats';
 import { useAudioStudioStore } from '../../store/useAudioStudioStore';
 import { AudioClipItem } from './AudioClipItem';
 import { BandLabTrackMenuModal } from './BandLabTrackMenuModal';
@@ -261,7 +262,7 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
                   id={`file-upload-${track.id}`}
                   ref={fileInputRef}
                   type="file"
-                  accept="audio/*"
+                  accept={ACCEPTED_AUDIO_FORMATS}
                   className="sr-only"
                   onChange={handleFileChange}
                 />

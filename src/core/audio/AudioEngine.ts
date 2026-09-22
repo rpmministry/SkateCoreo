@@ -68,7 +68,56 @@ export class AudioEngine {
     this.mediaSession = new MediaSessionManager();
 
     this.initVisibilityListener();
+    this.initIosUnlockListener();
     this.setupMediaSession();
+  }
+
+  /**
+   * DESBLOQUEO iOS / iPadOS (política de autoplay de Safari).
+   *
+   * WebKit crea el `AudioContext` en estado `suspended` y solo lo activa si
+   * `resume()` se ejecuta DENTRO del gesto del usuario. Si el primer gesto es un
+   * toque en un botón que no inicializa audio (p. ej. navegar), el contexto puede
+   * quedar suspendido y la reproducción falla EN SILENCIO.
+   *
+   * Red de seguridad: en el PRIMER gesto real (pointerdown / touchend / keydown)
+   * se reanuda el contexto si existe y sigue suspendido, y se reproduce un
+   * buffer de silencio de 1 muestra para dejar el pipeline de hardware listo.
+   * Es idempotente y no altera ninguna lógica de reproducción.
+   */
+  private initIosUnlockListener() {
+    if (typeof document === 'undefined') return;
+
+    const unlock = () => {
+      const ctx = this.ctx;
+
+      // Si todavía no existe el AudioContext, se CONSERVAN los listeners: el
+      // gesto que realmente lo cree (cargar/reproducir) hará el desbloqueo.
+      if (!ctx) return;
+
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
+
+      try {
+        // Buffer de silencio: "calienta" la salida de hardware en iOS.
+        const silent = ctx.createBuffer(1, 1, ctx.sampleRate || 44100);
+        const source = ctx.createBufferSource();
+        source.buffer = silent;
+        source.connect(ctx.destination);
+        source.start(0);
+      } catch (e) {
+        /* No es crítico: solo es un refuerzo del desbloqueo. */
+      }
+
+      document.removeEventListener('pointerdown', unlock, true);
+      document.removeEventListener('touchend', unlock, true);
+      document.removeEventListener('keydown', unlock, true);
+    };
+
+    document.addEventListener('pointerdown', unlock, true);
+    document.addEventListener('touchend', unlock, true);
+    document.addEventListener('keydown', unlock, true);
   }
 
   public initAudioContext() {

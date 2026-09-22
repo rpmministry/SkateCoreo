@@ -309,6 +309,30 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   ALTURA DE VIEWPORT A PRUEBA DE WEBKIT (iOS / iPadOS)
+
+   Safari móvil NO soporta `100dvh` antes de iOS 16.4. Si un contenedor raíz
+   declara ÚNICAMENTE `height: 100dvh`, la declaración se descarta y el
+   contenedor queda SIN ALTURA: la app colapsa, el contenedor de la Pista 2D
+   mide 0 px y el lienzo se dibuja fuera del área visible → PANTALLA NEGRA.
+
+   Se progresa en tres pasos; cada uno sobrescribe al anterior SOLO si el
+   motor lo entiende, así que en WebKit antiguo queda el anterior:
+
+     100vh  → universal. iOS antiguo: algo más alto que el área visible.
+     100svh → iOS 15.4+. Altura MÍNIMA visible: nunca corta contenido.
+     100dvh → iOS 16.4+. Sigue la barra dinámica de Safari en vivo.
+
+   (Requiere `viewport-fit=cover` en el meta viewport, ya presente.)
+   ═══════════════════════════════════════════════════════════════════ */
+
+.app-viewport-height {
+  height: 100vh;
+  height: 100svh;
+  height: 100dvh;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    ORIENTATION-AWARE STRUCTURAL RULES
    The Tailwind `landscape:` and `portrait:` variants handle utility
    classes; these rules handle complex multi-condition media queries
@@ -334,8 +358,11 @@ body {
 @media (orientation: landscape) and (max-width: 1023px) {
   .landscape-audio-dock {
     flex-direction: row !important;
+    /* `vh` primero como respaldo universal (WebKit antiguo descarta `dvh`) */
+    height: 24vh;
     height: 24dvh !important;
     min-height: 76px !important;
+    max-height: 26vh;
     max-height: 26dvh !important;
     flex: 0 0 auto !important;
   }
@@ -344,8 +371,10 @@ body {
 /* Pantallas muy bajas (móvil horizontal compacto): dock aún más delgado */
 @media (orientation: landscape) and (max-width: 1023px) and (max-height: 400px) {
   .landscape-audio-dock {
+    height: 26vh;
     height: 26dvh !important;
     min-height: 68px !important;
+    max-height: 28vh;
     max-height: 28dvh !important;
   }
 }

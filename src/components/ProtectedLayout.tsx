@@ -18,7 +18,7 @@ export const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) =>
   const hasAccess = useAuthStore((s) => s.hasActiveAccess());
 
   return (
-    <div className="relative w-screen h-dvh overflow-hidden">
+    <div className="relative w-screen app-viewport-height overflow-hidden">
       {/* Aplicación principal siempre renderizada en el fondo */}
       <div className={`w-full h-full transition-all duration-500 ${!hasAccess ? 'pointer-events-none select-none' : ''}`}>
         {children}

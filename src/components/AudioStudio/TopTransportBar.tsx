@@ -13,6 +13,7 @@ import {
   X
 } from 'lucide-react';
 import { useAudioStudioStore } from '../../store/useAudioStudioStore';
+import { ACCEPTED_AUDIO_FORMATS } from '../../constants/mediaFormats';
 import { usePressAction } from '../../hooks/usePressAction';
 
 interface TopTransportBarProps {
@@ -196,7 +197,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
           <input
             ref={fileInputRef}
             type="file"
-            accept="audio/*"
+            accept={ACCEPTED_AUDIO_FORMATS}
             className="hidden"
             onChange={handleFileChange}
           />

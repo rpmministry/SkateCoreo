@@ -28,6 +28,7 @@ import { audioEngine } from './services/audioEngine';
 import { useChoreographyStore } from './store/useChoreographyStore';
 import { useAudioStudioStore } from './store/useAudioStudioStore';
 import { useAuthStore } from './store/useAuthStore';
+import { ACCEPTED_AUDIO_FORMATS, ACCEPTED_PROJECT_FORMATS } from './constants/mediaFormats';
 import { renderChoreographyMixdown } from './core/audio/audioMixdown';
 import { exportCoreoProject, importCoreoProject } from './services/coreoPackage';
 import { ProtectedLayout } from './components/ProtectedLayout';
@@ -407,20 +408,20 @@ export function App() {
   // ── Render ────────────────────────────────────────────
   return (
     <ProtectedLayout>
-      <div className="h-dvh w-screen overflow-hidden flex flex-col bg-neon-canvas text-white select-none font-sans">
+      <div className="app-viewport-height w-screen overflow-hidden flex flex-col bg-neon-canvas text-white select-none font-sans">
 
         {/* Hidden file inputs */}
       <input
         ref={audioInputRef}
         type="file"
-        accept="audio/*,.mp3,.wav,.m4a,.aac"
+        accept={ACCEPTED_AUDIO_FORMATS}
         className="hidden"
         onChange={handleMusicFileChange}
       />
       <input
         ref={coreoInputRef}
         type="file"
-        accept=".coreo,.skate,.zip"
+        accept={ACCEPTED_PROJECT_FORMATS}
         className="hidden"
         onChange={handleImportCoreoChange}
       />

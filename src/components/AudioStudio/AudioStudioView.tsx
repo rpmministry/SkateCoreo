@@ -20,6 +20,7 @@ import { usePressAction } from '../../hooks/usePressAction';
 import { usePlayheadSync } from '../../hooks/usePlayheadSync';
 import { timeToPlayheadPx } from '../../core/audio/PlaybackClock';
 import { AudioStudioTrack } from '../../types/audioStudio';
+import { ACCEPTED_AUDIO_FORMATS } from '../../constants/mediaFormats';
 import { TopTransportBar } from './TopTransportBar';
 import { AudioTimeRuler } from './AudioTimeRuler';
 import { MultitrackTrackRow } from './MultitrackTrackRow';
@@ -670,7 +671,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
                   id="add-track-input"
                   ref={addTrackFileInputRef}
                   type="file"
-                  accept="audio/*"
+                  accept={ACCEPTED_AUDIO_FORMATS}
                   className="sr-only"
                   onChange={handleAddTrackFileSelected}
                 />
