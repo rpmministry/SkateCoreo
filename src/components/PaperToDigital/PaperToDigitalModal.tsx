@@ -32,26 +32,32 @@ function buildOcrDebugOverlay(binarized: HTMLCanvasElement, debug: OcrDebugEntry
   ctx.drawImage(binarized, 0, 0);
 
   for (const d of debug) {
-    // Círculo del ROI
+    // Verde = aceptado (pasa al OCR) · Azul = rechazado por los filtros.
+    const color = d.rejected ? '#3B82F6' : d.accepted ? '#22C55E' : '#F59E0B';
+
     ctx.beginPath();
     ctx.arc(d.x, d.y, Math.max(8, d.radius), 0, Math.PI * 2);
-    ctx.strokeStyle = d.accepted ? '#FF0000' : '#FF9900';
+    ctx.strokeStyle = color;
     ctx.lineWidth = 3;
     ctx.stroke();
 
-    // Centroide exacto
     ctx.beginPath();
     ctx.arc(d.x, d.y, 4, 0, Math.PI * 2);
-    ctx.fillStyle = '#FF0000';
+    ctx.fillStyle = color;
     ctx.fill();
 
-    // Texto leído por el OCR
-    const label = d.accepted ? `OK: ${d.text}` : d.text ? `X: ${d.text}` : `X: ${d.reason || 'sin lectura'}`;
+    const label = d.rejected
+      ? 'FILTRADO'
+      : d.accepted
+        ? `OK: ${d.text}`
+        : d.text
+          ? `X: ${d.text}`
+          : 'PENDIENTE';
     ctx.font = 'bold 20px monospace';
     ctx.lineWidth = 3;
     ctx.strokeStyle = '#FFFFFF';
     ctx.strokeText(label, d.x + 12, d.y - 10);
-    ctx.fillStyle = d.accepted ? '#B00020' : '#B45309';
+    ctx.fillStyle = color;
     ctx.fillText(label, d.x + 12, d.y - 10);
   }
 

@@ -37,6 +37,8 @@ export interface OcrDebugEntry {
   radius: number;
   text: string;
   accepted: boolean;
+  /** true si el contorno fue RECHAZADO por los filtros (se pinta en azul). */
+  rejected?: boolean;
   reason?: string;
 }
 
@@ -52,9 +54,21 @@ interface ContourRect {
   minY: number;
   maxY: number;
   area: number;
+  bboxArea: number;
   cx: number;
   cy: number;
 }
+
+/* ── Umbrales ESTRICTOS de filtrado de nodos manuscritos ── */
+/** Área mínima relativa: 0.15% del área total (mata polvo, ruido y letras). */
+const MIN_AREA_RATIO = 0.0015;
+/** Área máxima relativa: 3.5% (descarta el círculo central y elementos grandes). */
+const MAX_AREA_RATIO = 0.035;
+/** Proporción del bounding box aceptada (círculos/cuadrados imperfectos). */
+const MIN_ASPECT = 0.6;
+const MAX_ASPECT = 1.5;
+/** Zona muerta central: radio relativo al lado menor de la imagen alineada. */
+const DEAD_ZONE_RADIUS_RATIO = 0.13;
 
 /** Token numérico válido: solo dígitos (^\\d+$) y en rango razonable de nodos. */
 function parseSequenceToken(raw: string | null | undefined): number | null {
@@ -97,11 +111,21 @@ export class PaperOcrEngine {
       }
     }
 
-    // 2) Contornos relajados + OCR de un carácter (con fail-safe).
-    const contours = this.findInkContours(work);
-    if (contours.length === 0) return { nodes: [], debug: [], method: 'none' };
+    // 2) Contornos con FILTRADO ESTRICTO + OCR de un carácter (con fail-safe).
+    const { accepted, rejected } = this.findInkContours(work);
 
-    const debug: OcrDebugEntry[] = [];
+    const debug: OcrDebugEntry[] = rejected.map((c) => ({
+      x: c.cx,
+      y: c.cy,
+      radius: Math.max(c.maxX - c.minX, c.maxY - c.minY) / 2,
+      text: '',
+      accepted: false,
+      rejected: true,
+      reason: 'Rechazado: área/proporción fuera de rango',
+    }));
+
+    if (accepted.length === 0) return { nodes: [], debug, method: 'none' };
+
     const nodes: DetectedNodeMarker[] = [];
 
     // El nodo se registra SIEMPRE; el OCR solo intenta asignarle número.
@@ -121,7 +145,7 @@ export class PaperOcrEngine {
     }
 
     try {
-      for (const c of contours) {
+      for (const c of accepted) {
         const radius = Math.max(c.maxX - c.minX, c.maxY - c.minY) / 2;
         const entry: OcrDebugEntry = { x: c.cx, y: c.cy, radius, text: '', accepted: false };
 
@@ -199,8 +223,18 @@ export class PaperOcrEngine {
   }
 
   /**
-   * Filtro RELAJADO de contorno: solo área (0.5–4% de la hoja) y aspecto
-   * (0.5–1.8). Sin circularidad estricta (permite óvalos y cuadrados irregulares).
+   * FILTRO ESTRICTO de área relativa: el contorno debe representar entre el
+   * 0.15% y el 3.5% del área total de la hoja alineada.
+   */
+  public static passesAreaFilter(bboxArea: number, totalArea: number): boolean {
+    if (totalArea <= 0) return false;
+    const ratio = bboxArea / totalArea;
+    return ratio >= MIN_AREA_RATIO && ratio <= MAX_AREA_RATIO;
+  }
+
+  /**
+   * Filtro de contorno: área relativa (0.15–3.5%) y aspecto (0.6–1.5).
+   * `minArea`/`maxArea` permiten inyectar los límites en pruebas unitarias.
    */
   public static isCircleCandidate(
     bboxW: number,
@@ -212,7 +246,7 @@ export class PaperOcrEngine {
     if (bboxW <= 0 || bboxH <= 0) return false;
     if (area < minArea || area > maxArea) return false;
     const aspect = bboxW / bboxH;
-    if (aspect < 0.5 || aspect > 1.8) return false;
+    if (aspect < MIN_ASPECT || aspect > MAX_ASPECT) return false;
     return true;
   }
 
@@ -220,32 +254,48 @@ export class PaperOcrEngine {
      DETECCIÓN DE CONTORNOS (componentes conexas de tinta)
      ══════════════════════════════════════════════════════════════════════ */
 
-  private static findInkContours(canvas: HTMLCanvasElement): ContourRect[] {
+  private static findInkContours(
+    canvas: HTMLCanvasElement
+  ): { accepted: ContourRect[]; rejected: ContourRect[] } {
     const w = canvas.width;
     const h = canvas.height;
     const ctx = canvas.getContext('2d');
-    if (!ctx) return [];
+    if (!ctx) return { accepted: [], rejected: [] };
     const { data } = ctx.getImageData(0, 0, w, h);
+
+    const totalArea = w * h;
+    const minArea = Math.ceil(totalArea * MIN_AREA_RATIO);
+    const maxArea = Math.floor(totalArea * MAX_AREA_RATIO);
+
+    // ── ZONA MUERTA CENTRAL ────────────────────────────────────────────────
+    // El círculo central de la plantilla es un elemento ESTRUCTURAL grande.
+    // Se "borra" (se pinta como fondo) antes de buscar contornos.
+    const czx = w / 2;
+    const czy = h / 2;
+    const deadR = Math.min(w, h) * DEAD_ZONE_RADIUS_RATIO;
+    const deadR2 = deadR * deadR;
 
     const ink = new Uint8Array(w * h);
     for (let i = 0; i < w * h; i++) {
       const idx = i * 4;
       const lum = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
-      ink[i] = lum < 128 ? 1 : 0;
+      if (lum >= 128) continue; // fondo
+      const x = i % w;
+      const y = (i - x) / w;
+      const dx = x - czx;
+      const dy = y - czy;
+      if (dx * dx + dy * dy <= deadR2) continue; // dentro de la zona muerta
+      ink[i] = 1;
     }
 
-    // Área del contorno entre 0.5% y 4% de la hoja.
-    const minArea = Math.round(w * h * 0.005);
-    const maxArea = Math.round(w * h * 0.04);
-
     const visited = new Uint8Array(w * h);
-    const contours: ContourRect[] = [];
+    const components: ContourRect[] = [];
     const stack: number[] = [];
 
     for (let start = 0; start < w * h; start++) {
       if (ink[start] !== 1 || visited[start] === 1) continue;
 
-      const rect: ContourRect = { minX: w, maxX: 0, minY: h, maxY: 0, area: 0, cx: 0, cy: 0 };
+      const rect: ContourRect = { minX: w, maxX: 0, minY: h, maxY: 0, area: 0, bboxArea: 0, cx: 0, cy: 0 };
       stack.length = 0;
       stack.push(start);
       visited[start] = 1;
@@ -268,16 +318,52 @@ export class PaperOcrEngine {
 
       const bw = rect.maxX - rect.minX + 1;
       const bh = rect.maxY - rect.minY + 1;
-      // Área del contorno = área de su bounding box (envolvente del dibujo).
-      const bboxArea = bw * bh;
-      if (!this.isCircleCandidate(bw, bh, bboxArea, minArea, maxArea)) continue;
-
+      rect.bboxArea = bw * bh;
       rect.cx = (rect.minX + rect.maxX) / 2;
       rect.cy = (rect.minY + rect.maxY) / 2;
-      contours.push(rect);
+      components.push(rect);
     }
 
-    return contours;
+    // ── JERARQUÍA (aproximada) ─────────────────────────────────────────────
+    // Un componente LOCALIZADO mayor que el área máxima (p. ej. un círculo
+    // grande) rechaza a los candidatos contenidos en él. El marco de la pista
+    // (bbox ≈ toda la hoja) NO actúa como contenedor: solo se rechaza a sí mismo,
+    // para no anular todos los nodos.
+    const localizedBig = components.filter(
+      (c) => c.bboxArea > maxArea && c.bboxArea < totalArea * 0.6
+    );
+    const contains = (outer: ContourRect, inner: ContourRect): boolean =>
+      outer !== inner &&
+      outer.bboxArea > inner.bboxArea &&
+      outer.minX <= inner.minX &&
+      outer.maxX >= inner.maxX &&
+      outer.minY <= inner.minY &&
+      outer.maxY >= inner.maxY;
+
+    const rejected: ContourRect[] = [];
+    const candidates: ContourRect[] = [];
+
+    for (const c of components) {
+      const bw = c.maxX - c.minX + 1;
+      const bh = c.maxY - c.minY + 1;
+      const isBigParent = c.bboxArea > maxArea;
+      const nestedInBig = localizedBig.some((b) => contains(b, c));
+
+      if (isBigParent || nestedInBig || !this.isCircleCandidate(bw, bh, c.bboxArea, minArea, maxArea)) {
+        rejected.push(c);
+      } else {
+        candidates.push(c);
+      }
+    }
+
+    // Si un candidato está contenido en otro candidato (p. ej. el dígito dentro
+    // del círculo), se conserva el EXTERIOR y se rechaza el interior.
+    const accepted = candidates.filter((c) => !candidates.some((o) => contains(o, c)));
+    for (const c of candidates) {
+      if (!accepted.includes(c)) rejected.push(c);
+    }
+
+    return { accepted, rejected };
   }
 
   /**

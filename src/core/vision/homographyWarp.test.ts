@@ -146,6 +146,18 @@ function runOcrMapperTests() {
     'isCircleCandidate descarta una mancha por debajo del área mínima'
   );
 
+  // Filtro ESTRICTO de área relativa (0.15%–3.5% del total)
+  const total = 2_000_000;
+  check(PaperOcrEngine.passesAreaFilter(2000, total) === false, 'Área 0.10% se rechaza (ruido)');
+  check(PaperOcrEngine.passesAreaFilter(3000, total) === true, 'Área 0.15% se acepta (mínimo)');
+  check(PaperOcrEngine.passesAreaFilter(70_000, total) === true, 'Área 3.5% se acepta (máximo)');
+  check(PaperOcrEngine.passesAreaFilter(200_000, total) === false, 'Área 10% se rechaza (círculo central de la plantilla)');
+
+  // Proporción controlada 0.6–1.5
+  check(PaperOcrEngine.isCircleCandidate(40, 40, 1600, 3000, 70_000) === false, 'Cuadrado 1:1 fuera del rango de área → rechazado');
+  check(PaperOcrEngine.isCircleCandidate(60, 40, 5000, 3000, 70_000) === true, 'Proporción 1.5 se acepta');
+  check(PaperOcrEngine.isCircleCandidate(80, 40, 5000, 3000, 70_000) === false, 'Proporción 2.0 se rechaza (línea/ala)');
+
   // Normalización de orientación: el origen fijo + orden angular (invariante a rotación)
   const upright = FiducialDetector.orderCornersFromOrigin(
     { x: 0, y: 0 },
