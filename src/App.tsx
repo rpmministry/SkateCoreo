@@ -845,17 +845,19 @@ export function App() {
       {/* ═══════════════════════════════════════════════
           FOOTER — Atribución oficial (solo escritorio y landscape)
           ═══════════════════════════════════════════════ */}
-      <footer className="attribution-bar min-h-6 shrink-0 items-center justify-between border-t border-white/5 bg-neon-surface/85 px-3 py-1 text-xs text-gray-500 select-none z-20 pb-safe px-safe">
-        <span className="truncate-safe font-normal">
-          Desarrollado por Mauricio Andrade Luna | Diseñada por:{' '}
+      <footer className="attribution-bar min-h-6 shrink-0 items-center justify-center border-t border-white/5 bg-neon-surface/85 px-3 py-1 text-center text-[10px] text-gray-500 select-none z-20 pb-safe px-safe sm:text-xs">
+        <span className="wrap-anywhere font-normal leading-snug">
+          Desarrollado por{' '}
           <a
             href="http://www.alsitech.com"
             target="_blank"
             rel="noopener noreferrer"
             className="font-medium text-blue-500 transition-colors hover:text-blue-400 hover:underline"
           >
-            AlsizTech
+            AlsisTech
           </a>
+          {' | '}
+          Asesoría Técnica: Avril Andrade Sanchez
         </span>
       </footer>
 

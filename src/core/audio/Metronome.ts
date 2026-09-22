@@ -57,8 +57,42 @@ export class Metronome {
   private nextBeatIndex = 0;
   private phaseOffsetSec = 0;
 
+  /**
+   * Último índice de beat EFECTIVAMENTE programado.
+   *
+   * Es el guardián contra los METRÓNOMOS DUPLICADOS: el planificador nunca
+   * vuelve a encolar un índice ya emitido, aunque un resync (cambio de BPM,
+   * compás o seek) recalcule `nextBeatIndex` hacia atrás.
+   */
+  private lastScheduledBeatIndex = -1;
+
+  /**
+   * Resincronización diferida. Los cambios de configuración llegan en ráfaga
+   * (BPM + compás + volumen + acento + enabled desde una sola acción de la UI);
+   * así se colapsan en UNA aplicación dentro del siguiente tick en lugar de
+   * provocar cinco recálculos consecutivos sobre los mismos beats.
+   */
+  private pendingResync = false;
+
+  /**
+   * Generación del bucle del planificador. Cada `start()` la incrementa, de modo
+   * que cualquier tick ya encolado del ciclo anterior se autodescarta. Es la
+   * garantía estructural de que NUNCA coexistan dos bucles (causa directa de la
+   * cacofonía de metrónomos).
+   */
+  private schedulerToken = 0;
+
+  /**
+   * Nodos de audio vivos (oscilador + ganancia). Permiten una limpieza ABSOLUTA
+   * e inmediata en `stop()`: sin `stop()`/`disconnect()` explícitos, un nodo ya
+   * encolado seguiría sonando aunque el temporizador se haya cancelado.
+   */
+  private activeNodes: Set<{ osc: OscillatorNode; gain: GainNode }> = new Set();
+
   private readonly lookaheadMs = 20;
   private readonly scheduleAheadSec = 0.15;
+  /** Tope defensivo de iteraciones por tick (evita cualquier bucle patológico). */
+  private readonly maxBeatsPerTick = 64;
 
   constructor(config?: Partial<MetronomeConfig>) {
     if (config) {
@@ -71,12 +105,43 @@ export class Metronome {
     this.outputNode = outputNode;
   }
 
+  /**
+   * Marca una resincronización para el siguiente tick.
+   *
+   * NO toca `nextBeatIndex` en el acto: eso permitía que varios setters en
+   * cadena reencolaran el mismo beat. El planificador la aplica una sola vez y
+   * siempre sin retroceder por debajo de lo ya programado.
+   */
+  private requestResync() {
+    if (!this.isRunning || !this.ctx) return;
+    this.pendingResync = true;
+  }
+
+  /**
+   * Recalcula el próximo beat a partir del reloj de hardware SIN rebobinar.
+   * Invariante: `nextBeatIndex` nunca es menor que `lastScheduledBeatIndex + 1`.
+   */
+  private applyResync(currentSongTimeSec?: number) {
+    if (!this.ctx) return;
+
+    const songTime = currentSongTimeSec !== undefined
+      ? currentSongTimeSec
+      : Math.max(0, (this.ctx.currentTime - this.audioZeroCtxTime) * this.playbackRate);
+
+    const secondsPerBeat = 60.0 / this.config.bpm;
+    const effectiveSongTime = Math.max(0, songTime - this.phaseOffsetSec);
+    const beatFloat = effectiveSongTime / secondsPerBeat;
+
+    const candidate = (effectiveSongTime < 0.025 || (beatFloat - Math.floor(beatFloat)) < 0.05)
+      ? Math.max(0, Math.floor(beatFloat + 0.05))
+      : Math.max(0, Math.ceil(beatFloat));
+
+    this.nextBeatIndex = Math.max(candidate, this.lastScheduledBeatIndex + 1);
+  }
+
   public setConfig(newConfig: Partial<MetronomeConfig>) {
     this.config = { ...this.config, ...newConfig };
-    if (this.isRunning && this.ctx) {
-      const currentSongTime = (this.ctx.currentTime - this.audioZeroCtxTime) * this.playbackRate;
-      this.sync(Math.max(0, currentSongTime), this.playbackRate);
-    }
+    this.requestResync();
   }
 
   public getConfig(): MetronomeConfig {
@@ -84,15 +149,12 @@ export class Metronome {
   }
 
   /**
-   * Cambio dinámico de BPM: recalcula el intervalo de beats y resincroniza
-   * inmediatamente sin detener la reproducción musical.
+   * Cambio dinámico de BPM: recalcula el intervalo de beats sin detener la
+   * reproducción musical y sin duplicar pulsos ya programados.
    */
   public setBpm(bpm: number) {
     this.config.bpm = Math.max(30, Math.min(300, Math.round(bpm)));
-    if (this.isRunning && this.ctx) {
-      const currentSongTime = (this.ctx.currentTime - this.audioZeroCtxTime) * this.playbackRate;
-      this.sync(Math.max(0, currentSongTime), this.playbackRate);
-    }
+    this.requestResync();
   }
 
   /**
@@ -102,10 +164,7 @@ export class Metronome {
   public setBeatsPerMeasure(beats: number) {
     const clamped = Math.max(1, Math.min(7, Math.round(beats))) as 1 | 2 | 3 | 4 | 5 | 6 | 7;
     this.config.beatsPerMeasure = clamped;
-    if (this.isRunning && this.ctx) {
-      const currentSongTime = (this.ctx.currentTime - this.audioZeroCtxTime) * this.playbackRate;
-      this.sync(Math.max(0, currentSongTime), this.playbackRate);
-    }
+    this.requestResync();
   }
 
   public setVolume(volume: number) {
@@ -123,6 +182,10 @@ export class Metronome {
   /**
    * Arranque del metrónomo sincronizado al reloj de hardware.
    * `syncAudioTimeSec` es la posición actual de la canción en segundos.
+   *
+   * IDEMPOTENTE: siempre ejecuta `stop()` primero, que cancela el temporizador,
+   * invalida la generación del bucle y silencia los nodos vivos. Llamar a
+   * `start()` dos veces no puede dejar dos planificadores en marcha.
    */
   public start(syncAudioTimeSec: number = 0, playbackRate: number = 1.0) {
     this.stop();
@@ -133,30 +196,70 @@ export class Metronome {
 
     this.audioZeroCtxTime = this.ctx.currentTime - (syncAudioTimeSec / this.playbackRate);
 
-    const secondsPerBeat = 60.0 / this.config.bpm;
-    const effectiveSongTime = Math.max(0, syncAudioTimeSec - this.phaseOffsetSec);
-    const beatFloat = effectiveSongTime / secondsPerBeat;
+    this.lastScheduledBeatIndex = -1;
+    this.pendingResync = false;
+    this.applyResync(syncAudioTimeSec);
 
-    if (effectiveSongTime < 0.025 || (beatFloat - Math.floor(beatFloat)) < 0.05) {
-      this.nextBeatIndex = Math.max(0, Math.floor(beatFloat + 0.05));
-    } else {
-      this.nextBeatIndex = Math.max(0, Math.ceil(beatFloat));
-    }
-
-    this.scheduler();
+    this.runScheduler();
   }
 
+  /**
+   * LIMPIEZA ABSOLUTA — evita la duplicación de nodos y las fugas de memoria.
+   *
+   * 1. Marca el motor como detenido.
+   * 2. Invalida la generación: cualquier tick ya encolado se autodescarta.
+   * 3. Cancela el temporizador pendiente.
+   * 4. Detiene y desconecta TODOS los nodos vivos (osciladores + ganancias),
+   *    incluidos los ya programados para sonar en el futuro.
+   */
   public stop() {
     this.isRunning = false;
+    this.schedulerToken++; // invalida cualquier tick del ciclo anterior
+    this.pendingResync = false;
+
     if (this.timerId !== null) {
       globalThis.clearTimeout(this.timerId);
       this.timerId = null;
     }
+
+    this.stopAllNodes();
+
     this.nextBeatIndex = 0;
+    this.lastScheduledBeatIndex = -1;
   }
 
   /**
-   * Resincroniza el metrónomo sin detenerlo (seek, cambio de BPM, cambio de playbackRate).
+   * Silencia y libera todos los nodos vivos.
+   *
+   * Fase crítica de la limpieza: un `OscillatorNode` ya encolado en el hardware
+   * sigue sonando aunque el temporizador esté cancelado, así que hay que pararlo
+   * explícitamente (`stop()` + `disconnect()`) para que el recolector de basura
+   * pueda reclamarlo y para que no se solape con el siguiente arranque.
+   */
+  private stopAllNodes() {
+    for (const entry of this.activeNodes) {
+      try {
+        entry.osc.onended = null;
+        entry.osc.stop();
+      } catch (e) {
+        /* Ya estaba detenido. */
+      }
+      try {
+        entry.osc.disconnect();
+        entry.gain.disconnect();
+      } catch (e) {
+        /* Ya estaba desconectado. */
+      }
+    }
+    this.activeNodes.clear();
+  }
+
+  /**
+   * Resincroniza el metrónomo sin detenerlo (seek, cambio de BPM o de velocidad).
+   *
+   * Nunca rebobina por debajo de lo ya programado: eso era exactamente lo que
+   * producía pulsos DUPLICADOS al cambiar la configuración durante la
+   * reproducción (varios setters en cadena reencolaban el mismo beat).
    */
   public sync(currentAudioTimeSec: number, playbackRate?: number) {
     if (!this.ctx) return;
@@ -164,114 +267,131 @@ export class Metronome {
       this.playbackRate = Math.max(0.1, playbackRate);
     }
     this.audioZeroCtxTime = this.ctx.currentTime - (currentAudioTimeSec / this.playbackRate);
-
-    const secondsPerBeat = 60.0 / this.config.bpm;
-    const effectiveSongTime = Math.max(0, currentAudioTimeSec - this.phaseOffsetSec);
-    const beatFloat = effectiveSongTime / secondsPerBeat;
-
-    if (effectiveSongTime < 0.025 || (beatFloat - Math.floor(beatFloat)) < 0.05) {
-      this.nextBeatIndex = Math.max(0, Math.floor(beatFloat + 0.05));
-    } else {
-      this.nextBeatIndex = Math.max(0, Math.ceil(beatFloat));
-    }
+    this.pendingResync = false;
+    this.applyResync(currentAudioTimeSec);
   }
 
   /**
-   * Bucle del planificador de Web Audio API.
-   * Planifica notas en el hardware de audio con antelación para latencia cero y cero jitter.
+   * Arranca una NUEVA generación del bucle del planificador.
+   *
+   * El contador `schedulerToken` se incrementa al arrancar y cada tick lleva
+   * asociado el token con el que nació: si el token ya no coincide (se llamó a
+   * `stop()` o a un `start()` posterior), el tick se descarta sin reprogramarse.
+   * Así es imposible que queden dos bucles vivos en paralelo.
    */
-  private scheduler = () => {
-    if (!this.isRunning || !this.ctx) return;
+  private runScheduler() {
+    const token = ++this.schedulerToken;
 
-    const secondsPerBeat = 60.0 / this.config.bpm;
-    const horizonCtxTime = this.ctx.currentTime + this.scheduleAheadSec;
-
-    while (this.isRunning) {
-      const songBeatTime = this.phaseOffsetSec + (this.nextBeatIndex * secondsPerBeat);
-      const ctxBeatTime = this.audioZeroCtxTime + (songBeatTime / this.playbackRate);
-
-      if (ctxBeatTime > horizonCtxTime) {
-        break; // Aún no corresponde planificar, esperar el próximo tick
+    const tick = () => {
+      if (!this.isRunning || !this.ctx || token !== this.schedulerToken) {
+        return; // Generación obsoleta: se autodescarta.
       }
 
-      // Encolar si el beat está en el presente o futuro inmediato
-      if (ctxBeatTime >= this.ctx.currentTime - 0.02) {
-        const beatInMeasure = this.nextBeatIndex % this.config.beatsPerMeasure;
-        this.scheduleNote(beatInMeasure, Math.max(this.ctx.currentTime, ctxBeatTime));
+      // Aplica (una sola vez) cualquier resync pendiente de la configuración.
+      if (this.pendingResync) {
+        this.pendingResync = false;
+        this.applyResync();
       }
 
-      this.nextBeatIndex++;
-    }
+      const secondsPerBeat = 60.0 / this.config.bpm;
+      const horizonCtxTime = this.ctx.currentTime + this.scheduleAheadSec;
 
-    this.timerId = globalThis.setTimeout(this.scheduler, this.lookaheadMs) as any;
-  };
+      let guard = 0;
+      while (this.isRunning && guard++ < this.maxBeatsPerTick) {
+        // Guardián anti-duplicación: jamás se reencola un beat ya emitido.
+        if (this.nextBeatIndex <= this.lastScheduledBeatIndex) {
+          this.nextBeatIndex = this.lastScheduledBeatIndex + 1;
+        }
+
+        const songBeatTime = this.phaseOffsetSec + (this.nextBeatIndex * secondsPerBeat);
+        const ctxBeatTime = this.audioZeroCtxTime + (songBeatTime / this.playbackRate);
+
+        if (ctxBeatTime > horizonCtxTime) {
+          break; // Aún no corresponde planificar: se espera al próximo tick.
+        }
+
+        if (ctxBeatTime >= this.ctx.currentTime - 0.02) {
+          const beats = this.config.beatsPerMeasure;
+          const beatInMeasure = ((this.nextBeatIndex % beats) + beats) % beats;
+          this.scheduleNote(beatInMeasure, Math.max(this.ctx.currentTime, ctxBeatTime));
+        }
+        // Se marca SIEMPRE (también los beats ya vencidos) para no reintentarlos.
+        this.lastScheduledBeatIndex = this.nextBeatIndex;
+        this.nextBeatIndex++;
+      }
+
+      this.timerId = globalThis.setTimeout(tick, this.lookaheadMs) as any;
+    };
+
+    tick();
+  }
 
   /**
-   * Emite un pulso sonoro con transitorio de percusión de madera (Woodblock) de alta fidelidad.
+   * Crea un pulso con transitorio de percusión de madera (Woodblock).
+   *
+   * El nodo se REGISTRA en `activeNodes` y se auto-libera al terminar:
+   *  - `stop()` puede silenciar de inmediato cualquier click ya programado en el
+   *    futuro (evita que el metrónomo siga sonando tras pausar).
+   *  - El recolector de basura recupera la memoria en cuanto el nodo suena.
    */
-  private scheduleNote(beatNumber: number, time: number) {
-    if (!this.ctx || !this.outputNode || !this.config.enabled || this.config.volume <= 0) {
-      return;
-    }
+  private emitClick(time: number, isAccent: boolean, normalGain: number) {
+    if (!this.ctx || !this.outputNode) return;
+    if (!this.config.enabled || this.config.volume <= 0) return;
 
     try {
-      const isAccent = beatNumber === 0 && this.config.accentFirstBeat;
       const osc = this.ctx.createOscillator();
-      const noteGain = this.ctx.createGain();
+      const gain = this.ctx.createGain();
 
       osc.type = 'triangle'; // Onda clara y penetrante
 
-      // Caída de tono percusiva (Pitch envelope) para click nítido que corta el audio
+      // Caída de tono percusiva (pitch envelope) para un click nítido
       const startFreq = isAccent ? 1400 : 850;
       const endFreq = isAccent ? 700 : 400;
 
       osc.frequency.setValueAtTime(startFreq, time);
       osc.frequency.exponentialRampToValueAtTime(Math.max(20, endFreq), time + 0.025);
 
-      const baseGain = (isAccent ? 1.0 : 0.65) * this.config.volume;
-      
-      // Envolvente de volumen rápida (Attack instantáneo, decay de 35ms)
-      noteGain.gain.setValueAtTime(baseGain, time);
-      noteGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.04);
+      const baseGain = (isAccent ? 1.0 : normalGain) * this.config.volume;
 
-      osc.connect(noteGain);
-      noteGain.connect(this.outputNode);
+      // Envolvente de volumen rápida (ataque instantáneo, decay ~40 ms)
+      gain.gain.setValueAtTime(baseGain, time);
+      gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.04);
+
+      osc.connect(gain);
+      gain.connect(this.outputNode);
+
+      const entry = { osc, gain };
+      this.activeNodes.add(entry);
+
+      osc.onended = () => {
+        this.activeNodes.delete(entry);
+        try {
+          osc.disconnect();
+          gain.disconnect();
+        } catch (e) {
+          /* Ya estaba desconectado. */
+        }
+      };
 
       osc.start(time);
       osc.stop(time + 0.045);
-    } catch (e) {}
+    } catch (e) {
+      /* Un fallo al crear el click nunca debe romper el planificador. */
+    }
+  }
+
+  /** Pulso del compás: acento en el primer tiempo si está configurado. */
+  private scheduleNote(beatNumber: number, time: number) {
+    const isAccent = beatNumber === 0 && this.config.accentFirstBeat;
+    this.emitClick(time, isAccent, 0.65);
   }
 
   public getBeatDurationSec(): number {
     return 60.0 / this.config.bpm;
   }
 
-  /**
-   * Disparo puntual de click acentuado (usado en cuenta regresiva o pruebas)
-   */
+  /** Disparo puntual de click acentuado (cuenta regresiva o pruebas). */
   public scheduleAccentClick(time: number, isAccent: boolean = true) {
-    if (!this.ctx || !this.outputNode || !this.config.enabled || this.config.volume <= 0) return;
-
-    try {
-      const osc = this.ctx.createOscillator();
-      const noteGain = this.ctx.createGain();
-
-      osc.type = 'triangle';
-      const startFreq = isAccent ? 1400 : 850;
-      const endFreq = isAccent ? 700 : 400;
-
-      osc.frequency.setValueAtTime(startFreq, time);
-      osc.frequency.exponentialRampToValueAtTime(Math.max(20, endFreq), time + 0.025);
-
-      const baseGain = (isAccent ? 1.0 : 0.7) * this.config.volume;
-      noteGain.gain.setValueAtTime(baseGain, time);
-      noteGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.045);
-
-      osc.connect(noteGain);
-      noteGain.connect(this.outputNode);
-
-      osc.start(time);
-      osc.stop(time + 0.05);
-    } catch (e) {}
+    this.emitClick(time, isAccent, 0.7);
   }
 }

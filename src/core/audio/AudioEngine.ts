@@ -11,6 +11,37 @@ import { MediaSessionManager } from './MediaSession';
 import { BpmDetector, BpmDetectionResult } from './BpmDetector';
 import { renderChoreographyMixdown } from './audioMixdown';
 
+/**
+ * Lee un Blob/File como ArrayBuffer priorizando `FileReader`.
+ *
+ * Safari iOS 15+ presenta fallos conocidos con `Blob.prototype.arrayBuffer()`
+ * (sobre todo con blobs grandes o tipos MIME ambiguos como `.m4a`/`.mp4`): la
+ * promesa puede rechazar o resolver con 0 bytes. `FileReader.readAsArrayBuffer()`
+ * es la ruta clásica y estable en WebKit, así que se usa como vía principal y
+ * `Blob.arrayBuffer()` queda como respaldo moderno.
+ */
+function readBlobAsArrayBuffer(file: Blob): Promise<ArrayBuffer> {
+  if (typeof FileReader !== 'undefined') {
+    return new Promise<ArrayBuffer>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result;
+        if (result instanceof ArrayBuffer && result.byteLength > 0) {
+          resolve(result);
+        } else {
+          reject(new Error('El archivo está vacío o no se pudo leer.'));
+        }
+      };
+      reader.onerror = () => reject(reader.error || new Error('No se pudo leer el archivo de audio.'));
+      reader.onabort = () => reject(new Error('Lectura de archivo cancelada.'));
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  if (typeof file.arrayBuffer === 'function') return file.arrayBuffer();
+  return Promise.reject(new Error('Este navegador no puede leer archivos binarios.'));
+}
+
 export class AudioEngine {
   private ctx: AudioContext | null = null;
   private audioBuffer: AudioBuffer | null = null;
@@ -463,7 +494,10 @@ export class AudioEngine {
       await this.ctx.resume().catch(() => {});
     }
 
-    const arrayBuffer = await file.arrayBuffer();
+    // Lectura Safari-safe (FileReader) + copia defensiva: `decodeAudioData` de
+    // WebKit antiguo "consume" (detacha) el ArrayBuffer, así que se le entrega
+    // siempre un buffer propio que no rompa el blob original.
+    const arrayBuffer = await readBlobAsArrayBuffer(file);
     const copy = arrayBuffer.slice(0);
 
     return new Promise<AudioBuffer>((resolve, reject) => {

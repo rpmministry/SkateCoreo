@@ -331,6 +331,84 @@ async function runTests() {
   metroSync.stop();
   testVoiceEngine.stop();
 
+  // 11. REGRESIÓN: metrónomos duplicados (colisión de audio)
+  // El bug original: la ráfaga de configuración de la UI (BPM + compás +
+  // volumen + acento + enabled) disparaba varios `sync()` seguidos que
+  // REBOBINABAN `nextBeatIndex` y reencolaban el mismo beat → clicks dobles.
+  let oscCount = 0;
+  class CountingAudioContext extends MockAudioContext {
+    public createOscillator() {
+      oscCount++;
+      return super.createOscillator();
+    }
+  }
+
+  const metroDup = new Metronome({ bpm: 120, beatsPerMeasure: 4 });
+  metroDup.init(new CountingAudioContext() as any, new MockGainNode() as any);
+
+  metroDup.start(0);
+  const afterFirstStart = oscCount;
+  assert(afterFirstStart === 1, `Arranque programa exactamente 1 click (${afterFirstStart})`);
+
+  // start() es idempotente: no debe quedar un segundo planificador vivo
+  metroDup.start(0);
+  assert(oscCount === afterFirstStart + 1, `start() repetido no acumula nodos (${oscCount})`);
+
+  // Ráfaga de configuración: el resync es diferido y NO reencola beats
+  const beforeConfigBurst = oscCount;
+  metroDup.setBpm(160);
+  metroDup.setBeatsPerMeasure(3);
+  metroDup.setVolume(0.5);
+  metroDup.setConfig({ accentFirstBeat: false });
+  metroDup.setEnabled(true);
+  assert(
+    oscCount === beforeConfigBurst,
+    `La ráfaga de configuración no duplica pulsos (${oscCount})`
+  );
+
+  // sync() explícito tampoco puede rebobinar por debajo de lo ya programado
+  metroDup.sync(0);
+  assert(oscCount === beforeConfigBurst, 'sync() no reencola beats ya emitidos');
+
+  // stop() es idempotente y deja el motor limpio
+  metroDup.stop();
+  metroDup.stop();
+  assert(metroDup.getConfig().bpm === 160, 'stop() conserva la configuración aplicada');
+
+  // 12. REGRESIÓN REAL con reloj controlado: sync() en plena reproducción
+  // Escenario exacto del bug: el planificador ya encoló el beat 1 y un
+  // `sync()` (por cambio de BPM/compás/seek) rebobinaba `nextBeatIndex` a ese
+  // mismo beat, que volvía a encolarse → dos clicks idénticos superpuestos.
+  let dupCount = 0;
+  class ClockAudioContext extends MockAudioContext {
+    public createOscillator() {
+      dupCount++;
+      return super.createOscillator();
+    }
+  }
+
+  const dupCtx = new ClockAudioContext();
+  const metroClock = new Metronome({ bpm: 120, beatsPerMeasure: 4 });
+  metroClock.init(dupCtx as any, new MockGainNode() as any);
+
+  metroClock.start(0); // Programa el beat 0 en t=0
+  dupCtx.currentTime = 0.45; // Se acerca el beat 1 (0.5s a 120 BPM)
+  await new Promise<void>((resolve) => setTimeout(resolve, 45)); // Deja correr un tick
+
+  const afterBeatOne = dupCount;
+  assert(afterBeatOne >= 2, `El planificador encoló el beat 1 (${afterBeatOne})`);
+
+  // Antes del arreglo, esto rebobinaba a beat 1 y lo reencolaba (clic doble).
+  metroClock.sync(0.45);
+  await new Promise<void>((resolve) => setTimeout(resolve, 45));
+
+  assert(
+    dupCount === afterBeatOne,
+    `sync() durante la reproducción NO reencola el beat ya programado (${dupCount})`
+  );
+
+  metroClock.stop();
+
   console.log(`\nResultado Módulo 1: ${passed}/${total} pruebas pasadas con éxito.\n`);
 }
 

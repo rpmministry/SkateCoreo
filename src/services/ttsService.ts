@@ -529,7 +529,13 @@ export class TTSService {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             input: { text: params.text },
-            voice: { languageCode: params.languageCode, name: attemptVoice },
+            voice: {
+              languageCode: params.languageCode,
+              name: attemptVoice,
+              // VOZ ÚNICA: género declarado explícitamente en el payload, para
+              // que Google jamás resuelva la petición a una voz masculina.
+              ssmlGender: 'FEMALE',
+            },
             audioConfig: {
               audioEncoding: 'MP3',
               speakingRate: Math.max(0.5, Math.min(2.0, params.speed)),

@@ -291,6 +291,30 @@ export const flushPendingConsolidation = () => {
 /** Indica si quedan cambios de mezcla sin consolidar en el buffer maestro. */
 export const hasPendingConsolidation = () => pendingConsolidation;
 
+/**
+ * Libera explícitamente el PCM de los clips que salen del arreglo.
+ *
+ * En JavaScript basta con dejar de referenciar un `AudioBuffer` para que el
+ * recolector pueda reclamarlo, pero el PCM puede quedar retenido por referencias
+ * externas (cachés del motor, closures de consolidación, historial). Anular el
+ * buffer aquí ayuda a liberar varios MB por fragmento en móviles con poca RAM.
+ *
+ * Es SEGURO respecto al portapapeles: `copyClip` guarda una copia superficial
+ * (`{ ...clip }`) con su propia referencia al buffer, así que anular la del clip
+ * eliminado no rompe `pasteClip`.
+ */
+function releaseClipBuffers(clips: Array<AudioClip | undefined | null>): void {
+  for (const clip of clips) {
+    if (clip && clip.buffer) {
+      try {
+        (clip as { buffer: AudioBuffer | null }).buffer = null;
+      } catch (e) {
+        /* Clip inmutable: se ignora. */
+      }
+    }
+  }
+}
+
 export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => ({
   tracks: initialTracks,
   additionalTracks: [],
@@ -806,10 +830,18 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
       const targetClipId = clipId || state.selectedClipId;
       if (!targetClipId) return state;
 
-      const updateClips = (track: AudioStudioTrack): AudioStudioTrack => ({
-        ...track,
-        clips: track.clips.filter((c) => c.id !== targetClipId),
-      });
+      // Clips que salen del arreglo: se recolectan para liberar su PCM explícitamente.
+      const removedClips: AudioClip[] = [];
+
+      const updateClips = (track: AudioStudioTrack): AudioStudioTrack => {
+        const kept = track.clips.filter((c) => c.id !== targetClipId);
+        if (kept.length !== track.clips.length) {
+          for (const c of track.clips) {
+            if (c.id === targetClipId) removedClips.push(c);
+          }
+        }
+        return { ...track, clips: kept };
+      };
 
       let updatedTracks = { ...state.tracks };
       let updatedAdditional = state.additionalTracks.map((t) => updateClips(t));
@@ -826,6 +858,9 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
           }
         }
       }
+
+      // Libera el PCM de los fragmentos eliminados (Ayuda al GC en móviles).
+      releaseClipBuffers(removedClips);
 
       return {
         tracks: updatedTracks,

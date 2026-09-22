@@ -308,7 +308,14 @@ export function validateTtsPayload(raw: unknown): TtsValidation {
 export function buildGoogleTtsPayload(payload: TtsPayload, voiceName?: string) {
   return {
     input: { text: payload.text },
-    voice: { languageCode: payload.languageCode, name: voiceName ?? payload.voiceName },
+    voice: {
+      languageCode: payload.languageCode,
+      name: voiceName ?? payload.voiceName,
+      // VOZ ÚNICA: se declara el género explícitamente. Aunque el catálogo ya es
+      // exclusivamente femenino, `ssmlGender` es la garantía a nivel de payload:
+      // Google nunca podrá resolver la petición a una voz masculina.
+      ssmlGender: 'FEMALE' as const,
+    },
     audioConfig: { audioEncoding: 'MP3' as const, speakingRate: payload.speed },
   };
 }
