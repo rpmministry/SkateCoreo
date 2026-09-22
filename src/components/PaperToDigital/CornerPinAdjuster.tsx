@@ -288,25 +288,17 @@ export const CornerPinAdjuster: React.FC<CornerPinAdjusterProps> = ({
         />
       </div>
 
-      {/* Lupa flotante de precisión cuando un pin está activo */}
+      {/* Lupa flotante de precisión cuando un pin está activo (herramienta, sin textos sobre la hoja) */}
       {activeCorner && (
-        <div className="absolute top-4 right-4 z-30 flex flex-col items-center bg-slate-900/95 p-2 rounded-2xl border-2 border-cyan shadow-2xl backdrop-blur-md animate-in fade-in zoom-in-95">
+        <div className="absolute right-3 top-3 z-30 rounded-2xl border-2 border-cyan bg-slate-900/95 p-1.5 shadow-2xl backdrop-blur-md animate-in fade-in zoom-in-95">
           <canvas
             ref={magnifierCanvasRef}
             width={120}
             height={120}
-            className="w-28 h-28 rounded-xl bg-black border border-white/10 block"
+            className="block h-24 w-24 rounded-xl border border-white/10 bg-black"
           />
-          <span className="text-[10px] font-mono font-bold text-cyan mt-1">
-            Lupa 2.5x (Alinea al centro ⊕)
-          </span>
         </div>
       )}
-
-      {/* Indicador de ayuda */}
-      <div className="absolute bottom-2 left-4 text-[11px] font-medium text-slate-400 bg-slate-950/80 px-3 py-1 rounded-full border border-white/10 backdrop-blur pointer-events-none">
-        Arrastra los <span className="text-cyan font-bold">4 pines circulares</span> a las marcas de esquina (⊕)
-      </div>
     </div>
   );
 };

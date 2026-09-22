@@ -97,10 +97,28 @@ export class PaperOcrEngine {
     const scaleX = rink.lengthMeters / w;
     const scaleY = rink.widthMeters / h;
 
-    // Ordenar de izquierda a derecha (o por X ascendente como aproximación temporal primaria)
-    candidates.sort((a, b) => (a.minX + a.maxX) / 2 - (b.minX + b.maxX) / 2);
+    // ── VALIDACIÓN ESPACIAL (BOUNDING BOX A4) ────────────────────────────────
+    // El lienzo deformado ES la hoja A4. Cualquier blob que toque o rebase el
+    // borde (marcos de la hoja, manchas fuera del área útil) se descarta para no
+    // generar nodos "huérfanos" fuera de la pista escaneada.
+    const inset = 2;
+    const insideSheet = candidates.filter((c) => {
+      const cx = (c.minX + c.maxX) / 2;
+      const cy = (c.minY + c.maxY) / 2;
+      return (
+        c.minX > inset &&
+        c.minY > inset &&
+        c.maxX < w - inset &&
+        c.maxY < h - inset &&
+        cx > 0 && cx < w &&
+        cy > 0 && cy < h
+      );
+    });
 
-    return candidates.map((c, i) => {
+    // Ordenar de izquierda a derecha (o por X ascendente como aproximación temporal primaria)
+    insideSheet.sort((a, b) => (a.minX + a.maxX) / 2 - (b.minX + b.maxX) / 2);
+
+    return insideSheet.map((c, i) => {
       const cx = (c.minX + c.maxX) / 2;
       const cy = (c.minY + c.maxY) / 2;
 
@@ -217,7 +235,16 @@ export class PaperOcrEngine {
     }
 
     nodes.sort((a, b) => a.sequenceNumber - b.sequenceNumber);
-    return nodes;
+
+    // Validación espacial: descartar detecciones fuera de la hoja A4 (el rango
+    // métrico equivale exactamente al área de la hoja deformada).
+    return nodes.filter(
+      (n) =>
+        n.positionMeters.x > 0 &&
+        n.positionMeters.x < rink.lengthMeters &&
+        n.positionMeters.y > 0 &&
+        n.positionMeters.y < rink.widthMeters
+    );
   }
 }
 

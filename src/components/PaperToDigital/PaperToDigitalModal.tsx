@@ -218,7 +218,7 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
     if (!imageSrc || !corners) return;
 
     setIsProcessing(true);
-    setStatusMessage('Paso 1/3: Corrigiendo perspectiva de la pista...');
+        setStatusMessage('Paso 1/2: Corrigiendo perspectiva de la pista...');
 
     const img = new Image();
     img.src = imageSrc;
@@ -226,25 +226,24 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
       try {
         const warpedCanvas = HomographyWarp.warpPerspective(img, corners, 2000, 1000);
 
-        setStatusMessage('Paso 2/3: Extrayendo trazos de tinta con Ramer-Douglas-Peucker...');
-        const strokes = PaperVectorizer.extractStrokes(warpedCanvas);
+        // ── REGLA DE RENDERIZADO LIMPIO ───────────────────────────────────────
+        // El trazado de tinta del dibujo original NO se usa ni se renderiza en la
+        // Pista 2D (solo los puntos numerados). Al desactivarlo se evita incluso
+        // el coste de vectorizar los trazos.
+        const INCLUDE_TRACED_STROKES = false;
+        const strokes = INCLUDE_TRACED_STROKES ? PaperVectorizer.extractStrokes(warpedCanvas) : [];
 
-        setStatusMessage('Paso 3/3: Reconociendo nodos numerados mediante OCR...');
+        setStatusMessage('Paso 2/2: Reconociendo nodos numerados mediante OCR...');
         const rawDetectedNodes = await PaperOcrEngine.detectNumberedNodes(warpedCanvas);
 
         // ── REGLA ESTRICTA DE EXTRACCIÓN ──────────────────────────────────────
         // Solo se extraen NODOS PRINCIPALES con numeración explícita (1, 2, 3…).
         // Se descartan vértices intermedios, marcas de interpolación y cualquier
-        // detección sin número de orden válido.
+        // detección sin número de orden válido. Relación 1 a 1: un número = un nodo.
         const detectedNodes = rawDetectedNodes.filter(
           (n) => Number.isInteger(n.sequenceNumber) && n.sequenceNumber > 0
         );
 
-        // ── REGLA DE RENDERIZADO LIMPIO ───────────────────────────────────────
-        // El trazado de tinta del dibujo original NO se renderiza en la Pista 2D:
-        // la pista solo muestra los puntos numerados. El trazado entre nodos lo
-        // genera la propia app (curva Bézier de la coreografía).
-        const INCLUDE_TRACED_STROKES = false;
         const allStrokePoints: Array<{ x: number; y: number }> = INCLUDE_TRACED_STROKES
           ? strokes.flatMap((s) => s.pointsMeters)
           : [];
@@ -364,105 +363,124 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
           </button>
         </div>
 
-        {/* ── Modal Body ── */}
-        <div className="flex-1 min-h-0 p-4 overflow-y-auto flex flex-col gap-4">
-          {!imageSrc ? (
-            /* Pantalla inicial de selección de imagen */
-            <div className="flex-1 min-h-[350px] flex flex-col items-center justify-center border-2 border-dashed border-white/15 rounded-3xl p-6 text-center gap-4 bg-slate-950/40">
-              <div className="w-16 h-16 rounded-2xl bg-cyan/10 border border-cyan/25 flex items-center justify-center text-cyan shadow-glow-cyan">
-                <FileText className="w-8 h-8" />
-              </div>
+        {/* ── Modal Body: GRID aislado (imagen 100% limpia | panel lateral) ── */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 lg:overflow-hidden">
+          <div className="grid min-h-0 grid-cols-1 gap-4 lg:h-full lg:grid-cols-[minmax(0,1fr)_300px]">
 
-              <div className="max-w-md space-y-1">
-                <h3 className="text-base font-bold text-white">
-                  Sube o toma una foto de la plantilla impresa
-                </h3>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Asegúrate de que la hoja esté bien iluminada y que las{' '}
-                  <strong className="text-cyan">4 marcas fiduciales (⊕)</strong> de las esquinas sean visibles.
-                </p>
-              </div>
+            {/* ░░ COLUMNA 1: ÁREA DE LA HOJA A4 (sin textos superpuestos) ░░ */}
+            <div className="flex min-h-[380px] flex-col lg:min-h-0">
+              {!imageSrc ? (
+                /* Pantalla inicial de selección de imagen */
+                <div className="flex flex-1 min-h-[350px] flex-col items-center justify-center gap-4 rounded-3xl border-2 border-dashed border-white/15 bg-slate-950/40 p-6 text-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-cyan/25 bg-cyan/10 text-cyan shadow-glow-cyan">
+                    <FileText className="h-8 w-8" />
+                  </div>
 
-              {/* Botones de subida */}
-              <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-cyan text-slate-950 font-black text-xs hover:bg-cyan/90 shadow-glow-cyan transition-all interactive-tap"
-                >
-                  <Camera className="w-4 h-4" />
-                  <span>Tomar Foto / Subir Imagen</span>
-                </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="hidden"
-                  onChange={handleFileChange}
-                />
+                  <div className="max-w-md space-y-1">
+                    <h3 className="text-base font-bold text-white">
+                      Sube o toma una foto de la plantilla impresa
+                    </h3>
+                    <p className="text-xs leading-relaxed text-slate-400">
+                      Asegúrate de que la hoja esté bien iluminada y que las{' '}
+                      <strong className="text-cyan">4 marcas fiduciales (⊕)</strong> de las esquinas sean visibles.
+                    </p>
+                  </div>
 
-                <button
-                  type="button"
-                  onClick={handleLoadDemoSheet}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 font-bold text-xs transition-all"
-                >
-                  <Sparkles className="w-4 h-4 text-amber-400" />
-                  <span>Probar con Hoja Demo</span>
-                </button>
-              </div>
-            </div>
-          ) : (
-            /* Visualizador y Calibrador de Esquinas */
-            <div className="flex-1 min-h-[380px] flex flex-col gap-3">
-              {/* Barra de herramientas superior del calibrador */}
-              <div className="flex items-center justify-between text-xs px-2 shrink-0">
-                <div className="flex items-center gap-2 text-slate-300">
-                  <CheckCircle2 className="w-4 h-4 text-cyan" />
-                  <span className="font-semibold">Calibración de Esquinas (Perspective Warp)</span>
+                  {/* Botones de subida */}
+                  <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="interactive-tap flex items-center gap-2 rounded-2xl bg-cyan px-5 py-2.5 text-xs font-black text-slate-950 shadow-glow-cyan transition-all hover:bg-cyan/90"
+                    >
+                      <Camera className="h-4 w-4" />
+                      <span>Tomar Foto / Subir Imagen</span>
+                    </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={handleFileChange}
+                    />
+
+                    <button
+                      type="button"
+                      onClick={handleLoadDemoSheet}
+                      className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-bold text-slate-300 transition-all hover:bg-white/10"
+                    >
+                      <Sparkles className="h-4 w-4 text-amber-400" />
+                      <span>Probar con Hoja Demo</span>
+                    </button>
+                  </div>
                 </div>
+              ) : (
+                /* Visualizador y Calibrador de Esquinas (imagen aislada) */
+                <div className="relative flex min-h-[300px] flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950">
+                  {corners && (
+                    <CornerPinAdjuster
+                      imageSrc={imageSrc}
+                      corners={corners}
+                      onChangeCorners={setCorners}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
 
-                <div className="flex items-center gap-2">
+            {/* ░░ COLUMNA 2: PANEL LATERAL (instrucciones, controles y estado) ░░ */}
+            <aside className="flex shrink-0 flex-col gap-3 rounded-2xl border border-white/10 bg-slate-950/95 p-4 lg:min-h-0 lg:overflow-y-auto">
+              <h3 className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-cyan">
+                <CheckCircle2 className="h-4 w-4" />
+                Alineación de la hoja
+              </h3>
+
+              <p className="text-[11px] leading-relaxed text-slate-400">
+                Arrastra los <span className="font-bold text-cyan">4 pines circulares</span> hasta las marcas
+                fiduciales (⊕) de las esquinas. Toda la hoja debe quedar dentro del recuadro cian.
+              </p>
+
+              {imageSrc && (
+                <div className="flex flex-col gap-2">
                   <button
                     type="button"
                     onClick={() => imageSrc && loadImageAndDetectCorners(imageSrc)}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-[11px] text-slate-300 border border-white/10 transition-all"
+                    className="flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-semibold text-slate-200 transition-all hover:bg-white/10"
                     title="Volver a buscar las marcas automáticamente"
                   >
-                    <RefreshCw className="w-3 h-3 text-cyan" />
-                    <span>Auto-Alinear</span>
+                    <RefreshCw className="h-3.5 w-3.5 text-cyan" />
+                    <span>Auto-Alinear marcas</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setImageSrc(null)}
-                    className="text-[11px] text-slate-400 hover:text-red-400 px-2 py-1"
+                    className="flex items-center justify-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-[11px] font-semibold text-slate-400 transition-colors hover:text-red-400"
                   >
-                    Cambiar Foto
+                    <X className="h-3.5 w-3.5" />
+                    <span>Cambiar foto</span>
                   </button>
                 </div>
-              </div>
+              )}
 
-              {/* Ajustador de 4 pines interactivo con lupa */}
-              <div className="flex-1 min-h-[300px] relative">
-                {corners && (
-                  <CornerPinAdjuster
-                    imageSrc={imageSrc}
-                    corners={corners}
-                    onChangeCorners={setCorners}
-                  />
-                )}
-              </div>
-            </div>
-          )}
+              {/* Estado del procesamiento (SIEMPRE fuera de la imagen) */}
+              {statusMessage && (
+                <div className="flex items-center gap-2 rounded-xl border border-cyan/30 bg-cyan/15 px-3 py-2 text-[11px] font-semibold text-cyan">
+                  <RefreshCw className="h-3.5 w-3.5 shrink-0 animate-spin" />
+                  <span>{statusMessage}</span>
+                </div>
+              )}
 
-          {/* Mensaje de estado durante el procesamiento */}
-          {statusMessage && (
-            <div className="bg-cyan/15 border border-cyan/30 px-4 py-2 rounded-xl text-xs text-cyan flex items-center gap-2 animate-in fade-in shrink-0">
-              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              <span>{statusMessage}</span>
-            </div>
-          )}
+              <div className="mt-auto space-y-1.5 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-[10px] leading-relaxed text-slate-400">
+                <p>
+                  Se digitalizan <strong className="text-cyan">solo los nodos numerados</strong> (1, 2, 3…).
+                </p>
+                <p>El trazado del dibujo original no se copia ni se muestra en la pista.</p>
+                <p>Los puntos fuera de la hoja A4 se descartan automáticamente.</p>
+              </div>
+            </aside>
+          </div>
         </div>
 
         {/* ── Modal Footer: Botones de Acción (Etapa 1 vs Etapa 2) ── */}
