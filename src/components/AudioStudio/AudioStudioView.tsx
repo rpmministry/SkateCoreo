@@ -811,8 +811,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           inferior nunca corte los botones. Todos los controles quedan siempre
           visibles y alcanzables en pantallas estrechas. */}
       <footer
-        className="relative z-40 shrink-0 flex flex-wrap items-center justify-center gap-x-1 gap-y-1 border-t border-white/10 bg-zinc-950 px-1.5 py-1.5 text-xs select-none pb-safe sm:justify-between sm:gap-x-3 sm:px-4 sm:py-2"
-        onPointerDownCapture={(e) => e.stopPropagation()}
+        className="relative z-40 shrink-0 flex flex-wrap items-center justify-center gap-x-1 gap-y-1 border-t border-white/10 bg-zinc-950 px-1.5 py-1.5 text-xs select-none studio-dock-safe sm:justify-between sm:gap-x-3 sm:px-4 sm:py-2"
       >
         {/* Izquierda: Mezclador + Rewind + Stop + Tijeras */}
         <div className="flex shrink-0 items-center gap-0.5 sm:gap-1.5">
@@ -828,13 +827,15 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           </button>
 
           {/* Rewind to 0:00
-              Se usa `onClick` (evento unificado ratón/táctil/teclado) en lugar de
-              depender de pointerdown/touchend: es la vía más fiable en todos los
-              navegadores. Nunca se deshabilita: con audio ausente es un no-op. */}
+              Activación multimodal con `usePressAction`: dispara en `pointerdown`
+              (táctil/ratón/touchpad, latencia cero) y ADEMÁS conserva `onClick`
+              como respaldo (teclado o navegadores que no emiten pointer events).
+              Depender solo de `onClick` fallaba en móviles WebKit porque el
+              `click` no se sintetiza de forma fiable. Nunca se deshabilita. */}
           <button
             type="button"
-            onClick={handleRewind}
-            className={`press w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 ${hasTransportAudio ? '' : 'opacity-40'}`}
+            {...press(handleRewind)}
+            className={`press w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 active:bg-white/15 ${hasTransportAudio ? '' : 'opacity-40'}`}
             title="Volver al inicio (0:00)"
             aria-label="Volver al inicio"
           >
@@ -844,8 +845,8 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           {/* Stop / Detener */}
           <button
             type="button"
-            onClick={handleStop}
-            className={`press w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 ${hasTransportAudio ? '' : 'opacity-40'}`}
+            {...press(handleStop)}
+            className={`press w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 active:bg-white/15 ${hasTransportAudio ? '' : 'opacity-40'}`}
             title="Detener reproducción y reiniciar posición"
             aria-label="Detener reproducción"
           >
@@ -857,8 +858,8 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
               está bajo el cabezal; si no hay ninguno, muestra un aviso. */}
           <button
             type="button"
-            onClick={handleSplitAtPlayhead}
-            className={`press w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 ${hasTransportAudio ? '' : 'opacity-40'}`}
+            {...press(handleSplitAtPlayhead)}
+            className={`press w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 active:bg-white/15 ${hasTransportAudio ? '' : 'opacity-40'}`}
             title="Dividir clip en el cabezal (corte milimétrico)"
             aria-label="Dividir clip en el cabezal"
           >

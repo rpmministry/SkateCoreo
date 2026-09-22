@@ -301,6 +301,12 @@ body {
 
 .pt-safe { padding-top: max(0.5rem, var(--safe-top)) !important; }
 .pb-safe { padding-bottom: max(0.5rem, var(--safe-bottom)) !important; }
+/* Dock de transporte del Estudio: reserva algo más de aire en móvil para no
+   quedar bajo la barra inferior de Safari, manteniendo el área segura del
+   home indicator cuando existe. */
+.studio-dock-safe {
+  padding-bottom: max(0.85rem, var(--safe-bottom)) !important;
+}
 .pl-safe { padding-left: max(0.5rem, var(--safe-left)) !important; }
 .pr-safe { padding-right: max(0.5rem, var(--safe-right)) !important; }
 .px-safe {
