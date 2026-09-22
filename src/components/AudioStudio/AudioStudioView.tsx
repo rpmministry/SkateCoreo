@@ -74,6 +74,9 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   const [isExporting, setIsExporting] = useState(false);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
   const [showMixerDrawer, setShowMixerDrawer] = useState(false);
+  // Estado real del motor: permite que el transporte funcione aunque la pista se
+  // haya cargado en la Pista 2D (fuera del store del Estudio).
+  const [engineHasAudio, setEngineHasAudio] = useState<boolean>(() => audioEngine.getState().hasAudioLoaded);
 
   // Activación táctil inmediata sin doble disparo (evita el Play/Pausa fantasma)
   const press = usePressAction();
@@ -209,6 +212,14 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     () => arrangementTracks.some((t) => (t.clips && t.clips.length > 0) || !!t.buffer),
     [arrangementTracks]
   );
+
+  /**
+   * Habilita el transporte si hay audio en el arreglo del Estudio O en el motor
+   * (pista cargada desde la Pista 2D). Sin esto, al abrir el Estudio con una
+   * canción ya cargada, Rewind/Stop/Cortar quedaban deshabilitados y parecían
+   * botones rotos.
+   */
+  const hasTransportAudio = hasAudioContent || engineHasAudio;
 
   // Atajos de teclado en escritorio:
   // - Espacio: Reproducir / Pausar
@@ -360,16 +371,43 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   // El store ajusta el punto de corte al cruce por cero más cercano (±4ms) para
   // que el empalme sea inaudible.
   const handleSplitAtPlayhead = () => {
-    const clipId = selectedClipId;
-    if (!clipId) return;
-
-    const target = arrangementTracks.find((t) => t.clips.some((c) => c.id === clipId));
-    if (!target) return;
-
     // Corte milimétrico: se usa el reloj de hardware, no el estado de React
     // (que puede ir hasta ~80ms por detrás de la música).
     const splitAtSec = audioEngine.getCurrentTimeMs() / 1000;
-    const didSplit = splitClip(target.id, clipId, splitAtSec);
+
+    // Clip objetivo: el seleccionado o, si no hay ninguno, el que está BAJO el
+    // cabezal. Así "Cortar" funciona directamente sin tener que seleccionar antes.
+    let targetTrackId: string | null = null;
+    let targetClipId: string | null = selectedClipId;
+
+    if (targetClipId) {
+      const owner = arrangementTracks.find((t) => t.clips.some((c) => c.id === targetClipId));
+      targetTrackId = owner?.id ?? null;
+      if (!owner) targetClipId = null;
+    }
+
+    if (!targetClipId) {
+      for (const t of arrangementTracks) {
+        const clip = t.clips.find(
+          (c) =>
+            splitAtSec > c.startOffsetSec &&
+            splitAtSec < c.startOffsetSec + (c.trimEndSec - c.trimStartSec)
+        );
+        if (clip) {
+          targetTrackId = t.id;
+          targetClipId = clip.id;
+          break;
+        }
+      }
+    }
+
+    if (!targetTrackId || !targetClipId) {
+      setExportNotice('Coloca el cabezal dentro de un clip para cortar');
+      setTimeout(() => setExportNotice(null), 2200);
+      return;
+    }
+
+    const didSplit = splitClip(targetTrackId, targetClipId, splitAtSec);
     if (didSplit) {
       setExportNotice(`✂️ Corte milimétrico a ${splitAtSec.toFixed(3)}s (sin clic)`);
       setTimeout(() => setExportNotice(null), 2200);
@@ -467,6 +505,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
       // El pre-inicio (3, 2, 1, ¡Ya!) mantiene la UI en estado "reproduciendo"
       // aunque el buffer aún no suene: es la misma semántica que usa la Pista 2D.
       setIsPlaying(state.isPlaying || state.isPreRollActive);
+      setEngineHasAudio(state.hasAudioLoaded);
       if (!state.isPlaying) {
         // La reproducción terminó: aplicar cambios de mezcla diferidos
         flushPendingConsolidation();
@@ -474,6 +513,29 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     });
     return unsubscribe;
   }, [setIsPlaying]);
+
+  /**
+   * ADOPCIÓN DEL AUDIO DE LA PISTA 2D.
+   *
+   * Si el usuario cargó la música en la Pista 2D y luego abre el Estudio, el
+   * store del Estudio está vacío aunque el motor SÍ tenga la pista. Sin esto, la
+   * barra inferior quedaba con Rewind/Stop/Cortar deshabilitados y no había
+   * ningún clip que cortar. Se crea la pista Master a partir del buffer del motor.
+   */
+  useEffect(() => {
+    const store = useAudioStudioStore.getState();
+    const master = store.tracks.music;
+    if (master.buffer || master.clips.length > 0) return;
+
+    const engineBuffer = audioEngine.getAudioBuffer();
+    if (!engineBuffer) return;
+
+    store.setTrackBuffer(
+      'music',
+      engineBuffer,
+      audioEngine.getState().fileName || 'pista_2d.wav'
+    );
+  }, []);
 
   // Play / Pause Toggle instantáneo sin latencia (Web Audio API)
   // Lee el estado REAL del motor (no la clausura de React) para que un toque
@@ -749,10 +811,10 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           {/* Rewind to 0:00 */}
           <button
             type="button"
-            {...press(handleRewind, { enabled: hasAudioContent })}
-            disabled={!hasAudioContent}
+            {...press(handleRewind, { enabled: hasTransportAudio })}
+            disabled={!hasTransportAudio}
             className="press w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 disabled:opacity-25 disabled:pointer-events-none"
-            title={hasAudioContent ? 'Volver al inicio (0:00)' : 'Carga audio para usar el transporte'}
+            title={hasTransportAudio ? 'Volver al inicio (0:00)' : 'Carga audio para usar el transporte'}
             aria-label="Volver al inicio"
           >
             <SkipBack className="w-5 h-5" />
@@ -761,22 +823,24 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           {/* Stop / Detener */}
           <button
             type="button"
-            {...press(handleStop, { enabled: hasAudioContent })}
-            disabled={!hasAudioContent}
+            {...press(handleStop, { enabled: hasTransportAudio })}
+            disabled={!hasTransportAudio}
             className="press w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 disabled:opacity-25 disabled:pointer-events-none"
-            title={hasAudioContent ? 'Detener reproducción y reiniciar posición' : 'Carga audio para usar el transporte'}
+            title={hasTransportAudio ? 'Detener reproducción y reiniciar posición' : 'Carga audio para usar el transporte'}
             aria-label="Detener reproducción"
           >
             <Square className="w-4 h-4 fill-current" />
           </button>
 
-          {/* Cortar en cabezal (precisión al cruce por cero) */}
+          {/* Cortar en cabezal (precisión al cruce por cero).
+              Habilitado con cualquier audio: si no hay clip seleccionado, corta el
+              clip que está bajo el cabezal. */}
           <button
             type="button"
-            {...press(handleSplitAtPlayhead, { enabled: Boolean(selectedClipId) })}
-            disabled={!selectedClipId}
+            {...press(handleSplitAtPlayhead, { enabled: hasTransportAudio })}
+            disabled={!hasTransportAudio}
             className="press w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 disabled:opacity-25 disabled:pointer-events-none"
-            title={selectedClipId ? 'Dividir clip en el cabezal (corte milimétrico)' : 'Selecciona un clip para dividirlo'}
+            title={hasTransportAudio ? 'Dividir clip en el cabezal (corte milimétrico)' : 'Carga audio para cortar'}
             aria-label="Dividir clip en el cabezal"
           >
             <Scissors className="w-5 h-5 text-mint" />
