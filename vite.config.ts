@@ -68,7 +68,34 @@ export default defineConfig(({ mode }) => {
       target: 'es2020',
       outDir: 'dist',
       assetsDir: 'assets',
-      sourcemap: true,
+      // Sourcemaps SOLO fuera de producción: en prod añadían ~4.9 MB al artefacto
+      // y exponían el código fuente, retrasando la descarga inicial de la PWA.
+      sourcemap: mode !== 'production',
+      // Los chunks pesados (jspdf, supabase…) son lazy; se eleva el aviso para no
+      // inundar la salida de warnings con módulos que se cargan bajo demanda.
+      chunkSizeWarningLimit: 900,
+      rollupOptions: {
+        output: {
+          /**
+           * División de vendors en chunks cacheables e independientes del código
+           * de la app. Así, al desplegar una nueva versión, el navegador reutiliza
+           * React/Supabase/i18n/lucide de la caché en lugar de re-descargar un
+           * único bundle monolítico.
+           */
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return undefined;
+            const norm = id.replace(/\\/g, '/');
+            if (/node_modules\/(react|react-dom|scheduler)\//.test(norm)) return 'vendor-react';
+            if (norm.includes('@supabase')) return 'vendor-supabase';
+            if (norm.includes('i18next')) return 'vendor-i18n';
+            if (norm.includes('@use-gesture')) return 'vendor-gesture';
+            if (norm.includes('lucide-react')) return 'vendor-icons';
+            if (norm.includes('jspdf') || norm.includes('html2canvas') || norm.includes('purify')) return 'vendor-pdf';
+            if (norm.includes('jszip')) return 'vendor-zip';
+            return undefined;
+          },
+        },
+      },
     },
   };
 });

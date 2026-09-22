@@ -10,32 +10,21 @@
  *  - Atribución AlsisTech con enlace a alsiztech.com
  */
 
-import { useState, useEffect, useCallback, useMemo, useRef, startTransition } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, startTransition, lazy, Suspense } from 'react';
 import {
   Music,
   X, ChevronDown, MoreVertical,
   Upload, Save, HardDrive, Trash2, LogOut
 } from 'lucide-react';
 import { Skater, Program, ElementLog, AudioEngineState } from './types';
-import { RinkCanvas } from './components/RinkCanvas';
-import { InteractiveWaveform } from './components/InteractiveWaveform';
-import { LeftSidebarPanel } from './components/LeftSidebarPanel';
 import { SkateCoreoBrand } from './components/brand/SkateCoreoBrand';
-import { RightInspectorPanel } from './components/RightInspectorPanel';
-import { SkatersManager } from './components/SkatersManager';
 import { dbService, OfflineSessionRecord } from './services/db';
 import { audioEngine } from './services/audioEngine';
 import { useChoreographyStore } from './store/useChoreographyStore';
 import { useAudioStudioStore } from './store/useAudioStudioStore';
 import { useAuthStore } from './store/useAuthStore';
 import { ACCEPTED_AUDIO_FORMATS, ACCEPTED_PROJECT_FORMATS } from './constants/mediaFormats';
-import { renderChoreographyMixdown } from './core/audio/audioMixdown';
-import { exportCoreoProject, importCoreoProject } from './services/coreoPackage';
 import { ProtectedLayout } from './components/ProtectedLayout';
-import { AudioStudioView } from './components/AudioStudio/AudioStudioView';
-import { NodePlacementTray } from './components/NodePlacementTray';
-import { RinkAudioPlayer } from './components/RinkAudioPlayer';
-import { RinkContextTools } from './components/rink/RinkContextTools';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { HomeView } from './components/HomeView';
 import { useIosFileCapture } from './hooks/useIosFileCapture';
@@ -46,6 +35,70 @@ import {
   LandscapeNavRail,
 } from './components/navigation/AppNav';
 import type { AppTab } from './components/navigation/AppNav';
+
+/**
+ * ── CARGA DIFERIDA (code splitting) ──────────────────────────────────────────
+ * La pantalla inicial (Home) ya no descarga el motor del lienzo, el DAW, la
+ * visión artificial, los paneles ni los modales. Cada bloque pesado se convierte
+ * en su propio chunk y se solicita SOLO al abrirse, reduciendo drásticamente el
+ * JavaScript del arranque. La funcionalidad es idéntica: son los mismos
+ * componentes, solo que llegan bajo demanda.
+ */
+const RinkCanvasLazy = lazy(() => import('./components/RinkCanvas').then((m) => ({ default: m.RinkCanvas })));
+const InteractiveWaveformLazy = lazy(() => import('./components/InteractiveWaveform').then((m) => ({ default: m.InteractiveWaveform })));
+const LeftSidebarPanelLazy = lazy(() => import('./components/LeftSidebarPanel').then((m) => ({ default: m.LeftSidebarPanel })));
+const RightInspectorPanelLazy = lazy(() => import('./components/RightInspectorPanel').then((m) => ({ default: m.RightInspectorPanel })));
+const SkatersManagerLazy = lazy(() => import('./components/SkatersManager').then((m) => ({ default: m.SkatersManager })));
+const AudioStudioViewLazy = lazy(() => import('./components/AudioStudio/AudioStudioView').then((m) => ({ default: m.AudioStudioView })));
+const NodePlacementTrayLazy = lazy(() => import('./components/NodePlacementTray').then((m) => ({ default: m.NodePlacementTray })));
+const RinkAudioPlayerLazy = lazy(() => import('./components/RinkAudioPlayer').then((m) => ({ default: m.RinkAudioPlayer })));
+const RinkContextToolsLazy = lazy(() => import('./components/rink/RinkContextTools').then((m) => ({ default: m.RinkContextTools })));
+
+/** Fallback mínimo mientras llega un chunk bajo demanda (evita pantallas en blanco). */
+function ViewLoadingFallback() {
+  return (
+    <div className="flex-1 min-h-0 flex items-center justify-center bg-neon-canvas">
+      <div className="flex flex-col items-center gap-3">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan/30 border-t-cyan" />
+        <span className="font-mono text-[10px] uppercase tracking-widest text-slate-400">Cargando…</span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Envuelve un componente diferido en su propio `Suspense`, preservando la MISMA
+ * firma de props. Así los usos existentes no cambian y cada bloque muestra su
+ * fallback local (el resto de la interfaz permanece visible e interactiva).
+ */
+const RinkCanvas = (props: React.ComponentProps<typeof RinkCanvasLazy>) => (
+  <Suspense fallback={<ViewLoadingFallback />}><RinkCanvasLazy {...props} /></Suspense>
+);
+const AudioStudioView = (props: React.ComponentProps<typeof AudioStudioViewLazy>) => (
+  <Suspense fallback={<ViewLoadingFallback />}><AudioStudioViewLazy {...props} /></Suspense>
+);
+const SkatersManager = (props: React.ComponentProps<typeof SkatersManagerLazy>) => (
+  <Suspense fallback={<ViewLoadingFallback />}><SkatersManagerLazy {...props} /></Suspense>
+);
+const InteractiveWaveform = (props: React.ComponentProps<typeof InteractiveWaveformLazy>) => (
+  <Suspense fallback={null}><InteractiveWaveformLazy {...props} /></Suspense>
+);
+const LeftSidebarPanel = (props: React.ComponentProps<typeof LeftSidebarPanelLazy>) => (
+  <Suspense fallback={null}><LeftSidebarPanelLazy {...props} /></Suspense>
+);
+const RightInspectorPanel = (props: React.ComponentProps<typeof RightInspectorPanelLazy>) => (
+  <Suspense fallback={null}><RightInspectorPanelLazy {...props} /></Suspense>
+);
+const NodePlacementTray = (props: React.ComponentProps<typeof NodePlacementTrayLazy>) => (
+  <Suspense fallback={null}><NodePlacementTrayLazy {...props} /></Suspense>
+);
+const RinkAudioPlayer = (props: React.ComponentProps<typeof RinkAudioPlayerLazy>) => (
+  <Suspense fallback={null}><RinkAudioPlayerLazy {...props} /></Suspense>
+);
+const RinkContextTools = (props: React.ComponentProps<typeof RinkContextToolsLazy>) => (
+  <Suspense fallback={null}><RinkContextToolsLazy {...props} /></Suspense>
+);
+
 
 type AppView = 'home' | 'rink' | 'studio';
 
@@ -274,6 +327,8 @@ export function App() {
     setShowExportMenu(false);
     try {
       const metroConfig = audioEngine.metronome.getConfig();
+      // Import dinámico: el motor de mixdown solo se descarga al exportar.
+      const { renderChoreographyMixdown } = await import('./core/audio/audioMixdown');
       const wavBlob = await renderChoreographyMixdown({
         musicBuffer: buffer,
         bpm: metroConfig.bpm,
@@ -306,6 +361,8 @@ export function App() {
     try {
       const rawBlob = audioEngine.getRawAudioBlob();
       const metroConfig = audioEngine.metronome.getConfig();
+      // Import dinámico: JSZip (.coreo) solo se descarga al exportar/importar.
+      const { exportCoreoProject } = await import('./services/coreoPackage');
       const coreoBlob = await exportCoreoProject(
         selectedProgram?.title || 'Rutina Patinaje',
         selectedSkater?.category || 'Standard',
@@ -335,6 +392,7 @@ export function App() {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
+      const { importCoreoProject } = await import('./services/coreoPackage');
       const project = await importCoreoProject(file);
       // Cargar audio si viene dentro del paquete
       if (project.audioBlob) {

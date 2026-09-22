@@ -352,15 +352,68 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     }
   }, [currentProgram?.id]);
 
-  // Sincronizar nodos con el motor de audio continuamente
-  useEffect(() => {
-    audio.setNodes(points);
-    if (currentProgram && currentProgram.choreography_path !== points) {
-      onProgramUpdated({
-        ...currentProgram,
-        choreography_path: points
+  // ── Persistencia DIFERIDA del programa ──────────────────────────────────
+  // El estado de los nodos vive en el store (memoria). Guardarlo en IndexedDB en
+  // cada frame de arrastre (60/s + re-render de App) congelaba el hilo principal
+  // en móvil. Ahora solo se escribe tras un periodo de inactividad.
+  const onProgramUpdatedRef = useRef(onProgramUpdated);
+  onProgramUpdatedRef.current = onProgramUpdated;
+  const currentProgramRef = useRef(currentProgram);
+  currentProgramRef.current = currentProgram;
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Caché de la CAPA ESTÁTICA (pista reglamentaria + cuadrícula + guías) ──
+  // El suelo y las guías no dependen del tiempo ni del avatar: se dibujan una vez
+  // en un lienzo fuera de pantalla y se reutilizan con `drawImage` en cada frame.
+  // Antes se reconstruían (decenas de paths + glows) a 60 fps durante la
+  // reproducción, que era el mayor coste de GPU/CPU del lienzo.
+  const staticLayerRef = useRef<HTMLCanvasElement | null>(null);
+  const staticLayerKeyRef = useRef<string>('');
+  // Límite de memoria: por encima de ~6 Mpx no se cachea (evita duplicar el
+  // backing store en pantallas grandes o de gama baja). Funcionalidad idéntica.
+  const STATIC_LAYER_MAX_PX = 6_000_000;
+
+  // Volcado al desmontar: no se pierde ninguna edición pendiente si el usuario
+  // cambia de vista justo tras mover un nodo. (Definido antes que el efecto de
+  // sincronización para que su cleanup corra en primer lugar.)
+  useEffect(() => () => {
+    const hadPending = persistTimerRef.current !== null;
+    if (persistTimerRef.current) {
+      clearTimeout(persistTimerRef.current);
+      persistTimerRef.current = null;
+    }
+    const prog = currentProgramRef.current;
+    if (hadPending && prog) {
+      onProgramUpdatedRef.current({
+        ...prog,
+        choreography_path: useChoreographyStore.getState().points,
       });
     }
+  }, []);
+
+  // Sincronizar nodos con el motor de audio (operación barata, en memoria) y
+  // programar un guardado diferido con debounce de 700 ms.
+  useEffect(() => {
+    audio.setNodes(points);
+    if (!currentProgramRef.current) return;
+
+    if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+    persistTimerRef.current = setTimeout(() => {
+      persistTimerRef.current = null;
+      const prog = currentProgramRef.current;
+      if (!prog) return;
+      onProgramUpdatedRef.current({
+        ...prog,
+        choreography_path: useChoreographyStore.getState().points,
+      });
+    }, 700);
+
+    return () => {
+      if (persistTimerRef.current) {
+        clearTimeout(persistTimerRef.current);
+        persistTimerRef.current = null;
+      }
+    };
   }, [points]);
 
   // Fase se resetea a 'plot' si se eliminan todos los puntos
@@ -448,10 +501,6 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       // 2. Limpieza total del frame anterior (elimina rastros o artefactos)
       ctx.clearRect(0, 0, cssW, cssH);
 
-      // 3. Aplicación de la Cámara Virtual (Pan & Zoom)
-      ctx.translate(camera.x, camera.y);
-      ctx.scale(camera.zoom, camera.zoom);
-
       const renderOpts = {
         showRinkGrid: currentShowGrid,
         showControlHandles: currentShowHandles,
@@ -469,8 +518,60 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
         paperTraceImageElement: paperImageRef.current,
       };
 
-      // Capa 0: Pista reglamentaria y marcas World Skate
-      RinkRenderer.drawRinkFloor(ctx, metrics, DEFAULT_RINK_DIMENSIONS, renderOpts);
+      // ── CAPA 0 ESTÁTICA: usar caché si nada que la afecte ha cambiado ──
+      // Clave de invalidación: tamaño físico, cámara y toggles/overlay visuales.
+      const paperEl = paperImageRef.current;
+      const paperKey = currentPaperOverlay?.visible
+        ? `${currentPaperOverlay.opacity}|${paperEl ? `${paperEl.src.length}:${paperEl.naturalWidth}:${paperEl.complete ? 1 : 0}` : 'noimg'}`
+        : 'off';
+
+      let staticLayer: HTMLCanvasElement | null = null;
+      if (physicalW > 0 && physicalH > 0 && physicalW * physicalH <= STATIC_LAYER_MAX_PX) {
+        const key = `${cssW}x${cssH}:${physicalW}x${physicalH}:${scaleX.toFixed(4)}x${scaleY.toFixed(4)}:${camera.x.toFixed(2)},${camera.y.toFixed(2)},${camera.zoom.toFixed(4)}:${currentShowGrid ? 1 : 0}${currentRegGuides ? 1 : 0}${currentCompFigures ? 1 : 0}:${paperKey}`;
+
+        if (staticLayerKeyRef.current !== key || !staticLayerRef.current) {
+          let layer = staticLayerRef.current;
+          if (!layer) {
+            layer = document.createElement('canvas');
+            staticLayerRef.current = layer;
+          }
+          if (layer.width !== physicalW || layer.height !== physicalH) {
+            layer.width = physicalW;
+            layer.height = physicalH;
+          }
+          const lctx = layer.getContext('2d');
+          if (lctx) {
+            lctx.setTransform(1, 0, 0, 1, 0, 0);
+            lctx.clearRect(0, 0, physicalW, physicalH);
+            lctx.save();
+            lctx.scale(scaleX, scaleY);
+            lctx.translate(camera.x, camera.y);
+            lctx.scale(camera.zoom, camera.zoom);
+            RinkRenderer.drawRinkFloor(lctx, metrics, DEFAULT_RINK_DIMENSIONS, renderOpts);
+            lctx.restore();
+            staticLayerKeyRef.current = key;
+          }
+        }
+        staticLayer = staticLayerRef.current;
+      } else if (staticLayerRef.current) {
+        // Fuera de rango de caché: liberar memoria.
+        staticLayerRef.current = null;
+        staticLayerKeyRef.current = '';
+      }
+
+      if (staticLayer) {
+        // Capa cacheada ya en espacio de pantalla (incluye la cámara).
+        ctx.drawImage(staticLayer, 0, 0, physicalW, physicalH, 0, 0, cssW, cssH);
+      }
+
+      // 3. Aplicación de la Cámara Virtual (Pan & Zoom) para las capas dinámicas
+      ctx.translate(camera.x, camera.y);
+      ctx.scale(camera.zoom, camera.zoom);
+
+      // Capa 0 (fallback sin caché): Pista reglamentaria y marcas World Skate
+      if (!staticLayer) {
+        RinkRenderer.drawRinkFloor(ctx, metrics, DEFAULT_RINK_DIMENSIONS, renderOpts);
+      }
 
       // Capa 1: Curvas de trayectoria (Línea guía permanente en pausa, o Trazado Dinámico durante reproducción)
       RinkRenderer.drawTrajectories(ctx, metrics, currentPoints, renderOpts);

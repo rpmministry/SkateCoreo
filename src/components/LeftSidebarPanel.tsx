@@ -33,13 +33,28 @@ import {
 import { useAudioEngine } from '../hooks/useAudioEngine';
 import { useChoreographyStore } from '../store/useChoreographyStore';
 import { useAuthStore } from '../store/useAuthStore';
-import { DeviceSecurityModal } from './DeviceSecurityModal';
-import { PdfTemplateGenerator } from '../services/pdfTemplateGenerator';
-import { PaperToDigitalModal } from './PaperToDigital/PaperToDigitalModal';
 import { 
   EFICIENCIAS_DISPONIBLES, 
   getDescripcionCategoria 
 } from '../constants/reglamento';
+
+/**
+ * Modales pesados (visión artificial + seguridad de dispositivo) cargados BAJO
+ * DEMANDA: no forman parte del bundle inicial de la Pista 2D. Se envuelven en
+ * Suspense para preservar exactamente la misma API de props.
+ */
+const PaperToDigitalModalLazy = React.lazy(() =>
+  import('./PaperToDigital/PaperToDigitalModal').then((m) => ({ default: m.PaperToDigitalModal }))
+);
+const DeviceSecurityModalLazy = React.lazy(() =>
+  import('./DeviceSecurityModal').then((m) => ({ default: m.DeviceSecurityModal }))
+);
+const PaperToDigitalModal = (props: React.ComponentProps<typeof PaperToDigitalModalLazy>) => (
+  <React.Suspense fallback={null}><PaperToDigitalModalLazy {...props} /></React.Suspense>
+);
+const DeviceSecurityModal = (props: React.ComponentProps<typeof DeviceSecurityModalLazy>) => (
+  <React.Suspense fallback={null}><DeviceSecurityModalLazy {...props} /></React.Suspense>
+);
 
 interface LeftSidebarPanelProps {
   preRollSec: number;
@@ -641,7 +656,12 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
           <div className="grid grid-cols-2 gap-2 pt-1">
             <button
               type="button"
-              onClick={() => PdfTemplateGenerator.downloadTemplate()}
+              onClick={() => {
+                // Import dinámico: jsPDF + html2canvas solo se descargan al pulsar.
+                void import('../services/pdfTemplateGenerator').then((m) =>
+                  m.PdfTemplateGenerator.downloadTemplate()
+                );
+              }}
               className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-neon-card hover:bg-neon-hover text-slate-300 hover:text-white border border-white/5 text-xs font-bold transition-all interactive-tap shadow-soft-elevation"
               title="Descargar plantilla A4 para imprimir"
             >
