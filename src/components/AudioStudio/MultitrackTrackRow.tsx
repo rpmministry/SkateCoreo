@@ -12,6 +12,7 @@ import { ACCEPTED_AUDIO_FORMATS } from '../../constants/mediaFormats';
 import { useAudioStudioStore } from '../../store/useAudioStudioStore';
 import { AudioClipItem } from './AudioClipItem';
 import { BandLabTrackMenuModal } from './BandLabTrackMenuModal';
+import { useIosFileCapture } from '../../hooks/useIosFileCapture';
 
 interface MultitrackTrackRowProps {
   track: AudioStudioTrack;
@@ -70,14 +71,9 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
   };
   const IconComponent = getTrackIcon();
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      onUploadFile(file);
-      // Reset input value para permitir recargar el mismo archivo si es necesario
-      e.target.value = '';
-    }
-  };
+  const { handleChange: handleFileChange } = useIosFileCapture(fileInputRef, (file) => {
+    onUploadFile(file);
+  });
 
   const handleLaneClick = (e: React.MouseEvent) => {
     setActiveTrackId(track.id);

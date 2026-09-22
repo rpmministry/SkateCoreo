@@ -18,6 +18,7 @@ import { audioEngine } from '../../services/audioEngine';
 import { useAudioZoomPan } from '../../hooks/useAudioZoomPan';
 import { usePressAction } from '../../hooks/usePressAction';
 import { usePlayheadSync } from '../../hooks/usePlayheadSync';
+import { useIosFileCapture } from '../../hooks/useIosFileCapture';
 import { timeToPlayheadPx } from '../../core/audio/PlaybackClock';
 import { AudioStudioTrack } from '../../types/audioStudio';
 import { ACCEPTED_AUDIO_FORMATS } from '../../constants/mediaFormats';
@@ -324,9 +325,10 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   };
 
   // Añadir pista desde botón + con archivo opcional
-  const handleAddTrackFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && additionalTracks.length < 4) {
+  // La captura la gestiona `useIosFileCapture` (iOS: reintentos + deduplicación).
+  const processAddTrackFile = useCallback((file: File) => {
+    void (async () => {
+      if (additionalTracks.length >= 4) return;
       try {
         const buffer = await audioEngine.decodeAudioFile(file);
         const newTrack = addAudioTrack(file.name.replace(/\.[^/.]+$/, ''), buffer, file.name);
@@ -334,9 +336,13 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
       } catch (err: any) {
         alert('Error al decodificar audio: ' + err?.message);
       }
-      e.target.value = '';
-    }
-  };
+    })();
+  }, [additionalTracks.length, addAudioTrack, setTrackBuffer]);
+
+  const { handleChange: handleAddTrackFileSelected } = useIosFileCapture(
+    addTrackFileInputRef,
+    processAddTrackFile
+  );
 
   // Track Hopping (arrastre vertical entre pistas)
   const handleTrackHop = (

@@ -1,4 +1,5 @@
 import { CanvasViewportMetrics, RinkMath } from './RinkMath';
+import { roundRectPath } from './roundRectPath';
 import { ChoreographyPathPoint, ElementLog, SkaterAvatarState, RinkDimensions, SkaterGender, isMainNode } from '../../types/choreography';
 
 export type ChoreographyPhase = 'plot' | 'connect' | 'curve' | 'erase';
@@ -53,7 +54,7 @@ export class RinkRenderer {
 
     // Superficie de la pista (Pabellón oscuro de alto contraste)
     ctx.beginPath();
-    ctx.roundRect(offsetX, offsetY, renderedW, renderedH, cornerRadiusPx);
+    roundRectPath(ctx, offsetX, offsetY, renderedW, renderedH, cornerRadiusPx);
     ctx.fillStyle = '#090D16';
     ctx.fill();
 
@@ -66,7 +67,7 @@ export class RinkRenderer {
     ) {
       ctx.save();
       ctx.beginPath();
-      ctx.roundRect(offsetX, offsetY, renderedW, renderedH, cornerRadiusPx);
+      roundRectPath(ctx, offsetX, offsetY, renderedW, renderedH, cornerRadiusPx);
       ctx.clip(); // Recortar estrictamente al perímetro interior de la pista
 
       ctx.globalAlpha = Math.max(0.05, Math.min(1.0, options.paperTraceOverlay.opacity));
@@ -255,11 +256,7 @@ export class RinkRenderer {
 
       ctx.fillStyle = 'rgba(245, 158, 11, 0.15)';
       ctx.beginPath();
-      if (typeof ctx.roundRect === 'function') {
-        ctx.roundRect(judgeX, judgeY, judgeW, judgeH, 4);
-      } else {
-        ctx.rect(judgeX, judgeY, judgeW, judgeH);
-      }
+      roundRectPath(ctx, judgeX, judgeY, judgeW, judgeH, 4);
       ctx.fill();
 
       ctx.strokeStyle = '#F59E0B';
@@ -311,7 +308,7 @@ export class RinkRenderer {
     ctx.save();
     // Límite estricto perimetral: recorta toda la trayectoria a los límites físicos exactos de la pista
     ctx.beginPath();
-    ctx.roundRect(offsetX, offsetY, renderedW, renderedH, cornerRadiusPx);
+    roundRectPath(ctx, offsetX, offsetY, renderedW, renderedH, cornerRadiusPx);
     ctx.clip();
 
     for (let i = 0; i < sorted.length - 1; i++) {
@@ -453,7 +450,7 @@ export class RinkRenderer {
 
     ctx.save();
     ctx.beginPath();
-    ctx.roundRect(offsetX, offsetY, renderedW, renderedH, cornerRadiusPx);
+    roundRectPath(ctx, offsetX, offsetY, renderedW, renderedH, cornerRadiusPx);
     ctx.clip();
 
     // 1. Encontrar el tramo actual del avatar
@@ -630,7 +627,7 @@ export class RinkRenderer {
 
         ctx.fillStyle = isSelected ? 'rgba(16, 244, 156, 0.2)' : 'rgba(18, 24, 38, 0.85)';
         ctx.beginPath();
-        ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 4);
+        roundRectPath(ctx, badgeX, badgeY, badgeW, badgeH, 4);
         ctx.fill();
 
         ctx.strokeStyle = isSelected ? 'rgba(16, 244, 156, 0.7)' : 'rgba(71, 85, 105, 0.4)';
@@ -677,7 +674,7 @@ export class RinkRenderer {
 
       ctx.fillStyle = badgeColor;
       ctx.beginPath();
-      ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 4);
+      roundRectPath(ctx, badgeX, badgeY, badgeW, badgeH, 4);
       ctx.fill();
 
       ctx.fillStyle = '#090D16';
@@ -852,7 +849,7 @@ export class RinkRenderer {
     ctx.strokeStyle = isFemale ? '#F43F5E' : '#38BDF8';
     ctx.lineWidth = 1.2;
     ctx.beginPath();
-    ctx.roundRect(-badgeW / 2, badgeY, badgeW, badgeH, 4);
+    roundRectPath(ctx, -badgeW / 2, badgeY, badgeW, badgeH, 4);
     ctx.fill();
     ctx.stroke();
 

@@ -38,6 +38,7 @@ import { RinkAudioPlayer } from './components/RinkAudioPlayer';
 import { RinkContextTools } from './components/rink/RinkContextTools';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { HomeView } from './components/HomeView';
+import { useIosFileCapture } from './hooks/useIosFileCapture';
 import {
   BottomNav,
   DesktopHeaderNav,
@@ -245,15 +246,17 @@ export function App() {
   }, [sheetOpen]);
 
   // ── 1. Cargar Música desde archivo del dispositivo ─────
-  const handleMusicFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // La lectura real del archivo se delega a `useIosFileCapture`, que en iOS
+  // reintenta por `change` + `focus` + `visibilitychange` y deduplica.
+  const processMusicFile = useCallback(async (file: File) => {
     try {
       await audioEngine.loadAudioFile(file, file.name);
     } catch (err: any) {
       alert('Error al cargar audio: ' + (err?.message || 'Archivo no compatible'));
     }
-  };
+  }, []);
+
+  const { handleChange: handleMusicFileChange } = useIosFileCapture(audioInputRef, processMusicFile);
 
   // ── 2. Exportar Mezcla de Entrenamiento (.WAV) con OfflineAudioContext ──
   const handleExportMixdown = async () => {

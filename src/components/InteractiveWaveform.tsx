@@ -2,6 +2,7 @@ import React, { useCallback, useRef, useEffect, useState } from 'react';
 import { useChoreographyStore } from '../store/useChoreographyStore';
 import { useAudioStudioStore } from '../store/useAudioStudioStore';
 import { audioEngine } from '../core/audio/AudioEngine';
+import { roundRectPath } from '../core/canvas/roundRectPath';
 import { ChoreographyPoint, isMainNode } from '../types/choreography';
 import { 
   Music, 
@@ -227,7 +228,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
       ctx.fillStyle = isPast ? '#00F5FF' : 'rgba(161, 161, 170, 0.35)';
 
       ctx.beginPath();
-      ctx.roundRect(barX, topY, barWidth, barHeight, 1);
+      roundRectPath(ctx, barX, topY, barWidth, barHeight, 1);
       ctx.fill();
     }
 
@@ -306,7 +307,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
       ctx.strokeStyle = 'rgba(56, 189, 248, 0.5)';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.roundRect(hTipX, hTipY, hTipW, hTipH, 3);
+      roundRectPath(ctx, hTipX, hTipY, hTipW, hTipH, 3);
       ctx.fill();
       ctx.stroke();
 

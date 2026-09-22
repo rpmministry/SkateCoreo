@@ -31,6 +31,13 @@ export const ACCEPTED_AUDIO_FORMATS = [
   '.opus',
   '.flac',
   '.webm',
+  // Formatos nativos de Apple (Voice Memos / GarageBand): iOS los ofrece en la
+  // app Archivos solo si se declaran explícitamente.
+  '.aiff',
+  '.aif',
+  '.aifc',
+  '.caf',
+  '.3gp',
   // ── Tipos MIME (WebKit necesita los de MP4/M4A explícitos) ──
   'audio/mpeg',
   'audio/mp3',
@@ -39,11 +46,16 @@ export const ACCEPTED_AUDIO_FORMATS = [
   'audio/wave',
   'audio/mp4',
   'audio/x-m4a',
+  'audio/m4a',
   'audio/aac',
   'audio/ogg',
   'audio/opus',
   'audio/flac',
   'audio/webm',
+  'audio/aiff',
+  'audio/x-aiff',
+  'audio/x-caf',
+  'audio/3gpp',
   'video/mp4',
 ].join(',');
 

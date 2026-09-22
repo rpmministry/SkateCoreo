@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { audioEngine } from '../core/audio/AudioEngine';
-import { AudioEngineState, ChannelRoutingMode, MetronomeConfig } from '../types/audio';
+import { AudioEngineState, ChannelRoutingMode } from '../types/audio';
 import { ChoreographyPathPoint } from '../types/choreography';
 import { ttsService } from '../services/ttsService';
+import { useAudioStudioStore } from '../store/useAudioStudioStore';
 
 export interface UseAudioEngineReturn {
   // Estado reactivo Headless (Mínimo, bajo el capó)
@@ -55,7 +56,21 @@ export interface UseAudioEngineReturn {
 export function useAudioEngine(): UseAudioEngineReturn {
   const [audioState, setAudioState] = useState<AudioEngineState>(() => audioEngine.getState());
   const [currentTimeMs, setCurrentTimeMs] = useState<number>(0);
-  const [metronomeConfig, setMetronomeConfig] = useState<MetronomeConfig>(() => audioEngine.metronome.getConfig());
+
+  // ── Metrónomo: ÚNICA fuente de verdad compartida con el Estudio ──
+  // El estado NO se espeja desde el motor (podía quedar obsoleto y divergir del
+  // mezclador), sino que se lee del store, que es quien orquesta el GainNode de
+  // silencio y el planificador. Así ambos controles (Pista 2D y Estudio) son el
+  // mismo interruptor.
+  const metronomeEnabled = useAudioStudioStore((s) => s.globalControls.metronome.enabled);
+  const metronomeMuted = useAudioStudioStore((s) => s.globalControls.metronome.muted);
+  const metronomeVolume = useAudioStudioStore((s) => s.globalControls.metronome.volume);
+  const metronomeBpm = useAudioStudioStore((s) => s.globalControls.bpm);
+  const metronomeBeats = useAudioStudioStore((s) => s.metronomeConfig.beatsPerMeasure);
+  const storeToggleMetronomeEnabled = useAudioStudioStore((s) => s.toggleMetronomeEnabled);
+  const storeSetGlobalBpm = useAudioStudioStore((s) => s.setGlobalBpm);
+  const storeSetMetronomeVolume = useAudioStudioStore((s) => s.setMetronomeVolume);
+  const storeSetMetronomeConfig = useAudioStudioStore((s) => s.setMetronomeConfig);
 
   // Suscripción al ciclo de eventos del AudioEngine
   useEffect(() => {
@@ -65,7 +80,6 @@ export function useAudioEngine(): UseAudioEngineReturn {
 
     const unsubState = audioEngine.onStateChange((state) => {
       setAudioState(state);
-      setMetronomeConfig(audioEngine.metronome.getConfig());
     });
 
     return () => {
@@ -118,38 +132,33 @@ export function useAudioEngine(): UseAudioEngineReturn {
     return await audioEngine.loadAudioFile(file, name);
   }, []);
 
-  // Metrónomo
+  // Metrónomo — delega SIEMPRE en el store (una sola fuente de verdad)
   const toggleMetronome = useCallback(() => {
-    const next = !audioEngine.metronome.getConfig().enabled;
-    audioEngine.metronome.setEnabled(next);
-    setMetronomeConfig(audioEngine.metronome.getConfig());
-  }, []);
+    storeToggleMetronomeEnabled();
+  }, [storeToggleMetronomeEnabled]);
 
   const setMetronomeBpm = useCallback((bpm: number) => {
-    audioEngine.metronome.setBpm(bpm);
-    setMetronomeConfig(audioEngine.metronome.getConfig());
-  }, []);
+    storeSetGlobalBpm(bpm);
+  }, [storeSetGlobalBpm]);
 
   const setMetronomeBeats = useCallback((beats: 1 | 2 | 3 | 4 | 5 | 6 | 7) => {
-    audioEngine.metronome.setBeatsPerMeasure(beats);
-    setMetronomeConfig(audioEngine.metronome.getConfig());
-  }, []);
+    storeSetMetronomeConfig({ beatsPerMeasure: beats });
+  }, [storeSetMetronomeConfig]);
 
   const setMetronomeVolume = useCallback((vol: number) => {
-    audioEngine.metronome.setVolume(vol);
-    setMetronomeConfig(audioEngine.metronome.getConfig());
-  }, []);
+    storeSetMetronomeVolume(vol);
+  }, [storeSetMetronomeVolume]);
 
   const metronome = useMemo(() => ({
-    enabled: metronomeConfig.enabled,
-    bpm: metronomeConfig.bpm,
-    beatsPerMeasure: metronomeConfig.beatsPerMeasure,
-    volume: metronomeConfig.volume,
+    enabled: metronomeEnabled && !metronomeMuted,
+    bpm: metronomeBpm,
+    beatsPerMeasure: metronomeBeats,
+    volume: metronomeVolume,
     toggle: toggleMetronome,
     setBpm: setMetronomeBpm,
     setBeats: setMetronomeBeats,
     setVolume: setMetronomeVolume
-  }), [metronomeConfig, toggleMetronome, setMetronomeBpm, setMetronomeBeats, setMetronomeVolume]);
+  }), [metronomeEnabled, metronomeMuted, metronomeBpm, metronomeBeats, metronomeVolume, toggleMetronome, setMetronomeBpm, setMetronomeBeats, setMetronomeVolume]);
 
   // Control de Voz TTS Global
   // La Voz Guía es siempre femenina latina: el selector de género se eliminó de

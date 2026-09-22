@@ -171,8 +171,58 @@ export class Metronome {
     this.config.volume = Math.max(0, Math.min(1, volume));
   }
 
+  /**
+   * Habilitar / deshabilitar la audición del metrónomo.
+   *
+   * Al DESHABILITAR no basta con marcar la bandera: hay que DETENER el
+   * planificador (cancelar el `setTimeout` pendiente e invalidar la generación)
+   * y silenciar los nodos ya programados por el lookahead. Así el botón de
+   * apagado/silencio corta el sonido de inmediato en lugar de dejar un eco.
+   *
+   * Al REHABILITAR se rearma el bucle desde el reloj de hardware y, gracias al
+   * guardián `lastScheduledBeatIndex`, NO se reproducen de golpe los beats
+   * perdidos mientras estuvo apagado (nada de ráfagas ni clicks duplicados).
+   */
   public setEnabled(enabled: boolean) {
+    if (this.config.enabled === enabled) return;
     this.config.enabled = enabled;
+
+    if (!enabled) {
+      this.haltScheduler();
+    } else if (this.isRunning && this.timerId === null) {
+      this.pendingResync = false;
+      this.applyResync();
+      this.runScheduler();
+    }
+  }
+
+  /**
+   * Silencia y detiene el planificador SIN cambiar `enabled`.
+   * Se usa para el Mute absoluto del sub-bus: corta el scheduler y los nodos ya
+   * programados, y `resume()` lo rearma exactamente donde corresponde.
+   */
+  public suspend() {
+    this.haltScheduler();
+  }
+
+  /** Rearma el planificador tras un `suspend()` (idempotente). */
+  public resume() {
+    if (this.isRunning && this.config.enabled && this.timerId === null) {
+      this.pendingResync = false;
+      this.applyResync();
+      this.runScheduler();
+    }
+  }
+
+  /** Detiene el planificador sin alterar el estado de transporte (`isRunning`). */
+  private haltScheduler() {
+    this.schedulerToken++; // cualquier tick encolado se autodescarta
+    this.pendingResync = false;
+    if (this.timerId !== null) {
+      globalThis.clearTimeout(this.timerId);
+      this.timerId = null;
+    }
+    this.stopAllNodes();
   }
 
   public setPhaseOffset(offsetSec: number) {
@@ -200,7 +250,12 @@ export class Metronome {
     this.pendingResync = false;
     this.applyResync(syncAudioTimeSec);
 
-    this.runScheduler();
+    // Con el metrónomo apagado no se arranca el bucle: `isRunning` queda en
+    // `true` para que un `setEnabled(true)` posterior lo rearme sin reiniciar
+    // el transporte.
+    if (this.config.enabled) {
+      this.runScheduler();
+    }
   }
 
   /**

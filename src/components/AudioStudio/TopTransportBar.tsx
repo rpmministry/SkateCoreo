@@ -15,6 +15,7 @@ import {
 import { useAudioStudioStore } from '../../store/useAudioStudioStore';
 import { ACCEPTED_AUDIO_FORMATS } from '../../constants/mediaFormats';
 import { usePressAction } from '../../hooks/usePressAction';
+import { useIosFileCapture } from '../../hooks/useIosFileCapture';
 
 interface TopTransportBarProps {
   onBackToRink?: () => void;
@@ -82,13 +83,9 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && onImportGlobalAudio) {
-      onImportGlobalAudio(file);
-      e.target.value = '';
-    }
-  };
+  const { handleChange: handleFileChange } = useIosFileCapture(fileInputRef, (file) => {
+    if (onImportGlobalAudio) onImportGlobalAudio(file);
+  });
 
   return (
     <>

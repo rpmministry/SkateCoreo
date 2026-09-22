@@ -10,6 +10,7 @@ import { VoiceCueEngine } from './VoiceCueEngine';
 import { MediaSessionManager } from './MediaSession';
 import { BpmDetector, BpmDetectionResult } from './BpmDetector';
 import { renderChoreographyMixdown } from './audioMixdown';
+import { adquirirPantallaActiva, liberarPantallaActiva } from '../system/wakeLock';
 
 /**
  * Lee un Blob/File como ArrayBuffer priorizando `FileReader`.
@@ -370,8 +371,19 @@ export class AudioEngine {
     this.emitStateChange();
   }
 
-  public setMetronomeMuted(muted: boolean) {
-    this.metronomeMuted = muted;
+  /**
+   * Control ÚNICO de audición del metrónomo (una sola fuente de verdad).
+   *
+   * Coordina las tres capas que antes podían desincronizarse entre la Pista 2D
+   * y el Estudio: el habilitado lógico, el planificador y el GainNode del
+   * sub-bus. Es el método que deben usar ambos controles de la interfaz.
+   */
+  public setMetronomeAudible(audible: boolean) {
+    this.metronomeMuted = !audible;
+    this.metronome.setEnabled(audible);
+    if (!audible) {
+      this.metronome.suspend();
+    }
     this.applyBusMutes();
     this.emitStateChange();
   }
@@ -404,7 +416,11 @@ export class AudioEngine {
     voiceGuide?: boolean;
   }) {
     if (flags.music !== undefined) this.musicMuted = flags.music;
-    if (flags.metronome !== undefined) this.metronomeMuted = flags.metronome;
+    if (flags.metronome !== undefined) {
+      this.metronomeMuted = flags.metronome;
+      if (flags.metronome) this.metronome.suspend();
+      else this.metronome.resume();
+    }
     if (flags.voiceGuide !== undefined) this.voiceGuideMuted = flags.voiceGuide;
     this.applyBusMutes();
   }
@@ -519,22 +535,30 @@ export class AudioEngine {
     this.initAudioContext();
     if (!this.ctx) throw new Error('No se pudo inicializar AudioContext');
 
-    this.stop();
-    this.fileName = name || (file instanceof File ? file.name : 'pista_audio.wav');
-    this.rawBlob = file instanceof Blob ? file : new Blob([file]);
+    // Mantener la pantalla activa durante la decodificación y el análisis de BPM:
+    // en iOS, si la pantalla se apaga, la pestaña se suspende a mitad de la carga.
+    await adquirirPantallaActiva();
 
-    const decoded = await this.decodeAudioFile(file);
-    this.audioBuffer = decoded;
-    this.durationMs = Math.round(decoded.duration * 1000);
-    this.pausedAtTime = 0;
+    try {
+      this.stop();
+      this.fileName = name || (file instanceof File ? file.name : 'pista_audio.wav');
+      this.rawBlob = file instanceof Blob ? file : new Blob([file]);
 
-    // Detectar y ajustar BPM automáticamente si la pista tiene transitorios rítmicos claros
-    this.detectAndApplyBpm(this.audioBuffer);
+      const decoded = await this.decodeAudioFile(file);
+      this.audioBuffer = decoded;
+      this.durationMs = Math.round(decoded.duration * 1000);
+      this.pausedAtTime = 0;
 
-    this.mediaSession.updateMetadata(this.fileName);
-    await this.checkBluetoothAndLatency();
-    this.emitStateChange();
-    return this.audioBuffer;
+      // Detectar y ajustar BPM automáticamente si la pista tiene transitorios rítmicos claros
+      this.detectAndApplyBpm(this.audioBuffer);
+
+      this.mediaSession.updateMetadata(this.fileName);
+      await this.checkBluetoothAndLatency();
+      this.emitStateChange();
+      return this.audioBuffer;
+    } finally {
+      void liberarPantallaActiva();
+    }
   }
 
   /**

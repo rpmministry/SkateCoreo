@@ -16,6 +16,7 @@ import {
 import { AudioStudioTrack, CARBON_TRACK_COLORS } from '../../types/audioStudio';
 import { ACCEPTED_AUDIO_FORMATS } from '../../constants/mediaFormats';
 import { useAudioStudioStore } from '../../store/useAudioStudioStore';
+import { useIosFileCapture } from '../../hooks/useIosFileCapture';
 
 interface BandLabTrackMenuModalProps {
   track: AudioStudioTrack;
@@ -43,6 +44,10 @@ export const BandLabTrackMenuModal: React.FC<BandLabTrackMenuModalProps> = ({
   onRemove,
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { handleChange: handleFileSelected } = useIosFileCapture(fileInputRef, (file) => {
+    onUploadFile(file);
+    onClose();
+  });
   const setTrackVolume = useAudioStudioStore((s) => s.setTrackVolume);
   const toggleTrackMute = useAudioStudioStore((s) => s.toggleTrackMute);
   const toggleTrackSolo = useAudioStudioStore((s) => s.toggleTrackSolo);
@@ -54,14 +59,6 @@ export const BandLabTrackMenuModal: React.FC<BandLabTrackMenuModalProps> = ({
   if (!isOpen) return null;
 
   const isMaster = trackIndex === 0 || track.type === 'music';
-
-  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      onUploadFile(file);
-      onClose();
-    }
-  };
 
   const handleSaveName = () => {
     if (customName.trim()) {

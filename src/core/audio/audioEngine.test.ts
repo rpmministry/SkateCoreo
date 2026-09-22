@@ -409,6 +409,47 @@ async function runTests() {
 
   metroClock.stop();
 
+  // 13. REGRESIÓN: el botón de apagar/silencio DETIENE el planificador
+  // Antes, apagar solo marcaba `enabled=false`: el `setTimeout` seguía vivo y
+  // los clicks ya programados por el lookahead seguían sonando (eco/doble).
+  let muteOscCount = 0;
+  class MuteClickAudioContext extends MockAudioContext {
+    public createOscillator() {
+      muteOscCount++;
+      return super.createOscillator();
+    }
+  }
+
+  const muteCtx = new MuteClickAudioContext();
+  const metroMute = new Metronome({ bpm: 120, beatsPerMeasure: 4 });
+  metroMute.init(muteCtx as any, new MockGainNode() as any);
+
+  metroMute.start(0);
+  const afterMuteStart = muteOscCount;
+  assert(afterMuteStart >= 1, `El metrónomo arranca y programa su primer click (${afterMuteStart})`);
+
+  metroMute.setEnabled(false);
+  muteCtx.currentTime = 2.0;
+  await new Promise<void>((resolve) => setTimeout(resolve, 60));
+  assert(
+    muteOscCount === afterMuteStart,
+    `setEnabled(false) detiene el planificador y no acumula clicks (${muteOscCount})`
+  );
+
+  metroMute.setEnabled(true);
+  await new Promise<void>((resolve) => setTimeout(resolve, 60));
+  const afterMuteResume = muteOscCount;
+  assert(afterMuteResume > afterMuteStart, `setEnabled(true) rearma el planificador (${afterMuteResume})`);
+
+  muteCtx.currentTime = 2.05;
+  await new Promise<void>((resolve) => setTimeout(resolve, 60));
+  assert(
+    muteOscCount - afterMuteResume <= 1,
+    `La reactivación no reproduce la ráfaga de beats perdidos (${muteOscCount - afterMuteResume})`
+  );
+
+  metroMute.stop();
+
   console.log(`\nResultado Módulo 1: ${passed}/${total} pruebas pasadas con éxito.\n`);
 }
 
