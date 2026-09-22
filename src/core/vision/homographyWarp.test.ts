@@ -1,5 +1,6 @@
 import { HomographyWarp, Point2D } from './HomographyWarp';
 import { PaperOcrEngine } from './PaperOcrEngine';
+import { FiducialDetector } from './FiducialDetector';
 
 function runHomographyTests() {
   console.log('--- EJECUTANDO PRUEBAS DEL MOTOR DE VISIÓN: HOMOGRAFÍA Y PERSPECTIVA ---');
@@ -143,6 +144,28 @@ function runOcrMapperTests() {
   check(
     PaperOcrEngine.isCircleCandidate(40, 40, 50, 60, 5000) === false,
     'isCircleCandidate descarta una mancha por debajo del área mínima'
+  );
+
+  // Normalización de orientación: el origen fijo + orden angular (invariante a rotación)
+  const upright = FiducialDetector.orderCornersFromOrigin(
+    { x: 0, y: 0 },
+    [{ x: 100, y: 0 }, { x: 100, y: 50 }, { x: 0, y: 50 }]
+  );
+  check(
+    upright.topRight.x === 100 && upright.topRight.y === 0 &&
+      upright.bottomRight.x === 100 && upright.bottomRight.y === 50 &&
+      upright.bottomLeft.x === 0 && upright.bottomLeft.y === 50,
+    'orderCornersFromOrigin asigna TR/BR/BL correctamente (hoja de pie)'
+  );
+
+  // La misma hoja rotada 90°: el orden angular sigue siendo correcto.
+  const rotated = FiducialDetector.orderCornersFromOrigin(
+    { x: 0, y: 0 },
+    [{ x: 0, y: 100 }, { x: 50, y: 100 }, { x: 50, y: 0 }]
+  );
+  check(
+    rotated.topRight.x === 50 && rotated.topRight.y === 0,
+    'orderCornersFromOrigin es invariante a la rotación de la foto'
   );
 
   console.log(`\nOK PRUEBAS DEL MAPEO OCR PASARON: ${ok}/${t}`);

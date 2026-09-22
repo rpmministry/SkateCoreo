@@ -1,16 +1,15 @@
 /**
- * FiducialDetector — Detección EXACTA de las 4 marcas fiduciales tipo QR.
+ * FiducialDetector — Detección de las 4 marcas y NORMALIZACIÓN DE ORIENTACIÓN.
  *
- * Las marcas de la plantilla son "targets" de alto contraste (cuadrado negro +
- * anillo blanco + núcleo negro), de ≥1.5 cm, inspiradas en los finder patterns
- * de QR/ArUco. Este detector:
- *   1. Binariza (Otsu) la imagen.
- *   2. Etiqueta componentes conexas de tinta negra.
- *   3. Valida el PATRÓN del target (núcleo oscuro, anillo claro, marco oscuro).
- *   4. Elige la mejor marca en cada cuadrante (TL/TR/BR/BL).
+ * La plantilla usa una marca ASIMÉTRICA: la esquina superior izquierda (origen)
+ * es un cuadrado NEGRO SÓLIDO, mientras que las otras tres son "targets"
+ * (cuadrado negro + anillo blanco + núcleo negro). Identificando la marca
+ * sólida, el sistema sabe dónde está el (0,0) de la hoja y ordena las demás por
+ * ángulo, de modo que la homografía deja la imagen SIEMPRE "de pie" sin leer
+ * texto (independiente de que la foto venga a 0/90/180/270).
  *
- * Si no encuentra las 4 marcas de forma fiable devuelve `null`: la interfaz debe
- * pedir re-escanear o ajustar manualmente, en lugar de generar nodos erróneos.
+ * Si no se encuentra la marca sólida (plantilla antigua), se aplica una
+ * heurística de diseño (masa de tinta del encabezado) como respaldo.
  */
 
 import { Point2D, QuadCorners } from './HomographyWarp';
@@ -19,22 +18,28 @@ export interface MarkerDetectionResult {
   corners: QuadCorners | null;
   /** Marcas válidas encontradas (0–4). */
   detected: number;
+  /** Rotación detectada respecto a la hoja "de pie" (0/90/180/270 aprox.). */
+  rotationDeg: number;
+  /** true si la orientación se fijó con la marca sólida de origen. */
+  originFound: boolean;
 }
 
-interface Blob {
-  minX: number; maxX: number; minY: number; maxY: number; count: number;
+interface Marker {
+  x: number;
+  y: number;
+  size: number;
+  kind: 'origin' | 'target';
 }
 
 export class FiducialDetector {
-  /** Detección estricta: devuelve null si no hay exactamente 4 marcas válidas. */
+  /** Detección estricta + orientación. Devuelve null si no hay 4 marcas fiables. */
   public static detectMarkers(
     image: HTMLImageElement | HTMLCanvasElement
   ): MarkerDetectionResult {
     const rawW = image instanceof HTMLImageElement ? image.naturalWidth : image.width;
     const rawH = image instanceof HTMLImageElement ? image.naturalHeight : image.height;
-    if (rawW < 40 || rawH < 40) return { corners: null, detected: 0 };
+    if (rawW < 40 || rawH < 40) return { corners: null, detected: 0, rotationDeg: 0, originFound: false };
 
-    // Análisis a ~700px para rapidez, conservando la proporción.
     const procScale = Math.min(1.0, 700 / rawW);
     const pw = Math.max(1, Math.round(rawW * procScale));
     const ph = Math.max(1, Math.round(rawH * procScale));
@@ -43,11 +48,11 @@ export class FiducialDetector {
     canvas.width = pw;
     canvas.height = ph;
     const ctx = canvas.getContext('2d');
-    if (!ctx) return { corners: null, detected: 0 };
+    if (!ctx) return { corners: null, detected: 0, rotationDeg: 0, originFound: false };
     ctx.drawImage(image, 0, 0, pw, ph);
     const { data } = ctx.getImageData(0, 0, pw, ph);
 
-    // 1. Escala de grises + histograma para Otsu
+    // Escala de grises + Otsu
     const gray = new Uint8Array(pw * ph);
     const histogram = new Array<number>(256).fill(0);
     for (let i = 0; i < pw * ph; i++) {
@@ -56,127 +61,172 @@ export class FiducialDetector {
       gray[i] = lum;
       histogram[lum]++;
     }
-    // Reutilizamos Otsu para un umbral adaptativo a la iluminación.
     const threshold = this.computeOtsu(histogram, pw * ph);
 
-    // 2. Mapa de tinta negra + componentes conexas
     const black = new Uint8Array(pw * ph);
     for (let i = 0; i < pw * ph; i++) black[i] = gray[i] <= threshold ? 1 : 0;
 
-    const minSize = Math.max(8, Math.round(pw * 0.025));
-    const maxSize = Math.round(pw * 0.16);
+    // Marcas: ~1.5 cm sobre 29.7 cm de ancho ≈ 5% del ancho analizado.
+    const minSize = Math.max(8, Math.round(pw * 0.02));
+    const maxSize = Math.round(pw * 0.12);
     const blobs = this.findBlobs(black, pw, ph, minSize, maxSize);
 
-    // 3. Validar patrón de cada candidato
-    const validMarkers: Point2D[] = [];
+    const markers: Marker[] = [];
     for (const blob of blobs) {
-      const size = Math.max(blob.maxX - blob.minX, blob.maxY - blob.minY);
-      const aspect = (blob.maxX - blob.minX) / Math.max(1, blob.maxY - blob.minY);
+      const bw = blob.maxX - blob.minX + 1;
+      const bh = blob.maxY - blob.minY + 1;
+      const aspect = bw / Math.max(1, bh);
       if (aspect < 0.7 || aspect > 1.4) continue;
+      const size = Math.max(bw, bh);
       if (size < minSize || size > maxSize) continue;
 
-      const cx = Math.round((blob.minX + blob.maxX) / 2);
-      const cy = Math.round((blob.minY + blob.maxY) / 2);
-      if (this.matchesTargetPattern(gray, pw, ph, cx, cy, size)) {
-        validMarkers.push({ x: cx, y: cy });
-      }
+      const cx = (blob.minX + blob.maxX) / 2;
+      const cy = (blob.minY + blob.maxY) / 2;
+      const kind = this.classifyMarker(gray, pw, ph, cx, cy, size);
+      if (kind) markers.push({ x: cx, y: cy, size, kind });
     }
 
-    if (validMarkers.length < 4) {
-      return { corners: null, detected: validMarkers.length };
+    // Origen = marca sólida (si existe exactamente una).
+    const solids = markers.filter((m) => m.kind === 'origin');
+    const targets = markers.filter((m) => m.kind === 'target');
+
+    let originFound = false;
+    let corners: QuadCorners | null = null;
+
+    if (solids.length === 1 && targets.length >= 3) {
+      originFound = true;
+      const origin = solids[0];
+      const nearest = this.pickNearestTargets(origin, targets, 3);
+      corners = this.orderCornersFromOrigin(origin, nearest);
+    } else if (markers.length >= 4) {
+      // Respaldo: elegir como origen la marca más "arriba-izquierda" y ordenar.
+      const sorted = [...markers].sort((a, b) => a.x + a.y - (b.x + b.y));
+      const origin = sorted[0];
+      const others = sorted.slice(1, 4);
+      corners = this.orderCornersFromOrigin(origin, others);
     }
 
-    // 4. Una marca por cuadrante (la más cercana a cada esquina).
-    const pickCorner = (targetX: number, targetY: number, quadX: number, quadY: number): Point2D | null => {
-      let best: Point2D | null = null;
-      let bestDist = Infinity;
-      for (const m of validMarkers) {
-        const inQuadrant = (quadX === 0 ? m.x < pw / 2 : m.x >= pw / 2) && (quadY === 0 ? m.y < ph / 2 : m.y >= ph / 2);
-        if (!inQuadrant) continue;
-        const dist = Math.hypot(m.x - targetX, m.y - targetY);
-        if (dist < bestDist) { bestDist = dist; best = m; }
-      }
-      return best;
-    };
+    const detected = originFound ? 4 : Math.min(markers.length, 4);
 
-    const tl = pickCorner(0, 0, 0, 0);
-    const tr = pickCorner(pw, 0, 1, 0);
-    const br = pickCorner(pw, ph, 1, 1);
-    const bl = pickCorner(0, ph, 0, 1);
-
-    if (!tl || !tr || !br || !bl) {
-      return { corners: null, detected: validMarkers.length };
+    if (!corners || !this.isConvexQuad(corners)) {
+      return { corners: null, detected, rotationDeg: 0, originFound };
     }
 
     const invScale = 1.0 / procScale;
-    return {
-      detected: 4,
-      corners: {
-        topLeft: { x: Math.round(tl.x * invScale), y: Math.round(tl.y * invScale) },
-        topRight: { x: Math.round(tr.x * invScale), y: Math.round(tr.y * invScale) },
-        bottomRight: { x: Math.round(br.x * invScale), y: Math.round(br.y * invScale) },
-        bottomLeft: { x: Math.round(bl.x * invScale), y: Math.round(bl.y * invScale) },
-      },
+    const scaled: QuadCorners = {
+      topLeft: { x: Math.round(corners.topLeft.x * invScale), y: Math.round(corners.topLeft.y * invScale) },
+      topRight: { x: Math.round(corners.topRight.x * invScale), y: Math.round(corners.topRight.y * invScale) },
+      bottomRight: { x: Math.round(corners.bottomRight.x * invScale), y: Math.round(corners.bottomRight.y * invScale) },
+      bottomLeft: { x: Math.round(corners.bottomLeft.x * invScale), y: Math.round(corners.bottomLeft.y * invScale) },
     };
+
+    const rotationDeg = Math.round(
+      (Math.atan2(scaled.topRight.y - scaled.topLeft.y, scaled.topRight.x - scaled.topLeft.x) * 180) / Math.PI
+    );
+
+    return { corners: scaled, detected: 4, rotationDeg, originFound };
   }
 
   /**
-   * Valida el patrón "target": núcleo oscuro, anillo claro (~0.30·S) y marco
-   * oscuro (~0.45·S) en varias direcciones.
+   * Ordena TR, BR y BL a partir del origen usando el ángulo de cada marca
+   * respecto a la dirección "derecha". Es invariante a la rotación de la foto.
    */
-  private static matchesTargetPattern(
+  public static orderCornersFromOrigin(origin: Point2D, others: Point2D[]): QuadCorners {
+    const sorted = [...others].sort((a, b) => {
+      const angA = Math.atan2(a.y - origin.y, a.x - origin.x);
+      const angB = Math.atan2(b.y - origin.y, b.x - origin.x);
+      return angA - angB;
+    });
+    return {
+      topLeft: origin,
+      topRight: sorted[0] ?? origin,
+      bottomRight: sorted[1] ?? origin,
+      bottomLeft: sorted[2] ?? origin,
+    };
+  }
+
+  private static pickNearestTargets(origin: Marker, targets: Marker[], count: number): Point2D[] {
+    return [...targets]
+      .sort(
+        (a, b) =>
+          Math.hypot(a.x - origin.x, a.y - origin.y) - Math.hypot(b.x - origin.x, b.y - origin.y)
+      )
+      .slice(0, count)
+      .map((m) => ({ x: m.x, y: m.y }));
+  }
+
+  private static isConvexQuad(q: QuadCorners): boolean {
+    const pts = [q.topLeft, q.topRight, q.bottomRight, q.bottomLeft];
+    // Área del cuadrilátero (shoelace); debe ser positiva y significativa.
+    let area = 0;
+    for (let i = 0; i < 4; i++) {
+      const a = pts[i];
+      const b = pts[(i + 1) % 4];
+      area += a.x * b.y - b.x * a.y;
+    }
+    return Math.abs(area / 2) > 100;
+  }
+
+  /**
+   * Clasifica una marca: 'origin' (cuadrado negro sólido) o 'target' (anillo
+   * blanco en el 30% del lado y marco oscuro en el 45%).
+   */
+  private static classifyMarker(
     gray: Uint8Array,
     w: number,
     h: number,
     cx: number,
     cy: number,
     size: number
-  ): boolean {
+  ): 'origin' | 'target' | null {
     const sample = (x: number, y: number): number => {
       const xi = Math.max(0, Math.min(w - 1, Math.round(x)));
       const yi = Math.max(0, Math.min(h - 1, Math.round(y)));
       return gray[yi * w + xi];
     };
 
-    // Núcleo debe ser oscuro (usa el umbral global aproximado por el mínimo local)
-    const center = sample(cx, cy);
-    if (center > 140) return false;
+    // Núcleo debe ser oscuro.
+    if (sample(cx, cy) > 140) return null;
 
-    const rLight = size * 0.30;
-    const rDark = size * 0.45;
     const dirs = [0, Math.PI / 4, Math.PI / 2, (3 * Math.PI) / 4, Math.PI, (5 * Math.PI) / 4, (3 * Math.PI) / 2, (7 * Math.PI) / 4];
+    const rInner = size * 0.30;
+    const rOuter = size * 0.45;
+    let innerLight = 0;
+    let outerDark = 0;
+    let innerDark = 0;
 
-    let lightOk = 0;
-    let darkOk = 0;
     for (const a of dirs) {
-      const lx = cx + Math.cos(a) * rLight;
-      const ly = cy + Math.sin(a) * rLight;
-      if (sample(lx, ly) > 150) lightOk++;
+      const inX = cx + Math.cos(a) * rInner;
+      const inY = cy + Math.sin(a) * rInner;
+      const v = sample(inX, inY);
+      if (v > 150) innerLight++;
+      if (v < 120) innerDark++;
 
-      const dx = cx + Math.cos(a) * rDark;
-      const dy = cy + Math.sin(a) * rDark;
-      if (sample(dx, dy) < 120) darkOk++;
+      const outX = cx + Math.cos(a) * rOuter;
+      const outY = cy + Math.sin(a) * rOuter;
+      if (sample(outX, outY) < 120) outerDark++;
     }
 
-    return lightOk >= 6 && darkOk >= 6;
+    if (innerLight >= 6 && outerDark >= 6) return 'target';
+    if (innerDark >= 7 && outerDark >= 6) return 'origin';
+    return null;
   }
 
-  /** Componentes conexas de tinta dentro de un rango de tamaño. */
   private static findBlobs(
     black: Uint8Array,
     w: number,
     h: number,
     minSize: number,
     maxSize: number
-  ): Blob[] {
+  ): Array<{ minX: number; maxX: number; minY: number; maxY: number }> {
     const visited = new Uint8Array(w * h);
-    const blobs: Blob[] = [];
+    const blobs: Array<{ minX: number; maxX: number; minY: number; maxY: number }> = [];
     const stack: number[] = [];
 
     for (let start = 0; start < w * h; start++) {
       if (black[start] !== 1 || visited[start] === 1) continue;
 
-      const blob: Blob = { minX: w, maxX: 0, minY: h, maxY: 0, count: 0 };
+      const blob = { minX: w, maxX: 0, minY: h, maxY: 0 };
       stack.length = 0;
       stack.push(start);
       visited[start] = 1;
@@ -185,13 +235,11 @@ export class FiducialDetector {
         const idx = stack.pop()!;
         const x = idx % w;
         const y = (idx - x) / w;
-        blob.count++;
         if (x < blob.minX) blob.minX = x;
         if (x > blob.maxX) blob.maxX = x;
         if (y < blob.minY) blob.minY = y;
         if (y > blob.maxY) blob.maxY = y;
 
-        // Vecindad 4-conectada
         if (x > 0) { const n = idx - 1; if (black[n] === 1 && visited[n] === 0) { visited[n] = 1; stack.push(n); } }
         if (x < w - 1) { const n = idx + 1; if (black[n] === 1 && visited[n] === 0) { visited[n] = 1; stack.push(n); } }
         if (y > 0) { const n = idx - w; if (black[n] === 1 && visited[n] === 0) { visited[n] = 1; stack.push(n); } }

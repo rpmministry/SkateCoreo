@@ -78,6 +78,9 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
   /** Preview de la imagen preprocesada/binarizada (modo debug). */
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [showDebug, setShowDebug] = useState<boolean>(false);
+  /** Orientación detectada respecto a la hoja "de pie" (0/90/180/270 aprox.). */
+  const [orientationDeg, setOrientationDeg] = useState<number>(0);
+  const [originFound, setOriginFound] = useState<boolean>(false);
 
   const setPaperTraceOverlay = useChoreographyStore((s) => s.setPaperTraceOverlay);
   const clearPaperTraceOverlay = useChoreographyStore((s) => s.clearPaperTraceOverlay);
@@ -115,9 +118,13 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
       if (result.corners) {
         setCorners(result.corners);
         setAlignmentError(null);
+        setOrientationDeg(result.rotationDeg);
+        setOriginFound(result.originFound);
       } else {
         // Se ofrecen esquinas por defecto SOLO para que el usuario ajuste a mano.
         setCorners(FiducialDetector.getDefaultCorners(img.naturalWidth, img.naturalHeight));
+        setOrientationDeg(0);
+        setOriginFound(false);
         setAlignmentError(
           `No se detectaron las 4 marcas fiduciales (encontradas: ${result.detected}). ` +
           'Ajusta los 4 pines manualmente hasta las marcas o vuelve a escanear con mejor luz.'
@@ -163,11 +170,14 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // 4 Marcas Fiduciales tipo QR (target: negro + anillo blanco + núcleo negro)
-    const drawFiducial = (x: number, y: number) => {
+    // 4 Marcas Fiduciales: TL SÓLIDA (origen) y las otras 3 tipo target (anillo).
+    const drawFiducial = (x: number, y: number, solid: boolean) => {
       const S = 44; // ≥1.5 cm escalado, alto contraste
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(x - S / 2 - 4, y - S / 2 - 4, S + 8, S + 8);
       ctx.fillStyle = '#000000';
       ctx.fillRect(x - S / 2, y - S / 2, S, S);
+      if (solid) return; // origen: cuadrado sólido
       ctx.fillStyle = '#FFFFFF';
       const inner = S * 0.62;
       ctx.fillRect(x - inner / 2, y - inner / 2, inner, inner);
@@ -181,10 +191,10 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
     const br = { x: 1020, y: 560 };
     const bl = { x: 120, y: 540 };
 
-    drawFiducial(tl.x, tl.y);
-    drawFiducial(tr.x, tr.y);
-    drawFiducial(br.x, br.y);
-    drawFiducial(bl.x, bl.y);
+    drawFiducial(tl.x, tl.y, true);
+    drawFiducial(tr.x, tr.y, false);
+    drawFiducial(br.x, br.y, false);
+    drawFiducial(bl.x, bl.y, false);
 
     // Contorno de la pista en perspectiva
     ctx.strokeStyle = '#64748B';
@@ -532,6 +542,20 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
                 Arrastra los <span className="font-bold text-cyan">4 pines circulares</span> hasta las marcas
                 fiduciales (⊕) de las esquinas. Toda la hoja debe quedar dentro del recuadro cian.
               </p>
+
+              {/* Orientación normalizada (marca de origen asimétrica) */}
+              {imageSrc && corners && !alignmentError && (
+                <div className="rounded-xl border border-cyan/25 bg-cyan/10 px-3 py-2 text-[10px] font-semibold leading-relaxed text-cyan">
+                  Orientación:{' '}
+                  {Math.abs(orientationDeg) < 15
+                    ? 'correcta (0°)'
+                    : `${orientationDeg}° → corregida automáticamente`}
+                  <br />
+                  {originFound
+                    ? 'Marca de origen (cuadrado sólido) localizada.'
+                    : 'Origen estimado por heurística de diseño.'}
+                </div>
+              )}
 
               {imageSrc && (
                 <div className="flex flex-col gap-2">

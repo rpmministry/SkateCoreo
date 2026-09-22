@@ -319,10 +319,10 @@ export class PdfTemplateGenerator {
     /* ── 6. FIDUCIALES: se dibujan AL FINAL sobre la pista y con halo ──
        El halo blanco aísla cada diana de cualquier línea o texto vecino,
        de modo que la detección por visión artificial no tenga ruido. */
-    this.drawFiducialMarker(doc, RINK_X, RINK_Y);
-    this.drawFiducialMarker(doc, RINK_X + RINK_W, RINK_Y);
-    this.drawFiducialMarker(doc, RINK_X + RINK_W, RINK_Y + RINK_H);
-    this.drawFiducialMarker(doc, RINK_X, RINK_Y + RINK_H);
+    this.drawFiducialMarker(doc, RINK_X, RINK_Y, 'origin');
+    this.drawFiducialMarker(doc, RINK_X + RINK_W, RINK_Y, 'corner');
+    this.drawFiducialMarker(doc, RINK_X + RINK_W, RINK_Y + RINK_H, 'corner');
+    this.drawFiducialMarker(doc, RINK_X, RINK_Y + RINK_H, 'corner');
 
     /* ── 7. BLOQUE INFERIOR: instrucciones + crédito ────────────────
        Maquetación editorial: cada instrucción se ajusta al ancho útil con
@@ -371,12 +371,18 @@ export class PdfTemplateGenerator {
   }
 
   /**
-   * Marca fiducial TIPO QR (target): cuadrado negro + anillo blanco cuadrado +
-   * núcleo negro. Alto contraste (negro puro sobre blanco) y ≥1.5 cm de lado para
-   * garantizar la detección bajo cualquier iluminación.
-   * `size` y `halo` provienen de `PDF_LAYOUT.fiducial`.
+   * Marca fiducial de alto contraste. `origin` (esquina SUPERIOR IZQUIERDA) es un
+   * cuadrado NEGRO SÓLIDO, distinto de las otras tres (`corner`), que son targets
+   * (negro + anillo blanco + núcleo negro). Esa asimetría permite al detector
+   * saber SIEMPRE dónde está el origen y normalizar la orientación (0/90/180/270)
+   * sin depender del OCR del texto.
    */
-  private static drawFiducialMarker(doc: jsPDF, cx: number, cy: number): void {
+  private static drawFiducialMarker(
+    doc: jsPDF,
+    cx: number,
+    cy: number,
+    kind: 'origin' | 'corner' = 'corner'
+  ): void {
     const size = PDF_LAYOUT.fiducial.size;
     const halo = PDF_LAYOUT.fiducial.halo;
     const half = size / 2;
@@ -391,7 +397,13 @@ export class PdfTemplateGenerator {
     doc.setFillColor(0, 0, 0);
     doc.rect(cx - half, cy - half, size, size, 'F');
 
-    // Anillo blanco CUADRADO (62% del lado) — patrón verificable por el detector
+    if (kind === 'origin') {
+      // Origen: cuadrado SÓLIDO (sin anillo blanco). Patrón inequívoco.
+      doc.restoreGraphicsState();
+      return;
+    }
+
+    // Anillo blanco CUADRADO (62% del lado)
     const white = size * 0.62;
     doc.setFillColor(255, 255, 255);
     doc.rect(cx - white / 2, cy - white / 2, white, white, 'F');
