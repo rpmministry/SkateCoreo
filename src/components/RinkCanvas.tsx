@@ -268,6 +268,8 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isLongPressActiveRef = useRef<boolean>(false);
   const strokeStartNodeRef = useRef<ChoreographyPoint | null>(null);
+  /** Detección de doble toque/clic sobre un nodo para editar su número. */
+  const lastNodeTapRef = useRef<{ id: string; time: number } | null>(null);
 
   // Limpieza del temporizador de Long Press y selección al desmontar
   useEffect(() => {
@@ -766,6 +768,36 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     }
 
     if (hitNode) {
+      // ── Doble toque/clic sobre un nodo → editar su número manualmente ──
+      // (fail-safe del escáner: los nodos en naranja se numeran aquí).
+      const nowTap = performance.now();
+      const lastTap = lastNodeTapRef.current;
+      if (lastTap && lastTap.id === hitNode.id && nowTap - lastTap.time < 350) {
+        lastNodeTapRef.current = null;
+        if (longPressTimerRef.current) {
+          clearTimeout(longPressTimerRef.current);
+          longPressTimerRef.current = null;
+        }
+        const current = hitNode.nodeNumber != null ? String(hitNode.nodeNumber) : '';
+        const input = window.prompt('Escribe el número del nodo (1, 2, 3…):', current);
+        if (input !== null) {
+          const num = Number.parseInt(input.trim(), 10);
+          if (Number.isFinite(num) && num >= 1) {
+            const updated = points.map((p) =>
+              p.id === hitNode.id ? { ...p, nodeNumber: num, unrecognized: false, label: '' } : p
+            );
+            setPoints(updated);
+            audio.setNodes(updated);
+            if (currentProgram && onProgramUpdated) {
+              onProgramUpdated({ ...currentProgram, choreography_path: updated });
+            }
+            renderFrame();
+          }
+        }
+        return;
+      }
+      lastNodeTapRef.current = { id: hitNode.id, time: nowTap };
+
       hitFound = true;
       strokeStartNodeRef.current = hitNode;
 

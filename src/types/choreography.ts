@@ -63,6 +63,13 @@ export interface ChoreographyPathPoint {
   manual_figures?: string[];
   /** Alias heredado de `manual_figures` (compatibilidad de datos persistidos). */
   figures_manuales?: string[];
+  /**
+   * Nodo detectado en la digitalización cuyo NÚMERO no pudo leerse (OCR falló).
+   * Se muestra en naranja y permite editar el número con doble clic.
+   */
+  unrecognized?: boolean;
+  /** Número de nodo leído por el escáner (o escrito a mano). */
+  nodeNumber?: number;
   isMainNode?: boolean; // Indicador explícito de Nodo Principal / Maestro
   path?: Array<{ x: number; y: number }>; // Huella de alta fidelidad (Catmull-Rom Spline) conectando este nodo con el siguiente
 }

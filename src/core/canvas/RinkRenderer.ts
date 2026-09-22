@@ -568,6 +568,8 @@ export class RinkRenderer {
 
     points.forEach((p, idx) => {
       const isSelected = selectedPointId === p.id;
+      // Nodo pendiente: detectado por el escáner pero sin número reconocido.
+      const isPending = p.unrecognized === true;
 
       // Un nodo se dibuja en el lienzo ÚNICAMENTE si es un Nodo Principal (Nodo Maestro).
       // Los puntos de curvatura secundarios nunca se renderizan en pantalla para mantener el lienzo 100% limpio y minimalista.
@@ -598,19 +600,20 @@ export class RinkRenderer {
       // Seleccionado: Radio 14px (diámetro 28px) con fondo Menta Neón (#10F49C) y borde blanco puro (#FFFFFF)
       ctx.beginPath();
       ctx.arc(px, py, isSelected ? 14 : 11, 0, Math.PI * 2);
-      ctx.fillStyle = isSelected ? '#10F49C' : '#0F172A';
+      ctx.fillStyle = isPending ? '#7C2D12' : isSelected ? '#10F49C' : '#0F172A';
       ctx.fill();
 
       ctx.lineWidth = isSelected ? 3 : 2.2;
-      ctx.strokeStyle = isSelected ? '#FFFFFF' : '#38BDF8';
+      ctx.strokeStyle = isPending ? '#FB923C' : isSelected ? '#FFFFFF' : '#38BDF8';
       ctx.stroke();
 
       // 3. Número de orden del nodo centrado en el interior - RESALTADO Y MÁS GRANDE
-      ctx.fillStyle = isSelected ? '#000000' : '#FFFFFF';
+      //    Los nodos pendientes muestran "?" en naranja hasta editarse a mano.
+      ctx.fillStyle = isPending ? '#FDBA74' : isSelected ? '#000000' : '#FFFFFF';
       ctx.font = `900 ${isSelected ? '12px' : '11px'} JetBrains Mono, system-ui, monospace`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(`${visibleIndex}`, px, py);
+      ctx.fillText(isPending ? '?' : `${p.nodeNumber ?? visibleIndex}`, px, py);
 
       // 4. Etiqueta / Nombre de la figura debajo del nodo
       if (p.label) {

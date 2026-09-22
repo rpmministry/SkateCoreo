@@ -1,22 +1,20 @@
 /**
- * PaperOcrEngine — Detección de nodos NUMERADOS encerrados en círculos.
+ * PaperOcrEngine — Detección HEURÍSTICA y tolerante de nodos numerados.
  *
- * ── PIPELINE (estricto) ─────────────────────────────────────────────────────
- *  1. CONTORNOS: sobre la imagen YA ALINEADA (homografía) y binarizada se buscan
- *     formas cerradas. Se detecta el INTERIOR blanco de cada círculo (componente
- *     conexa encerrada, sin tocar el borde) y se filtra por área, extensión y
- *     circularidad. El CENTROIDE de ese interior es la coordenada del nodo.
- *  2. ROI LIMPIO: se recorta un cuadrado alrededor del centroide y se aplica una
- *     MÁSCARA (disco centrado) que elimina los píxeles del aro del círculo,
- *     dejando SOLO el número. Se escala ×3 en blanco y negro puro.
- *  3. OCR de UN CARÁCTER por ROI (PSM 10) con whitelist 0-9.
- *  4. MAPEO estricto de coordenadas: el centroide (px de la imagen alineada) se
- *     convierte a metros de pista con la misma escala que usa el lienzo 2D.
- *  5. DEBUG: se devuelve la lista de círculos con su centroide, radio, texto
- *     leído y motivo de descarte para pintar el overlay.
- *
- * El círculo no se "adivina" del trazado: se usa la región blanca encerrada por
- * la tinta, que es un contorno cerrado real. Nunca se generan nodos sin dígito.
+ * ── PRINCIPIOS (fail-safe) ──────────────────────────────────────────────────
+ *  1. DETECCIÓN RELAJADA: nada de circularidad estricta ni HoughCircles. Se
+ *     buscan contornos cerrados/semi-cerrados (componentes conexas de tinta) y
+ *     se validan SOLO por ÁREA (0.5%–4% de la hoja) y ASPECTO (0.5–1.8).
+ *  2. REGISTRO INMEDIATO: todo contorno que pase el filtro ES UN NODO. Su
+ *     centroide se guarda al momento, ANTES de leer el número.
+ *  3. CROP CENTRAL: no se limpia el aro del círculo (eso borra el número). Se
+ *     recorta el 60% central del bounding box (se descarta el 20% por lado).
+ *  4. OCR: el recorte se escala ×3 y se le añade padding blanco de 24 px; se lee
+ *     con PSM 10 (un carácter) y whitelist 0-9.
+ *  5. FAIL-SAFE: si el OCR falla, el nodo IGUAL existe con número 0 (se marca
+ *     como no reconocido para editarlo a mano en la pista). Nunca se descarta.
+ *  6. MAPEO: el centroide (px de la imagen YA ALINEADA) se convierte a metros de
+ *     pista con la misma escala que usa el lienzo 2D.
  */
 
 import { Point2D } from '../math/FreehandPathEngine';
@@ -24,20 +22,19 @@ import { RinkDimensions } from '../../types/choreography';
 import { DEFAULT_RINK_DIMENSIONS } from '../canvas/RinkMath';
 
 export interface DetectedNodeMarker {
+  /** Número leído por el OCR. 0 = no reconocido (nodo pendiente de editar). */
   sequenceNumber: number;
   positionMeters: Point2D;
   confidence: number;
   rawBoundingBox: { x: number; y: number; width: number; height: number };
+  /** true si el OCR no pudo leer el número (nodo fail-safe pendiente). */
+  unrecognized: boolean;
 }
 
-/** Entrada de depuración para el overlay visual. */
 export interface OcrDebugEntry {
-  /** Centroide en píxeles de la imagen alineada. */
   x: number;
   y: number;
-  /** Radio del ROI en píxeles. */
   radius: number;
-  /** Texto leído por el OCR ('' si no se ejecutó). */
   text: string;
   accepted: boolean;
   reason?: string;
@@ -46,11 +43,10 @@ export interface OcrDebugEntry {
 export interface OcrResult {
   nodes: DetectedNodeMarker[];
   debug: OcrDebugEntry[];
-  /** Método que produjo los nodos: 'vision' | 'circles' | 'contours' | 'none'. */
-  method: 'vision' | 'circles' | 'contours' | 'none';
+  method: 'vision' | 'contours' | 'none';
 }
 
-interface Rect {
+interface ContourRect {
   minX: number;
   maxX: number;
   minY: number;
@@ -66,69 +62,128 @@ function parseSequenceToken(raw: string | null | undefined): number | null {
   const token = String(raw).trim();
   if (!/^\d+$/.test(token)) return null;
   const value = Number.parseInt(token, 10);
-  if (!Number.isFinite(value) || value < 1 || value > 50) return null;
+  if (!Number.isFinite(value) || value < 1 || value > 99) return null;
   return value;
 }
 
 export class PaperOcrEngine {
-  /** API simple: devuelve solo los nodos. */
   public static async detectNumberedNodes(
     warpedCanvas: HTMLCanvasElement,
     rink: RinkDimensions = DEFAULT_RINK_DIMENSIONS,
     binarized?: HTMLCanvasElement
   ): Promise<DetectedNodeMarker[]> {
-    const result = await this.detectNumberedNodesWithDebug(warpedCanvas, rink, binarized);
-    return result.nodes;
+    return (await this.detectNumberedNodesWithDebug(warpedCanvas, rink, binarized)).nodes;
   }
 
-  /** API completa con información de depuración para el overlay. */
   public static async detectNumberedNodesWithDebug(
     warpedCanvas: HTMLCanvasElement,
     rink: RinkDimensions = DEFAULT_RINK_DIMENSIONS,
     binarized?: HTMLCanvasElement
   ): Promise<OcrResult> {
-    // El análisis se hace SIEMPRE sobre la imagen alineada (y binarizada si hay).
     const work = binarized && binarized.width > 0 ? binarized : warpedCanvas;
     const w = work.width;
     const h = work.height;
     if (w <= 0 || h <= 0) return { nodes: [], debug: [], method: 'none' };
 
-    // 1) Google Cloud Vision (si hay clave) — lectura directa de números.
+    // 1) Google Cloud Vision (si hay clave): lectura directa y precisa.
     const visionApiKey = (import.meta as any).env?.VITE_GOOGLE_VISION_API_KEY;
     if (visionApiKey) {
       try {
         const cloudNodes = await this.detectWithGoogleVision(work, visionApiKey, rink);
-        const nodes = this.sanitize(cloudNodes, w, h, rink);
+        const nodes = this.sanitize(cloudNodes, rink);
         if (nodes.length > 0) return { nodes, debug: [], method: 'vision' };
       } catch (err) {
         console.warn('[PaperOcrEngine] Falló Google Vision, se usará el pipeline local:', err);
       }
     }
 
-    // 2) Pipeline local por CÍRCULOS + OCR de un carácter.
-    const circleResult = await this.detectByCircles(work, rink);
-    if (circleResult.nodes.length > 0) {
-      return { nodes: this.sanitize(circleResult.nodes, w, h, rink), debug: circleResult.debug, method: 'circles' };
+    // 2) Contornos relajados + OCR de un carácter (con fail-safe).
+    const contours = this.findInkContours(work);
+    if (contours.length === 0) return { nodes: [], debug: [], method: 'none' };
+
+    const debug: OcrDebugEntry[] = [];
+    const nodes: DetectedNodeMarker[] = [];
+
+    // El nodo se registra SIEMPRE; el OCR solo intenta asignarle número.
+    const Tesseract = await import('tesseract.js');
+    const createWorker = (Tesseract as any).createWorker;
+    let worker: any = null;
+    if (typeof createWorker === 'function') {
+      try {
+        worker = await createWorker('eng');
+        await worker.setParameters({
+          tessedit_char_whitelist: '0123456789',
+          tessedit_pageseg_mode: '10', // Single Character
+        });
+      } catch {
+        worker = null;
+      }
     }
 
-    // 3) Último recurso: segmentación por contornos de tinta (números sin círculo).
-    const contourResult = await this.detectByContourSegmentation(work, rink);
-    if (contourResult.nodes.length > 0) {
-      return { nodes: this.sanitize(contourResult.nodes, w, h, rink), debug: contourResult.debug, method: 'contours' };
+    try {
+      for (const c of contours) {
+        const radius = Math.max(c.maxX - c.minX, c.maxY - c.minY) / 2;
+        const entry: OcrDebugEntry = { x: c.cx, y: c.cy, radius, text: '', accepted: false };
+
+        let seq = 0;
+        if (worker) {
+          try {
+            const roi = this.buildCentralCropRoi(work, c);
+            if (roi) {
+              const r = await worker.recognize(roi);
+              const text = String(r?.data?.text ?? '').replace(/\s+/g, '');
+              entry.text = text;
+              const parsed = parseSequenceToken(text);
+              if (parsed !== null) {
+                seq = parsed;
+                entry.accepted = true;
+              } else {
+                entry.reason = 'Sin dígito (nodo pendiente de edición)';
+              }
+            } else {
+              entry.reason = 'ROI vacío';
+            }
+          } catch {
+            entry.reason = 'Error OCR (nodo pendiente de edición)';
+          }
+        } else {
+          entry.reason = 'OCR no disponible (nodo pendiente de edición)';
+        }
+
+        debug.push(entry);
+
+        // FAIL-SAFE: el nodo se crea SIEMPRE (seq 0 si el OCR falló).
+        nodes.push({
+          sequenceNumber: seq,
+          positionMeters: this.pixelsToMeters(c.cx, c.cy, w, h, rink),
+          confidence: seq > 0 ? 0.9 : 0.3,
+          rawBoundingBox: {
+            x: c.minX,
+            y: c.minY,
+            width: c.maxX - c.minX,
+            height: c.maxY - c.minY,
+          },
+          unrecognized: seq <= 0,
+        });
+      }
+    } finally {
+      if (worker) {
+        try {
+          await worker.terminate();
+        } catch {
+          /* worker ya cerrado */
+        }
+      }
     }
 
-    // 4) Nada legible → CERO nodos (nunca fantasmas), pero se conserva el debug.
-    return { nodes: [], debug: circleResult.debug, method: 'none' };
+    return { nodes: this.sanitize(nodes, rink), debug, method: 'contours' };
   }
 
   /* ══════════════════════════════════════════════════════════════════════
      MAPEO DE COORDENADAS (estricto)
      ══════════════════════════════════════════════════════════════════════ */
 
-  /**
-   * Convierte el centroide (px de la imagen ALINEADA) a metros de pista.
-   * Es la misma relación que usa el lienzo 2D: px → metros → px_de_lienzo.
-   */
+  /** Centroide (px de la imagen ALINEADA) → metros de pista. */
   public static pixelsToMeters(
     cx: number,
     cy: number,
@@ -143,7 +198,10 @@ export class PaperOcrEngine {
     };
   }
 
-  /** Valida un candidato circular por área, extensión y proporción (lógica pura). */
+  /**
+   * Filtro RELAJADO de contorno: solo área (0.5–4% de la hoja) y aspecto
+   * (0.5–1.8). Sin circularidad estricta (permite óvalos y cuadrados irregulares).
+   */
   public static isCircleCandidate(
     bboxW: number,
     bboxH: number,
@@ -154,124 +212,43 @@ export class PaperOcrEngine {
     if (bboxW <= 0 || bboxH <= 0) return false;
     if (area < minArea || area > maxArea) return false;
     const aspect = bboxW / bboxH;
-    if (aspect < 0.6 || aspect > 1.6) return false;
-    const extent = area / (bboxW * bboxH);
-    // Un disco interior tiene extensión ~0.785; se admite 0.45–0.92.
-    if (extent < 0.45 || extent > 0.92) return false;
+    if (aspect < 0.5 || aspect > 1.8) return false;
     return true;
   }
 
   /* ══════════════════════════════════════════════════════════════════════
-     PIPELINE POR CÍRCULOS
+     DETECCIÓN DE CONTORNOS (componentes conexas de tinta)
      ══════════════════════════════════════════════════════════════════════ */
 
-  private static async detectByCircles(
-    canvas: HTMLCanvasElement,
-    rink: RinkDimensions
-  ): Promise<{ nodes: DetectedNodeMarker[]; debug: OcrDebugEntry[] }> {
+  private static findInkContours(canvas: HTMLCanvasElement): ContourRect[] {
     const w = canvas.width;
     const h = canvas.height;
     const ctx = canvas.getContext('2d');
-    if (!ctx) return { nodes: [], debug: [] };
-
+    if (!ctx) return [];
     const { data } = ctx.getImageData(0, 0, w, h);
 
-    // Región BLANCA (fondo/interior) y región de TINTA (negra).
-    const isWhite = new Uint8Array(w * h);
+    const ink = new Uint8Array(w * h);
     for (let i = 0; i < w * h; i++) {
       const idx = i * 4;
       const lum = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
-      isWhite[i] = lum > 128 ? 1 : 0;
+      ink[i] = lum < 128 ? 1 : 0;
     }
 
-    const interiors = this.findEnclosedInteriors(isWhite, w, h);
-    if (interiors.length === 0) return { nodes: [], debug: [] };
+    // Área del contorno entre 0.5% y 4% de la hoja.
+    const minArea = Math.round(w * h * 0.005);
+    const maxArea = Math.round(w * h * 0.04);
 
-    const debug: OcrDebugEntry[] = [];
-    const nodes: DetectedNodeMarker[] = [];
-
-    if (interiors.length === 0) return { nodes, debug };
-
-    // Tesseract solo si hay al menos un círculo candidato.
-    const Tesseract = await import('tesseract.js');
-    const createWorker = (Tesseract as any).createWorker;
-    if (typeof createWorker !== 'function') return { nodes, debug };
-
-    const worker = await createWorker('eng');
-    try {
-      await worker.setParameters({
-        tessedit_char_whitelist: '0123456789',
-        tessedit_pageseg_mode: '10', // Single Character
-      });
-
-      for (const roi of interiors) {
-        const radius = Math.max(roi.maxX - roi.minX, roi.maxY - roi.minY) / 2;
-        const entry: OcrDebugEntry = { x: roi.cx, y: roi.cy, radius, text: '', accepted: false };
-
-        try {
-          const cleanCanvas = this.buildCleanRoi(canvas, roi);
-          if (!cleanCanvas) {
-            entry.reason = 'ROI vacío';
-            debug.push(entry);
-            continue;
-          }
-
-          const r = await worker.recognize(cleanCanvas);
-          const text = String(r?.data?.text ?? '').replace(/\s+/g, '');
-          entry.text = text;
-
-          const seq = parseSequenceToken(text);
-          if (seq === null) {
-            entry.reason = 'Sin dígito válido';
-            debug.push(entry);
-            continue;
-          }
-
-          entry.accepted = true;
-          debug.push(entry);
-          nodes.push({
-            sequenceNumber: seq,
-            positionMeters: this.pixelsToMeters(roi.cx, roi.cy, w, h, rink),
-            confidence: 0.9,
-            rawBoundingBox: {
-              x: roi.minX,
-              y: roi.minY,
-              width: roi.maxX - roi.minX,
-              height: roi.maxY - roi.minY,
-            },
-          });
-        } catch {
-          entry.reason = 'Error OCR';
-          debug.push(entry);
-        }
-      }
-    } finally {
-      await worker.terminate();
-    }
-
-    return { nodes, debug };
-  }
-
-  /**
-   * Encuentra las REGIONES BLANCAS ENCERRADAS (interior de cada círculo):
-   * componentes conexas de fondo que NO tocan el borde y con forma circular.
-   */
-  private static findEnclosedInteriors(white: Uint8Array, w: number, h: number): Rect[] {
     const visited = new Uint8Array(w * h);
-    const interiors: Rect[] = [];
-    const minArea = Math.max(60, Math.round(w * h * 0.00035));
-    const maxArea = Math.round(w * h * 0.03);
+    const contours: ContourRect[] = [];
     const stack: number[] = [];
 
     for (let start = 0; start < w * h; start++) {
-      if (white[start] !== 1 || visited[start] === 1) continue;
+      if (ink[start] !== 1 || visited[start] === 1) continue;
 
+      const rect: ContourRect = { minX: w, maxX: 0, minY: h, maxY: 0, area: 0, cx: 0, cy: 0 };
       stack.length = 0;
       stack.push(start);
       visited[start] = 1;
-
-      const rect: Rect = { minX: w, maxX: 0, minY: h, maxY: 0, area: 0, cx: 0, cy: 0 };
-      let touchesBorder = false;
 
       while (stack.length > 0) {
         const idx = stack.pop()!;
@@ -282,209 +259,6 @@ export class PaperOcrEngine {
         if (x > rect.maxX) rect.maxX = x;
         if (y < rect.minY) rect.minY = y;
         if (y > rect.maxY) rect.maxY = y;
-        if (x === 0 || y === 0 || x === w - 1 || y === h - 1) touchesBorder = true;
-
-        if (x > 0) { const n = idx - 1; if (white[n] === 1 && visited[n] === 0) { visited[n] = 1; stack.push(n); } }
-        if (x < w - 1) { const n = idx + 1; if (white[n] === 1 && visited[n] === 0) { visited[n] = 1; stack.push(n); } }
-        if (y > 0) { const n = idx - w; if (white[n] === 1 && visited[n] === 0) { visited[n] = 1; stack.push(n); } }
-        if (y < h - 1) { const n = idx + w; if (white[n] === 1 && visited[n] === 0) { visited[n] = 1; stack.push(n); } }
-      }
-
-      if (touchesBorder) continue; // fondo de la hoja
-
-      const bw = rect.maxX - rect.minX + 1;
-      const bh = rect.maxY - rect.minY + 1;
-      if (!this.isCircleCandidate(bw, bh, rect.area, minArea, maxArea)) continue;
-
-      rect.cx = (rect.minX + rect.maxX) / 2;
-      rect.cy = (rect.minY + rect.maxY) / 2;
-      interiors.push(rect);
-    }
-
-    return interiors;
-  }
-
-  /**
-   * Recorta el ROI alrededor del centroide y ELIMINA el aro del círculo con una
-   * máscara de disco centrado, dejando solo el número. Se escala ×3 y se añade
-   * un margen blanco para el OCR.
-   */
-  private static buildCleanRoi(canvas: HTMLCanvasElement, roi: Rect): HTMLCanvasElement | null {
-    const w = canvas.width;
-    const h = canvas.height;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-
-    const bw = roi.maxX - roi.minX + 1;
-    const bh = roi.maxY - roi.minY + 1;
-    const size = Math.max(bw, bh);
-    const pad = Math.round(size * 0.25);
-
-    const x0 = Math.max(0, Math.round(roi.cx - size / 2 - pad));
-    const y0 = Math.max(0, Math.round(roi.cy - size / 2 - pad));
-    const cw = Math.min(w - x0, size + pad * 2);
-    const ch = Math.min(h - y0, size + pad * 2);
-    if (cw <= 2 || ch <= 2) return null;
-
-    const crop = document.createElement('canvas');
-    crop.width = cw;
-    crop.height = ch;
-    const cctx = crop.getContext('2d');
-    if (!cctx) return null;
-    cctx.drawImage(canvas, x0, y0, cw, ch, 0, 0, cw, ch);
-
-    // Máscara: solo se conserva un disco centrado (elimina el aro del círculo).
-    const discRadius = size / 2 + pad * 0.4;
-    const cxp = cw / 2;
-    const cyp = ch / 2;
-    const cropData = cctx.getImageData(0, 0, cw, ch);
-    const cd = cropData.data;
-    for (let y = 0; y < ch; y++) {
-      for (let x = 0; x < cw; x++) {
-        const dx = x - cxp;
-        const dy = y - cyp;
-        if (dx * dx + dy * dy > discRadius * discRadius) {
-          const i = (y * cw + x) * 4;
-          cd[i] = 255;
-          cd[i + 1] = 255;
-          cd[i + 2] = 255;
-          cd[i + 3] = 255;
-        }
-      }
-    }
-    cctx.putImageData(cropData, 0, 0);
-
-    // Escalado ×3 con blanco alrededor (mejora la lectura de un solo carácter).
-    const scale = 3;
-    const margin = 12;
-    const out = document.createElement('canvas');
-    out.width = cw * scale + margin * 2;
-    out.height = ch * scale + margin * 2;
-    const octx = out.getContext('2d');
-    if (!octx) return null;
-    octx.fillStyle = '#FFFFFF';
-    octx.fillRect(0, 0, out.width, out.height);
-    octx.imageSmoothingEnabled = false;
-    octx.drawImage(crop, margin, margin, cw * scale, ch * scale);
-
-    return out;
-  }
-
-  /* ══════════════════════════════════════════════════════════════════════
-     FALLBACK: contornos de tinta (números sin círculo) — PSM 7
-     ══════════════════════════════════════════════════════════════════════ */
-
-  private static async detectByContourSegmentation(
-    canvas: HTMLCanvasElement,
-    rink: RinkDimensions
-  ): Promise<{ nodes: DetectedNodeMarker[]; debug: OcrDebugEntry[] }> {
-    const w = canvas.width;
-    const h = canvas.height;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return { nodes: [], debug: [] };
-    const { data } = ctx.getImageData(0, 0, w, h);
-
-    const ink = new Uint8Array(w * h);
-    for (let i = 0; i < w * h; i++) {
-      const idx = i * 4;
-      const lum = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
-      ink[i] = lum < 128 ? 1 : 0;
-    }
-
-    const minSize = Math.max(6, Math.round(w * 0.012));
-    const maxSize = Math.round(w * 0.075);
-    const blobs = this.findInkBlobs(ink, w, h, minSize, maxSize).slice(0, 40);
-    if (blobs.length === 0) return { nodes: [], debug: [] };
-
-    const Tesseract = await import('tesseract.js');
-    const createWorker = (Tesseract as any).createWorker;
-    if (typeof createWorker !== 'function') return { nodes: [], debug: [] };
-
-    const worker = await createWorker('eng');
-    const debug: OcrDebugEntry[] = [];
-    const nodes: DetectedNodeMarker[] = [];
-    try {
-      await worker.setParameters({
-        tessedit_char_whitelist: '0123456789',
-        tessedit_pageseg_mode: '7',
-      });
-
-      for (const b of blobs) {
-        const pad = Math.round(Math.max(b.maxX - b.minX, b.maxY - b.minY) * 0.15);
-        const x0 = Math.max(0, b.minX - pad);
-        const y0 = Math.max(0, b.minY - pad);
-        const cw = Math.min(w - x0, b.maxX - b.minX + pad * 2);
-        const ch = Math.min(h - y0, b.maxY - b.minY + pad * 2);
-        if (cw <= 2 || ch <= 2) continue;
-
-        const crop = document.createElement('canvas');
-        crop.width = cw;
-        crop.height = ch;
-        const cctx = crop.getContext('2d');
-        if (!cctx) continue;
-        cctx.drawImage(canvas, x0, y0, cw, ch, 0, 0, cw, ch);
-
-        const cx = (b.minX + b.maxX) / 2;
-        const cy = (b.minY + b.maxY) / 2;
-        const entry: OcrDebugEntry = { x: cx, y: cy, radius: Math.max(cw, ch) / 2, text: '', accepted: false };
-
-        try {
-          const r = await worker.recognize(crop);
-          const text = String(r?.data?.text ?? '').replace(/\s+/g, '');
-          entry.text = text;
-          const seq = parseSequenceToken(text);
-          if (seq === null) {
-            entry.reason = 'Sin dígito válido';
-            debug.push(entry);
-            continue;
-          }
-          entry.accepted = true;
-          debug.push(entry);
-          nodes.push({
-            sequenceNumber: seq,
-            positionMeters: this.pixelsToMeters(cx, cy, w, h, rink),
-            confidence: 0.75,
-            rawBoundingBox: { x: b.minX, y: b.minY, width: b.maxX - b.minX, height: b.maxY - b.minY },
-          });
-        } catch {
-          entry.reason = 'Error OCR';
-          debug.push(entry);
-        }
-      }
-    } finally {
-      await worker.terminate();
-    }
-
-    return { nodes, debug };
-  }
-
-  private static findInkBlobs(
-    ink: Uint8Array,
-    w: number,
-    h: number,
-    minSize: number,
-    maxSize: number
-  ): Array<{ minX: number; maxX: number; minY: number; maxY: number }> {
-    const visited = new Uint8Array(w * h);
-    const blobs: Array<{ minX: number; maxX: number; minY: number; maxY: number }> = [];
-    const stack: number[] = [];
-
-    for (let start = 0; start < w * h; start++) {
-      if (ink[start] !== 1 || visited[start] === 1) continue;
-
-      const blob = { minX: w, maxX: 0, minY: h, maxY: 0 };
-      stack.length = 0;
-      stack.push(start);
-      visited[start] = 1;
-
-      while (stack.length > 0) {
-        const idx = stack.pop()!;
-        const x = idx % w;
-        const y = (idx - x) / w;
-        if (x < blob.minX) blob.minX = x;
-        if (x > blob.maxX) blob.maxX = x;
-        if (y < blob.minY) blob.minY = y;
-        if (y > blob.maxY) blob.maxY = y;
 
         if (x > 0) { const n = idx - 1; if (ink[n] === 1 && visited[n] === 0) { visited[n] = 1; stack.push(n); } }
         if (x < w - 1) { const n = idx + 1; if (ink[n] === 1 && visited[n] === 0) { visited[n] = 1; stack.push(n); } }
@@ -492,48 +266,92 @@ export class PaperOcrEngine {
         if (y < h - 1) { const n = idx + w; if (ink[n] === 1 && visited[n] === 0) { visited[n] = 1; stack.push(n); } }
       }
 
-      const size = Math.max(blob.maxX - blob.minX, blob.maxY - blob.minY);
-      if (size >= minSize && size <= maxSize) blobs.push(blob);
+      const bw = rect.maxX - rect.minX + 1;
+      const bh = rect.maxY - rect.minY + 1;
+      // Área del contorno = área de su bounding box (envolvente del dibujo).
+      const bboxArea = bw * bh;
+      if (!this.isCircleCandidate(bw, bh, bboxArea, minArea, maxArea)) continue;
+
+      rect.cx = (rect.minX + rect.maxX) / 2;
+      rect.cy = (rect.minY + rect.maxY) / 2;
+      contours.push(rect);
     }
 
-    return blobs;
+    return contours;
+  }
+
+  /**
+   * Crop CENTRAL del bounding box (60% central: descarta el 20% por lado), luego
+   * escala ×3 y añade padding blanco de 24 px. Sin limpieza morfológica.
+   */
+  private static buildCentralCropRoi(canvas: HTMLCanvasElement, c: ContourRect): HTMLCanvasElement | null {
+    const w = canvas.width;
+    const h = canvas.height;
+
+    const bw = c.maxX - c.minX + 1;
+    const bh = c.maxY - c.minY + 1;
+    const cropW = Math.max(3, Math.round(bw * 0.6));
+    const cropH = Math.max(3, Math.round(bh * 0.6));
+    const x0 = Math.max(0, Math.min(w - cropW, Math.round(c.cx - cropW / 2)));
+    const y0 = Math.max(0, Math.min(h - cropH, Math.round(c.cy - cropH / 2)));
+    if (cropW <= 2 || cropH <= 2) return null;
+
+    const scale = 3; // ~200% más grande
+    const padding = 24; // borde blanco sólido
+    const out = document.createElement('canvas');
+    out.width = cropW * scale + padding * 2;
+    out.height = cropH * scale + padding * 2;
+    const octx = out.getContext('2d');
+    if (!octx) return null;
+
+    octx.fillStyle = '#FFFFFF';
+    octx.fillRect(0, 0, out.width, out.height);
+    octx.imageSmoothingEnabled = false;
+    octx.drawImage(canvas, x0, y0, cropW, cropH, padding, padding, cropW * scale, cropH * scale);
+
+    return out;
   }
 
   /* ══════════════════════════════════════════════════════════════════════
-     VALIDACIÓN / NORMALIZACIÓN
+     VALIDACIÓN / NORMALIZACIÓN (fail-safe: conserva nodos con seq 0)
      ══════════════════════════════════════════════════════════════════════ */
 
   private static sanitize(
     nodes: DetectedNodeMarker[],
-    w: number,
-    h: number,
     rink: RinkDimensions
   ): DetectedNodeMarker[] {
-    const byNumber = new Map<number, DetectedNodeMarker>();
+    const recognized = new Map<number, DetectedNodeMarker>();
+    const unrecognized: DetectedNodeMarker[] = [];
 
     for (const node of nodes) {
-      const seq = parseSequenceToken(String(node.sequenceNumber));
-      if (seq === null) continue;
-
+      // Posición dentro de la hoja/pista (bounding box A4).
       if (
-        node.positionMeters.x <= 0 ||
-        node.positionMeters.x >= rink.lengthMeters ||
-        node.positionMeters.y <= 0 ||
-        node.positionMeters.y >= rink.widthMeters
+        node.positionMeters.x < 0 ||
+        node.positionMeters.x > rink.lengthMeters ||
+        node.positionMeters.y < 0 ||
+        node.positionMeters.y > rink.widthMeters
       ) {
         continue;
       }
       const bb = node.rawBoundingBox;
       if (!bb || bb.width <= 0 || bb.height <= 0) continue;
-      if (bb.x < -2 || bb.y < -2 || bb.x + bb.width > w + 2 || bb.y + bb.height > h + 2) continue;
 
-      const existing = byNumber.get(seq);
-      if (!existing || node.confidence > existing.confidence) {
-        byNumber.set(seq, { ...node, sequenceNumber: seq });
+      const seq = node.sequenceNumber;
+      if (seq >= 1) {
+        const existing = recognized.get(seq);
+        if (!existing || node.confidence > existing.confidence) {
+          recognized.set(seq, { ...node, sequenceNumber: seq, unrecognized: false });
+        }
+      } else {
+        // Fail-safe: se conservan TODOS los nodos no reconocidos.
+        unrecognized.push({ ...node, sequenceNumber: 0, unrecognized: true });
       }
     }
 
-    return [...byNumber.values()].sort((a, b) => a.sequenceNumber - b.sequenceNumber);
+    return [
+      ...[...recognized.values()].sort((a, b) => a.sequenceNumber - b.sequenceNumber),
+      ...unrecognized,
+    ];
   }
 
   private static async detectWithGoogleVision(
@@ -589,6 +407,7 @@ export class PaperOcrEngine {
         },
         confidence: 0.95,
         rawBoundingBox: { x: minX, y: minY, width, height },
+        unrecognized: false,
       });
     }
 

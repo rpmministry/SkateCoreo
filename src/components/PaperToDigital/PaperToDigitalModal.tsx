@@ -310,21 +310,20 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
         setPreviewUrl(buildOcrDebugOverlay(pre.binarized, ocrResult.debug));
         const rawDetectedNodes = ocrResult.nodes;
 
-        // ── REGLA ESTRICTA DE EXTRACCIÓN ──────────────────────────────────────
-        // Solo se extraen NODOS PRINCIPALES con numeración explícita (1, 2, 3…).
-        // Se descartan vértices intermedios, marcas de interpolación y cualquier
-        // detección sin número de orden válido. Relación 1 a 1: un número = un nodo.
-        const detectedNodes = rawDetectedNodes.filter(
-          (n) => Number.isInteger(n.sequenceNumber) && n.sequenceNumber > 0
-        );
+        // ── FAIL-SAFE ─────────────────────────────────────────────────────────
+        // TODO contorno detectado se convierte en nodo, aunque el OCR falle
+        // (número 0 = pendiente). Primero los reconocidos por número; luego los
+        // pendientes, en el mismo orden en que se detectaron.
+        const detectedNodes = rawDetectedNodes;
+        const recognizedNodes = detectedNodes.filter((n) => n.sequenceNumber >= 1);
+        const pendingNodes = detectedNodes.filter((n) => n.sequenceNumber < 1);
+        const sortedOcrNodes = [...recognizedNodes].sort((a, b) => a.sequenceNumber - b.sequenceNumber).concat(pendingNodes);
 
         const allStrokePoints: Array<{ x: number; y: number }> = INCLUDE_TRACED_STROKES
           ? strokes.flatMap((s) => s.pointsMeters)
           : [];
 
         if (detectedNodes.length > 0) {
-          // Orden estricto 1 -> 2 -> 3...
-          const sortedOcrNodes = [...detectedNodes].sort((a, b) => a.sequenceNumber - b.sequenceNumber);
 
           const generatedPoints: ChoreographyPoint[] = sortedOcrNodes.map((node, idx) => {
             const timeMs = idx * 4000; // Distribución temporal base
@@ -361,6 +360,8 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
               }
             }
 
+            const recognized = node.sequenceNumber >= 1;
+
             return {
               id: `node-paper-${Date.now()}-${idx + 1}`,
               timestamp: timeMs,
@@ -373,32 +374,32 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
               cp1y: node.positionMeters.y,
               cp2x: node.positionMeters.x + 6,
               cp2y: node.positionMeters.y,
-              type: idx === 0 ? 'Step' : 'Jump',
-              // Filtro de Voz Guía: la plantilla de papel solo aporta un número
-              // de orden, NO una figura técnica. La etiqueta queda vacía para que
-              // la voz guía permanezca en silencio hasta que la entrenadora
-              // asigne la figura real a cada nodo (así nunca lee "Nodo 3 (Papel)",
-              // notas al margen ni texto descriptivo).
-              label: '',
+              type: recognized ? 'Step' : 'Marker',
+              // La plantilla solo aporta un número de orden, NO una figura técnica.
+              // Nodo pendiente (OCR falló) ⇒ etiqueta '?' para editarla a mano.
+              label: recognized ? '' : '?',
               isMainNode: true,
+              unrecognized: !recognized,
+              nodeNumber: recognized ? node.sequenceNumber : undefined,
               path: segmentPath && segmentPath.length > 1 ? segmentPath : undefined,
             };
           });
 
           setPoints(generatedPoints);
           setPhase('curve'); // Pasa directamente a modo curva interactiva
+          const pendingCount = pendingNodes.length;
           alert(
-            `¡Digitalización Exitosa! Se reconocieron ${detectedNodes.length} ` +
-            `${detectedNodes.length === 1 ? 'número' : 'números'} y se crearon exactamente ` +
-            `${generatedPoints.length} ${generatedPoints.length === 1 ? 'nodo' : 'nodos'} (1 a 1). ` +
-            `No se generan nodos a partir del trazado.`
+            `¡Digitalización Exitosa! Se detectaron ${detectedNodes.length} ` +
+            `${detectedNodes.length === 1 ? 'nodo' : 'nodos'}` +
+            (pendingCount > 0
+              ? ` (${recognizedNodes.length} con número reconocido y ${pendingCount} pendientes en naranja).`
+              : ' con su número reconocido.') +
+            '\n\nLos nodos pendientes aparecen en naranja: haz DOBLE CLIC sobre ellos en la Pista 2D para escribir su número.'
           );
         } else {
           alert(
-            'No se reconocieron números (1, 2, 3…) en la hoja, así que NO se creó ningún nodo ' +
-            '(nunca se inventan nodos a partir del trazado).\n\n' +
-            'Para la digitalización automática se necesita lectura de texto (OCR): ' +
-            'conexión a internet para el OCR local, o configurar la clave de Google Vision. ' +
+            'No se detectó ningún contorno de nodo en la hoja escaneada.\n\n' +
+            'Dibuja un círculo alrededor de cada número y vuelve a escanear con buena luz. ' +
             'También puedes usar «Usar como Fondo de Calco» y colocar los nodos manualmente.'
           );
         }
@@ -415,13 +416,13 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-slate-950/80 p-0 backdrop-blur-md animate-in fade-in sm:items-center sm:p-6">
+    <div className="fixed inset-0 z-[120] flex items-stretch justify-center overflow-hidden bg-slate-950/85 p-0 backdrop-blur-md animate-in fade-in sm:items-center sm:p-4 lg:p-6">
       {/*
-        Layout móvil seguro: ocupa exactamente el viewport dinámico (dvh) con
-        áreas seguras del notch/barra, header y footer fijos y SOLO el cuerpo con
-        scroll interno. Evita que el modal se salga de la pantalla del navegador.
+        Layout móvil/escritorio SEGURO: el modal ocupa exactamente el viewport
+        dinámico (dvh) con áreas seguras, header y footer fijos y SOLO el cuerpo
+        con scroll interno. Nada se sale de la pantalla ni tapa el escaneo.
       */}
-      <div className="flex h-[100dvh] w-full max-w-4xl flex-col overflow-hidden border-0 border-cyan/30 bg-[#0D1322] text-slate-100 shadow-2xl pt-safe pb-safe sm:h-auto sm:max-h-[90dvh] sm:rounded-3xl sm:border">
+      <div className="flex h-[100dvh] max-h-[100dvh] w-full max-w-4xl flex-col overflow-hidden border-0 border-cyan/30 bg-[#0D1322] text-slate-100 shadow-2xl pt-safe pb-safe sm:h-[90dvh] sm:max-h-[90dvh] sm:rounded-3xl sm:border">
         {/* ── Modal Header ── */}
         <div className="flex h-14 shrink-0 items-center justify-between border-b border-white/10 bg-slate-950/70 px-4 sm:px-5">
           <div className="flex items-center gap-2.5">
@@ -451,11 +452,11 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
         </div>
 
         {/* ── Modal Body: GRID aislado (imagen 100% limpia | panel lateral) ── */}
-        <div className="flex-1 min-h-0 overflow-y-auto p-4 lg:overflow-hidden">
-          <div className="grid min-h-0 grid-cols-1 gap-4 lg:h-full lg:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 sm:p-4 lg:overflow-hidden">
+          <div className="grid min-h-0 grid-cols-1 gap-3 sm:gap-4 lg:h-full lg:grid-cols-[minmax(0,1fr)_300px]">
 
             {/* ░░ COLUMNA 1: ÁREA DE LA HOJA A4 (sin textos superpuestos) ░░ */}
-            <div className="flex min-h-[380px] flex-col lg:min-h-0">
+            <div className="flex min-h-[42dvh] flex-col sm:min-h-[48dvh] lg:min-h-0">
               {!imageSrc ? (
                 /* Pantalla inicial de selección de imagen */
                 <div className="flex flex-1 min-h-[350px] flex-col items-center justify-center gap-4 rounded-3xl border-2 border-dashed border-white/15 bg-slate-950/40 p-6 text-center">
@@ -504,7 +505,7 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
                 </div>
               ) : (
                 /* Visualizador y Calibrador de Esquinas (imagen aislada) */
-                <div className="relative flex min-h-[300px] flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950">
+                <div className="relative flex min-h-[30dvh] flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950 lg:min-h-0">
                   {corners && (
                     <CornerPinAdjuster
                       imageSrc={imageSrc}
