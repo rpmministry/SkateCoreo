@@ -573,7 +573,9 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     // nunca del estado de React: así la reanudación no da saltos visuales.
     const resumeFromMs = audioEngine.getCurrentTimeMs();
     void consolidateStudioAudio();
-    audioEngine.play(resumeFromMs);
+    // El Estudio arranca DIRECTO (sin cuenta atrás de entrada a pista): el
+    // count-in hablado es exclusivo de la Pista 2D.
+    audioEngine.play(resumeFromMs, { countIn: false });
     setIsPlaying(true);
   };
 

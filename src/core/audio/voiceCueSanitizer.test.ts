@@ -108,4 +108,32 @@ assert(catalog.has('lunge'), 'El catálogo incluye Lunge (elemento artístico)')
 assert(!isKnownFigure('Nodo 3 (Papel)'), 'La etiqueta de la plantilla A4 no es una figura conocida');
 assert(!isKnownFigure('Salchow nota revisar'), 'Una figura con nota añadida se considera inválida');
 
+// ── 5. Modo MANUAL: la Voz Guía también lee figuras del usuario ──
+// Antes se descartaban por no pertenecer al catálogo, y por eso el aviso leía
+// solo "3, 2, 1" sin el nombre de la figura.
+assert(
+  sanitizeSpeechText('Mi Combo Especial') === null,
+  'Modo estricto (por defecto) sigue descartando texto fuera del catálogo'
+);
+assert(
+  sanitizeSpeechText('Mi Combo Especial', { allowManual: true }) === 'Mi Combo Especial',
+  'Modo manual vocaliza una figura escrita por el usuario'
+);
+assert(
+  sanitizeSpeechText('Salto', { allowManual: true }) === 'Salto',
+  'Modo manual vocaliza "Salto" (figura manual del usuario)'
+);
+assert(
+  sanitizeSpeechText('Nodo 3 (Papel)', { allowManual: true }) === null,
+  'Modo manual SIGUE descartando etiquetas estructurales de la plantilla'
+);
+assert(
+  sanitizeSpeechText('Pista_Musical.mp3', { allowManual: true }) === null,
+  'Modo manual SIGUE descartando metadatos de archivo'
+);
+assert(
+  sanitizeSpeechText('Step 3', { allowManual: true }) === null,
+  'Modo manual SIGUE descartando placeholders numerados'
+);
+
 console.log('\n✅ TODAS LAS PRUEBAS DEL FILTRO DE VOZ GUÍA PASARON\n');

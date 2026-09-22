@@ -209,6 +209,20 @@ export class VoiceCueEngine {
   private onPreRollTick: PreRollTickCallback | null = null;
   private onPreRollComplete: PreRollCompleteCallback | null = null;
 
+  /**
+   * Ticks de acento de los cues (los "beeps" cortos que acompañan a cada aviso).
+   *
+   * Cuando el metrónomo está sonando se DESACTIVAN desde `AudioEngine`: así
+   * NUNCA se escuchan dos fuentes rítmicas a la vez (el "doble metrónomo").
+   * Con el metrónomo apagado se mantienen como refuerzo sutil del aviso.
+   */
+  private cueTicksEnabled = true;
+
+  /** Activa/desactiva los beeps de acento de los cues (no afecta a la voz). */
+  public setCueTicksEnabled(enabled: boolean) {
+    this.cueTicksEnabled = enabled;
+  }
+
   constructor(config?: Partial<VoiceCueConfig>) {
     // ── Voz natural: endpoint propio o clave local del usuario ────
     // Clave local del usuario (solo auto-hospedaje). La credencial de la app
@@ -847,7 +861,9 @@ export class VoiceCueEngine {
     if (!this.ctx || !this.outputNode) return false;
 
     // Filtro de Voz Guía: nada llega al TTS sin pasar la whitelist.
-    const safeText = sanitizeSpeechText(cue.text);
+    // Se usa el modo MANUAL para que también se lean las figuras escritas a mano
+    // por el usuario (p. ej. "Salto"), manteniendo los rechazos de estructura.
+    const safeText = sanitizeSpeechText(cue.text, { allowManual: true });
     if (!safeText) return true; // No vocalizable: se da por resuelto.
 
     const tickFreq = cue.type === 'figure-arrival' ? 1000 : 650;
@@ -855,7 +871,7 @@ export class VoiceCueEngine {
     // ── Voz pre-renderizada: latencia cero y solapamiento nativo ──
     const buffer = this.prefetchedBuffers.get(cue.id);
     if (buffer) {
-      this.playTickTone(tickFreq, targetCtxTime);
+      if (this.cueTicksEnabled) this.playTickTone(tickFreq, targetCtxTime);
       try {
         const source = this.ctx.createBufferSource();
         source.buffer = buffer;
@@ -888,7 +904,7 @@ export class VoiceCueEngine {
     // margen, se devuelve `false` y se reintenta en el siguiente tick.
     const delaySec = targetCtxTime - this.ctx.currentTime;
     if (delaySec <= 0.3) {
-      this.playTickTone(tickFreq, targetCtxTime);
+      if (this.cueTicksEnabled) this.playTickTone(tickFreq, targetCtxTime);
       const delayMs = Math.max(0, Math.round(delaySec * 1000));
       globalThis.setTimeout(() => this.speakRaw(safeText), delayMs);
       return true;
@@ -909,10 +925,12 @@ export class VoiceCueEngine {
           this.triggeredCueIds.add(cue.id);
           this.scheduledCueIds.add(cue.id);
           this.speak(cue.text);
-          if (cue.type === 'figure-arrival') {
-            this.playTickTone(1000);
-          } else {
-            this.playTickTone(650);
+          if (this.cueTicksEnabled) {
+            if (cue.type === 'figure-arrival') {
+              this.playTickTone(1000);
+            } else {
+              this.playTickTone(650);
+            }
           }
         }
       }
@@ -1091,7 +1109,9 @@ export class VoiceCueEngine {
    * margen ni metadatos de audio.
    */
   public speak(text: string) {
-    const safeText = sanitizeSpeechText(text);
+    // Modo manual: se vocalizan las figuras del catálogo Y las escritas a mano
+    // por el usuario. Los filtros estructurales siguen activos.
+    const safeText = sanitizeSpeechText(text, { allowManual: true });
     if (!safeText) return;
     this.speakRaw(safeText);
   }

@@ -938,34 +938,19 @@ export class AudioEngine {
   }
 
   /**
-   * Inicia reproducción INMEDIATA (zero-latency).
+   * Inicia la reproducción.
    *
-   * El audio principal arranca en el mismo instante del toque: no se espera a
-   * ninguna promesa de síntesis de voz (TTS) ni a buffers externos. Las
-   * indicaciones de voz NO se lanzan aquí; se programan únicamente desde los
-   * nodos de la Pista 2D (`setNodes` → `voiceCueEngine.loadNodes`) y se agendan
-   * contra el reloj del timeline en `voiceCueEngine.startSync`, ya dentro de
-   * `executePlay`.
-   */
-  public play(offsetMs?: number) {
-    this.initAudioContext();
-    if (!this.ctx) return;
-
-    if (this.ctx.state === 'suspended') {
-      void this.ctx.resume();
-    }
-
-    const currentOffset = offsetMs !== undefined ? offsetMs : this.pausedAtTime;
-    this.executePlay(currentOffset);
-  }
-
-  /**
-   * Reproducción con cuenta atrás hablada global (opt-in).
+   * Si hay "Espera Pre-roll (entrada a pista)" configurada (>0 s) y arrancamos
+   * desde el inicio, se lee la INTRO hablada ("3, 2, 1, ¡Ya!") y, al terminar el
+   * conteo, suena la música. La cuenta atrás se lanza de forma SÍNCRONA: no
+   * espera a ninguna promesa de red (TTS) ni a buffers externos; el único retardo
+   * es el propio conteo configurado. Con pre-roll a 0, la música arranca de
+   * inmediato.
    *
-   * Se conserva para flujos que quieran el "3, 2, 1, ¡Ya!" previo al audio. El
-   * Play estándar (`play`) NO lo usa: arranca instantáneo.
+   * Las figuras se siguen agendando por nodos de la Pista 2D contra el reloj del
+   * timeline (`startSync`) dentro de `executePlay`.
    */
-  public playWithPreRoll(offsetMs?: number) {
+  public play(offsetMs?: number, options?: { countIn?: boolean }) {
     this.initAudioContext();
     if (!this.ctx) return;
 
@@ -975,34 +960,58 @@ export class AudioEngine {
 
     const currentOffset = offsetMs !== undefined ? offsetMs : this.pausedAtTime;
     const isAtStart = currentOffset < 100;
+    // El count-in (entrada a pista) es para la Pista 2D. El Estudio puede pedir
+    // arranque directo con `{ countIn: false }`.
+    const wantCountIn = options?.countIn !== false;
 
-    if (isAtStart && this.voiceCueEngine.getConfig().introDelaySec > 0 && !this.isPlaying && !this.isPreRollActive) {
-      this.isPreRollActive = true;
-      this.emitStateChange();
-
-      // Detener metrónomo previo para evitar colisiones rítmicas durante el conteo
-      this.metronome.stop();
-
-      this.voiceCueEngine.startPreRoll(
-        (remaining) => {
-          this.preRollCountdown = remaining;
-          // Emitir un click acentuado en cada segundo del conteo regresivo
-          if (this.ctx && remaining > 0) {
-            this.metronome.scheduleAccentClick(this.ctx.currentTime, true);
-          }
-          this.emitStateChange();
-        },
-        () => {
-          this.isPreRollActive = false;
-          this.preRollCountdown = 0;
-          this.executePlay(0);
-        },
-        1.0
-      );
+    if (
+      wantCountIn &&
+      isAtStart &&
+      this.voiceCueEngine.getConfig().introDelaySec > 0 &&
+      !this.isPlaying &&
+      !this.isPreRollActive
+    ) {
+      this.startPreRoll();
       return;
     }
 
     this.executePlay(currentOffset);
+  }
+
+  /** Alias histórico: reproduce con la cuenta atrás hablada configurada. */
+  public playWithPreRoll(offsetMs?: number) {
+    this.play(offsetMs);
+  }
+
+  /**
+   * Cuenta atrás de entrada a pista ("3, 2, 1, ¡Ya!").
+   * Se separa de `play` para mantener el arranque legible y reutilizable.
+   */
+  private startPreRoll() {
+    if (!this.ctx) return;
+
+    this.isPreRollActive = true;
+    this.emitStateChange();
+
+    // Detener el metrónomo durante el conteo: la intro manda y evita colisiones
+    // rítmicas (nada de dobles pulsos durante el "3, 2, 1").
+    this.metronome.stop();
+
+    this.voiceCueEngine.startPreRoll(
+      (remaining) => {
+        this.preRollCountdown = remaining;
+        // El click del conteo lo emite el propio motor de voz (`playTickTone`).
+        // NO se añade aquí otro acento del metrónomo: eso producía DOS clicks
+        // simultáneos por segundo (el "doble metrónomo" en móvil).
+        this.emitStateChange();
+      },
+      () => {
+        this.isPreRollActive = false;
+        this.preRollCountdown = 0;
+        this.executePlay(0);
+      },
+      1.0
+    );
   }
 
   private executePlay(offsetMs: number) {
@@ -1046,6 +1055,10 @@ export class AudioEngine {
 
     // Arrancar metrónomo y secuenciador vocal sincronizados al reloj absoluto de la música
     this.metronome.start(clampedOffsetSec, this.playbackRate);
+    // UNA SOLA FUENTE RÍTMICA: si el metrónomo va a sonar, se silencian los
+    // beeps de acento de los cues para que NUNCA se perciba un "doble metrónomo".
+    const metronomeAudible = this.metronome.getConfig().enabled && !this.metronomeMuted;
+    this.voiceCueEngine.setCueTicksEnabled(!metronomeAudible);
     this.voiceCueEngine.resetTriggeredCues(offsetMs);
     this.voiceCueEngine.startSync(this.startTime, this.playbackRate);
 
