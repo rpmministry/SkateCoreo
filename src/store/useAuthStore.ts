@@ -12,7 +12,25 @@ import { getDeviceId, getDeviceType, getDeviceName, DeviceType } from '../utils/
 
 export type UserRole = 'user' | 'tester' | 'club_admin' | 'superadmin';
 export type SubscriptionStatus = 'active' | 'inactive' | 'trial';
-export type SubscriptionPlan = 'individual' | 'club' | null;
+export type SubscriptionPlan = 'individual' | 'club' | 'beta_tester' | null;
+
+/** Registro de código promocional (solo administradores pueden consultarlo). */
+export interface PromoCodeRecord {
+  code: string;
+  campaign: string;
+  kind: string;
+  status: 'AVAILABLE' | 'REDEEMED' | 'EXPIRED' | 'DISABLED' | string;
+  duration_days: number;
+  max_uses: number;
+  used_count: number;
+  created_at: string;
+  used_at: string | null;
+  expires_at: string | null;
+  used_by: string | null;
+  used_by_email: string | null;
+  used_by_name: string | null;
+  used_by_access_expires_at: string | null;
+}
 
 export interface AuthUser {
   id: string;
@@ -50,6 +68,14 @@ export interface AuthStoreState {
   loginWithCredentials: (email: string, password: string) => Promise<{ success: boolean; message: string; expired?: boolean }>;
   registerWithPayment: (email: string, password: string, fullName: string, paypalOrderId: string) => Promise<{ success: boolean; message: string }>;
   registerWithCode: (email: string, password: string, fullName: string, code: string) => Promise<{ success: boolean; message: string }>;
+  /**
+   * Canje de código promocional de campaña (p. ej. BETA_TESTER · 30 días).
+   * La validación, el uso único y el cálculo de expiración ocurren en el backend
+   * (`redeem_promo_code`). El cliente solo envía los datos, nunca la duración.
+   */
+  redeemPromoCode: (email: string, password: string, fullName: string, code: string) => Promise<{ success: boolean; message: string; daysGranted?: number; accessExpiresAt?: string }>;
+  /** Listado de códigos/canjes de una campaña (solo superadmin). */
+  listPromoCodes: (campaign?: string) => Promise<{ success: boolean; message?: string; codes?: PromoCodeRecord[] }>;
   recoverPaymentLookup: (query: string) => Promise<{ found: boolean; error?: string; paypal_order_id?: string; payer_email?: string; payer_name?: string; amount?: number; currency?: string; created_at?: string }>;
 
   // Gestión de Dispositivos y Seguridad
@@ -189,12 +215,16 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
         const accessExpiry = isOwner
           ? new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000).toISOString()
           : data.user.access_expires_at;
+        // El plan lo decide el backend (individual | club | beta_tester).
+        const plan: SubscriptionPlan = isOwner
+          ? 'individual'
+          : ((data.user.subscription_plan as SubscriptionPlan) || 'individual');
 
         set({
           user: authenticatedUser,
           role,
           subscription_status: 'active',
-          subscription_plan: 'individual',
+          subscription_plan: plan,
           access_expires_at: accessExpiry,
           isLoading: false,
         });
@@ -205,7 +235,7 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
             user: authenticatedUser,
             role,
             subscription_status: 'active',
-            subscription_plan: 'individual',
+            subscription_plan: plan,
             access_expires_at: accessExpiry,
           })
         );
@@ -404,6 +434,123 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
   },
 
   /**
+   * Canje SEGURO de código promocional (campaña BETA_TESTER · 30 días).
+   *
+   * · La duración, el estado y la expiración los decide el BACKEND.
+   * · `FOR UPDATE` en el servidor impide el doble canje por concurrencia.
+   * · Si la cuenta ya existe se verifica la contraseña antes de ampliar.
+   * · La expiración se calcula desde la fecha real de activación.
+   */
+  redeemPromoCode: async (email: string, password: string, fullName: string, code: string) => {
+    const cleanEmail = email.toLowerCase().trim();
+    const cleanCode = code.toUpperCase().trim();
+
+    if (!cleanEmail || !password || !cleanCode) {
+      return { success: false, message: 'Por favor completa todos los campos requeridos.' };
+    }
+    if (password.length < 6) {
+      return { success: false, message: 'La contraseña debe tener al menos 6 caracteres.' };
+    }
+
+    set({ isLoading: true });
+
+    try {
+      const deviceId = getDeviceId();
+      const deviceType = getDeviceType();
+      const deviceName = getDeviceName();
+
+      if (isSupabaseConfigured && supabase) {
+        const { data, error } = await supabase.rpc('redeem_promo_code', {
+          p_code: cleanCode,
+          p_email: cleanEmail,
+          p_password: password,
+          p_full_name: fullName.trim(),
+          p_device_id: deviceId,
+          p_device_type: deviceType,
+          p_device_name: deviceName,
+        });
+
+        if (error) {
+          set({ isLoading: false });
+          return { success: false, message: error.message || 'Error al validar el código promocional.' };
+        }
+        if (!data || !data.success) {
+          set({ isLoading: false });
+          return { success: false, message: data?.error || 'Código inválido o ya utilizado.' };
+        }
+
+        const newUser: AuthUser = {
+          id: data.user.id,
+          email: data.user.email,
+          nombre: data.user.full_name,
+        };
+        const plan: SubscriptionPlan = (data.subscription_plan as SubscriptionPlan) || 'beta_tester';
+
+        set({
+          user: newUser,
+          role: (data.user.role as UserRole) || 'tester',
+          subscription_status: 'active',
+          subscription_plan: plan,
+          access_expires_at: data.access_expires_at,
+          isLoading: false,
+        });
+
+        localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({
+            user: newUser,
+            role: data.user.role || 'tester',
+            subscription_status: 'active',
+            subscription_plan: plan,
+            access_expires_at: data.access_expires_at,
+          })
+        );
+
+        get().fetchDevices().catch(() => {});
+
+        return {
+          success: true,
+          message: data.message || '¡Código Beta Tester activado!',
+          daysGranted: data.days_granted,
+          accessExpiresAt: data.access_expires_at,
+        };
+      }
+
+      // Fallback local (desarrollo sin Supabase).
+      set({ isLoading: false });
+      return { success: false, message: 'El canje de códigos requiere conexión con el servidor.' };
+    } catch (err: any) {
+      set({ isLoading: false });
+      return { success: false, message: err?.message || 'Error inesperado al canjear el código.' };
+    }
+  },
+
+  /**
+   * Listado de códigos/canjes de una campaña. Solo superadmin; el backend
+   * verifica el rol con el correo del administrador.
+   */
+  listPromoCodes: async (campaign?: string) => {
+    const user = get().user;
+    if (!user || !isSupabaseConfigured || !supabase) {
+      return { success: false, message: 'Debes iniciar sesión como administrador.' };
+    }
+
+    try {
+      const { data, error } = await supabase.rpc('admin_list_activation_codes', {
+        p_admin_email: user.email,
+        p_campaign: campaign ?? null,
+      });
+
+      if (error || !data?.success) {
+        return { success: false, message: data?.error || error?.message || 'No se pudieron consultar los códigos.' };
+      }
+      return { success: true, codes: (data.codes || []) as PromoCodeRecord[] };
+    } catch (e: any) {
+      return { success: false, message: e?.message || 'Error de conexión.' };
+    }
+  },
+
+  /**
    * Búsqueda de Pago Huérfano para Recuperación
    */
   recoverPaymentLookup: async (query: string) => {
@@ -530,7 +677,7 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
     try {
       const { data: dbUser } = await supabase
         .from('users')
-        .select('role, subscription_status, access_expires_at')
+        .select('role, subscription_status, subscription_plan, access_expires_at')
         .eq('id', user.id)
         .maybeSingle();
 
@@ -540,6 +687,7 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
         set({
           role: (dbUser.role as UserRole) || 'user',
           subscription_status: isActive ? 'active' : 'inactive',
+          subscription_plan: (dbUser.subscription_plan as SubscriptionPlan) || 'individual',
           access_expires_at: expiresAt,
         });
       }

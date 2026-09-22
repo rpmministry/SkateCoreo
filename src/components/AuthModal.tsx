@@ -36,6 +36,7 @@ export const AuthModal: React.FC = () => {
     loginWithCredentials, 
     registerWithPayment, 
     registerWithCode, 
+    redeemPromoCode,
     recoverPaymentLookup,
     isLoading 
   } = useAuthStore();
@@ -111,7 +112,12 @@ export const AuthModal: React.FC = () => {
     }
 
     setCodeLoading(true);
-    const res = await registerWithCode(codeEmail, codePassword, codeName, activationCode);
+    // Los códigos de campaña (SC-BETA-…) conceden 30 días y los valida el
+    // backend; el resto usa el registro de regalo anual existente.
+    const isBetaPromo = activationCode.trim().toUpperCase().startsWith('SC-BETA-');
+    const res = isBetaPromo
+      ? await redeemPromoCode(codeEmail, codePassword, codeName, activationCode)
+      : await registerWithCode(codeEmail, codePassword, codeName, activationCode);
     setCodeLoading(false);
 
     if (!res.success) {
@@ -437,7 +443,7 @@ export const AuthModal: React.FC = () => {
                     className="text-xs text-mint hover:underline font-bold transition-colors inline-flex items-center gap-1.5 py-1"
                   >
                     <Ticket className="w-3.5 h-3.5 text-mint" />
-                    <span>¿Tienes un código de regalo / tester? Actívalo aquí</span>
+                    <span>¿Tienes un código de regalo / Beta Tester? Actívalo aquí</span>
                   </button>
                 </div>
               ) : (
@@ -500,9 +506,13 @@ export const AuthModal: React.FC = () => {
                     required
                     value={activationCode}
                     onChange={(e) => setActivationCode(e.target.value.toUpperCase())}
-                    placeholder="CÓDIGO (Ej: SKATE-2026-XXXX)"
+                    placeholder="SC-BETA-XXXX-XXXX-XXXX"
                     className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-mint/40 text-xs font-mono font-bold tracking-wider uppercase text-mint placeholder:text-slate-600 focus:outline-none focus:border-mint"
                   />
+                  <p className="text-[10px] text-slate-500 leading-snug">
+                    Código Beta Tester: activa 30 días de acceso gratuito (un solo uso).
+                    Si tu correo ya existe, se verificará tu contraseña y se ampliará tu acceso.
+                  </p>
 
                   {codeFeedback && (
                     <div className="p-2 rounded-lg text-[11px] font-medium bg-coral/15 text-coral border border-coral/30">
