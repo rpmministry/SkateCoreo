@@ -384,6 +384,6 @@ VALUES
   ('SC-BETA-5RHX-VADY-EFPV', 'BETA_TESTER', 'GIFT', 30, 1, 0, 'AVAILABLE', 'beta_tester', 'BETA_TESTER · acceso 30 días', NOW() + INTERVAL '30 days')
 ON CONFLICT (code) DO NOTHING;
 
--- 8. Refrescar la cach� de esquema de PostgREST (evita 404 al llamar al RPC
---    reci�n creado hasta que Supabase recarga el esquema).
+-- 8. Refrescar la caché de esquema de PostgREST (evita 404 al llamar al RPC
+--    recién creado hasta que Supabase recarga el esquema).
 NOTIFY pgrst, 'reload schema';
