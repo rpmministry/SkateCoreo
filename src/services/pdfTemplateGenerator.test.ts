@@ -171,10 +171,15 @@ assert(
   'El bloque de instrucciones arranca con holgura bajo los fiduciales inferiores'
 );
 
-/* ── 7. Crédito de desarrollo preservado ────────────────────────── */
+/* ── 7. Crédito de desarrollo unificado con la interfaz ─────────── */
 assert(
-  PDF_TEXTS.credit.includes('Mauricio Andrade Luna'),
-  `El crédito de desarrollo está presente ("${PDF_TEXTS.credit}")`
+  PDF_TEXTS.credit.includes('AlsisTech') &&
+    PDF_TEXTS.credit.includes('Avril Andrade Sanchez'),
+  `El crédito de desarrollo está presente y unificado ("${PDF_TEXTS.credit}")`
+);
+assert(
+  PDF_TEXTS.credit.length <= 90,
+  `El crédito cabe en una sola línea centrada del pie (${PDF_TEXTS.credit.length} caracteres)`
 );
 assert(
   PDF_LAYOUT.instructions.creditBaseline < 210 - 4,

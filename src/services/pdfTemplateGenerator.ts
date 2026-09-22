@@ -102,7 +102,7 @@ export const PDF_TEXTS = {
     '1) Trace las trayectorias sobre la pista con tinta oscura.   2) Numere los nodos en secuencia (1, 2, 3…).   3) Fotografíe la hoja completa y bien iluminada.',
     '4) En SkateCoreo pulse «Digitalizar Papel» y suba la foto: la perspectiva se corrige sola. Mantenga las 4 marcas de esquina visibles y la hoja sin doblar.',
   ],
-  credit: 'Desarrollado por Mauricio Andrade Luna · SkateCoreo',
+  credit: 'Desarrollado por AlsisTech | Asesoría Técnica: Avril Andrade Sanchez',
 } as const;
 
 /** Color de tinta de los campos manuales: negro puro, contraste máximo. */
