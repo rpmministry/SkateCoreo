@@ -11,12 +11,134 @@
  * - Retorna un AudioBuffer único listo para ser inyectado en el reproductor de la Pista 2D.
  */
 
-import { AudioStudioTrack, StudioMetronomeConfig } from '../../types/audioStudio';
+import { AudioStudioTrack, AudioClip, StudioMetronomeConfig } from '../../types/audioStudio';
 
 export interface StudioMixdownResult {
   buffer: AudioBuffer;
   durationSec: number;
   sampleRate: number;
+}
+
+/**
+ * Ubicación temporal exacta de un clip ("when", "offset" y "duration").
+ * Equivale a los tres argumentos de `AudioBufferSourceNode.start(when, offset, duration)`.
+ */
+export interface ClipTiming {
+  /** Instante de la línea de tiempo global en el que arranca el clip (segundos). */
+  when: number;
+  /** Punto de lectura dentro del buffer original (segundos). */
+  offset: number;
+  /** Longitud exacta del fragmento (segundos). */
+  duration: number;
+}
+
+/**
+ * Calcula `when` / `offset` / `duration` de un clip respetando SIEMPRE sus
+ * puntos de corte, su posición en la línea de tiempo y los límites del buffer.
+ *
+ * Devuelve `null` si el clip es degenerado (sin duración, fuera del timeline o
+ * completamente fuera del buffer), para que el agendador no cree nodos inútiles.
+ */
+export function computeClipTiming(
+  clip: AudioClip,
+  timelineDurationSec: number,
+  bufferDurationSec: number
+): ClipTiming | null {
+  const trimStart = Math.max(0, clip.trimStartSec);
+  const trimEnd = Math.max(trimStart, clip.trimEndSec);
+  const clipDuration = trimEnd - trimStart;
+  if (!(clipDuration > 0)) return null;
+
+  const when = Math.max(0, clip.startOffsetSec);
+  if (when >= timelineDurationSec) return null;
+
+  const offset = Math.min(trimStart, Math.max(0, bufferDurationSec));
+  const duration = Math.min(
+    clipDuration,
+    timelineDurationSec - when,
+    bufferDurationSec - offset
+  );
+  if (!(duration > 0)) return null;
+
+  return { when, offset, duration };
+}
+
+/** Ubicación de un clip en FRAMES, usada por el bounce PCM (Float32Array.set). */
+export interface ClipPlacement {
+  /** Frame de destino en la línea de tiempo ( = `when` × sampleRate ). */
+  startFrame: number;
+  /** Frame de origen dentro del buffer del clip ( = `offset` × srcSampleRate ). */
+  srcStartFrame: number;
+  /** Número de frames a copiar ( = `duration` × sampleRate ). */
+  frameCount: number;
+}
+
+/**
+ * Versión en frames de `computeClipTiming`, para la consolidación PCM.
+ * `srcLength` permite acotar la lectura al final real del buffer de origen.
+ */
+export function computeClipPlacement(
+  clip: AudioClip,
+  sampleRate: number,
+  totalFrames: number,
+  srcSampleRate: number = sampleRate,
+  srcLength?: number
+): ClipPlacement | null {
+  const trimStart = Math.max(0, clip.trimStartSec);
+  const trimEnd = Math.max(trimStart, clip.trimEndSec);
+  const clipDuration = trimEnd - trimStart;
+  if (!(clipDuration > 0)) return null;
+
+  const startFrame = Math.max(0, Math.round(clip.startOffsetSec * sampleRate));
+  if (startFrame >= totalFrames) return null;
+
+  const srcStartFrame = Math.max(0, Math.round(trimStart * srcSampleRate));
+  const maxBySource = srcLength !== undefined
+    ? Math.max(0, Math.floor(srcLength - srcStartFrame))
+    : Number.POSITIVE_INFINITY;
+
+  const frameCount = Math.min(
+    Math.round(clipDuration * sampleRate),
+    totalFrames - startFrame,
+    maxBySource
+  );
+  if (frameCount <= 0) return null;
+
+  return { startFrame, srcStartFrame, frameCount };
+}
+
+/**
+ * Caché de un AudioContext "scratch" por sample rate.
+ *
+ * `bounceStudioClipsToBuffer` necesita un contexto SOLO para crear el AudioBuffer
+ * de salida. Crear uno nuevo en cada consolidación agotaba el límite de
+ * AudioContexts del navegador (~6) y lanzaba "Too many AudioContexts". Se reutiliza
+ * uno por sample rate (habitualmente uno solo) y nunca se cierra.
+ */
+const scratchContexts = new Map<number, AudioContext>();
+
+function getScratchAudioContext(sampleRate: number): AudioContext | null {
+  const cached = scratchContexts.get(sampleRate);
+  if (cached && cached.state !== 'closed') return cached;
+
+  const CtxClass = typeof window !== 'undefined'
+    ? (window.AudioContext || (window as any).webkitAudioContext)
+    : (globalThis as any).AudioContext;
+  if (!CtxClass) return null;
+
+  try {
+    const ctx = new CtxClass({ sampleRate }) as AudioContext;
+    scratchContexts.set(sampleRate, ctx);
+    return ctx;
+  } catch {
+    try {
+      const ctx = new CtxClass() as AudioContext;
+      scratchContexts.set(sampleRate, ctx);
+      return ctx;
+    } catch {
+      return null;
+    }
+  }
 }
 
 /**
@@ -41,9 +163,12 @@ export function bounceStudioClipsToBuffer(
     return !t.muted && t.volume > 0;
   });
 
-  const hasAnyClips = activeTracks.some(
-    (t) => (t.clips && t.clips.length > 0) || (t.buffer && t.buffer.length > 0)
-  );
+  // Los CLIPS son la única fuente de verdad del arreglo. `track.buffer` es solo
+  // el material original de origen y NUNCA se reproduce por sí mismo: si una
+  // pista se quedó sin clips (todos movidos/borrados), queda en SILENCIO. El
+  // fallback anterior al buffer completo provocaba que sonara la pista entera
+  // subyacente en lugar del fragmento recortado.
+  const hasAnyClips = activeTracks.some((t) => t.clips && t.clips.length > 0);
   if (!hasAnyClips) return null;
 
   let sampleRate = targetSampleRate || 44100;
@@ -61,23 +186,10 @@ export function bounceStudioClipsToBuffer(
 
   let maxEndTime = Math.max(5, totalDurationSec);
   activeTracks.forEach((track) => {
-    const clips = (track.clips && track.clips.length > 0)
-      ? track.clips
-      : track.buffer
-        ? [{
-            id: 'legacy',
-            name: track.name,
-            buffer: track.buffer,
-            startOffsetSec: 0,
-            trimStartSec: track.trimStartSec || 0,
-            trimEndSec: track.trimEndSec || track.buffer.duration,
-            fadeInSec: track.fadeInSec || 0,
-            fadeOutSec: track.fadeOutSec || 0,
-          }]
-        : [];
-
-    clips.forEach((clip) => {
-      const clipDur = Math.max(0.01, clip.trimEndSec - clip.trimStartSec);
+    // Solo se consideran los clips reales (nunca el buffer de origen completo).
+    (track.clips || []).forEach((clip) => {
+      if (!clip.buffer) return;
+      const clipDur = Math.max(0, clip.trimEndSec - clip.trimStartSec);
       const clipEnd = clip.startOffsetSec + clipDur;
       if (clipEnd > maxEndTime) maxEndTime = clipEnd;
     });
@@ -86,23 +198,12 @@ export function bounceStudioClipsToBuffer(
   const durationSec = Math.ceil(maxEndTime * 10) / 10;
   const totalFrames = Math.max(1, Math.floor(durationSec * sampleRate));
 
+  // Contexto scratch reutilizado (evita agotar el límite de AudioContexts y
+  // fugas de memoria al consolidar repetidamente).
   let outBuffer: AudioBuffer;
-  const AudioCtxClass = typeof window !== 'undefined'
-    ? (window.AudioContext || (window as any).webkitAudioContext)
-    : (globalThis as any).AudioContext || (globalThis as any).OfflineAudioContext;
-
-  if (AudioCtxClass) {
-    try {
-      const tempCtx = new AudioCtxClass({ sampleRate });
-      outBuffer = tempCtx.createBuffer(2, totalFrames, sampleRate);
-    } catch {
-      try {
-        const tempCtx2 = new (globalThis as any).AudioContext();
-        outBuffer = tempCtx2.createBuffer(2, totalFrames, sampleRate);
-      } catch {
-        outBuffer = new (globalThis as any).AudioBuffer({ length: totalFrames, numberOfChannels: 2, sampleRate });
-      }
-    }
+  const scratch = getScratchAudioContext(sampleRate);
+  if (scratch) {
+    outBuffer = scratch.createBuffer(2, totalFrames, sampleRate);
   } else {
     outBuffer = new (globalThis as any).AudioBuffer({ length: totalFrames, numberOfChannels: 2, sampleRate });
   }
@@ -116,21 +217,7 @@ export function bounceStudioClipsToBuffer(
         pista Master única: el split se resuelve en <1ms sin bloquear el hilo. ── */
   if (activeTracks.length === 1) {
     const onlyTrack = activeTracks[0];
-    const onlyClips = (onlyTrack.clips && onlyTrack.clips.length > 0)
-      ? onlyTrack.clips
-      : onlyTrack.buffer
-        ? [{
-            id: 'legacy',
-            name: onlyTrack.name,
-            buffer: onlyTrack.buffer,
-            startOffsetSec: 0,
-            trimStartSec: onlyTrack.trimStartSec || 0,
-            trimEndSec: onlyTrack.trimEndSec || onlyTrack.buffer.duration,
-            fadeInSec: onlyTrack.fadeInSec || 0,
-            fadeOutSec: onlyTrack.fadeOutSec || 0,
-          }]
-        : [];
-
+    const onlyClips = onlyTrack.clips || [];
     const onlyClip = onlyClips[0];
     const unityGain = Math.abs(Math.max(0, Math.min(1, onlyTrack.volume)) - 1) < 1e-6;
     const noFades = !onlyClip?.fadeInSec && !onlyClip?.fadeOutSec;
@@ -144,16 +231,17 @@ export function bounceStudioClipsToBuffer(
     ) {
       const srcL = onlyClip.buffer.getChannelData(0);
       const srcR = onlyClip.buffer.numberOfChannels > 1 ? onlyClip.buffer.getChannelData(1) : srcL;
-      const destStart = Math.max(0, Math.round(onlyClip.startOffsetSec * sampleRate));
-      const srcStart = Math.max(0, Math.round(onlyClip.trimStartSec * sampleRate));
-      const frames = Math.min(
-        Math.round(Math.max(0.01, onlyClip.trimEndSec - onlyClip.trimStartSec) * sampleRate),
-        totalFrames - destStart,
-        srcL.length - srcStart
+      const placement = computeClipPlacement(
+        onlyClip,
+        sampleRate,
+        totalFrames,
+        sampleRate,
+        srcL.length
       );
-      if (frames > 0) {
-        outL.set(srcL.subarray(srcStart, srcStart + frames), destStart);
-        outR.set(srcR.subarray(srcStart, srcStart + frames), destStart);
+      if (placement) {
+        const { startFrame, srcStartFrame, frameCount } = placement;
+        outL.set(srcL.subarray(srcStartFrame, srcStartFrame + frameCount), startFrame);
+        outR.set(srcR.subarray(srcStartFrame, srcStartFrame + frameCount), startFrame);
       }
       return outBuffer;
     }
@@ -161,20 +249,7 @@ export function bounceStudioClipsToBuffer(
 
   activeTracks.forEach((track) => {
     const trackGain = Math.max(0, Math.min(1, track.volume));
-    const clips = (track.clips && track.clips.length > 0)
-      ? track.clips
-      : track.buffer
-        ? [{
-            id: 'legacy',
-            name: track.name,
-            buffer: track.buffer,
-            startOffsetSec: 0,
-            trimStartSec: track.trimStartSec || 0,
-            trimEndSec: track.trimEndSec || track.buffer.duration,
-            fadeInSec: track.fadeInSec || 0,
-            fadeOutSec: track.fadeOutSec || 0,
-          }]
-        : [];
+    const clips = track.clips || [];
 
     clips.forEach((clip) => {
       if (!clip.buffer) return;
@@ -182,13 +257,19 @@ export function bounceStudioClipsToBuffer(
       const srcR = clip.buffer.numberOfChannels > 1 ? clip.buffer.getChannelData(1) : srcL;
       const srcSampleRate = clip.buffer.sampleRate;
 
-      const clipDur = Math.max(0.01, clip.trimEndSec - clip.trimStartSec);
-      const startFrame = Math.max(0, Math.round(clip.startOffsetSec * sampleRate));
-      const trimStartFrame = Math.max(0, Math.round(clip.trimStartSec * srcSampleRate));
-      const frameCount = Math.min(
-        Math.round(clipDur * sampleRate),
-        totalFrames - startFrame
+      // "when" / "offset" / "duration" del clip, acotados a la línea de tiempo y
+      // al buffer de origen. Sin esto se copiaba audio fuera de los cortes.
+      const placement = computeClipPlacement(
+        clip,
+        sampleRate,
+        totalFrames,
+        srcSampleRate,
+        srcL.length
       );
+      if (!placement) return;
+
+      const { startFrame, srcStartFrame: trimStartFrame, frameCount } = placement;
+      const clipDur = clip.trimEndSec - clip.trimStartSec;
 
       const fadeInFrames = Math.round(Math.min((clip.fadeInSec || 0), clipDur * 0.5) * sampleRate);
       const fadeOutFrames = Math.round(Math.min((clip.fadeOutSec || 0), clipDur * 0.5) * sampleRate);
@@ -289,26 +370,13 @@ export async function renderStudioMixdown(
     }
   }
 
-  // 3. Calcular la duración máxima real considerando todos los clips
+  // 3. Calcular la duración máxima real considerando SOLO los clips del arreglo
+  // (el buffer de origen nunca se reproduce por sí mismo).
   let maxEndTime = Math.max(5, totalDurationSec);
   activeTracks.forEach((track) => {
-    const clips = track.clips && track.clips.length > 0
-      ? track.clips
-      : track.buffer
-        ? [{
-            id: 'legacy-clip',
-            name: track.name,
-            buffer: track.buffer,
-            startOffsetSec: 0,
-            trimStartSec: track.trimStartSec || 0,
-            trimEndSec: track.trimEndSec || track.buffer.duration,
-            fadeInSec: track.fadeInSec || 0,
-            fadeOutSec: track.fadeOutSec || 0,
-          }]
-        : [];
-
-    clips.forEach((clip) => {
-      const clipDuration = Math.max(0.1, clip.trimEndSec - clip.trimStartSec);
+    (track.clips || []).forEach((clip) => {
+      if (!clip.buffer) return;
+      const clipDuration = Math.max(0, clip.trimEndSec - clip.trimStartSec);
       const clipEnd = clip.startOffsetSec + clipDuration;
       if (clipEnd > maxEndTime) {
         maxEndTime = clipEnd;
@@ -323,36 +391,25 @@ export async function renderStudioMixdown(
   // 4. Instanciar OfflineAudioContext
   const offlineCtx = new OfflineAudioContext(numberOfChannels, totalFrames, sampleRate);
 
-  // 5. Renderizar cada pista activa
+  // 5. Renderizar cada pista activa (agendador de clips)
   activeTracks.forEach((track) => {
     const trackGain = offlineCtx.createGain();
     trackGain.gain.value = Math.max(0, Math.min(1, track.volume));
     trackGain.connect(offlineCtx.destination);
 
-    // Obtener los clips de la pista o fallback al buffer directo
-    const clips = track.clips && track.clips.length > 0
-      ? track.clips
-      : track.buffer
-        ? [{
-            id: `legacy-${track.id}`,
-            name: track.name,
-            buffer: track.buffer,
-            startOffsetSec: 0,
-            trimStartSec: track.trimStartSec || 0,
-            trimEndSec: track.trimEndSec || track.buffer.duration,
-            fadeInSec: track.fadeInSec || 0,
-            fadeOutSec: track.fadeOutSec || 0,
-          }]
-        : [];
+    // Solo los clips reales del arreglo; nunca el buffer completo de la pista.
+    const clips = track.clips || [];
 
     clips.forEach((clip) => {
       if (!clip.buffer) return;
 
-      const clipDuration = Math.max(0.05, clip.trimEndSec - clip.trimStartSec);
-      const startTimeline = Math.max(0, clip.startOffsetSec);
+      // `when` / `offset` / `duration` exactos del fragmento recortado.
+      // Se acotan al timeline y al propio buffer: el audio fuera de los cortes
+      // no llega nunca a la salida maestra.
+      const timing = computeClipTiming(clip, durationSec, clip.buffer.duration);
+      if (!timing) return;
 
-      // Si el clip cae completamente fuera de la duración programada, saltar
-      if (startTimeline >= durationSec) return;
+      const { when, offset, duration: effectiveDuration } = timing;
 
       const source = offlineCtx.createBufferSource();
       source.buffer = clip.buffer;
@@ -360,28 +417,37 @@ export async function renderStudioMixdown(
       const clipGain = offlineCtx.createGain();
 
       // Envolvente de Fade In y Fade Out
-      const effectiveDuration = Math.min(clipDuration, durationSec - startTimeline);
       const fadeIn = Math.min(clip.fadeInSec || 0, effectiveDuration / 2);
       const fadeOut = Math.min(clip.fadeOutSec || 0, effectiveDuration / 2);
 
       if (fadeIn > 0) {
-        clipGain.gain.setValueAtTime(0.0001, startTimeline);
-        clipGain.gain.linearRampToValueAtTime(1.0, startTimeline + fadeIn);
+        clipGain.gain.setValueAtTime(0.0001, when);
+        clipGain.gain.linearRampToValueAtTime(1.0, when + fadeIn);
       } else {
-        clipGain.gain.setValueAtTime(1.0, startTimeline);
+        clipGain.gain.setValueAtTime(1.0, when);
       }
 
       if (fadeOut > 0) {
-        const fadeOutStart = startTimeline + effectiveDuration - fadeOut;
-        clipGain.gain.setValueAtTime(1.0, Math.max(startTimeline + fadeIn, fadeOutStart));
-        clipGain.gain.linearRampToValueAtTime(0.0001, startTimeline + effectiveDuration);
+        const fadeOutStart = when + effectiveDuration - fadeOut;
+        clipGain.gain.setValueAtTime(1.0, Math.max(when + fadeIn, fadeOutStart));
+        clipGain.gain.linearRampToValueAtTime(0.0001, when + effectiveDuration);
       }
 
       source.connect(clipGain);
       clipGain.connect(trackGain);
 
-      const offsetInBuffer = Math.max(0, clip.trimStartSec);
-      source.start(startTimeline, offsetInBuffer, effectiveDuration);
+      // Arranque con recorte + parada ESTRICTA al terminar el segmento: el nodo
+      // no puede seguir sonando más allá de los límites del clip.
+      source.start(when, offset, effectiveDuration);
+      source.stop(when + effectiveDuration);
+      source.onended = () => {
+        try {
+          source.disconnect();
+          clipGain.disconnect();
+        } catch {
+          /* El contexto offline ya puede estar recogido. */
+        }
+      };
     });
   });
 

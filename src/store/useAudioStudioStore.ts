@@ -1468,10 +1468,19 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
     const state = get();
     const nodes = state.audioNodes;
 
-    // 1. Si hay audio en el estudio, sincronizar con AudioEngine
-    const musicTrack = state.tracks.music;
-    if (musicTrack.buffer) {
-      audioEngine.setAudioBuffer(musicTrack.buffer, musicTrack.fileName || 'mezcla_estudio.wav');
+    // 1. Enviar a la Pista 2D la MEZCLA consolidada (respetando cortes, offsets,
+    //    fades y mutes), NO el buffer original de la pista Master: enviar
+    //    `musicTrack.buffer` reproducía el archivo completo ignorando los clips.
+    const arrangementTracks = [state.tracks.music, ...state.additionalTracks];
+    const mixed = bounceStudioClipsToBuffer(arrangementTracks, state.totalDurationSec);
+    if (mixed) {
+      audioEngine.setAudioBuffer(mixed, 'mezcla_estudio.wav');
+    } else if (state.tracks.music.buffer) {
+      // Fallback: pista master cargada sin clips (estado heredado).
+      audioEngine.setAudioBuffer(
+        state.tracks.music.buffer,
+        state.tracks.music.fileName || 'mezcla_estudio.wav'
+      );
     }
 
     // 2. Enviar nodos a la bandeja lateral de la Pista 2D

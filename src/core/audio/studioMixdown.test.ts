@@ -17,25 +17,28 @@ class MockAudioBuffer {
   length: number;
   sampleRate: number;
   numberOfChannels: number;
-  private data: Float32Array;
+  private channels: Float32Array[];
 
   constructor(options: { length: number; numberOfChannels: number; sampleRate: number }) {
     this.length = options.length;
     this.numberOfChannels = options.numberOfChannels;
     this.sampleRate = options.sampleRate;
     this.duration = options.length / options.sampleRate;
-    this.data = new Float32Array(options.length);
+    this.channels = Array.from({ length: options.numberOfChannels }, () => new Float32Array(options.length));
   }
 
-  getChannelData(_channel: number) {
-    return this.data;
+  getChannelData(channel: number) {
+    return this.channels[channel] ?? this.channels[0];
   }
 }
 
 class MockAudioBufferSourceNode {
   buffer: any = null;
+  onended: (() => void) | null = null;
   connect(_node: any) {}
+  disconnect() {}
   start(_when?: number, _offset?: number, _duration?: number) {}
+  stop(_when?: number) {}
 }
 
 class MockGainNode {
@@ -45,6 +48,7 @@ class MockGainNode {
     linearRampToValueAtTime(_val: number, _time: number) {},
   };
   connect(_node: any) {}
+  disconnect() {}
 }
 
 class MockOfflineAudioContext {
@@ -273,6 +277,118 @@ async function runMixdownTest() {
   const snap4 = useAudioStudioStore.getState().calculateSnapOffset('music', 'clip-new', 4.5, 2.0, 0.5);
   assert(snap4.snappedSec === 4.5, `Con snapEnabled desactivado: 4.5s permanece en 4.5s, obtenido: ${snap4.snappedSec}s`);
   useAudioStudioStore.getState().setSnapEnabled(true);
+
+  // ── Test 6: Los cortes (trim) se respetan y no se reproduce el buffer completo ──
+  const makeFilledBuffer = (seconds: number, value: number): AudioBuffer => {
+    const b = new MockAudioBuffer({
+      numberOfChannels: 2,
+      length: Math.round(44100 * seconds),
+      sampleRate: 44100,
+    });
+    b.getChannelData(0).fill(value);
+    return b as unknown as AudioBuffer;
+  };
+
+  const srcFull = makeFilledBuffer(10, 0.5);
+  const trimmedTrack: AudioStudioTrack = {
+    id: 'music',
+    name: 'Master',
+    type: 'music',
+    buffer: srcFull,
+    volume: 1.0,
+    muted: false,
+    solo: false,
+    color: '#00F0FF',
+    trimStartSec: 0,
+    trimEndSec: 10,
+    fadeInSec: 0,
+    fadeOutSec: 0,
+    clips: [
+      {
+        id: 'clip-cortado',
+        name: 'Fragmento',
+        buffer: srcFull,
+        startOffsetSec: 1.0, // suena a partir del segundo 1 del timeline
+        trimStartSec: 2.0,   // ...leyendo desde el segundo 2 del archivo
+        trimEndSec: 4.0,     // ...hasta el segundo 4 (2s de fragmento)
+        fadeInSec: 0,
+        fadeOutSec: 0,
+      },
+    ],
+  };
+
+  const trimmedMix = bounceStudioClipsToBuffer([trimmedTrack], 5.0);
+  assert(trimmedMix !== null, 'bounce respeta un clip recortado');
+  const trimmedData = trimmedMix!.getChannelData(0);
+  const atSec = (sec: number) => trimmedData[Math.round(sec * 44100)];
+  assert(atSec(0.5) === 0, 'Antes del clip NO suena nada (no se reproduce la pista completa)');
+  assert(Math.abs(atSec(1.5) - 0.5) < 1e-4, 'Dentro del clip suena el fragmento recortado en su offset');
+  assert(atSec(3.5) === 0, 'Después del clip NO hay audio sobrante');
+
+  // ── Test 7: Una pista sin clips (todo movido/borrado) queda en SILENCIO ──
+  const emptiedTrack: AudioStudioTrack = { ...trimmedTrack, clips: [] };
+  assert(
+    bounceStudioClipsToBuffer([emptiedTrack], 5.0) === null,
+    'Pista con buffer pero sin clips no reproduce el buffer completo (queda muda)'
+  );
+
+  // ── Test 8: Clips secuenciales contiguos sin solapamiento ──
+  const seqA = makeFilledBuffer(3, 0.25);
+  const seqB = makeFilledBuffer(4, 0.5);
+  const sequentialTrack: AudioStudioTrack = {
+    id: 'music',
+    name: 'Master',
+    type: 'music',
+    buffer: seqA,
+    volume: 1.0,
+    muted: false,
+    solo: false,
+    color: '#00F0FF',
+    trimStartSec: 0,
+    trimEndSec: 7,
+    fadeInSec: 0,
+    fadeOutSec: 0,
+    clips: [
+      { id: 'seq-a', name: 'A', buffer: seqA, startOffsetSec: 0, trimStartSec: 0, trimEndSec: 3, fadeInSec: 0, fadeOutSec: 0 },
+      { id: 'seq-b', name: 'B', buffer: seqB, startOffsetSec: 3, trimStartSec: 0, trimEndSec: 4, fadeInSec: 0, fadeOutSec: 0 },
+    ],
+  };
+  const seqMix = bounceStudioClipsToBuffer([sequentialTrack], 7.0);
+  assert(seqMix !== null, 'bounce une clips secuenciales');
+  assert(Math.abs(seqMix!.duration - 7.0) < 0.01, 'La unión secuencial da una duración exacta de 7.0s');
+  const seqData = seqMix!.getChannelData(0);
+  assert(Math.abs(seqData[Math.round(1.5 * 44100)] - 0.25) < 1e-4, 'El clip A suena solo en su tramo 0-3s');
+  assert(Math.abs(seqData[Math.round(5.0 * 44100)] - 0.5) < 1e-4, 'El clip B suena contiguo en su tramo 3-7s');
+  assert(seqData[Math.round(6.9 * 44100)] === 0.5, 'No hay solapamiento de audio fuera de los clips');
+
+  // ── Test 9: computeClipTiming acota offset/duration a los límites del buffer ──
+  const { computeClipTiming } = await import('./studioMixdown');
+  const outOfBounds = computeClipTiming(
+    {
+      id: 'oob',
+      name: 'oob',
+      buffer: srcFull,
+      startOffsetSec: 0,
+      trimStartSec: 9.5,
+      trimEndSec: 20, // más allá del buffer de 10s
+      fadeInSec: 0,
+      fadeOutSec: 0,
+    },
+    30,
+    10
+  );
+  assert(
+    outOfBounds !== null && Math.abs(outOfBounds.duration - 0.5) < 1e-6,
+    'computeClipTiming recorta la duración al final real del buffer (0.5s)'
+  );
+  assert(
+    computeClipTiming(
+      { id: 'x', name: 'x', buffer: srcFull, startOffsetSec: 99, trimStartSec: 0, trimEndSec: 1, fadeInSec: 0, fadeOutSec: 0 },
+      10,
+      10
+    ) === null,
+    'computeClipTiming descarta clips fuera del timeline'
+  );
 }
 
 runMixdownTest().then(() => {
