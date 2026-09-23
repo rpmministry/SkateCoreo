@@ -128,6 +128,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
                 snapEnabled ? 'text-cyan bg-cyan/15' : 'text-slate-500 hover:text-slate-300'
               }`}
               title={snapEnabled ? 'Snap a la cuadrícula: Activado' : 'Snap desactivado'}
+              aria-label={snapEnabled ? 'Desactivar ajuste a la cuadrícula' : 'Activar ajuste a la cuadrícula'}
             >
               <Magnet className="w-4 h-4" />
             </button>
@@ -146,6 +147,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
                 : 'text-slate-400 hover:text-white'
             }`}
             title="Vista de Arreglos"
+            aria-label="Vista de Arreglos"
           >
             <Layers className="w-4 h-4" />
           </button>
@@ -160,6 +162,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
                 : 'text-slate-400 hover:text-white'
             }`}
             title="Notas del Programa y Coreografía"
+            aria-label="Notas del Programa y Coreografía"
           >
             <FileText className="w-4 h-4" />
           </button>
@@ -174,6 +177,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
                 : 'text-slate-400 hover:text-white'
             }`}
             title="Configuración de Tempo & Guías"
+            aria-label="Configuración de Tempo y Guías"
           >
             <Settings className="w-4 h-4" />
           </button>
@@ -243,6 +247,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
                 type="button"
                 onClick={() => setShowSettingsModal(false)}
                 className="text-slate-400 hover:text-white p-1"
+                aria-label="Cerrar ajustes del estudio"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -380,6 +385,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
                 type="button"
                 onClick={() => setShowNotesModal(false)}
                 className="text-slate-400 hover:text-white p-1"
+                aria-label="Cerrar notas de coreografía"
               >
                 <X className="w-4 h-4" />
               </button>

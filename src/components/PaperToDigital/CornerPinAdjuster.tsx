@@ -44,6 +44,10 @@ export const CornerPinAdjuster: React.FC<CornerPinAdjusterProps> = ({
     const rect = container.getBoundingClientRect();
     const w = rect.width;
     const h = rect.height;
+    // Sin medidas válidas (p. ej. columna colapsada en landscape) no se dibuja:
+    // evita escalas Infinity/NaN que romperían el canvas.
+    if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return;
+    if (naturalSize.w <= 0 || naturalSize.h <= 0) return;
 
     const dpr = window.devicePixelRatio || 1;
     if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
@@ -169,48 +173,69 @@ export const CornerPinAdjuster: React.FC<CornerPinAdjusterProps> = ({
       if (!magCanvas || !imgElement) return;
       const ctx = magCanvas.getContext('2d');
       if (!ctx) return;
+      // Anti-crash: drawImage lanza si recibe NaN/Infinity o un crop degenerado.
+      if (!Number.isFinite(pinNaturalX) || !Number.isFinite(pinNaturalY)) return;
 
-      const size = 120;
-      const zoom = 2.5;
+      try {
+        const size = 120;
+        const zoom = 2.5;
 
-      ctx.clearRect(0, 0, size, size);
+        ctx.clearRect(0, 0, size, size);
 
-      // Dibujar porción ampliada de la imagen natural
-      const cropW = size / zoom;
-      const cropH = size / zoom;
-      const cropX = pinNaturalX - cropW / 2;
-      const cropY = pinNaturalY - cropH / 2;
+        // Dibujar porción ampliada de la imagen natural
+        const cropW = size / zoom;
+        const cropH = size / zoom;
+        const cropX = pinNaturalX - cropW / 2;
+        const cropY = pinNaturalY - cropH / 2;
+        if (![cropX, cropY, cropW, cropH].every(Number.isFinite) || cropW <= 0 || cropH <= 0) {
+          return;
+        }
 
-      ctx.drawImage(imgElement, cropX, cropY, cropW, cropH, 0, 0, size, size);
+        ctx.drawImage(imgElement, cropX, cropY, cropW, cropH, 0, 0, size, size);
 
-      // Mirilla de precisión en el centro de la lupa
-      ctx.strokeStyle = '#00F0FF';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(size / 2, size / 2, 8, 0, Math.PI * 2);
-      ctx.moveTo(size / 2 - 14, size / 2);
-      ctx.lineTo(size / 2 + 14, size / 2);
-      ctx.moveTo(size / 2, size / 2 - 14);
-      ctx.lineTo(size / 2, size / 2 + 14);
-      ctx.stroke();
+        // Mirilla de precisión en el centro de la lupa
+        ctx.strokeStyle = '#00F0FF';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(size / 2, size / 2, 8, 0, Math.PI * 2);
+        ctx.moveTo(size / 2 - 14, size / 2);
+        ctx.lineTo(size / 2 + 14, size / 2);
+        ctx.moveTo(size / 2, size / 2 - 14);
+        ctx.lineTo(size / 2, size / 2 + 14);
+        ctx.stroke();
+      } catch {
+        /* La lupa es auxiliar: nunca debe tumbar la app. */
+      }
     },
     [imgElement]
   );
 
+  /** Escalas visibles→naturales válidas, o null si el contenedor no es medible. */
+  const getScales = (): { rect: DOMRect; scaleX: number; scaleY: number } | null => {
+    const container = containerRef.current;
+    if (!container) return null;
+    const rect = container.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return null;
+    if (naturalSize.w <= 0 || naturalSize.h <= 0) return null;
+    const scaleX = rect.width / naturalSize.w;
+    const scaleY = rect.height / naturalSize.h;
+    if (!Number.isFinite(scaleX) || !Number.isFinite(scaleY) || scaleX <= 0 || scaleY <= 0) {
+      return null;
+    }
+    return { rect, scaleX, scaleY };
+  };
+
   // Gestores de puntero/touch para arrastrar esquinas
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    const container = containerRef.current;
-    if (!container) return;
+    const scales = getScales();
+    if (!scales) return;
+    const { rect, scaleX, scaleY } = scales;
 
-    const rect = container.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const clickY = e.clientY - rect.top;
 
-    const scaleX = rect.width / naturalSize.w;
-    const scaleY = rect.height / naturalSize.h;
-
-    // Buscar cuál esquina está más cerca del clic (radio de captura: 36px táctil)
-    const HIT_RADIUS = 36;
+    // Buscar cuál esquina está más cerca del clic (radio de captura: 44px táctil)
+    const HIT_RADIUS = 44;
     let closestKey: CornerKey | null = null;
     let minDist = HIT_RADIUS;
 
@@ -226,25 +251,27 @@ export const CornerPinAdjuster: React.FC<CornerPinAdjusterProps> = ({
 
     if (closestKey) {
       try {
-        (e.target as HTMLElement).setPointerCapture(e.pointerId);
-      } catch (err) {}
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      } catch {
+        /* Algunos navegadores no lo permiten: se ignora. */
+      }
       setActiveCorner(closestKey);
       updateMagnifier(corners[closestKey].x, corners[closestKey].y);
     }
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!activeCorner || !containerRef.current) return;
+    if (!activeCorner) return;
+    const scales = getScales();
+    if (!scales) return;
+    const { rect, scaleX, scaleY } = scales;
 
-    const rect = containerRef.current.getBoundingClientRect();
     const clickX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
     const clickY = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
 
-    const scaleX = rect.width / naturalSize.w;
-    const scaleY = rect.height / naturalSize.h;
-
     const newNatX = Math.round(clickX / scaleX);
     const newNatY = Math.round(clickY / scaleY);
+    if (!Number.isFinite(newNatX) || !Number.isFinite(newNatY)) return;
 
     updateMagnifier(newNatX, newNatY);
 
@@ -257,8 +284,10 @@ export const CornerPinAdjuster: React.FC<CornerPinAdjusterProps> = ({
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     if (activeCorner) {
       try {
-        (e.target as HTMLElement).releasePointerCapture(e.pointerId);
-      } catch (err) {}
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {
+        /* ignorar */
+      }
       setActiveCorner(null);
     }
   };

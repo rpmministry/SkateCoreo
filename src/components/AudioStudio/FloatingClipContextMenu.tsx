@@ -8,6 +8,8 @@ import {
   X 
 } from 'lucide-react';
 import { useAudioStudioStore } from '../../store/useAudioStudioStore';
+import { audioEngine } from '../../services/audioEngine';
+import type { AudioClip } from '../../types/audioStudio';
 
 export const FloatingClipContextMenu: React.FC = () => {
   const contextMenu = useAudioStudioStore((s) => s.contextMenu);
@@ -17,7 +19,6 @@ export const FloatingClipContextMenu: React.FC = () => {
   const pasteClip = useAudioStudioStore((s) => s.pasteClip);
   const splitClip = useAudioStudioStore((s) => s.splitClip);
   const deleteClip = useAudioStudioStore((s) => s.deleteClip);
-  const currentTimeSec = useAudioStudioStore((s) => s.currentTimeSec);
 
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
@@ -102,12 +103,35 @@ export const FloatingClipContextMenu: React.FC = () => {
   };
 
   const handleSplit = () => {
-    splitClip(trackId, clipId, currentTimeSec);
+    // Reloj de HARDWARE (no el `currentTimeSec` del store, que va con retraso y
+    // dejaba el corte sin efecto al primer clic). Se acota al rango del clip:
+    // si el cabezal está fuera, se corta por el punto medio para que funcione ya.
+    const state = useAudioStudioStore.getState();
+    const engineSec = audioEngine.getCurrentTimeMs() / 1000;
+    const arrangement = [state.tracks.music, state.tracks.recording, ...state.additionalTracks];
+    let clip: AudioClip | null = null;
+    for (const t of arrangement) {
+      const found = t.clips.find((c) => c.id === clipId);
+      if (found) {
+        clip = found;
+        break;
+      }
+    }
+    let splitAt = engineSec;
+    if (clip) {
+      const start = clip.startOffsetSec;
+      const end = clip.startOffsetSec + (clip.trimEndSec - clip.trimStartSec);
+      const margin = 0.02;
+      if (splitAt < start + margin || splitAt > end - margin) {
+        splitAt = start + (end - start) / 2;
+      }
+    }
+    splitClip(trackId, clipId, splitAt);
     closeContextMenu();
   };
 
   const handlePaste = () => {
-    pasteClip(trackId, currentTimeSec);
+    pasteClip(trackId, audioEngine.getCurrentTimeMs() / 1000);
     closeContextMenu();
   };
 

@@ -14,6 +14,7 @@ import { FiducialDetector } from '../../core/vision/FiducialDetector';
 import { PaperOcrEngine, OcrDebugEntry } from '../../core/vision/PaperOcrEngine';
 import { PaperColorDetector } from '../../core/vision/PaperColorDetector';
 import { CornerPinAdjuster } from './CornerPinAdjuster';
+import { ErrorBoundary } from '../system/ErrorBoundary';
 import { useChoreographyStore } from '../../store/useChoreographyStore';
 import { ChoreographyPoint } from '../../types/choreography';
 
@@ -21,6 +22,19 @@ import { ChoreographyPoint } from '../../types/choreography';
  * Overlay de depuración: dibuja el centroide detectado de cada círculo (punto
  * rojo) y, al lado, el texto que el OCR ha leído (o el motivo de descarte).
  */
+/** Convierte un canvas a PNG limitando su ancho (evita dataURLs gigantes en móvil). */
+function canvasToScaledDataUrl(source: HTMLCanvasElement, maxWidth = 1000): string {
+  if (source.width <= maxWidth) return source.toDataURL('image/png');
+  const scale = maxWidth / source.width;
+  const small = document.createElement('canvas');
+  small.width = maxWidth;
+  small.height = Math.max(1, Math.round(source.height * scale));
+  const ctx = small.getContext('2d');
+  if (!ctx) return source.toDataURL('image/png');
+  ctx.drawImage(source, 0, 0, small.width, small.height);
+  return small.toDataURL('image/png');
+}
+
 function buildOcrDebugOverlay(binarized: HTMLCanvasElement, debug: OcrDebugEntry[]): string {
   const canvas = document.createElement('canvas');
   canvas.width = binarized.width;
@@ -62,17 +76,20 @@ function buildOcrDebugOverlay(binarized: HTMLCanvasElement, debug: OcrDebugEntry
     ctx.fillText(label, d.x + 12, d.y - 10);
   }
 
-  return canvas.toDataURL('image/png');
+  return canvasToScaledDataUrl(canvas, 1000);
 }
 
 interface PaperToDigitalModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Se invoca cuando la digitalización ha generado nodos (navega a la Pista 2D). */
+  onDigitalized?: () => void;
 }
 
 export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
   isOpen,
   onClose,
+  onDigitalized,
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -104,11 +121,25 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setStatusMessage(null);
+    if (!file.type.startsWith('image/')) {
+      setAlignmentError('El archivo seleccionado no es una imagen válida.');
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = (event) => {
       const src = event.target?.result as string;
+      if (!src) {
+        setAlignmentError('No se pudo leer la imagen. Inténtalo de nuevo.');
+        return;
+      }
       loadImageAndDetectCorners(src);
+    };
+    reader.onerror = () => {
+      setAlignmentError('No se pudo leer la imagen (memoria insuficiente o archivo dañado).');
+      setIsProcessing(false);
+      setStatusMessage(null);
     };
     reader.readAsDataURL(file);
   };
@@ -118,35 +149,45 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
     setStatusMessage('Detectando marcas fiduciales (targets QR)...');
     setPreviewUrl(null);
     setMaskUrl(null);
+    setAlignmentError(null);
 
     const img = new Image();
     img.src = src;
     img.onload = () => {
-      setImageSrc(src);
+      try {
+        setImageSrc(src);
 
-      // Detección ESTRICTA: si no hay 4 marcas válidas, no se auto-generan nodos.
-      const result = FiducialDetector.detectMarkers(img);
-      if (result.corners) {
-        setCorners(result.corners);
-        setAlignmentError(null);
-        setOrientationDeg(result.rotationDeg);
-        setOriginFound(result.originFound);
-      } else {
-        // Se ofrecen esquinas por defecto SOLO para que el usuario ajuste a mano.
-        setCorners(FiducialDetector.getDefaultCorners(img.naturalWidth, img.naturalHeight));
-        setOrientationDeg(0);
-        setOriginFound(false);
+        // Detección ESTRICTA: si no hay 4 marcas válidas, no se auto-generan nodos.
+        const result = FiducialDetector.detectMarkers(img);
+        if (result.corners) {
+          setCorners(result.corners);
+          setAlignmentError(null);
+          setOrientationDeg(result.rotationDeg);
+          setOriginFound(result.originFound);
+        } else {
+          // Se ofrecen esquinas por defecto SOLO para que el usuario ajuste a mano.
+          setCorners(FiducialDetector.getDefaultCorners(img.naturalWidth, img.naturalHeight));
+          setOrientationDeg(0);
+          setOriginFound(false);
+          setAlignmentError(
+            `No se detectaron las 4 marcas fiduciales (encontradas: ${result.detected}). ` +
+            'Ajusta los 4 pines manualmente hasta las marcas o vuelve a escanear con mejor luz.'
+          );
+        }
+      } catch (err) {
+        // Nunca dejar la app en estado "procesando" ni propagar el error.
         setAlignmentError(
-          `No se detectaron las 4 marcas fiduciales (encontradas: ${result.detected}). ` +
-          'Ajusta los 4 pines manualmente hasta las marcas o vuelve a escanear con mejor luz.'
+          'Ocurrió un error al analizar la foto. Prueba con una imagen más ligera o vuelve a capturarla.'
         );
+        // eslint-disable-next-line no-console
+        console.error('[PaperToDigital] Error al detectar marcas:', err);
+      } finally {
+        setIsProcessing(false);
+        setStatusMessage(null);
       }
-
-      setIsProcessing(false);
-      setStatusMessage(null);
     };
     img.onerror = () => {
-      alert('Error cargando la imagen. Por favor intenta con otra foto.');
+      setAlignmentError('Error cargando la imagen. Por favor intenta con otra foto.');
       setIsProcessing(false);
       setStatusMessage(null);
     };
@@ -307,7 +348,10 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
     img.src = imageSrc;
     img.onload = async () => {
       try {
-        const warpedCanvas = HomographyWarp.warpPerspective(img, corners, 2000, 1000);
+        // Resolución de detección REDUCIDA (1400×700): el motor deriva los metros
+        // del tamaño del canvas, así que es correcto, y baja ~2.7× el uso de
+        // memoria/CPU en móvil (causa de cierres por OOM al digitalizar).
+        const warpedCanvas = HomographyWarp.warpPerspective(img, corners, 1400, 700);
 
         // ── BLOQUEO ABSOLUTO DE VECTORES/TRAZOS ───────────────────────────────
         // El escáner NO extrae ni sube líneas: solo coordenadas de nodos. No se
@@ -322,7 +366,7 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
         // Debug visual: overlay con los nodos detectados sobre la hoja alineada
         // y la MÁSCARA DE COLOR (negro + trazos del marcador en blanco).
         setPreviewUrl(buildOcrDebugOverlay(warpedCanvas, ocrResult.debug));
-        setMaskUrl(PaperColorDetector.buildMaskCanvas(warpedCanvas).toDataURL('image/png'));
+        setMaskUrl(canvasToScaledDataUrl(PaperColorDetector.buildMaskCanvas(warpedCanvas), 1000));
         const rawDetectedNodes = ocrResult.nodes;
 
         // ── FAIL-SAFE ─────────────────────────────────────────────────────────
@@ -379,6 +423,13 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
 
           setIsProcessing(false);
           setStatusMessage(null);
+          // Navegación GARANTIZADA por callback (además del evento global, que
+          // puede no estar montado si el modal se abrió desde otra vista).
+          try {
+            onDigitalized?.();
+          } catch {
+            /* no-op */
+          }
           onClose();
           return;
         }
@@ -403,9 +454,9 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
         dinámico (dvh) con áreas seguras, header y footer fijos y SOLO el cuerpo
         con scroll interno. Nada se sale de la pantalla ni tapa el escaneo.
       */}
-      <div className="flex h-[100dvh] max-h-[100dvh] w-full max-w-4xl flex-col overflow-hidden border-0 border-cyan/30 bg-[#0D1322] text-slate-100 shadow-2xl pt-safe pb-safe sm:h-[90dvh] sm:max-h-[90dvh] sm:rounded-3xl sm:border">
+      <div className="flex h-full max-h-full w-full max-w-4xl flex-col overflow-hidden border-0 border-cyan/30 bg-[#0D1322] text-slate-100 shadow-2xl pt-safe pb-safe sm:h-[90dvh] sm:max-h-[90dvh] sm:rounded-3xl sm:border landscape:h-full landscape:max-h-full landscape:rounded-none landscape:border-0">
         {/* ── Modal Header ── */}
-        <div className="flex h-14 shrink-0 items-center justify-between border-b border-white/10 bg-slate-950/70 px-4 sm:px-5">
+        <div className="flex h-14 shrink-0 items-center justify-between border-b border-white/10 bg-slate-950/70 px-4 sm:px-5 landscape:h-11 landscape:px-3">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-cyan/15 text-cyan flex items-center justify-center border border-cyan/30">
               <Camera className="w-4 h-4" />
@@ -433,11 +484,11 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
         </div>
 
         {/* ── Modal Body: GRID aislado (imagen 100% limpia | panel lateral) ── */}
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 sm:p-4 lg:overflow-hidden">
-          <div className="grid min-h-0 grid-cols-1 gap-3 sm:gap-4 lg:h-full lg:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 sm:p-4 lg:overflow-hidden landscape:p-2">
+          <div className="grid min-h-0 grid-cols-1 gap-3 sm:gap-4 lg:h-full lg:grid-cols-[minmax(0,1fr)_300px] landscape:h-full landscape:min-h-0 landscape:grid-cols-[minmax(0,1fr)_minmax(200px,42%)]">
 
             {/* ░░ COLUMNA 1: ÁREA DE LA HOJA A4 (sin textos superpuestos) ░░ */}
-            <div className="flex min-h-[42dvh] flex-col sm:min-h-[48dvh] lg:min-h-0">
+            <div className="flex min-h-[42dvh] flex-col sm:min-h-[48dvh] lg:min-h-0 landscape:min-h-0">
               {!imageSrc ? (
                 /* Pantalla inicial de selección de imagen */
                 <div className="flex flex-1 min-h-[350px] flex-col items-center justify-center gap-4 rounded-3xl border-2 border-dashed border-white/15 bg-slate-950/40 p-6 text-center">
@@ -488,22 +539,27 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
                 /* Visualizador y Calibrador de Esquinas (imagen aislada) */
                 <div className="relative flex min-h-[30dvh] flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950 lg:min-h-0">
                   {corners && (
-                    <CornerPinAdjuster
-                      imageSrc={imageSrc}
-                      corners={corners}
-                      onChangeCorners={(c) => {
-                        setCorners(c);
-                        // El ajuste manual confirma la alineación: permite continuar.
-                        if (alignmentError) setAlignmentError(null);
-                      }}
-                    />
+                    <ErrorBoundary
+                      inline
+                      inlineMessage="No se pudo abrir el ajuste de esquinas. Vuelve a intentarlo."
+                    >
+                      <CornerPinAdjuster
+                        imageSrc={imageSrc}
+                        corners={corners}
+                        onChangeCorners={(c) => {
+                          setCorners(c);
+                          // El ajuste manual confirma la alineación: permite continuar.
+                          if (alignmentError) setAlignmentError(null);
+                        }}
+                      />
+                    </ErrorBoundary>
                   )}
                 </div>
               )}
             </div>
 
             {/* ░░ COLUMNA 2: PANEL LATERAL (instrucciones, controles y estado) ░░ */}
-            <aside className="flex shrink-0 flex-col gap-3 rounded-2xl border border-white/10 bg-slate-950/95 p-4 lg:min-h-0 lg:overflow-y-auto">
+            <aside className="flex shrink-0 flex-col gap-3 rounded-2xl border border-white/10 bg-slate-950/95 p-4 lg:min-h-0 lg:overflow-y-auto landscape:min-h-0 landscape:shrink landscape:overflow-y-auto">
               <h3 className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-cyan">
                 <CheckCircle2 className="h-4 w-4" />
                 Alineación de la hoja
@@ -633,7 +689,7 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
 
         {/* ── Modal Footer: Botones de Acción (Etapa 1 vs Etapa 2) ── */}
         {(imageSrc || paperTraceOverlay) && (
-          <div className="p-4 border-t border-white/10 bg-slate-950/80 flex flex-wrap items-center justify-between gap-3 shrink-0">
+          <div className="p-4 border-t border-white/10 bg-slate-950/80 flex flex-wrap items-center justify-between gap-3 shrink-0 landscape:p-2 landscape:gap-2">
             <div className="flex items-center gap-2">
               <button
                 type="button"

@@ -19,10 +19,8 @@ import {
   CircleDot,
   Camera,
   FileDown,
-  PenTool,
   CheckCircle2,
 } from 'lucide-react';
-import { RinkContextTools } from './rink/RinkContextTools';
 import { audioEngine } from '../services/audioEngine';
 import { TIME_SIGNATURES } from '../core/audio/Metronome';
 import { useAudioEngine } from '../hooks/useAudioEngine';
@@ -59,6 +57,8 @@ interface LeftSidebarPanelProps {
   // NOTA: se eliminó `onResetDemo`. La app arranca sin datos de prueba
   // (lienzo en blanco) y ya no existe coreografía ni música de demostración.
   onOpenAudioStudio?: () => void;
+  /** Cierre de sesión unificado (misma limpieza que el resto de la app). */
+  onLogout?: () => void;
   showHeader?: boolean;
   isMobileModal?: boolean;
 }
@@ -72,8 +72,8 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
   preRollSec,
   onPreRollSecChange,
   onUndo,
-  onClearRink,
   onOpenAudioStudio,
+  onLogout,
   showHeader = true,
   isMobileModal = false,
 }) => {
@@ -196,14 +196,9 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
           </div>
         </section>
 
-        {/* ═══ 0b. Modo de Trazado (controles únicos de edición de pista) ═══ */}
-        <section className="px-4 py-3.5 space-y-2">
-          <h3 className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-            <PenTool className="w-3.5 h-3.5 text-cyan" />
-            Modo de Trazado
-          </h3>
-          <RinkContextTools layout="panel" showActions={false} onClear={() => onClearRink?.()} />
-        </section>
+        {/* Nota: el modo de trazado (Nodos/Trazar/Borrar) tiene su ÚNICA ubicación
+            en el Inspector de Nodo (desktop) y en la barra/rail contextual (móvil).
+            Aquí se eliminó la copia duplicada. */}
 
         {/* ═══ 1. Intro countdown ═══════════════════════════ */}
         <section className="px-4 py-3.5 space-y-2.5">
@@ -641,7 +636,7 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
             </span>
             <button
               type="button"
-              onClick={logout}
+              onClick={onLogout ?? logout}
               className="flex items-center gap-1 text-[11px] font-semibold text-coral/80 hover:text-coral transition-colors py-1 px-2 rounded-lg hover:bg-coral/10 interactive-tap"
               title="Cerrar sesión de forma segura"
             >

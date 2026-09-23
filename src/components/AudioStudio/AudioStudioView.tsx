@@ -13,6 +13,10 @@ import {
   Sliders,
   Bell,
   Trash2,
+  Mic,
+  Repeat,
+  Headphones,
+  Timer,
 } from 'lucide-react';
 import { useAudioStudioStore, flushPendingConsolidation } from '../../store/useAudioStudioStore';
 import { audioEngine } from '../../services/audioEngine';
@@ -29,6 +33,7 @@ import { MultitrackTrackRow } from './MultitrackTrackRow';
 import { FloatingClipContextMenu } from './FloatingClipContextMenu';
 import { BandLabMixerDrawer } from './BandLabMixerDrawer';
 import { TRASH_ZONE_ID } from './AudioClipItem';
+import { ConfirmDialog } from '../ConfirmDialog';
 
 interface AudioStudioViewProps {
   onExportToRink?: () => void;
@@ -65,6 +70,22 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   const addTimeNode = useAudioStudioStore((s) => s.addTimeNode);
   const renderAndExportMixdown = useAudioStudioStore((s) => s.renderAndExportMixdown);
 
+  // Grabación de voz (Fase 4)
+  const isRecording = useAudioStudioStore((s) => s.isRecording);
+  const recordingElapsedSec = useAudioStudioStore((s) => s.recordingElapsedSec);
+  const recordingError = useAudioStudioStore((s) => s.recordingError);
+  const startVoiceRecording = useAudioStudioStore((s) => s.startVoiceRecording);
+  const stopVoiceRecording = useAudioStudioStore((s) => s.stopVoiceRecording);
+  const undoStudio = useAudioStudioStore((s) => s.undoStudio);
+  const redoStudio = useAudioStudioStore((s) => s.redoStudio);
+  const recordingMonitorEnabled = useAudioStudioStore((s) => s.recordingMonitorEnabled);
+  const setRecordingMonitor = useAudioStudioStore((s) => s.setRecordingMonitor);
+  const recordingCountdownEnabled = useAudioStudioStore((s) => s.recordingCountdownEnabled);
+  const recordingCountdownSec = useAudioStudioStore((s) => s.recordingCountdownSec);
+  const recordingCountdown = useAudioStudioStore((s) => s.recordingCountdown);
+  const setRecordingCountdownEnabled = useAudioStudioStore((s) => s.setRecordingCountdownEnabled);
+  const setRecordingCountdownSec = useAudioStudioStore((s) => s.setRecordingCountdownSec);
+
   const globalControls = useAudioStudioStore((s) => s.globalControls);
   const toggleMetronomeMute = useAudioStudioStore((s) => s.toggleMetronomeMute);
 
@@ -77,6 +98,8 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
 
   const [isExporting, setIsExporting] = useState(false);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
+  const [confirmReplaceOpen, setConfirmReplaceOpen] = useState(false);
+  const [loopEnabled, setLoopEnabled] = useState<boolean>(() => !!audioEngine.getLoop());
   const [showMixerDrawer, setShowMixerDrawer] = useState(false);
   // Estado real del motor: permite que el transporte funcione aunque la pista se
   // haya cargado en la Pista 2D (fuera del store del Estudio).
@@ -202,10 +225,10 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     refreshKey: `${contentWidth}|${totalDurationSec}|${headerWidth}|${zoom}`,
   });
 
-  // 1 Pista Principal (Música) + hasta 4 Pistas Adicionales (Total: hasta 5 pistas)
+  // 1 Pista Principal (Música) + VOZ grabada + hasta 4 Pistas Adicionales
   const arrangementTracks: AudioStudioTrack[] = useMemo(() => {
-    return [tracks.music, ...additionalTracks];
-  }, [tracks.music, additionalTracks]);
+    return [tracks.music, tracks.recording, ...additionalTracks];
+  }, [tracks.music, tracks.recording, additionalTracks]);
 
   /**
    * ¿Existe audio real para transportar? Se usa para deshabilitar con honestidad
@@ -245,7 +268,15 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
         return;
       }
 
-      if (e.code === 'Space') {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        // Ctrl/Cmd+Z → Deshacer; Ctrl/Cmd+Shift+Z → Rehacer (atajos de DAW).
+        e.preventDefault();
+        if (e.shiftKey) {
+          redoStudio();
+        } else {
+          undoStudio();
+        }
+      } else if (e.code === 'Space') {
         // Evita repetición por auto-repeat al mantener pulsado
         if (e.repeat) return;
         // preventDefault cancela la activación nativa del <button> enfocado:
@@ -299,12 +330,40 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           setExportNotice('🗑️ Clip eliminado');
           setTimeout(() => setExportNotice(null), 2000);
         }
+      } else if (e.key.toLowerCase() === 'r' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        // R → Grabar / Detener grabación (atajo profesional de DAW).
+        e.preventDefault();
+        if (isRecording) {
+          void stopVoiceRecording();
+        } else {
+          void startVoiceRecording();
+        }
+      } else if (e.key.toLowerCase() === 'l' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        // L → Repetir (loop), atajo estándar de DAW.
+        e.preventDefault();
+        const nextLoop = !audioEngine.getLoop();
+        const loopDurationSec = useAudioStudioStore.getState().totalDurationSec;
+        audioEngine.setLoop(nextLoop, 0, loopDurationSec);
+        setLoopEnabled(!!audioEngine.getLoop());
+      } else if (e.key === 'Escape') {
+        // Esc → Cancelar grabación o detener el transporte. No se aplica si hay
+        // un diálogo modal abierto (ConfirmDialog gestiona su propio Escape).
+        if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+        e.preventDefault();
+        if (isRecording) {
+          useAudioStudioStore.getState().cancelVoiceRecording();
+        } else {
+          audioEngine.pause();
+          audioEngine.seek(0);
+          setIsPlaying(false);
+          setCurrentTimeSec(0);
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isPlaying, currentTimeSec, tracks.music.id, arrangementTracks]);
+  }, [isPlaying, currentTimeSec, tracks.music.id, arrangementTracks, isRecording, startVoiceRecording, stopVoiceRecording, undoStudio, redoStudio]);
 
   // Carga infalible de archivos de audio
   const handleUploadFile = async (trackId: string, file: File) => {
@@ -519,26 +578,20 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   }, [setIsPlaying]);
 
   /**
-   * ADOPCIÓN DEL AUDIO DE LA PISTA 2D.
+   * AISLAMIENTO DE DOMINIO DE AUDIO.
    *
-   * Si el usuario cargó la música en la Pista 2D y luego abre el Estudio, el
-   * store del Estudio está vacío aunque el motor SÍ tenga la pista. Sin esto, la
-   * barra inferior quedaba con Rewind/Stop/Cortar deshabilitados y no había
-   * ningún clip que cortar. Se crea la pista Master a partir del buffer del motor.
+   * Mientras el Audio Studio está montado, el motor se marca como dominio
+   * 'studio': metrónomo y voces guía de los nodos de la Pista 2D quedan
+   * SILENCIADOS. Al salir, se restaura el dominio 'rink'.
+   *
+   * Deliberadamente NO se adopta el audio cargado en la Pista 2D: la relación
+   * permitida es únicamente Studio → Rink (no Rink → Studio).
    */
   useEffect(() => {
-    const store = useAudioStudioStore.getState();
-    const master = store.tracks.music;
-    if (master.buffer || master.clips.length > 0) return;
-
-    const engineBuffer = audioEngine.getAudioBuffer();
-    if (!engineBuffer) return;
-
-    store.setTrackBuffer(
-      'music',
-      engineBuffer,
-      audioEngine.getState().fileName || 'pista_2d.wav'
-    );
+    audioEngine.setPlaybackDomain('studio');
+    return () => {
+      audioEngine.setPlaybackDomain('rink');
+    };
   }, []);
 
   /**
@@ -594,13 +647,21 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     setCurrentTimeSec(0);
   };
 
-  // Exportar mezcla mixdown
-  const handleExportMix = async () => {
+  // Loop de la mezcla completa (bucle nativo del motor, sin clics).
+  const toggleLoop = () => {
+    const next = !audioEngine.getLoop();
+    const durationSec = useAudioStudioStore.getState().totalDurationSec;
+    audioEngine.setLoop(next, 0, durationSec);
+    setLoopEnabled(!!audioEngine.getLoop());
+  };
+
+  // Exportar mezcla mixdown (transferencia única Studio → Pista 2D)
+  const performExportMix = async () => {
     setIsExporting(true);
     try {
       const result = await renderAndExportMixdown();
       if (result.success) {
-        setExportNotice('¡Mezcla sincronizada con éxito en la Pista 2D!');
+        setExportNotice('Mezcla enviada a la Pista 2D');
         setTimeout(() => setExportNotice(null), 3500);
         if (onExportToRink) onExportToRink();
       }
@@ -609,6 +670,18 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     } finally {
       setIsExporting(false);
     }
+  };
+
+  const handleExportMix = () => {
+    // Evita una doble transferencia por doble pulsación.
+    if (isExporting) return;
+    // Si la Pista 2D ya tiene música, se confirma el reemplazo (no se borra nada
+    // antes de confirmar).
+    if (engineHasAudio) {
+      setConfirmReplaceOpen(true);
+      return;
+    }
+    void performExportMix();
   };
 
   // Long-press en el fondo del área de trabajo para mover el cabezal directamente
@@ -889,6 +962,81 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
               <Play className="w-6 h-6 fill-current ml-0.5" />
             )}
           </button>
+
+          {/* REC — Grabación de voz (tomas múltiples, no destructivo) */}
+          <button
+            type="button"
+            onClick={() => {
+              void (isRecording ? stopVoiceRecording() : startVoiceRecording());
+            }}
+            aria-pressed={isRecording}
+            aria-label={isRecording ? 'Detener grabación de voz' : 'Grabar voz'}
+            title={isRecording ? 'Detener grabación (R / Esc)' : 'Grabar voz desde el micrófono (R)'}
+            className={`press shrink-0 rounded-full flex items-center justify-center gap-2 shadow-lg ${
+              isRecording
+                ? 'bg-rose-500 text-white shadow-rose-500/40 animate-pulse px-3 h-12 sm:h-14'
+                : 'w-12 h-12 sm:w-14 sm:h-14 bg-white/5 text-rose-400 border border-rose-500/40 hover:bg-rose-500/15'
+            }`}
+          >
+            <Mic className="w-5 h-5" />
+            {isRecording && (
+              <span className="font-mono text-xs font-bold tabular-nums">
+                {Math.floor(recordingElapsedSec / 60)}:
+                {String(Math.floor(recordingElapsedSec % 60)).padStart(2, '0')}
+              </span>
+            )}
+          </button>
+
+          {/* Monitorización de entrada (por defecto OFF; auriculares recomendados) */}
+          <button
+            type="button"
+            onClick={() => setRecordingMonitor(!recordingMonitorEnabled)}
+            aria-pressed={recordingMonitorEnabled}
+            aria-label="Monitorizar el micrófono (usar auriculares)"
+            title={
+              recordingMonitorEnabled
+                ? 'Monitorización activada (usa auriculares para evitar realimentación)'
+                : 'Escucharte por los auriculares (monitorización)'
+            }
+            className={`press w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center ${
+              recordingMonitorEnabled ? 'text-cyan bg-cyan/15' : 'text-slate-500 hover:bg-white/5'
+            }`}
+          >
+            <Headphones className="w-5 h-5" />
+          </button>
+
+          {/* Pre-inicio (cuenta atrás) antes de capturar */}
+          <button
+            type="button"
+            onClick={() => setRecordingCountdownEnabled(!recordingCountdownEnabled)}
+            aria-pressed={recordingCountdownEnabled}
+            aria-label="Pre-inicio antes de grabar"
+            title="Cuenta atrás antes de iniciar la grabación (sin offsets mágicos)"
+            className={`press h-11 sm:h-12 shrink-0 rounded-full flex items-center justify-center gap-1 ${
+              recordingCountdownEnabled
+                ? 'text-amber-400 bg-amber-500/15 px-2'
+                : 'w-11 sm:w-12 text-slate-500 hover:bg-white/5'
+            }`}
+          >
+            <Timer className="w-5 h-5" />
+            {recordingCountdownEnabled && (
+              <span className="font-mono text-xs font-bold">{recordingCountdownSec}s</span>
+            )}
+          </button>
+          {recordingCountdownEnabled && (
+            <select
+              value={recordingCountdownSec}
+              onChange={(e) => setRecordingCountdownSec(Number(e.target.value))}
+              aria-label="Segundos de pre-inicio"
+              className="h-9 shrink-0 rounded-lg bg-white/5 px-1 text-xs text-slate-200"
+            >
+              {[3, 5, 10].map((s) => (
+                <option key={s} value={s}>
+                  {s}s
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         {/* Derecha: Metrónomo + Marcador + Zoom */}
@@ -907,6 +1055,21 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             title={globalControls.metronome.muted ? 'Activar Metrónomo' : 'Silenciar Metrónomo'}
           >
             <Bell className="w-5 h-5" />
+          </button>
+
+          {/* Loop — repetir la mezcla (bucle nativo sin clics) */}
+          <button
+            type="button"
+            onClick={toggleLoop}
+            disabled={!hasTransportAudio}
+            aria-pressed={loopEnabled}
+            aria-label={loopEnabled ? 'Desactivar repetición' : 'Activar repetición'}
+            title={loopEnabled ? 'Repetir activado (L)' : 'Repetir (L)'}
+            className={`w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center press disabled:opacity-30 disabled:pointer-events-none ${
+              loopEnabled ? 'text-cyan bg-cyan/15' : 'text-slate-500 hover:bg-white/5'
+            }`}
+          >
+            <Repeat className="w-5 h-5" />
           </button>
 
           {/* + Marcador temporal */}
@@ -995,6 +1158,41 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           <span>{exportNotice}</span>
         </div>
       )}
+
+      {/* ── 6. CUENTA ATRÁS DE PRE-INICIO DE GRABACIÓN ── */}
+      {recordingCountdown > 0 && (
+        <div className="pointer-events-none fixed inset-0 z-[60] flex items-center justify-center">
+          <span className="text-7xl font-black text-rose-400 drop-shadow-[0_0_18px_rgba(244,63,94,0.6)]">
+            {recordingCountdown}
+          </span>
+        </div>
+      )}
+
+      {/* ── 6a. AVISO DE ERROR DE GRABACIÓN ── */}
+      {recordingError && (
+        <div
+          role="alert"
+          className="fixed bottom-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-full bg-rose-950/90 border border-rose-500/50 text-rose-200 text-xs font-bold shadow-2xl backdrop-blur-md"
+        >
+          <Mic className="w-4 h-4" />
+          <span>{recordingError}</span>
+        </div>
+      )}
+
+      {/* ── 6b. CONFIRMACIÓN DE REEMPLAZO DE LA MÚSICA DE LA PISTA 2D ── */}
+      <ConfirmDialog
+        isOpen={confirmReplaceOpen}
+        title="Reemplazar la música de la Pista 2D"
+        message="La Pista 2D ya tiene una canción. La mezcla del Audio Studio la reemplazará como única pista musical. Los nodos y trayectorias se conservarán."
+        confirmLabel="Reemplazar"
+        cancelLabel="Cancelar"
+        tone="danger"
+        onConfirm={() => {
+          setConfirmReplaceOpen(false);
+          void performExportMix();
+        }}
+        onCancel={() => setConfirmReplaceOpen(false)}
+      />
 
       {/* ── 7. DRAG OVERLAY / GHOST ELEMENT FLOTANTE (Feedback visual de arrastre) ── */}
       {draggingGhost && (

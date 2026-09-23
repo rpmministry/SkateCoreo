@@ -7,7 +7,6 @@ import {
   Move,
   PenTool,
   Route,
-  Undo2,
   SlidersHorizontal,
   Eraser,
   Hash
@@ -56,8 +55,6 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
   const setPoints = useChoreographyStore((s) => s.setPoints);
   const pushHistory = useChoreographyStore((s) => s.pushHistory);
   const straightenSegment = useChoreographyStore((s) => s.straightenSegment);
-  const history = useChoreographyStore((s) => s.history);
-  const undo = useChoreographyStore((s) => s.undo);
 
   const phase = useChoreographyStore((s) => s.phase);
   const setPhase = useChoreographyStore((s) => s.setPhase);
@@ -132,6 +129,22 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
   // ── Render ─────────────────────────────────────────────────
   const content = (
     <>
+      {/* Acción prioritaria: eliminar el nodo seleccionado, SIEMPRE visible arriba
+          (en móvil el panel es corto y el botón quedaba fuera de pantalla). */}
+      {selectedPoint && (
+        <div className="px-4 pt-3">
+          <button
+            type="button"
+            onClick={handleDeleteSelected}
+            className="w-full flex items-center justify-center gap-2 rounded-xl border border-coral/40 bg-coral/15 py-2.5 text-xs font-black text-coral interactive-tap hover:bg-coral/25"
+            aria-label="Eliminar nodo seleccionado"
+          >
+            <Trash2 className="w-4 h-4 stroke-[2.5]" />
+            Eliminar nodo #{selectedPoint.nodeNumber ?? selectedPointIndex + 1}
+          </button>
+        </div>
+      )}
+
       {/* ── BARRA DE HERRAMIENTAS EXCLUSIVAS: Colocar Nodos vs Conectar Ruta ─── */}
         <div className="px-4 py-3.5 space-y-3 border-b border-white/5">
           <div className="space-y-1.5">
@@ -224,17 +237,8 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
             )}
           </div>
 
-          {/* Deshacer (Ctrl+Z) */}
-          <button
-            type="button"
-            onClick={undo}
-            disabled={history.length === 0}
-            title="Deshacer último cambio (Ctrl+Z)"
-            className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold bg-neon-card hover:bg-neon-hover text-slate-300 hover:text-white shadow-soft-elevation interactive-tap disabled:opacity-25 disabled:pointer-events-none"
-          >
-            <Undo2 className="w-3.5 h-3.5 text-mint" />
-            <span>Deshacer último cambio (Ctrl+Z)</span>
-          </button>
+          {/* Deshacer tiene su ÚNICA ubicación en el panel de Preparación (desktop)
+              y en la barra/rail contextual (móvil); aquí se eliminó la copia. */}
         </div>
 
         {/* ── Telemetría de nodos registrados ─── */}

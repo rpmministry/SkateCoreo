@@ -78,6 +78,12 @@ export interface ChoreographyPathPoint {
   unlinked?: boolean;
   isMainNode?: boolean; // Indicador explícito de Nodo Principal / Maestro
   path?: Array<{ x: number; y: number }>; // Huella de alta fidelidad (Catmull-Rom Spline) conectando este nodo con el siguiente
+  /**
+   * El usuario ha ESCULPIDO la curva de este segmento (arrastre de curva). Solo
+   * entonces se dibuja una Bézier; si no existe, la unión es una línea recta para
+   * no inventar curvas que el usuario no dibujó.
+   */
+  curveShaped?: boolean;
 }
 
 export interface ChoreographyPoint extends ChoreographyPathPoint {

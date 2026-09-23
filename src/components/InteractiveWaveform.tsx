@@ -474,14 +474,14 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
   return (
     <div
       ref={containerRef}
-      className="w-full h-full bg-surface-canvas text-text-primary px-3 sm:px-4 py-1 flex flex-col justify-between select-none relative overflow-hidden timeline-safe-zone"
+      className="w-full h-full bg-surface-canvas text-text-primary px-3 sm:px-4 py-1 landscape:py-0.5 flex flex-col justify-between select-none relative overflow-hidden timeline-safe-zone"
     >
       {/* ── Cabecera del Waveform: identidad de pista + zoom + mezcla ──
           El tiempo y la duración viven en el transporte único (RinkAudioPlayer)
           para eliminar telemetría duplicada en pantalla.
           Todas las áreas táctiles respetan el mínimo de 48x48px. */}
-      <div className="flex shrink-0 items-center justify-between gap-2 text-xs">
-        <div className="flex min-w-0 items-center gap-2">
+      <div className="flex shrink-0 items-center justify-between gap-2 text-xs landscape:h-6 landscape:justify-end">
+        <div className="flex min-w-0 items-center gap-2 landscape:hidden">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-subtle border border-border-subtle bg-surface-hover text-text-secondary">
             <Music className="h-3.5 w-3.5" />
           </div>
@@ -565,7 +565,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
       {/* ── Contenedor del Track Desplazable (Scroll & Paneo Nativo Horizontal) ── */}
       <div
         ref={trackRef}
-        className="relative w-full flex-1 min-h-0 overflow-x-auto overflow-y-hidden rounded-subtle border border-border-subtle bg-surface-card group mt-1"
+        className="relative w-full flex-1 min-h-0 overflow-x-auto overflow-y-hidden rounded-subtle border border-border-subtle bg-surface-card group mt-1 landscape:mt-0.5"
         style={{
           overflowX: 'auto',
           overflowY: 'hidden',

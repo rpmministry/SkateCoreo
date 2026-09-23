@@ -72,18 +72,27 @@ export class HomographyWarp {
     targetWidth: number = 2000,
     targetHeight: number = 1000
   ): HTMLCanvasElement {
-    // 1. Obtener píxeles de la imagen origen en un canvas auxiliar
+    // 1. Obtener píxeles de la imagen origen en un canvas auxiliar.
+    //    Se LIMITA el lado máximo para no asignar buffers gigantes (una foto de
+    //    móvil de 4032×3024 ≈ 49 MB) que provocan OOM/reload en el navegador.
+    const naturalW =
+      sourceImage instanceof HTMLImageElement ? sourceImage.naturalWidth : sourceImage.width;
+    const naturalH =
+      sourceImage instanceof HTMLImageElement ? sourceImage.naturalHeight : sourceImage.height;
+    const MAX_SRC_SIDE = 2600;
+    const downscale = Math.min(1, MAX_SRC_SIDE / Math.max(1, naturalW, naturalH));
+    const sw = Math.max(1, Math.round(naturalW * downscale));
+    const sh = Math.max(1, Math.round(naturalH * downscale));
+
     const srcCanvas = document.createElement('canvas');
-    srcCanvas.width = sourceImage instanceof HTMLImageElement ? sourceImage.naturalWidth : sourceImage.width;
-    srcCanvas.height = sourceImage instanceof HTMLImageElement ? sourceImage.naturalHeight : sourceImage.height;
+    srcCanvas.width = sw;
+    srcCanvas.height = sh;
     const srcCtx = srcCanvas.getContext('2d');
     if (!srcCtx) throw new Error('No se pudo crear contexto 2D para imagen origen');
 
-    srcCtx.drawImage(sourceImage, 0, 0);
-    const srcData = srcCtx.getImageData(0, 0, srcCanvas.width, srcCanvas.height);
+    srcCtx.drawImage(sourceImage, 0, 0, sw, sh);
+    const srcData = srcCtx.getImageData(0, 0, sw, sh);
     const srcPixels = srcData.data;
-    const sw = srcCanvas.width;
-    const sh = srcCanvas.height;
 
     // 2. Definir esquinas destino rectificadas
     const dstCorners: [Point2D, Point2D, Point2D, Point2D] = [
@@ -93,11 +102,15 @@ export class HomographyWarp {
       { x: 0, y: targetHeight },
     ];
 
+    // Las esquinas llegan en coordenadas de la imagen ORIGINAL: se reescalan al
+    // espacio de la imagen reducida para que la homografía siga siendo correcta.
+    const scaleX = sw / Math.max(1, naturalW);
+    const scaleY = sh / Math.max(1, naturalH);
     const srcPoints: [Point2D, Point2D, Point2D, Point2D] = [
-      corners.topLeft,
-      corners.topRight,
-      corners.bottomRight,
-      corners.bottomLeft,
+      { x: corners.topLeft.x * scaleX, y: corners.topLeft.y * scaleY },
+      { x: corners.topRight.x * scaleX, y: corners.topRight.y * scaleY },
+      { x: corners.bottomRight.x * scaleX, y: corners.bottomRight.y * scaleY },
+      { x: corners.bottomLeft.x * scaleX, y: corners.bottomLeft.y * scaleY },
     ];
 
     // Para evitar huecos e interpolar suavemente, calculamos la homografía inversa

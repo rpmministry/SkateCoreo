@@ -99,6 +99,12 @@ const RinkAudioPlayer = (props: React.ComponentProps<typeof RinkAudioPlayerLazy>
 const RinkContextTools = (props: React.ComponentProps<typeof RinkContextToolsLazy>) => (
   <Suspense fallback={null}><RinkContextToolsLazy {...props} /></Suspense>
 );
+const PaperToDigitalModalLazy = lazy(() =>
+  import('./components/PaperToDigital/PaperToDigitalModal').then((m) => ({ default: m.PaperToDigitalModal }))
+);
+const PaperToDigitalModal = (props: React.ComponentProps<typeof PaperToDigitalModalLazy>) => (
+  <Suspense fallback={null}><PaperToDigitalModalLazy {...props} /></Suspense>
+);
 
 
 type AppView = 'home' | 'rink' | 'studio';
@@ -108,6 +114,8 @@ export function App() {
 
   // ── Modos de Vista: Inicio / Pista 2D / Estudio de Audio (DAW Lite) ──
   const [activeView, setActiveView] = useState<AppView>('home');
+  // Digitalización de la plantilla A4 accesible desde Home y desde la Pista.
+  const [paperOpen, setPaperOpen] = useState(false);
   const unplacedNodes = useChoreographyStore((s) => s.unplacedNodes);
   const studioBpm = useAudioStudioStore((s) => s.globalControls.bpm);
   const logout = useAuthStore((s) => s.logout);
@@ -248,6 +256,17 @@ export function App() {
     const u2 = audioEngine.onTimeUpdate(setCurrentTimeMs);
     return () => { u1(); u2(); };
   }, []);
+
+  // ── Handoff de dominio: al entrar al Estudio se detiene TODA la Pista 2D ──
+  // (música + metrónomo + voces guía) y el dominio pasa al Estudio. Al volver,
+  // se restaura el dominio del Rink. Centraliza todos los puntos de entrada.
+  useEffect(() => {
+    if (activeView === 'studio') {
+      audioEngine.handoffToStudio();
+    } else {
+      audioEngine.setPlaybackDomain('rink');
+    }
+  }, [activeView]);
 
   // ── Gesto Edge-Swipe para transicionar a Estudio de Audio desde la Pista 2D ──
   useEffect(() => {
@@ -647,6 +666,7 @@ export function App() {
                 isPlaying={isAudioActive}
                 hasAudioLoaded={audioState.hasAudioLoaded}
                 fileName={audioState.fileName}
+                sourceKind={audioState.sourceKind}
               />
             </div>
           )}
@@ -806,6 +826,7 @@ export function App() {
                 onClear={requestClearRink}
                 inspectorOpen={sheetOpen}
                 onToggleInspector={handleToggleInspector}
+                onOpenPaperToDigital={() => setPaperOpen(true)}
               />
             )}
           </LandscapeNavRail>
@@ -831,6 +852,7 @@ export function App() {
             onImportCoreo={() => coreoInputRef.current?.click()}
             onExportCoreo={handleExportCoreo}
             onSaveOffline={handleSaveOffline}
+            onOpenPaperToDigital={() => setPaperOpen(true)}
           />
         ) : activeView === 'studio' ? (
           <div className="flex-1 min-h-0 flex flex-col overflow-hidden relative">
@@ -843,9 +865,6 @@ export function App() {
           </div>
         ) : (
           <div className="flex-1 min-w-0 min-h-0 flex flex-col landscape:flex-row lg:flex-row overflow-hidden relative">
-            {/* Bandeja de Colocación de Nodos de Audio (Estricto Orden Secuencial) */}
-            <NodePlacementTray onOpenAudioStudio={() => setActiveView('studio')} />
-
             {/* ── DESKTOP LEFT ASIDE (Preparación y Mezcla) ── */}
             <aside className="hidden lg:flex lg:w-[272px] xl:w-[288px] shrink-0 flex-col bg-neon-surface border-r border-white/5 overflow-hidden shadow-soft-elevation">
               <LeftSidebarPanel
@@ -854,11 +873,17 @@ export function App() {
                 onUndo={handleUndo}
                                 onClearRink={requestClearRink}
                 onOpenAudioStudio={() => setActiveView('studio')}
+                onLogout={handleLogout}
               />
             </aside>
 
         {/* ── CENTER WORKSPACE: 2D Rink Canvas + Waveform Timeline ── */}
-        <main className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden bg-neon-canvas">
+        <main className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden bg-neon-canvas relative">
+
+          {/* Bandeja de Colocación de Nodos de Audio (Estricto Orden Secuencial).
+              Vive DENTRO del área de la Pista 2D para no solaparse con el
+              inspector/paneles laterales (flota sobre el propio editor). */}
+          <NodePlacementTray onOpenAudioStudio={() => setActiveView('studio')} />
 
           {/* 2D Canvas Rink Engine — Zero Distortion */}
           <div className="flex-1 min-h-0 overflow-hidden">
@@ -877,10 +902,10 @@ export function App() {
               Landscape móvil/tablet → fila horizontal (transporte a la izquierda,
               waveform a la derecha). El dock ocupa poca altura y el lienzo de la
               Pista 2D —protagonista de la app— conserva el máximo espacio vertical. */}
-          <div className="landscape-audio-dock shrink-0 h-[26%] max-h-[170px] min-h-[104px] border-t border-white/5">
+          <div className="landscape-audio-dock shrink-0 h-[26%] max-h-[170px] min-h-[104px] border-t border-white/5 pb-safe bg-neon-surface/30">
 
             {/* Transporte compacto (en desktop lo reemplaza el del header) */}
-            <div className="shrink-0 flex items-center border-b border-white/5 bg-neon-surface/60 px-2 py-1.5 pl-safe pr-safe landscape:w-[clamp(148px,26vw,240px)] landscape:border-b-0 landscape:border-r landscape:py-0.5 landscape:px-1.5 lg:hidden">
+            <div className="shrink-0 flex items-center border-b border-white/5 bg-neon-surface/60 px-2 py-1.5 pl-safe pr-safe landscape:w-[clamp(128px,22vw,200px)] landscape:border-b-0 landscape:border-r landscape:py-0.5 landscape:px-1.5 lg:hidden">
               <RinkAudioPlayer
                 variant="compact"
                 currentTimeMs={currentTimeMs}
@@ -888,6 +913,7 @@ export function App() {
                 isPlaying={isAudioActive}
                 hasAudioLoaded={audioState.hasAudioLoaded}
                 fileName={audioState.fileName}
+                sourceKind={audioState.sourceKind}
               />
             </div>
 
@@ -905,6 +931,44 @@ export function App() {
           </div>
         </main>
 
+        {/* ── LANDSCAPE SMALL (<lg): INSPECTOR EN FLUJO (reserva espacio físico) ──
+            No es un overlay: es una columna del layout, de modo que la Pista 2D
+            se reajusta y el inspector nunca tapa nodos ni trayectorias. */}
+        {sheetOpen && (
+          <aside
+            role="dialog"
+            aria-label="Inspector de nodo"
+            className="hidden landscape:flex lg:hidden shrink-0 flex-col w-[clamp(240px,28vw,320px)] max-w-[42vw] bg-neon-surface border-l border-white/5 overflow-hidden shadow-soft-elevation"
+          >
+            <div className="shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-white/5">
+              <span className="text-xs font-black uppercase tracking-widest text-mint truncate-safe">
+                Inspector de Nodo
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setSheetOpen(false);
+                  useChoreographyStore.getState().setSelectedPointId(null);
+                }}
+                className="min-w-touch min-h-touch flex items-center justify-center rounded-2xl text-slate-400 hover:text-white interactive-tap"
+                aria-label="Cerrar inspector"
+              >
+                <X className="w-5 h-5 stroke-[2]" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto overscroll-contain pb-6">
+              <RightInspectorPanel
+                showHeader={false}
+                isMobileModal={true}
+                onClose={() => {
+                  setSheetOpen(false);
+                  useChoreographyStore.getState().setSelectedPointId(null);
+                }}
+              />
+            </div>
+          </aside>
+        )}
+
         {/* ── DESKTOP RIGHT ASIDE (Inspector de Nodo) ── */}
         <aside className="hidden lg:flex lg:w-[272px] xl:w-[288px] shrink-0 flex-col bg-neon-surface border-l border-white/5 overflow-hidden shadow-soft-elevation">
           <RightInspectorPanel onClose={() => useChoreographyStore.getState().setSelectedPointId(null)} />
@@ -912,19 +976,18 @@ export function App() {
 
 
 
-        {/* ── MOBILE INSPECTOR (Bottom Sheet en Portrait / Right Panel en Landscape) ── */}
+        {/* ── MOBILE INSPECTOR · PORTRAIT (Bottom Sheet) ──
+            En landscape NO se usa: el inspector es una columna en flujo que
+            reserva espacio físico y nunca tapa la Pista 2D (ver más abajo). */}
         <div
           role="dialog"
           aria-modal="true"
           aria-label="Inspector de nodo"
           className={[
-            'lg:hidden fixed z-50 flex flex-col bg-neon-surface shadow-2xl shadow-black/80',
-            'portrait:bottom-0 portrait:left-0 portrait:right-0 portrait:rounded-t-3xl portrait:border-t portrait:border-white/10',
-            'landscape:top-0 landscape:bottom-0 landscape:right-0 landscape:w-[320px] landscape:max-w-[42vw] landscape:rounded-l-2xl landscape:border-l landscape:border-white/10',
+            'lg:hidden landscape:hidden fixed z-50 flex flex-col bg-neon-surface shadow-2xl shadow-black/80',
+            'bottom-0 left-0 right-0 rounded-t-3xl border-t border-white/10',
             'transition-transform duration-ui ease-spring',
-            sheetOpen
-              ? 'portrait:translate-y-0 landscape:translate-x-0'
-              : 'portrait:translate-y-full landscape:translate-x-full',
+            sheetOpen ? 'translate-y-0' : 'translate-y-full',
           ].join(' ')}
           style={{
             maxHeight: '85dvh',
@@ -1011,27 +1074,9 @@ export function App() {
           onClear={requestClearRink}
           inspectorOpen={sheetOpen}
           onToggleInspector={handleToggleInspector}
+          onOpenPaperToDigital={() => setPaperOpen(true)}
         />
       )}
-
-      {/* ═══════════════════════════════════════════════
-          FOOTER — Atribución oficial (solo escritorio y landscape)
-          ═══════════════════════════════════════════════ */}
-      <footer className="attribution-bar min-h-6 shrink-0 items-center justify-center border-t border-white/5 bg-neon-surface/85 px-3 py-1 text-center text-[10px] text-gray-500 select-none z-20 pb-safe px-safe sm:text-xs">
-        <span className="wrap-anywhere font-normal leading-snug">
-          Desarrollado por{' '}
-          <a
-            href="http://www.alsitech.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-medium text-blue-500 transition-colors hover:text-blue-400 hover:underline"
-          >
-            AlsisTech
-          </a>
-          {' | '}
-          Asesoría Técnica: Avril Andrade Sanchez
-        </span>
-      </footer>
 
       {/* ═══════════════════════════════════════════════
           BOTTOM NAVIGATION BAR — Portrait móvil y tablet (< lg)
@@ -1122,6 +1167,7 @@ export function App() {
             onUndo={handleUndo}
                         onClearRink={requestClearRink}
             onOpenAudioStudio={() => { setDrawerOpen(false); setActiveView('studio'); }}
+            onLogout={handleLogout}
             showHeader={false}
             isMobileModal={true}
           />
@@ -1174,6 +1220,13 @@ export function App() {
         cancelLabel="Cancelar"
         onConfirm={handleClearRink}
         onCancel={() => setConfirmClearOpen(false)}
+      />
+
+      {/* Digitalización de la plantilla A4 (accesible desde Home y desde la Pista) */}
+      <PaperToDigitalModal
+        isOpen={paperOpen}
+        onClose={() => setPaperOpen(false)}
+        onDigitalized={() => setActiveView('rink')}
       />
       </div>
     </ProtectedLayout>

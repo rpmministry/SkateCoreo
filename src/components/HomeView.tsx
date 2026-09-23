@@ -16,6 +16,7 @@ import {
   ChevronRight,
   CheckCircle2,
   Loader2,
+  ScanLine,
 } from 'lucide-react';
 import { SkateCoreoBrand } from './brand/SkateCoreoBrand';
 import { useAuthStore } from '../store/useAuthStore';
@@ -39,6 +40,8 @@ export interface HomeViewProps {
   onImportCoreo: () => void;
   onExportCoreo: () => void;
   onSaveOffline: () => void;
+  /** Abre la digitalización de la plantilla A4 (Paper-to-Digital). */
+  onOpenPaperToDigital?: () => void;
 }
 
 /* ── Subcomponentes presentacionales ─────────────────────────── */
@@ -151,6 +154,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onImportCoreo,
   onExportCoreo,
   onSaveOffline,
+  onOpenPaperToDigital,
 }) => {
   const trimmedAudio = audioFileName
     ? audioFileName.replace(/\.[^/.]+$/, '').replace(/[_-]+/g, ' ')
@@ -233,6 +237,16 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     </span>
                   )}
                 </button>
+                {onOpenPaperToDigital && (
+                  <button
+                    type="button"
+                    onClick={onOpenPaperToDigital}
+                    className="press flex min-h-touch items-center justify-center gap-2 rounded-2xl border border-mint/40 bg-mint/12 px-5 py-3 text-sm font-bold text-mint hover:bg-mint/20"
+                  >
+                    <ScanLine className="h-4 w-4 shrink-0" />
+                    Plantilla A4 · Digitalizar
+                  </button>
+                )}
               </div>
             </div>
 

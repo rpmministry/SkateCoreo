@@ -6,6 +6,14 @@ export type ChannelRoutingMode =
   | 'solo-left'    // Canal Izquierdo al 100%, Derecho en silencio absoluto
   | 'solo-right';  // Canal Derecho al 100%, Izquierdo en silencio absoluto
 
+/**
+ * Dominio de reproducción. Aísla los dos mundos de audio de SkateCoreo:
+ *  - 'rink'   → Pista 2D: música + voces guía de nodos + metrónomo.
+ *  - 'studio' → Audio Studio: SOLO su propia mezcla (nunca voces guía ni
+ *               metrónomo de la Pista 2D).
+ */
+export type AudioPlaybackDomain = 'rink' | 'studio';
+
 export interface AudioEngineState {
   isPlaying: boolean;
   currentTimeMs: number;
@@ -19,6 +27,8 @@ export interface AudioEngineState {
   bluetoothLatencyWarning: string | null;
   hasAudioLoaded: boolean;
   fileName: string | null;
+  /** Origen de la pista cargada en la Pista 2D (identidad de dominio, req. 30). */
+  sourceKind: 'file' | 'studio-mix';
   isPreRollActive: boolean;
   preRollCountdown: number; // 3, 2, 1...
 }

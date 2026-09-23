@@ -24,7 +24,9 @@ import {
   Mic,
   PenTool,
   Route,
-  Eraser
+  Eraser,
+  Plus,
+  Minus
 } from 'lucide-react';
 
 import { ChoreographyPathPoint, ChoreographyPoint, Program, ElementLog, isMainNode } from '../types';
@@ -36,6 +38,7 @@ import { useChoreographyStore } from '../store/useChoreographyStore';
 import { collectNodeFigures } from '../core/audio/VoiceCueEngine';
 import { InteractiveWaveform } from './InteractiveWaveform';
 import { useCanvasCamera } from '../hooks/useCanvasCamera';
+import type { CameraBounds } from '../core/canvas/cameraBounds';
 import { FreehandPathEngine, Point2D } from '../core/math/FreehandPathEngine';
 
 interface RinkCanvasProps {
@@ -131,11 +134,14 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
   const audio = useAudioEngine();
 
   // Cámara Virtual Interactiva (Pan, Pinch-to-Zoom y Transformación Screen-to-World)
-  const cameraEngine = useCanvasCamera();
+  const cameraBoundsRef = useRef<CameraBounds | null>(null);
+  const getCameraBounds = useCallback(() => cameraBoundsRef.current, []);
+  const cameraEngine = useCanvasCamera(undefined, { getBounds: getCameraBounds });
   const {
     camera,
     zoomIn,
     zoomOut,
+    zoomAtPoint,
     resetCamera,
     screenToWorld,
     onPointerDown: camPointerDown,
@@ -208,6 +214,25 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       window.visualViewport?.removeEventListener('resize', scheduleMeasure);
     };
   }, []);
+
+  // ── Zoom con rueda del ratón / trackpad (desktop) ──────────────────────────
+  // Se registra como listener NATIVO no pasivo para poder llamar a preventDefault()
+  // y evitar el scroll/zoom del navegador. El punto de interés es el cursor.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      // Trackpad pinch llega como wheel con ctrlKey; la rueda normal también
+      // acerca/aleja. Un delta negativo = acercar.
+      const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+      zoomAtPoint(factor, e.clientX, e.clientY, canvas);
+    };
+
+    canvas.addEventListener('wheel', handleWheel, { passive: false });
+    return () => canvas.removeEventListener('wheel', handleWheel);
+  }, [zoomAtPoint, layoutMode]);
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showHud, setShowHud] = useState(true);
@@ -447,7 +472,9 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     const measured = measuredSizeRef.current;
     const w = measured.width || containerSize.width || 1000;
     const h = measured.height || containerSize.height || 540;
-    const padding = w < 640 ? 24 : 36;
+    // Padding adaptativo a la ALTURA: en landscape móvil (poca altura) se reduce
+    // para que la pista gane el máximo espacio posible.
+    const padding = Math.max(8, Math.min(w < 640 ? 24 : 36, Math.round(h * 0.06)));
     return RinkMath.calculateViewportMetrics(w, h, DEFAULT_RINK_DIMENSIONS, padding);
   }, [containerSize]);
 
@@ -490,8 +517,18 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       cssW,
       cssH,
       DEFAULT_RINK_DIMENSIONS,
-      cssW < 640 ? 24 : 36
+      Math.max(8, Math.min(cssW < 640 ? 24 : 36, Math.round(cssH * 0.06)))
     );
+
+    // Geometría estática para acotar pan/zoom (evita perder la pista).
+    cameraBoundsRef.current = {
+      rectW: cssW,
+      rectH: cssH,
+      offsetX: metrics.offsetX,
+      offsetY: metrics.offsetY,
+      renderedW: metrics.renderedW,
+      renderedH: metrics.renderedH,
+    };
     const currentPoints = useChoreographyStore.getState().points;
     const currentSelectedId = useChoreographyStore.getState().selectedPointId;
     const currentShowHandles = useChoreographyStore.getState().showControlHandles;
@@ -738,7 +775,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     pointerDownPosRef.current = { x: e.clientX, y: e.clientY };
 
     // Radio de hit-test dinámico para Nodos Principales: 32px en pantalla
-    const hitRadius = 32 / camera.zoom;
+    const hitRadius = 44 / camera.zoom;
     let hitFound = false;
 
     // 1. Comprobar si tocó un Nodo Maestro existente (Nodos Principales) con hitbox táctil optimizado
@@ -986,8 +1023,10 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       const clampedY = Math.max(0.3, Math.min(DEFAULT_RINK_DIMENSIONS.widthMeters - 0.3, mY));
 
       const lastPt = rawStrokeRef.current[rawStrokeRef.current.length - 1];
-      // Filtro de distancia (3px a 5px en pantalla): acumula coordenadas con alta resolución para círculos y bucles
-      const minStepMeters = Math.max(0.06, 3.5 / (metrics.scale * (camera.zoom || 1)));
+      // Filtro de distancia (2.5px en pantalla): acumula coordenadas con alta
+      // resolución para reproducir fielmente círculos, bucles y trazos curvos,
+      // también cuando el rink es pequeño (móvil/tablet).
+      const minStepMeters = Math.max(0.03, 2.5 / (metrics.scale * (camera.zoom || 1)));
       if (!lastPt || Math.hypot(clampedX - lastPt.x, clampedY - lastPt.y) >= minStepMeters) {
         rawStrokeRef.current.push({ x: clampedX, y: clampedY });
         renderFrame();
@@ -1003,7 +1042,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
 
     // Feedback del Cursor para Nodos Principales y Deformación de Curvas
     let isHovering = false;
-    const hitRadius = 32 / camera.zoom;
+    const hitRadius = 44 / camera.zoom;
 
     // 1. Proximidad a Nodos Principales
     for (let i = 0; i < points.length; i++) {
@@ -1661,6 +1700,37 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
         )}
 
         {/* Pista limpia sin overlays — el zoom se controla con gestos pinch-to-zoom y los botones de la barra de herramientas */}
+
+        {/* Controles de cámara del editor (zoom + restablecer vista) */}
+        <div className="absolute bottom-3 left-3 z-20 flex flex-col items-center gap-1 rounded-2xl border border-white/10 bg-slate-950/80 p-1 backdrop-blur-md">
+          <button
+            type="button"
+            onClick={() => zoomIn(canvasRef.current)}
+            title="Acercar (rueda del ratón / pinch)"
+            aria-label="Acercar"
+            className="press flex h-9 w-9 items-center justify-center rounded-xl text-slate-300 hover:bg-white/10 hover:text-white"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={resetCamera}
+            title="Restablecer vista"
+            aria-label="Restablecer vista"
+            className="press flex h-9 w-9 items-center justify-center rounded-xl text-[10px] font-bold text-slate-300 hover:bg-white/10 hover:text-white"
+          >
+            {Math.round(camera.zoom * 100)}%
+          </button>
+          <button
+            type="button"
+            onClick={() => zoomOut(canvasRef.current)}
+            title="Alejar"
+            aria-label="Alejar"
+            className="press flex h-9 w-9 items-center justify-center rounded-xl text-slate-300 hover:bg-white/10 hover:text-white"
+          >
+            <Minus className="h-4 w-4" />
+          </button>
+        </div>
 
         <canvas
           ref={canvasRef}

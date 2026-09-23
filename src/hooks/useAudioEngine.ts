@@ -15,6 +15,7 @@ export interface UseAudioEngineReturn {
   durationMs: number;
   fileName: string | null;
   hasAudioLoaded: boolean;
+  sourceKind: 'file' | 'studio-mix';
   channelMode: ChannelRoutingMode;
   isSplitChannel: boolean;
   musicVolume: number;
@@ -179,6 +180,7 @@ export function useAudioEngine(): UseAudioEngineReturn {
     durationMs: audioState.durationMs,
     fileName: audioState.fileName,
     hasAudioLoaded: audioState.hasAudioLoaded,
+    sourceKind: audioState.sourceKind,
     channelMode: audioState.channelMode,
     isSplitChannel,
     musicVolume: audioState.musicVolume,

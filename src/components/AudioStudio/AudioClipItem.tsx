@@ -42,6 +42,8 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
   const calculateSnapOffset = useAudioStudioStore((s) => s.calculateSnapOffset);
   const setDraggingGhost = useAudioStudioStore((s) => s.setDraggingGhost);
   const additionalTracks = useAudioStudioStore((s) => s.additionalTracks);
+  const masterTrack = useAudioStudioStore((s) => s.tracks.music);
+  const recordingTrack = useAudioStudioStore((s) => s.tracks.recording);
   const beginTrashDrag = useAudioStudioStore((s) => s.beginTrashDrag);
   const setTrashHover = useAudioStudioStore((s) => s.setTrashHover);
   const endTrashDrag = useAudioStudioStore((s) => s.endTrashDrag);
@@ -202,15 +204,17 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
     ctx.restore();
   }, [clip.buffer, clip.trimStartSec, clip.trimEndSec, widthPx, trackLaneHeight, localFadeIn, localFadeOut, clipDurationSec]);
 
+  /**
+   * Arreglo REAL del Studio: [Master(música), VOZ grabada, ...adicionales].
+   * La pista de grabación es EXCLUSIVA (no acepta clips de otras pistas).
+   */
   const getTargetTrackInfo = (targetIdx: number) => {
-    if (targetIdx <= 0) {
-      return { id: 'music', name: 'Master' };
+    const arrangement = [masterTrack, recordingTrack, ...additionalTracks];
+    const t = arrangement[targetIdx];
+    if (t) {
+      return { id: t.id, name: t.name, exclusive: t.id === recordingTrack.id };
     }
-    const addTrack = additionalTracks[targetIdx - 1];
-    if (addTrack) {
-      return { id: addTrack.id, name: addTrack.name };
-    }
-    return { id: trackId, name: 'Pista' };
+    return { id: trackId, name: 'Pista', exclusive: false };
   };
 
   // ── Drag Gesture con @use-gesture/react ──
@@ -319,7 +323,10 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
         setDragOffsetSec(null);
 
         if (targetIndex !== trackIndex) {
-          if (onTrackHop) {
+          if (targetInfo.exclusive) {
+            // La pista de VOZ grabada es exclusiva: solo admite grabaciones propias.
+            if ('vibrate' in navigator) navigator.vibrate(30);
+          } else if (onTrackHop) {
             onTrackHop(clip.id, my, finalSec);
           } else {
             moveClipToTrack(trackId, targetInfo.id, clip.id, finalSec);

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Pause, Square, Music, Mic, Bell } from 'lucide-react';
+import { Play, Pause, Square, SkipBack, Music, Mic, Bell } from 'lucide-react';
 import { audioEngine } from '../services/audioEngine';
 import { useAudioStudioStore } from '../store/useAudioStudioStore';
 import { usePressAction } from '../hooks/usePressAction';
@@ -10,6 +10,8 @@ interface RinkAudioPlayerProps {
   isPlaying: boolean;
   hasAudioLoaded: boolean;
   fileName?: string | null;
+  /** Origen del audio (identidad de dominio): mezcla final del Studio o archivo. */
+  sourceKind?: 'file' | 'studio-mix';
   /**
    * `header`  → cápsula completa para la barra superior en desktop (lg+).
    * `compact` → fila ergonómica para móvil/tablet (< lg) en cualquier orientación.
@@ -36,6 +38,7 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
   isPlaying,
   hasAudioLoaded,
   fileName,
+  sourceKind = 'file',
   variant = 'header',
 }) => {
   const tracks = useAudioStudioStore((s) => s.tracks);
@@ -62,11 +65,18 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
     if (engineState.isPlaying || engineState.isPreRollActive) {
       audioEngine.pause();
     } else {
+      // La Pista 2D reproduce en su propio dominio: metrónomo + voces guía activos.
+      audioEngine.setPlaybackDomain('rink');
       audioEngine.play();
     }
   };
 
   const handleStop = () => audioEngine.stop();
+
+  /** Retroceder al inicio (⏮), transporte estándar de la Pista 2D. */
+  const handleRewind = () => {
+    audioEngine.seek(0);
+  };
 
   const effectiveDuration = durationMs > 0 ? durationMs : 120000;
   const progressRatio = Math.max(0, Math.min(1, currentTimeMs / effectiveDuration));
@@ -111,10 +121,28 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
     </button>
   );
 
+  /** Retroceder al inicio (transporte estándar ⏮ ▶/⏸ ■). */
+  const rewindButton = (size: 'md' | 'lg') => (
+    <button
+      type="button"
+      {...press(handleRewind, { enabled: hasAudioLoaded })}
+      disabled={!hasAudioLoaded}
+      className={[
+        size === 'lg' ? 'h-[52px] w-[52px]' : 'h-12 w-12 landscape:h-10 landscape:w-10',
+        'min-w-touch min-h-touch landscape:min-h-0 landscape:min-w-0 shrink-0 rounded-xl flex items-center justify-center press text-slate-400 hover:bg-white/10 hover:text-white disabled:opacity-25 disabled:pointer-events-none',
+      ].join(' ')}
+      aria-label="Retroceder al inicio"
+      title="Retroceder al inicio"
+    >
+      <SkipBack className="h-4 w-4 fill-current stroke-none" />
+    </button>
+  );
+
   /* ── VARIANTE COMPACTA: móvil / tablet en cualquier orientación ── */
   if (variant === 'compact') {
     return (
       <div className="flex w-full min-w-0 items-center gap-2">
+        {rewindButton('md')}
         {playButton('md')}
         {stopButton('md')}
 
@@ -123,6 +151,14 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
             <span className="truncate text-cyan">
               <span className="text-slate-500">Audio · </span>
               {fileName ? fileName.replace(/\.[^/.]+$/, '') : 'Sin pista cargada'}
+              {sourceKind === 'studio-mix' && (
+                <span
+                  className="ml-1.5 rounded px-1 py-0.5 align-middle text-[9px] font-black uppercase tracking-wide text-neon-canvas bg-cyan"
+                  title="Mezcla final enviada desde el Audio Studio"
+                >
+                  Mezcla Studio
+                </span>
+              )}
             </span>
             <span className="shrink-0 text-slate-400">
               {fmtTime(currentTimeMs)}
@@ -144,8 +180,18 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
   /* ── VARIANTE HEADER: cápsula de escritorio (lg+) ── */
   return (
     <div className="flex items-center gap-1.5 rounded-2xl border border-white/10 bg-zinc-950/80 p-1.5 shadow-soft-elevation backdrop-blur-md">
+      {rewindButton('md')}
       {playButton('md')}
       {stopButton('md')}
+
+      {sourceKind === 'studio-mix' && (
+        <span
+          className="rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-neon-canvas bg-cyan"
+          title="Mezcla final enviada desde el Audio Studio"
+        >
+          Mezcla Studio
+        </span>
+      )}
 
       <div className="flex min-w-[82px] flex-col justify-center px-1">
         <div className="flex items-center gap-1 font-mono text-xs font-black leading-none">

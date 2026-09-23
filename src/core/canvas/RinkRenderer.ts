@@ -322,7 +322,11 @@ export class RinkRenderer {
 
       const isSegmentSelected = options.selectedPointId === p0.id || options.selectedPointId === p1.id;
       const hasSplinePath = Boolean(p0.path && p0.path.length >= 2);
-      const hasCustomCps = p0.cp1x !== undefined && p0.cp2x !== undefined;
+      // Bézier SOLO si el usuario esculpió la curva (drag-to-curve). Los puntos de
+      // control automáticos de creación (x+2/x+3) NO deben inventar curvas: sin
+      // `curveShaped`, la unión se dibuja como línea recta.
+      const hasCustomCps =
+        p0.curveShaped === true && p0.cp1x !== undefined && p0.cp2x !== undefined;
 
       ctx.save();
       ctx.lineCap = 'round';
@@ -592,7 +596,7 @@ export class RinkRenderer {
       if (isSelected) {
         ctx.fillStyle = 'rgba(16, 244, 156, 0.25)';
         ctx.beginPath();
-        ctx.arc(px, py, 20, 0, Math.PI * 2);
+        ctx.arc(px, py, 16, 0, Math.PI * 2);
         ctx.fill();
 
         ctx.strokeStyle = 'rgba(16, 244, 156, 0.75)';
@@ -600,22 +604,22 @@ export class RinkRenderer {
         ctx.stroke();
       }
 
-      // 2. Círculo del ancla de alto contraste y tamaño ampliado (Nodo Maestro destacado):
-      // Inactivo: Radio 11px (diámetro 22px) con borde Cian Neón (#38BDF8)
-      // Seleccionado: Radio 14px (diámetro 28px) con fondo Menta Neón (#10F49C) y borde blanco puro (#FFFFFF)
+      // 2. Círculo del ancla de alto contraste. Visual reducido en móvil, pero el
+      //    área táctil se mantiene amplia (44px) y desacoplada del tamaño visual.
+      // Inactivo: Radio 9px · Seleccionado: Radio 11px
       ctx.beginPath();
-      ctx.arc(px, py, isSelected ? 14 : 11, 0, Math.PI * 2);
+      ctx.arc(px, py, isSelected ? 11 : 9, 0, Math.PI * 2);
       ctx.fillStyle = isPending ? '#7C2D12' : isSelected ? '#10F49C' : '#0F172A';
       ctx.fill();
 
-      ctx.lineWidth = isSelected ? 3 : 2.2;
+      ctx.lineWidth = isSelected ? 2.5 : 1.8;
       ctx.strokeStyle = isPending ? '#FB923C' : isSelected ? '#FFFFFF' : '#38BDF8';
       ctx.stroke();
 
-      // 3. Número de orden del nodo centrado en el interior - RESALTADO Y MÁS GRANDE
+      // 3. Número de orden del nodo centrado en el interior (legible).
       //    Los nodos pendientes muestran "?" en naranja hasta editarse a mano.
       ctx.fillStyle = isPending ? '#FDBA74' : isSelected ? '#000000' : '#FFFFFF';
-      ctx.font = `900 ${isSelected ? '12px' : '11px'} JetBrains Mono, system-ui, monospace`;
+      ctx.font = `900 ${isSelected ? '11px' : '10px'} JetBrains Mono, system-ui, monospace`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(isPending ? '?' : `${p.nodeNumber ?? visibleIndex}`, px, py);
@@ -733,7 +737,7 @@ export class RinkRenderer {
     ctx.rotate(avatar.angleRad);
 
     // 3. Renderizado de la Ilustración Gráfica de la Patinadora o el Patinador (Tamaño óptimo visible)
-    const skaterSize = Math.max(54, Math.min(84, 64 * (metrics.scale / 20)));
+    const skaterSize = Math.max(40, Math.min(72, 56 * (metrics.scale / 20)));
     const halfSize = skaterSize / 2;
     const imgToDraw = isFemale ? femaleSkaterImage : maleSkaterImage;
 

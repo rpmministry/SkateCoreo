@@ -1,11 +1,13 @@
 import {
   AudioEngineState,
+  AudioPlaybackDomain,
   ChannelRoutingMode,
   StateChangeCallback,
   TimeUpdateCallback
 } from '../../types/audio';
 import { ElementLog, ChoreographyPathPoint } from '../../types/choreography';
 import { Metronome } from './Metronome';
+import { PlaybackLoop, normalizeLoop, wrapLoopPositionSec } from './playbackLoop';
 import { VoiceCueEngine } from './VoiceCueEngine';
 import { MediaSessionManager } from './MediaSession';
 import { BpmDetector, BpmDetectionResult } from './BpmDetector';
@@ -93,6 +95,8 @@ export class AudioEngine {
   private coachVolume = 1.0;
   private durationMs = 0;
   private fileName: string | null = null;
+  /** Origen del buffer maestro: archivo importado o mezcla final del Audio Studio. */
+  private sourceKind: 'file' | 'studio-mix' = 'file';
   private rawBlob: Blob | null = null;
   private animationFrameId: number | null = null;
 
@@ -105,6 +109,16 @@ export class AudioEngine {
   private preRollTickerId: number | null = null;
   private preRollTimers: ReturnType<typeof setTimeout>[] = [];
   private preRollSources: AudioBufferSourceNode[] = [];
+
+  /**
+   * Dominio activo de reproducción. Por defecto 'rink'. El Audio Studio lo pone a
+   * 'studio', lo que DESACTIVA metrónomo y voces guía de los nodos: son exclusivos
+   * de la Pista 2D y nunca deben sonar dentro del editor de audio.
+   */
+  private playbackDomain: AudioPlaybackDomain = 'rink';
+
+  /** Bucle de reproducción activo (null = sin bucle). */
+  private loop: PlaybackLoop | null = null;
 
   // Listeners
   private timeUpdateCallbacks: Set<TimeUpdateCallback> = new Set();
@@ -492,6 +506,16 @@ export class AudioEngine {
     return this.audioBuffer;
   }
 
+  /**
+   * Contexto de audio del motor (lo inicializa si hace falta). Se usa para
+   * monitorización de grabación: la señal del micrófono se enruta a la MISMA
+   * salida que usa el usuario, nunca a la pista del Rink.
+   */
+  public getAudioContext(): AudioContext | null {
+    this.initAudioContext();
+    return this.ctx;
+  }
+
   public getRawAudioBlob(): Blob | null {
     return this.rawBlob;
   }
@@ -507,18 +531,22 @@ export class AudioEngine {
   public setAudioBuffer(
     buffer: AudioBuffer,
     fileName?: string | null,
-    preservePosition: boolean = false
+    preservePosition: boolean = false,
+    sourceKind: 'file' | 'studio-mix' = 'file'
   ) {
     const previousPosition = this.pausedAtTime;
     this.stop();
     this.audioBuffer = buffer;
     this.durationMs = Math.round(buffer.duration * 1000);
+    this.sourceKind = sourceKind;
     if (fileName !== undefined) {
       this.fileName = fileName;
     }
     this.pausedAtTime = preservePosition
       ? Math.max(0, Math.min(previousPosition, this.durationMs))
       : 0;
+    // Re-sanea el bucle contra la nueva duración (si estaba activo).
+    if (this.loop) this.loop = normalizeLoop(this.loop, buffer.duration);
     this.mediaSession.updateMetadata(this.fileName || 'Pista de Audio');
     this.emitStateChange();
   }
@@ -532,6 +560,7 @@ export class AudioEngine {
     this.audioBuffer = null;
     this.rawBlob = null;
     this.fileName = null;
+    this.sourceKind = 'file';
     this.durationMs = 0;
     this.pausedAtTime = 0;
     this.mediaSession.updateMetadata('Sin pista');
@@ -1104,21 +1133,30 @@ export class AudioEngine {
     if (this.isPlaying) this.stopSource();
 
     const clampedOffsetSec = Math.max(0, Math.min(offsetMs / 1000, this.audioBuffer.duration));
+    const loop = this.loop;
+    // Si el cabezal está más allá del final del bucle, arranca desde el inicio del bucle.
+    const startOffsetSec = loop && clampedOffsetSec > loop.endSec ? loop.startSec : clampedOffsetSec;
 
     this.sourceNode = this.ctx.createBufferSource();
     this.sourceNode.buffer = this.audioBuffer;
     this.sourceNode.playbackRate.value = this.playbackRate;
+    if (loop) {
+      // Bucle NATIVO: precisión de muestra, sin clics ni reagendados manuales.
+      this.sourceNode.loop = true;
+      this.sourceNode.loopStart = Math.min(loop.startSec, this.audioBuffer.duration);
+      this.sourceNode.loopEnd = Math.min(loop.endSec, this.audioBuffer.duration);
+    }
     this.sourceNode.connect(this.musicGainNode);
     this.updateMatrixGains();
 
     this.sourceNode.onended = () => {
-      if (this.isPlaying && this.getCurrentTimeMs() >= this.durationMs - 150) {
+      if (!this.sourceNode?.loop && this.isPlaying && this.getCurrentTimeMs() >= this.durationMs - 150) {
         this.stop();
       }
     };
 
-    this.startTime = whenCtxTime - clampedOffsetSec / this.playbackRate;
-    this.sourceNode.start(whenCtxTime, clampedOffsetSec);
+    this.startTime = whenCtxTime - startOffsetSec / this.playbackRate;
+    this.sourceNode.start(whenCtxTime, startOffsetSec);
     return true;
   }
 
@@ -1131,17 +1169,24 @@ export class AudioEngine {
     this.preRollCountdown = 0;
     this.isPlaying = true;
 
-    // Metrónomo y voz anclados al MISMO instante absoluto que la música.
-    this.metronome.start(clampedOffsetSec, this.playbackRate, whenCtxTime);
-    // UNA SOLA FUENTE RÍTMICA: con el metrónomo sonando, se silencian los beeps
-    // de acento de los cues (sin "doble metrónomo").
-    const metronomeAudible = this.metronome.getConfig().enabled && !this.metronomeMuted;
-    this.voiceCueEngine.setCueTicksEnabled(!metronomeAudible);
-    this.voiceCueEngine.resetTriggeredCues(offsetMs);
-    this.voiceCueEngine.startSync(
-      whenCtxTime - clampedOffsetSec / this.playbackRate,
-      this.playbackRate
-    );
+    // Metrónomo y voz anclados al MISMO instante absoluto que la música, PERO
+    // solo en el dominio de la Pista 2D. En el Audio Studio ('studio') estas
+    // fuentes se detienen: son exclusivas del Rink y no deben contaminar el editor.
+    if (this.playbackDomain === 'rink') {
+      this.metronome.start(clampedOffsetSec, this.playbackRate, whenCtxTime);
+      // UNA SOLA FUENTE RÍTMICA: con el metrónomo sonando, se silencian los beeps
+      // de acento de los cues (sin "doble metrónomo").
+      const metronomeAudible = this.metronome.getConfig().enabled && !this.metronomeMuted;
+      this.voiceCueEngine.setCueTicksEnabled(!metronomeAudible);
+      this.voiceCueEngine.resetTriggeredCues(offsetMs);
+      this.voiceCueEngine.startSync(
+        whenCtxTime - clampedOffsetSec / this.playbackRate,
+        this.playbackRate
+      );
+    } else {
+      this.metronome.stop();
+      this.voiceCueEngine.stop();
+    }
 
     this.mediaSession.updatePlaybackState(true);
     this.mediaSession.updatePositionState(this.durationMs / 1000, clampedOffsetSec, this.playbackRate);
@@ -1316,15 +1361,82 @@ export class AudioEngine {
     }
   }
 
+  /**
+   * Cambia el dominio de reproducción. Al entrar en 'studio' se detienen de
+   * inmediato metrónomo y voces guía (exclusivos del Rink); al volver a 'rink'
+   * se re-sincronizan si había reproducción activa.
+   */
+  public setPlaybackDomain(domain: AudioPlaybackDomain): void {
+    if (this.playbackDomain === domain) return;
+    this.playbackDomain = domain;
+
+    if (domain !== 'rink') {
+      this.metronome.stop();
+      this.voiceCueEngine.stop();
+      return;
+    }
+    if (this.isPlaying && this.ctx) {
+      const posSec = this.getCurrentTimeMs() / 1000;
+      this.metronome.sync(posSec, this.playbackRate);
+      this.voiceCueEngine.startSync(this.startTime, this.playbackRate);
+    }
+  }
+
+  public getPlaybackDomain(): AudioPlaybackDomain {
+    return this.playbackDomain;
+  }
+
+  /**
+   * Activa/desactiva el bucle y define su región. `endSec <= 0` = hasta el final.
+   * El bucle audible es nativo (`AudioBufferSourceNode.loop`), sin clics ni
+   * reagendados manuales; aquí solo se sanea y se aplica a la fuente activa.
+   */
+  public setLoop(enabled: boolean, startSec = 0, endSec = 0): void {
+    const durationSec = (this.audioBuffer?.duration ?? 0) || this.durationMs / 1000;
+    this.loop = normalizeLoop({ enabled, startSec, endSec }, durationSec);
+    if (this.sourceNode && this.loop) {
+      try {
+        this.sourceNode.loop = true;
+        this.sourceNode.loopStart = this.loop.startSec;
+        this.sourceNode.loopEnd = this.loop.endSec;
+      } catch {
+        /* la fuente pudo terminar */
+      }
+    } else if (this.sourceNode && !this.loop) {
+      try {
+        this.sourceNode.loop = false;
+      } catch {
+        /* ignorar */
+      }
+    }
+    this.emitStateChange();
+  }
+
+  public getLoop(): PlaybackLoop | null {
+    return this.loop;
+  }
+
+  /**
+   * Handoff al Audio Studio: detiene por completo la reproducción del Rink
+   * (música, metrónomo, voces guía y pre-roll) y cede el dominio al Estudio.
+   * Garantiza que al abrir el editor de audio NO suene nada de la Pista 2D.
+   */
+  public handoffToStudio(): void {
+    this.pause();
+    this.setPlaybackDomain('studio');
+  }
+
   public setPlaybackRate(rate: number) {
     this.playbackRate = Math.max(0.5, Math.min(2.0, rate));
     if (this.sourceNode && this.ctx) {
       this.sourceNode.playbackRate.setValueAtTime(this.playbackRate, this.ctx.currentTime);
       const currentPosSec = this.getCurrentTimeMs() / 1000;
       this.startTime = this.ctx.currentTime - currentPosSec / this.playbackRate;
-      this.metronome.sync(currentPosSec, this.playbackRate);
-      if (this.isPlaying) {
-        this.voiceCueEngine.startSync(this.startTime, this.playbackRate);
+      if (this.playbackDomain === 'rink') {
+        this.metronome.sync(currentPosSec, this.playbackRate);
+        if (this.isPlaying) {
+          this.voiceCueEngine.startSync(this.startTime, this.playbackRate);
+        }
       }
     }
     this.emitStateChange();
@@ -1345,7 +1457,10 @@ export class AudioEngine {
       return this.pausedAtTime;
     }
     const elapsedSec = (this.ctx.currentTime - this.startTime) * this.playbackRate;
-    const currentMs = Math.round(elapsedSec * 1000);
+    // Con bucle activo, la posición visible vuelve al rango del bucle (el audio ya
+    // lo hace de forma nativa; esto mantiene coherentes playhead y evaluación de cues).
+    const positionSec = wrapLoopPositionSec(elapsedSec, this.loop);
+    const currentMs = Math.round(positionSec * 1000);
     return Math.max(0, Math.min(currentMs, this.durationMs));
   }
 
@@ -1367,8 +1482,11 @@ export class AudioEngine {
         const time = this.getCurrentTimeMs();
 
         // Los avisos de voz se evalúan en CADA frame de hardware para no perder
-        // precisión temporal en los cues (ventana de disparo estrecha).
-        this.voiceCueEngine.checkPlaybackTime(time);
+        // precisión temporal en los cues (ventana de disparo estrecha), PERO solo
+        // en el dominio del Rink: dentro del Audio Studio nunca deben sonar.
+        if (this.playbackDomain === 'rink') {
+          this.voiceCueEngine.checkPlaybackTime(time);
+        }
 
         // La UI se notifica a ~12Hz y siempre que el tiempo retroceda (seek).
         if (
@@ -1406,6 +1524,7 @@ export class AudioEngine {
       bluetoothLatencyWarning: this.bluetoothWarning,
       hasAudioLoaded: this.audioBuffer !== null,
       fileName: this.fileName,
+      sourceKind: this.sourceKind,
       isPreRollActive: this.isPreRollActive,
       preRollCountdown: this.preRollCountdown
     };

@@ -10,12 +10,13 @@
  */
 
 import { useState, useRef, useCallback } from 'react';
+import {
+  CameraBounds,
+  CameraState,
+  clampCamera,
+} from '../core/canvas/cameraBounds';
 
-export interface CameraState {
-  x: number;     // Horizontal translation in CSS pixels
-  y: number;     // Vertical translation in CSS pixels
-  zoom: number;  // Scale factor (1.0 = 100%)
-}
+export type { CameraState };
 
 export interface ScreenPoint {
   x: number;
@@ -25,10 +26,28 @@ export interface ScreenPoint {
 export const MIN_ZOOM = 0.5;
 export const MAX_ZOOM = 4.0;
 
-export const useCanvasCamera = (initialCamera: CameraState = { x: 0, y: 0, zoom: 1 }) => {
+export interface CanvasCameraOptions {
+  /** Devuelve la geometría estática de la pista para acotar pan/zoom. */
+  getBounds?: () => CameraBounds | null;
+}
+
+export const useCanvasCamera = (
+  initialCamera: CameraState = { x: 0, y: 0, zoom: 1 },
+  options?: CanvasCameraOptions
+) => {
+  const getBounds = options?.getBounds;
   const [camera, setCamera] = useState<CameraState>(initialCamera);
   const cameraRef = useRef<CameraState>(initialCamera);
   cameraRef.current = camera;
+
+  /** Aplica los límites de viewport a una cámara candidata. */
+  const withBounds = useCallback(
+    (next: CameraState): CameraState => {
+      const bounds = getBounds?.();
+      return bounds ? clampCamera(next, bounds) : next;
+    },
+    [getBounds]
+  );
 
   // Active pointers registry: pointerId -> ScreenPoint (in CSS pixels relative to canvas)
   const activePointersRef = useRef<Map<number, ScreenPoint>>(new Map());
@@ -166,11 +185,7 @@ export const useCanvasCamera = (initialCamera: CameraState = { x: 0, y: 0, zoom:
 
       pinchStateRef.current.lastMidpoint = currentMid;
 
-      setCamera({
-        x: nextCamX,
-        y: nextCamY,
-        zoom: newZoom,
-      });
+      setCamera(withBounds({ x: nextCamX, y: nextCamY, zoom: newZoom }));
 
       return { isInteractingWithCamera: true };
     }
@@ -182,17 +197,13 @@ export const useCanvasCamera = (initialCamera: CameraState = { x: 0, y: 0, zoom:
 
       panStartPointRef.current = currentPt;
 
-      setCamera((prev) => ({
-        ...prev,
-        x: prev.x + deltaX,
-        y: prev.y + deltaY,
-      }));
+      setCamera((prev) => withBounds({ ...prev, x: prev.x + deltaX, y: prev.y + deltaY }));
 
       return { isInteractingWithCamera: true };
     }
 
     return { isInteractingWithCamera: false };
-  }, []);
+  }, [withBounds]);
 
   /**
    * 5. Libera punteros (pointerup / pointercancel)
@@ -217,7 +228,36 @@ export const useCanvasCamera = (initialCamera: CameraState = { x: 0, y: 0, zoom:
   }, []);
 
   /**
-   * 7. Zoom incremental por botones (Pasos exactos del 10%)
+   * 7. Zoom centrado en un punto de pantalla (rueda del ratón, trackpad, gesto).
+   * Mantiene el punto de interés (bajo el cursor/dedo) aproximadamente fijo.
+   */
+  const zoomAtPoint = useCallback(
+    (
+      factor: number,
+      clientX: number,
+      clientY: number,
+      canvasElement: HTMLCanvasElement
+    ) => {
+      setCamera((prev) => {
+        const rect = canvasElement.getBoundingClientRect();
+        const px = clientX - rect.left;
+        const py = clientY - rect.top;
+        const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prev.zoom * factor));
+        if (newZoom === prev.zoom) return prev;
+        const worldX = (px - prev.x) / prev.zoom;
+        const worldY = (py - prev.y) / prev.zoom;
+        return withBounds({
+          x: px - worldX * newZoom,
+          y: py - worldY * newZoom,
+          zoom: newZoom,
+        });
+      });
+    },
+    [withBounds]
+  );
+
+  /**
+   * 8. Zoom incremental por botones (Pasos exactos del 10%)
    */
   const zoomIn = useCallback((canvasElement?: HTMLCanvasElement | null) => {
     setCamera((prev) => {
@@ -228,15 +268,15 @@ export const useCanvasCamera = (initialCamera: CameraState = { x: 0, y: 0, zoom:
         const midY = rect.height / 2;
         const worldX = (midX - prev.x) / prev.zoom;
         const worldY = (midY - prev.y) / prev.zoom;
-        return {
+        return withBounds({
           x: midX - worldX * newZoom,
           y: midY - worldY * newZoom,
           zoom: newZoom,
-        };
+        });
       }
       return { ...prev, zoom: newZoom };
     });
-  }, []);
+  }, [withBounds]);
 
   const zoomOut = useCallback((canvasElement?: HTMLCanvasElement | null) => {
     setCamera((prev) => {
@@ -247,15 +287,15 @@ export const useCanvasCamera = (initialCamera: CameraState = { x: 0, y: 0, zoom:
         const midY = rect.height / 2;
         const worldX = (midX - prev.x) / prev.zoom;
         const worldY = (midY - prev.y) / prev.zoom;
-        return {
+        return withBounds({
           x: midX - worldX * newZoom,
           y: midY - worldY * newZoom,
           zoom: newZoom,
-        };
+        });
       }
       return { ...prev, zoom: newZoom };
     });
-  }, []);
+  }, [withBounds]);
 
   return {
     camera,
@@ -263,6 +303,7 @@ export const useCanvasCamera = (initialCamera: CameraState = { x: 0, y: 0, zoom:
     resetCamera,
     zoomIn,
     zoomOut,
+    zoomAtPoint,
     screenToWorld,
     worldToScreen,
     onPointerDown,

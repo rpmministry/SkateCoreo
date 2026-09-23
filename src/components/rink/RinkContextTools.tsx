@@ -1,5 +1,5 @@
 import React from 'react';
-import { PenTool, Route, Eraser, Trash2, Undo2, ChevronDown } from 'lucide-react';
+import { PenTool, Route, Eraser, Trash2, Undo2, ChevronDown, ScanLine } from 'lucide-react';
 import { useChoreographyStore } from '../../store/useChoreographyStore';
 
 export type RinkToolsLayout = 'bar' | 'rail' | 'panel';
@@ -15,6 +15,8 @@ interface RinkContextToolsProps {
   /** Disponible cuando el Inspector se presenta como panel/bottom-sheet. */
   inspectorOpen?: boolean;
   onToggleInspector?: () => void;
+  /** Abre la digitalización de la plantilla A4 (Paper-to-Digital). */
+  onOpenPaperToDigital?: () => void;
   className?: string;
 }
 
@@ -42,6 +44,7 @@ export const RinkContextTools: React.FC<RinkContextToolsProps> = ({
   showActions = true,
   inspectorOpen = false,
   onToggleInspector,
+  onOpenPaperToDigital,
   className = '',
 }) => {
   const phase = useChoreographyStore((s) => s.phase);
@@ -273,6 +276,19 @@ export const RinkContextTools: React.FC<RinkContextToolsProps> = ({
       </button>
 
       <span aria-hidden="true" className="my-0.5 h-px w-7 shrink-0 bg-white/10" />
+
+      {onOpenPaperToDigital && (
+        <button
+          type="button"
+          onClick={onOpenPaperToDigital}
+          title="Plantilla A4 · Digitalizar"
+          aria-label="Plantilla A4 y digitalizar"
+          className="press flex h-12 w-12 shrink-0 flex-col items-center justify-center gap-1 rounded-xl border border-mint/30 bg-mint/10 text-[9px] font-bold text-mint hover:bg-mint/20"
+        >
+          <ScanLine className="h-4 w-4 stroke-[2]" />
+          A4
+        </button>
+      )}
 
       <button
         type="button"

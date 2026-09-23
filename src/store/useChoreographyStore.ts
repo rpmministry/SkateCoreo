@@ -393,7 +393,8 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
         ...p,
         controlPoint1: { x: clampedX, y: clampedY },
         cp1x: clampedX,
-        cp1y: clampedY
+        cp1y: clampedY,
+        curveShaped: true,
       };
     });
 
@@ -412,7 +413,8 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
         ...p,
         controlPoint2: { x: clampedX, y: clampedY },
         cp2x: clampedX,
-        cp2y: clampedY
+        cp2y: clampedY,
+        curveShaped: true,
       };
     });
 
@@ -435,7 +437,8 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
         cp1x,
         cp1y,
         cp2x,
-        cp2y
+        cp2y,
+        curveShaped: true,
       };
     });
 
@@ -531,7 +534,8 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
         cp1x: cp1.x,
         cp1y: cp1.y,
         cp2x: cp2.x,
-        cp2y: cp2.y
+        cp2y: cp2.y,
+        curveShaped: false
       };
     } else {
       updatedPoint = {
@@ -541,7 +545,8 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
         cp1x: p0.x,
         cp1y: p0.y,
         cp2x: p0.x,
-        cp2y: p0.y
+        cp2y: p0.y,
+        curveShaped: false
       };
     }
 

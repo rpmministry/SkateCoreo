@@ -20,6 +20,18 @@ import { audioEngine } from '../core/audio/AudioEngine';
 import { ttsService } from '../services/ttsService';
 import { useChoreographyStore } from './useChoreographyStore';
 import { renderStudioMixdown, bounceStudioClipsToBuffer } from '../core/audio/studioMixdown';
+import { VoiceRecorder, normalizeAudioBufferPeak } from '../core/audio/VoiceRecorder';
+
+/**
+ * Instantánea del estado EDITABLE del Studio (para undo/redo). No incluye
+ * reproducción, zoom ni selección: solo lo que el usuario espera deshacer.
+ */
+export interface StudioEditSnapshot {
+  tracks: AudioStudioStoreState['tracks'];
+  additionalTracks: AudioStudioTrack[];
+  audioNodes: AudioTimeNode[];
+  totalDurationSec: number;
+}
 
 export interface AudioStudioStoreState {
   // Pistas del editor multitrack (1 principal de música + auxiliares)
@@ -27,6 +39,8 @@ export interface AudioStudioStoreState {
     music: AudioStudioTrack;
     voice: AudioStudioTrack;
     metronome: AudioStudioTrack;
+    /** Pista dedicada de GRABACIÓN DE VOZ (tomas reales), independiente de la música. */
+    recording: AudioStudioTrack;
     [key: string]: AudioStudioTrack;
   };
   additionalTracks: AudioStudioTrack[]; // Máximo 4 pistas adicionales (1 principal + 4 = 5 en total)
@@ -135,6 +149,32 @@ export interface AudioStudioStoreState {
   setZoom: (zoom: number) => void;
   setMetronomeConfig: (config: Partial<StudioMetronomeConfig>) => void;
   analyzeBpm: () => Promise<number | null>;
+
+  // Historial de edición (undo/redo) — Fase 5.3
+  studioHistory: StudioEditSnapshot[];
+  studioFuture: StudioEditSnapshot[];
+  pushStudioEdit: () => void;
+  undoStudio: () => void;
+  redoStudio: () => void;
+
+  // Grabación de voz (Fase 4)
+  isRecording: boolean;
+  recordingElapsedSec: number;
+  recordingStartSec: number;
+  recordingError: string | null;
+  /** Monitorización de entrada (por defecto OFF; auriculares recomendados). */
+  recordingMonitorEnabled: boolean;
+  recordingMonitorError: string | null;
+  setRecordingMonitor: (enabled: boolean) => void;
+  /** Pre-inicio (cuenta atrás) antes de capturar; explícito, sin offsets mágicos. */
+  recordingCountdownEnabled: boolean;
+  recordingCountdownSec: number;
+  recordingCountdown: number;
+  setRecordingCountdownEnabled: (enabled: boolean) => void;
+  setRecordingCountdownSec: (sec: number) => void;
+  startVoiceRecording: () => Promise<boolean>;
+  stopVoiceRecording: () => Promise<AudioClip | null>;
+  cancelVoiceRecording: () => void;
 
   // Función Puente (Audio-to-Canvas Bridge) & Mixdown
   sendMixToChoreo: () => { nodes: AudioTimeNode[]; success: boolean };
@@ -253,6 +293,22 @@ const initialTracks = {
     fadeInSec: 0,
     fadeOutSec: 0,
   },
+  recording: {
+    id: 'track-recording',
+    name: '🎙 VOZ (Grabación)',
+    color: CARBON_TRACK_COLORS[6], // Coral Neón
+    type: 'voice' as const,
+    buffer: null,
+    clips: [],
+    volume: 1.0,
+    muted: false,
+    solo: false,
+    trimStartSec: 0,
+    trimEndSec: 0,
+    fadeInSec: 0,
+    fadeOutSec: 0,
+    fileName: null,
+  },
 };
 
 /**
@@ -265,10 +321,130 @@ const initialTracks = {
  */
 let pendingConsolidation = false;
 
+/** Grabador de voz activo (singleton de sesión) y ticker de duración en vivo. */
+let voiceRecorder: VoiceRecorder | null = null;
+let recordingTicker: ReturnType<typeof setInterval> | null = null;
+
+/** Monitorización de entrada (opcional, por defecto OFF para evitar realimentación). */
+let monitorSource: MediaStreamAudioSourceNode | null = null;
+let monitorGain: GainNode | null = null;
+
+/** Cuenta atrás de pre-inicio de grabación (explícita y cancelable). */
+let countdownTimer: ReturnType<typeof setInterval> | null = null;
+let countdownCancelled = false;
+
+const stopRecordingMonitor = (): void => {
+  try {
+    monitorSource?.disconnect();
+  } catch {
+    /* ignorar */
+  }
+  try {
+    monitorGain?.disconnect();
+  } catch {
+    /* ignorar */
+  }
+  monitorSource = null;
+  monitorGain = null;
+};
+
+/**
+ * Enruta el micrófono a la MISMA salida del usuario (auriculares recomendados).
+ * Nunca incluye audio del Rink: la fuente es exclusivamente el stream de voz.
+ */
+const startRecordingMonitor = (): { ok: boolean; error?: string } => {
+  const stream = voiceRecorder?.getStream();
+  if (!stream) return { ok: false, error: 'No hay micrófono activo para monitorizar.' };
+  const ctx = audioEngine.getAudioContext();
+  if (!ctx) return { ok: false, error: 'Sin contexto de audio disponible.' };
+  try {
+    monitorSource = ctx.createMediaStreamSource(stream);
+    monitorGain = ctx.createGain();
+    monitorGain.gain.value = 0.8;
+    monitorSource.connect(monitorGain);
+    monitorGain.connect(ctx.destination);
+    return { ok: true };
+  } catch {
+    stopRecordingMonitor();
+    return { ok: false, error: 'No se pudo iniciar la monitorización.' };
+  }
+};
+
+/** Cuenta atrás de pre-inicio: 1 tick por segundo, cancelable al instante. */
+const runRecordingCountdown = (
+  seconds: number,
+  onTick: (remaining: number) => void
+): Promise<void> =>
+  new Promise((resolve) => {
+    countdownCancelled = false;
+    let remaining = seconds;
+    onTick(remaining);
+    countdownTimer = setInterval(() => {
+      remaining -= 1;
+      if (remaining <= 0) {
+        if (countdownTimer) {
+          clearInterval(countdownTimer);
+          countdownTimer = null;
+        }
+        onTick(0);
+        resolve();
+      } else {
+        onTick(remaining);
+      }
+    }, 1000);
+  });
+
+/**
+ * Arreglo del Studio: Master (música) + VOZ grabada + pistas adicionales. La pista
+ * de grabación entra en reproducción y en la mezcla final, pero NO en la pista de
+ * música del Rink (que solo recibe el mix renderizado).
+ */
+const arrangementOf = (state: AudioStudioStoreState): AudioStudioTrack[] => [
+  state.tracks.music,
+  state.tracks.recording,
+  ...state.additionalTracks,
+];
+
+/** Captura el estado editable para el historial de undo/redo. */
+const captureEdit = (s: AudioStudioStoreState): StudioEditSnapshot => ({
+  tracks: s.tracks,
+  additionalTracks: s.additionalTracks,
+  audioNodes: s.audioNodes,
+  totalDurationSec: s.totalDurationSec,
+});
+
+/**
+ * Alias de id de UI → clave real del objeto `tracks`. La UI usa `track.id`
+ * (p. ej. `track-recording`) mientras que `tracks` está indexado por nombre
+ * (`recording`); sin esto, las acciones de edición sobre esas pistas eran no-ops.
+ */
+const CORE_TRACK_KEY_BY_ID: Record<string, string> = {
+  'track-music': 'music',
+  'track-voice': 'voice',
+  'track-metronome': 'metronome',
+  'track-recording': 'recording',
+  master: 'music',
+};
+
+const resolveCoreKey = (
+  tracks: AudioStudioStoreState['tracks'],
+  trackId: string
+): string | null => (tracks[trackId] ? trackId : CORE_TRACK_KEY_BY_ID[trackId] ?? null);
+
+/** La pista de VOZ grabada es EXCLUSIVA: rechaza clips de otras pistas. */
+const isRecordingTarget = (
+  tracks: AudioStudioStoreState['tracks'],
+  additionalTracks: AudioStudioTrack[],
+  trackId: string
+): boolean => {
+  if (resolveCoreKey(tracks, trackId) === 'recording') return true;
+  return additionalTracks.some((t) => t.id === trackId && t.id === 'track-recording');
+};
+
 const runStudioConsolidation = (): boolean => {
   try {
     const state = useAudioStudioStore.getState();
-    const arrangementTracks = [state.tracks.music, ...state.additionalTracks];
+    const arrangementTracks = arrangementOf(state);
     const hasAnyClips = arrangementTracks.some((t) => (t.clips && t.clips.length > 0) || t.buffer);
     if (!hasAnyClips) return false;
 
@@ -347,7 +523,20 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
     if (!snapshot) return;
     const current = get();
     releaseClipBuffers(current.tracks.music?.clips || []);
+    releaseClipBuffers(current.tracks.recording?.clips || []);
     releaseClipBuffers(current.additionalTracks.flatMap((t) => t.clips || []));
+    if (recordingTicker) {
+      clearInterval(recordingTicker);
+      recordingTicker = null;
+    }
+    countdownCancelled = true;
+    if (countdownTimer) {
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+    }
+    stopRecordingMonitor();
+    voiceRecorder?.cancel();
+    voiceRecorder = null;
     pendingConsolidation = false;
     set(snapshot);
   },
@@ -357,9 +546,10 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
 
   calculateSnapOffset: (targetTrackId, clipId, rawOffsetSec, clipDurationSec, thresholdSec = 0.5) => {
     const state = get();
-    const targetTrack = isMasterId(targetTrackId)
-      ? state.tracks.music
-      : (state.tracks[targetTrackId] || state.additionalTracks.find((t) => t.id === targetTrackId));
+    const targetCoreKey = resolveCoreKey(state.tracks, targetTrackId);
+    const targetTrack = targetCoreKey
+      ? state.tracks[targetCoreKey]
+      : state.additionalTracks.find((t) => t.id === targetTrackId);
 
     const snapThreshold = thresholdSec;
     let bestSnappedOffset = Math.max(0, rawOffsetSec);
@@ -440,7 +630,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
 
   consolidateStudioAudio: async () => {
     const state = get();
-    const arrangementTracks = [state.tracks.music, ...state.additionalTracks];
+    const arrangementTracks = arrangementOf(state);
     const hasAnyClips = arrangementTracks.some((t) => (t.clips && t.clips.length > 0) || t.buffer);
     if (!hasAnyClips) return null;
 
@@ -650,6 +840,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   audioClipboard: null,
 
   splitClip: (trackId, clipId, splitTimeSec) => {
+    get().pushStudioEdit();
     let wasSplit = false;
     let newSplitClipId: string | null = null;
     set((state) => {
@@ -714,12 +905,10 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         };
       };
 
-      const trackIsMaster = isMasterId(trackId);
-      const updatedTracks = trackIsMaster
-        ? { ...state.tracks, music: updateClips(state.tracks.music) }
-        : state.tracks[trackId]
-          ? { ...state.tracks, [trackId]: updateClips(state.tracks[trackId]) }
-          : state.tracks;
+      const coreKey = resolveCoreKey(state.tracks, trackId);
+      const updatedTracks = coreKey
+        ? { ...state.tracks, [coreKey]: updateClips(state.tracks[coreKey]) }
+        : state.tracks;
 
       const updatedAdditional = state.additionalTracks.map((t) =>
         t.id === trackId ? updateClips(t) : t
@@ -738,6 +927,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   },
 
   moveClip: (trackId, clipId, newStartOffsetSec) => {
+    get().pushStudioEdit();
     const clampedOffset = Math.max(0, Math.round(newStartOffsetSec * 100) / 100);
     set((state) => {
       let clipEnd = 0;
@@ -752,12 +942,10 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         }),
       });
 
-      const trackIsMaster = isMasterId(trackId);
-      const updatedTracks = trackIsMaster
-        ? { ...state.tracks, music: updateClips(state.tracks.music) }
-        : state.tracks[trackId]
-          ? { ...state.tracks, [trackId]: updateClips(state.tracks[trackId]) }
-          : state.tracks;
+      const coreKey = resolveCoreKey(state.tracks, trackId);
+      const updatedTracks = coreKey
+        ? { ...state.tracks, [coreKey]: updateClips(state.tracks[coreKey]) }
+        : state.tracks;
 
       const updatedAdditional = state.additionalTracks.map((t) =>
         t.id === trackId ? updateClips(t) : t
@@ -777,8 +965,13 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   },
 
   moveClipToTrack: (fromTrackId, toTrackId, clipId, newStartOffsetSec) => {
+    get().pushStudioEdit();
     const clampedOffset = Math.max(0, Math.round(newStartOffsetSec * 100) / 100);
     set((state) => {
+      // La pista de grabación de voz es EXCLUSIVA: rechaza clips de otras pistas.
+      if (isRecordingTarget(state.tracks, state.additionalTracks, toTrackId)) {
+        return state;
+      }
       let movedClip: AudioClip | null = null;
 
       // 1. Extraer clip de pista origen
@@ -791,12 +984,10 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         };
       };
 
-      const fromIsMaster = isMasterId(fromTrackId);
-      const intermediateTracks = fromIsMaster
-        ? { ...state.tracks, music: removeClipFrom(state.tracks.music) }
-        : state.tracks[fromTrackId]
-          ? { ...state.tracks, [fromTrackId]: removeClipFrom(state.tracks[fromTrackId]) }
-          : state.tracks;
+      const fromKey = resolveCoreKey(state.tracks, fromTrackId);
+      const intermediateTracks = fromKey
+        ? { ...state.tracks, [fromKey]: removeClipFrom(state.tracks[fromKey]) }
+        : state.tracks;
 
       const intermediateAdditional = state.additionalTracks.map((t) =>
         t.id === fromTrackId ? removeClipFrom(t) : t
@@ -810,16 +1001,14 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         clips: [...track.clips, movedClip!],
       });
 
-      const toIsMaster = isMasterId(toTrackId);
-      const finalTracks = toIsMaster
-        ? { ...intermediateTracks, music: insertClipInto(intermediateTracks.music) }
-        : intermediateTracks[toTrackId]
-          ? { ...intermediateTracks, [toTrackId]: insertClipInto(intermediateTracks[toTrackId]) }
-          : intermediateTracks;
+      const toKey = resolveCoreKey(intermediateTracks, toTrackId);
+      const finalTracks = toKey
+        ? { ...intermediateTracks, [toKey]: insertClipInto(intermediateTracks[toKey]) }
+        : intermediateTracks;
 
-      const finalAdditional = intermediateAdditional.map((t) =>
-        t.id === toTrackId ? insertClipInto(t) : t
-      );
+      const finalAdditional = toKey
+        ? intermediateAdditional
+        : intermediateAdditional.map((t) => (t.id === toTrackId ? insertClipInto(t) : t));
 
       const targetClip = movedClip as unknown as AudioClip;
       const movedEnd = targetClip ? clampedOffset + (targetClip.trimEndSec - targetClip.trimStartSec) : 0;
@@ -838,16 +1027,19 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   },
 
   duplicateClipToTrack: (fromTrackId, toTrackId, clipId, newStartOffsetSec) => {
+    get().pushStudioEdit();
     const state = get();
     const clampedOffset = Math.max(0, Math.round(newStartOffsetSec * 100) / 100);
 
     // Buscar clip original
-    const fromIsMaster = isMasterId(fromTrackId);
-    const fromTrack = fromIsMaster
-      ? state.tracks.music
-      : (state.tracks[fromTrackId] || state.additionalTracks.find((t) => t.id === fromTrackId));
+    const fromKey = resolveCoreKey(state.tracks, fromTrackId);
+    const fromTrack = fromKey
+      ? state.tracks[fromKey]
+      : state.additionalTracks.find((t) => t.id === fromTrackId);
     const sourceClip = fromTrack?.clips.find((c) => c.id === clipId);
     if (!sourceClip) return null;
+    // La pista de grabación de voz es EXCLUSIVA: rechaza clips de otras pistas.
+    if (isRecordingTarget(state.tracks, state.additionalTracks, toTrackId)) return null;
 
     const duplicatedClip: AudioClip = {
       ...sourceClip,
@@ -861,16 +1053,14 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         clips: [...track.clips, duplicatedClip],
       });
 
-      const toIsMaster = isMasterId(toTrackId);
-      const updatedTracks = toIsMaster
-        ? { ...currState.tracks, music: addClip(currState.tracks.music) }
-        : currState.tracks[toTrackId]
-          ? { ...currState.tracks, [toTrackId]: addClip(currState.tracks[toTrackId]) }
-          : currState.tracks;
+      const toKey = resolveCoreKey(currState.tracks, toTrackId);
+      const updatedTracks = toKey
+        ? { ...currState.tracks, [toKey]: addClip(currState.tracks[toKey]) }
+        : currState.tracks;
 
-      const updatedAdditional = currState.additionalTracks.map((t) =>
-        t.id === toTrackId ? addClip(t) : t
-      );
+      const updatedAdditional = toKey
+        ? currState.additionalTracks
+        : currState.additionalTracks.map((t) => (t.id === toTrackId ? addClip(t) : t));
 
       const dupEnd = clampedOffset + (duplicatedClip.trimEndSec - duplicatedClip.trimStartSec);
       const newTotalDuration = Math.max(currState.totalDurationSec, Math.ceil(dupEnd + 5));
@@ -889,6 +1079,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   },
 
   deleteClip: (trackId, clipId) => {
+    get().pushStudioEdit();
     set((state) => {
       const targetClipId = clipId || state.selectedClipId;
       if (!targetClipId) return state;
@@ -955,9 +1146,10 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
       }
     }
     // 2. Si no hay selectedClipId pero hay un clip bajo el cabezal en activeTrackId
-    const activeTrack = isMasterId(state.activeTrackId)
-      ? state.tracks.music
-      : (state.tracks[state.activeTrackId] || state.additionalTracks.find((t) => t.id === state.activeTrackId));
+    const activeCoreKey = resolveCoreKey(state.tracks, state.activeTrackId);
+    const activeTrack = activeCoreKey
+      ? state.tracks[activeCoreKey]
+      : state.additionalTracks.find((t) => t.id === state.activeTrackId);
     if (activeTrack) {
       const found = activeTrack.clips.find(
         (c) => state.currentTimeSec >= c.startOffsetSec && state.currentTimeSec <= c.startOffsetSec + (c.trimEndSec - c.trimStartSec)
@@ -973,6 +1165,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
     const { clipboardClip, audioClipboard, currentTimeSec, activeTrackId, calculateSnapOffset } = get();
     const clipToPaste = clipboardClip || audioClipboard;
     if (!clipToPaste) return null;
+    get().pushStudioEdit();
 
     // Si no se especifica pista, pegar en la pista activa o master
     const targetTrackId = trackId || activeTrackId || 'music';
@@ -995,16 +1188,14 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         clips: [...track.clips, newClip],
       });
 
-      const targetIsMaster = isMasterId(targetTrackId);
-      const updatedTracks = targetIsMaster
-        ? { ...state.tracks, music: addClip(state.tracks.music) }
-        : state.tracks[targetTrackId]
-          ? { ...state.tracks, [targetTrackId]: addClip(state.tracks[targetTrackId]) }
-          : state.tracks;
+      const targetCoreKey = resolveCoreKey(state.tracks, targetTrackId);
+      const updatedTracks = targetCoreKey
+        ? { ...state.tracks, [targetCoreKey]: addClip(state.tracks[targetCoreKey]) }
+        : state.tracks;
 
-      const updatedAdditional = state.additionalTracks.map((t) =>
-        t.id === targetTrackId ? addClip(t) : t
-      );
+      const updatedAdditional = targetCoreKey
+        ? state.additionalTracks
+        : state.additionalTracks.map((t) => (t.id === targetTrackId ? addClip(t) : t));
 
       const pasteEnd = newClip.startOffsetSec + (newClip.trimEndSec - newClip.trimStartSec);
       const newTotalDuration = Math.max(state.totalDurationSec, Math.ceil(pasteEnd + 5));
@@ -1034,12 +1225,10 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         ),
       });
 
-      const trackIsMaster = isMasterId(trackId);
-      const updatedTracks = trackIsMaster
-        ? { ...state.tracks, music: updateClips(state.tracks.music) }
-        : state.tracks[trackId]
-          ? { ...state.tracks, [trackId]: updateClips(state.tracks[trackId]) }
-          : state.tracks;
+      const coreKey = resolveCoreKey(state.tracks, trackId);
+      const updatedTracks = coreKey
+        ? { ...state.tracks, [coreKey]: updateClips(state.tracks[coreKey]) }
+        : state.tracks;
 
       const updatedAdditional = state.additionalTracks.map((t) =>
         t.id === trackId ? updateClips(t) : t
@@ -1113,6 +1302,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   },
 
   removeAudioTrack: (id) => {
+    get().pushStudioEdit();
     set((state) => {
       const updatedAdditional = state.additionalTracks.filter((t) => t.id !== id);
       return {
@@ -1136,9 +1326,79 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   detectedBpm: null,
   isAnalyzingBpm: false,
 
+  // ── Grabación de voz (Fase 4) ──
+  isRecording: false,
+  recordingElapsedSec: 0,
+  recordingStartSec: 0,
+  recordingError: null,
+  recordingMonitorEnabled: false,
+  recordingMonitorError: null,
+
+  setRecordingMonitor: (enabled) => {
+    if (!enabled) {
+      stopRecordingMonitor();
+      set({ recordingMonitorEnabled: false, recordingMonitorError: null });
+      return;
+    }
+    // Si aún no se está grabando, se guarda como preferencia y se aplicará al
+    // arrancar la toma (el stream todavía no existe).
+    if (!voiceRecorder) {
+      set({ recordingMonitorEnabled: true, recordingMonitorError: null });
+      return;
+    }
+    const result = startRecordingMonitor();
+    set({
+      recordingMonitorEnabled: result.ok,
+      recordingMonitorError: result.ok ? null : result.error ?? null,
+    });
+  },
+
+  recordingCountdownEnabled: false,
+  recordingCountdownSec: 3,
+  recordingCountdown: 0,
+  setRecordingCountdownEnabled: (enabled) => set({ recordingCountdownEnabled: enabled }),
+  setRecordingCountdownSec: (sec) =>
+    set({ recordingCountdownSec: Math.max(1, Math.min(10, Math.round(sec))) }),
+
+  // ── Historial de edición (undo/redo, Fase 5.3) ──
+  studioHistory: [],
+  studioFuture: [],
+  pushStudioEdit: () =>
+    set((s) => ({
+      studioHistory: [...s.studioHistory.slice(-49), captureEdit(s)],
+      studioFuture: [],
+    })),
+  undoStudio: () =>
+    set((s) => {
+      if (s.studioHistory.length === 0) return s;
+      const previous = s.studioHistory[s.studioHistory.length - 1];
+      return {
+        studioHistory: s.studioHistory.slice(0, -1),
+        studioFuture: [captureEdit(s), ...s.studioFuture].slice(0, 50),
+        tracks: previous.tracks,
+        additionalTracks: previous.additionalTracks,
+        audioNodes: previous.audioNodes,
+        totalDurationSec: previous.totalDurationSec,
+      };
+    }),
+  redoStudio: () =>
+    set((s) => {
+      if (s.studioFuture.length === 0) return s;
+      const next = s.studioFuture[0];
+      return {
+        studioFuture: s.studioFuture.slice(1),
+        studioHistory: [...s.studioHistory, captureEdit(s)],
+        tracks: next.tracks,
+        additionalTracks: next.additionalTracks,
+        audioNodes: next.audioNodes,
+        totalDurationSec: next.totalDurationSec,
+      };
+    }),
+
+
   setTrackBuffer: (trackKey, buffer, fileName) => {
     const duration = buffer.duration;
-    const resolvedKey = isMasterId(trackKey) ? 'music' : trackKey;
+    const resolvedKey = resolveCoreKey(get().tracks, trackKey) ?? (isMasterId(trackKey) ? 'music' : trackKey);
     set((state) => {
       const isCore = !!state.tracks[resolvedKey];
       const updatedTracks = { ...state.tracks };
@@ -1202,7 +1462,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
 
   setTrackVolume: (trackKey, volume) => {
     const clamped = Math.max(0, Math.min(1, volume));
-    const resolvedKey = isMasterId(trackKey) ? 'music' : trackKey;
+    const resolvedKey = resolveCoreKey(get().tracks, trackKey) ?? (isMasterId(trackKey) ? 'music' : trackKey);
     set((state) => {
       let updatedTracks = { ...state.tracks };
       let updatedAdditional = [...state.additionalTracks];
@@ -1236,7 +1496,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   },
 
   toggleTrackMute: (trackKey) => {
-    const resolvedKey = isMasterId(trackKey) ? 'music' : trackKey;
+    const resolvedKey = resolveCoreKey(get().tracks, trackKey) ?? (isMasterId(trackKey) ? 'music' : trackKey);
     set((state) => {
       let updatedTracks = { ...state.tracks };
       let updatedAdditional = [...state.additionalTracks];
@@ -1288,7 +1548,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   },
 
   toggleTrackSolo: (trackKey) => {
-    const resolvedKey = isMasterId(trackKey) ? 'music' : trackKey;
+    const resolvedKey = resolveCoreKey(get().tracks, trackKey) ?? (isMasterId(trackKey) ? 'music' : trackKey);
     set((state) => {
       let updatedTracks = { ...state.tracks };
       let updatedAdditional = [...state.additionalTracks];
@@ -1375,6 +1635,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
 
   // ── Marcadores Temporales (Time Nodes) ──
   addTimeNode: (timestampSec, label) => {
+    get().pushStudioEdit();
     const state = get();
     const clampedTime = Math.max(0, Math.min(state.totalDurationSec, timestampSec));
     const newId = `node-audio-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -1402,6 +1663,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   },
 
   updateTimeNode: (id, timestampSec, label) => {
+    get().pushStudioEdit();
     set((state) => {
       const updated = state.audioNodes.map((node) => {
         if (node.id === id) {
@@ -1425,6 +1687,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   },
 
   deleteTimeNode: (id) => {
+    get().pushStudioEdit();
     set((state) => {
       const filtered = state.audioNodes.filter((n) => n.id !== id);
       const renumbered = filtered.map((node, index) => ({
@@ -1440,6 +1703,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   },
 
   clearTimeNodes: () => {
+    get().pushStudioEdit();
     set({ audioNodes: [], selectedNodeId: null });
   },
 
@@ -1517,6 +1781,159 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
     }
   },
 
+  // ── GRABACIÓN DE VOZ (Fase 4) ─────────────────────────────────────────────
+  startVoiceRecording: async () => {
+    if (get().isRecording) return false;
+    if (!VoiceRecorder.isSupported()) {
+      set({ recordingError: 'La grabación de voz no está disponible en este navegador.' });
+      return false;
+    }
+    try {
+      const recorder = new VoiceRecorder();
+      // Detener la reproducción evita monitorización/realimentación y fija una
+      // única referencia temporal: el cabezal y la toma arrancan en el mismo punto.
+      audioEngine.pause();
+      await recorder.prepare();
+      voiceRecorder = recorder;
+
+      // Pre-inicio EXPLÍCITO (opcional): cuenta atrás antes de capturar. No se
+      // compensa con offsets: la toma arranca cuando termina la cuenta.
+      if (get().recordingCountdownEnabled && get().recordingCountdownSec > 0) {
+        await runRecordingCountdown(get().recordingCountdownSec, (remaining) =>
+          set({ recordingCountdown: remaining })
+        );
+        if (countdownCancelled || voiceRecorder !== recorder) {
+          recorder.cancel();
+          if (voiceRecorder === recorder) voiceRecorder = null;
+          set({ isRecording: false, recordingCountdown: 0, recordingElapsedSec: 0 });
+          return false;
+        }
+      }
+
+      await recorder.start();
+
+      // Aplicar la preferencia de monitorización con el stream ya disponible.
+      if (get().recordingMonitorEnabled) {
+        const monitor = startRecordingMonitor();
+        set({ recordingMonitorError: monitor.ok ? null : monitor.error ?? null });
+      }
+
+      if (recordingTicker) clearInterval(recordingTicker);
+      recordingTicker = setInterval(() => {
+        const active = voiceRecorder;
+        if (active) set({ recordingElapsedSec: active.elapsedSec() });
+      }, 200);
+
+      set({
+        isRecording: true,
+        recordingError: null,
+        recordingStartSec: get().currentTimeSec,
+        recordingElapsedSec: 0,
+        recordingCountdown: 0,
+      });
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'No se pudo iniciar la grabación.';
+      voiceRecorder = null;
+      set({ isRecording: false, recordingError: message });
+      return false;
+    }
+  },
+
+  stopVoiceRecording: async () => {
+    const recorder = voiceRecorder;
+    if (recordingTicker) {
+      clearInterval(recordingTicker);
+      recordingTicker = null;
+    }
+    if (!recorder) {
+      set({ isRecording: false, recordingElapsedSec: 0 });
+      return null;
+    }
+
+    let buffer: AudioBuffer | null = null;
+    try {
+      buffer = await recorder.stop();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error al detener la grabación.';
+      set({ recordingError: message });
+    }
+    stopRecordingMonitor();
+    voiceRecorder = null;
+
+    const startBase = get().recordingStartSec;
+    if (!buffer) {
+      set({ isRecording: false, recordingElapsedSec: 0, recordingError: get().recordingError ?? 'La toma quedó vacía.' });
+      return null;
+    }
+
+    // Nivel: normaliza el pico de la toma (el micrófono suele entrar muy bajo).
+    normalizeAudioBufferPeak(buffer);
+
+    const state = get();
+    const voiceTrack = state.tracks.recording;
+
+    // Evita que dos tomas queden EXACTAMENTE superpuestas en el mismo cabezal:
+    // si ya hay una toma en ese punto, la nueva se coloca al final de la anterior.
+    const recordingEnd = voiceTrack.clips.reduce(
+      (max, c) => Math.max(max, c.startOffsetSec + (c.trimEndSec - c.trimStartSec)),
+      0
+    );
+    const overlapsExisting = voiceTrack.clips.some(
+      (c) => Math.abs(c.startOffsetSec - startBase) < 0.05
+    );
+    const startSec = overlapsExisting ? Math.max(startBase, recordingEnd + 0.01) : startBase;
+
+    const takeNumber = voiceTrack.clips.length + 1;
+    const clip: AudioClip = {
+      id: `voice-take-${Date.now()}-${takeNumber}`,
+      name: `Voz ${takeNumber}`,
+      buffer,
+      startOffsetSec: startSec,
+      trimStartSec: 0,
+      trimEndSec: buffer.duration,
+      fadeInSec: 0,
+      fadeOutSec: 0,
+    };
+
+    // Tomas MÚLTIPLES: nunca se sobrescribe una toma anterior.
+    get().pushStudioEdit();
+    set({
+      isRecording: false,
+      recordingElapsedSec: 0,
+      totalDurationSec: Math.max(state.totalDurationSec, startSec + buffer.duration),
+      tracks: {
+        ...state.tracks,
+        recording: {
+          ...voiceTrack,
+          buffer: voiceTrack.buffer ?? buffer,
+          clips: [...voiceTrack.clips, clip],
+        },
+      },
+    });
+
+    pendingConsolidation = true;
+    triggerStudioConsolidation();
+    return clip;
+  },
+
+  cancelVoiceRecording: () => {
+    if (recordingTicker) {
+      clearInterval(recordingTicker);
+      recordingTicker = null;
+    }
+    // Cancelar una posible cuenta atrás de pre-inicio en curso.
+    countdownCancelled = true;
+    if (countdownTimer) {
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+    }
+    stopRecordingMonitor();
+    voiceRecorder?.cancel();
+    voiceRecorder = null;
+    set({ isRecording: false, recordingElapsedSec: 0, recordingCountdown: 0 });
+  },
+
   // ── PUENTE DE DATOS: Exportar a Pista 2D (sendMixToChoreo) ──
   sendMixToChoreo: () => {
     const state = get();
@@ -1525,15 +1942,17 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
     // 1. Enviar a la Pista 2D la MEZCLA consolidada (respetando cortes, offsets,
     //    fades y mutes), NO el buffer original de la pista Master: enviar
     //    `musicTrack.buffer` reproducía el archivo completo ignorando los clips.
-    const arrangementTracks = [state.tracks.music, ...state.additionalTracks];
+    const arrangementTracks = arrangementOf(state);
     const mixed = bounceStudioClipsToBuffer(arrangementTracks, state.totalDurationSec);
     if (mixed) {
-      audioEngine.setAudioBuffer(mixed, 'mezcla_estudio.wav');
+      audioEngine.setAudioBuffer(mixed, 'mezcla_estudio.wav', false, 'studio-mix');
     } else if (state.tracks.music.buffer) {
       // Fallback: pista master cargada sin clips (estado heredado).
       audioEngine.setAudioBuffer(
         state.tracks.music.buffer,
-        state.tracks.music.fileName || 'mezcla_estudio.wav'
+        state.tracks.music.fileName || 'mezcla_estudio.wav',
+        false,
+        'studio-mix'
       );
     }
 
@@ -1549,24 +1968,26 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   // ── RENDERIZADO MIXDOWN POR HARDWARE: Exportar mezcla combinada a Pista 2D ──
   renderAndExportMixdown: async () => {
     const state = get();
-    // En la nueva arquitectura, las pistas de audio activas son la Principal (Música) + Pistas adicionales
-    const arrangementTracks: AudioStudioTrack[] = [
-      state.tracks.music,
-      ...state.additionalTracks,
-    ];
+    // En la nueva arquitectura, las pistas de audio activas son la Principal (Música)
+    // + la VOZ grabada + las pistas adicionales.
+    const arrangementTracks: AudioStudioTrack[] = arrangementOf(state);
 
     try {
       const result = await renderStudioMixdown(
         arrangementTracks,
         state.totalDurationSec,
-        state.metronomeConfig
+        // Sin metrónomo horneado: el Rink reproduce su metrónomo EN VIVO. Hornearlo
+        // producía dos clics desfasados (fase/timbre/BPM distintos).
+        { ...state.metronomeConfig, enabled: false }
       );
 
-      // Inyectar el AudioBuffer combinado directamente en AudioEngine (Pista 2D)
-      audioEngine.setAudioBuffer(result.buffer, 'mezcla_skatecoreo_master.wav');
+      // Inyectar el AudioBuffer combinado en el motor (Pista 2D). Esta es la ÚNICA
+      // transferencia permitida Studio → Rink: REEMPLAZA la música activa del Rink.
+      audioEngine.setAudioBuffer(result.buffer, 'Mezcla final (Audio Studio).wav', false, 'studio-mix');
 
-      // Actualizar también la pista de música del estudio con la mezcla unificada
-      get().setTrackBuffer('music', result.buffer, 'mezcla_skatecoreo_master.wav');
+      // IMPORTANTE: NO se toca el proyecto del Audio Studio. El Master conserva
+      // sus clips, edición, automatización y configuración (el Rink recibe una
+      // copia renderizada, no el estado vivo del Studio).
 
       // Enviar nodos temporales a la bandeja lateral de la Pista 2D
       useChoreographyStore.getState().setUnplacedNodes(state.audioNodes);
