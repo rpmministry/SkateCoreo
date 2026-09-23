@@ -293,7 +293,7 @@ export const CornerPinAdjuster: React.FC<CornerPinAdjusterProps> = ({
   };
 
   return (
-    <div className="relative w-full h-full flex items-center justify-center bg-slate-950 select-none overflow-hidden rounded-2xl border border-white/10">
+    <div className="relative w-full h-full min-h-0 flex items-center justify-center bg-slate-950 select-none overflow-hidden rounded-2xl border border-white/10">
       {/* Contenedor relativo para imagen y canvas overlay */}
       <div
         ref={containerRef}
@@ -301,13 +301,13 @@ export const CornerPinAdjuster: React.FC<CornerPinAdjusterProps> = ({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
-        className="relative max-w-full max-h-full cursor-crosshair touch-none"
+        className="relative flex max-h-full max-w-full items-center justify-center cursor-crosshair touch-none"
         style={{ touchAction: 'none' }}
       >
         <img
           src={imageSrc}
           alt="Hoja de Coreografía"
-          className="max-w-full max-h-[60vh] object-contain block pointer-events-none rounded-xl"
+          className="block max-w-full object-contain pointer-events-none rounded-xl max-h-[38dvh] sm:max-h-[48dvh] landscape:max-h-[40dvh] lg:max-h-[68dvh]"
         />
 
         {/* Canvas de líneas y pines */}

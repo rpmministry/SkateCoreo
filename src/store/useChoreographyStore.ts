@@ -501,7 +501,11 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
     set({
       points: [],
       selectedPointId: null,
-      phase: 'plot'
+      phase: 'plot',
+      // Limpiar también la bandeja de nodos pendientes del escáner: si no, quedaba
+      // un nodo "fantasma" pendiente que parecía no haberse borrado.
+      unplacedNodes: [],
+      activeTrayNodeIndex: 0,
     });
   },
 

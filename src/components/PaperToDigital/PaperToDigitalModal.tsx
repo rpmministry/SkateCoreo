@@ -537,7 +537,7 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
                 </div>
               ) : (
                 /* Visualizador y Calibrador de Esquinas (imagen aislada) */
-                <div className="relative flex min-h-[30dvh] flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950 lg:min-h-0">
+                <div className="relative flex min-h-[30dvh] flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950 lg:min-h-0 landscape:h-full landscape:min-h-0 landscape:max-h-full">
                   {corners && (
                     <ErrorBoundary
                       inline
