@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "test": "tsx src/services/rollartEngine.test.ts && tsx src/core/audio/audioEngine.test.ts && tsx src/core/canvas/rinkMath.test.ts && tsx src/store/choreographyStore.test.ts && tsx src/core/audio/bpmDetector.test.ts && tsx src/services/coreoPackage.test.ts && tsx src/core/math/FreehandPathEngine.test.ts && tsx src/store/audioStudioStore.test.ts && tsx src/hooks/useAudioZoomPan.test.ts && tsx src/core/vision/homographyWarp.test.ts && tsx src/services/pdfTemplateGenerator.test.ts && tsx src/core/audio/studioMixdown.test.ts && tsx src/core/audio/voiceCueSanitizer.test.ts && tsx src/core/audio/voiceGender.test.ts && tsx src/core/audio/ttsBackend.test.ts && tsx src/core/audio/ttsProxyHandler.test.ts"
+    "test": "tsx src/services/rollartEngine.test.ts && tsx src/core/audio/audioEngine.test.ts && tsx src/core/canvas/rinkMath.test.ts && tsx src/store/choreographyStore.test.ts && tsx src/core/audio/bpmDetector.test.ts && tsx src/services/coreoPackage.test.ts && tsx src/core/math/FreehandPathEngine.test.ts && tsx src/store/audioStudioStore.test.ts && tsx src/hooks/useAudioZoomPan.test.ts && tsx src/core/vision/homographyWarp.test.ts && tsx src/core/vision/scan/paperScanner.test.ts && tsx src/services/pdfTemplateGenerator.test.ts && tsx src/core/audio/studioMixdown.test.ts && tsx src/core/audio/voiceCueSanitizer.test.ts && tsx src/core/audio/voiceGender.test.ts && tsx src/core/audio/ttsBackend.test.ts && tsx src/core/audio/ttsProxyHandler.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",
