@@ -173,6 +173,13 @@ export class AudioEngine {
   // Sub-busses & Volume Nodes
   private musicGainNode: GainNode | null = null;
   private metronomeGainNode: GainNode | null = null;
+  /**
+   * Estado de conexión del bus del metrónomo. El MUTE no solo baja la ganancia:
+   * DESCONECTA el sub-bus del árbol de audio. En móviles (iOS/WebKit) el cambio
+   * de ganancia programado podía no aplicarse si el AudioContext acababa de
+   * reanudarse; desconectar garantiza silencio absoluto en todas las plataformas.
+   */
+  private metronomeBusConnected = true;
   private voiceCueGainNode: GainNode | null = null;
   private coachBusGainNode: GainNode | null = null;
 
@@ -506,7 +513,14 @@ export class AudioEngine {
     const setBus = (node: GainNode | null, gainValue: number) => {
       if (!node) return;
       try {
-        node.gain.cancelScheduledValues(now);
+        node.gain.cancelScheduledValues(0);
+      } catch {
+        /* Ignorar. */
+      }
+      // Se aplica en t=0 (absoluto) además de en `now`: así el mute es efectivo
+      // aunque el reloj del contexto se haya reanudado con retraso (móvil).
+      try {
+        node.gain.setValueAtTime(gainValue, 0);
       } catch {
         /* Ignorar. */
       }
@@ -514,8 +528,35 @@ export class AudioEngine {
     };
 
     setBus(this.musicGainNode, this.musicMuted ? 0 : 1);
-    setBus(this.metronomeGainNode, this.metronomeMuted ? 0 : 1);
     setBus(this.voiceCueGainNode, this.voiceGuideMuted ? 0 : 1);
+
+    // MUTE del metrónomo = desconectar su sub-bus (silencio absoluto garantizado
+    // en móvil, independientemente del scheduling de ganancia de WebKit).
+    if (this.metronomeGainNode && this.coachBusGainNode) {
+      if (this.metronomeMuted) {
+        this.metronomeGainNode.gain.setValueAtTime(0, now);
+        if (this.metronomeBusConnected) {
+          try {
+            this.metronomeGainNode.disconnect();
+          } catch {
+            /* Ignorar. */
+          }
+          this.metronomeBusConnected = false;
+        }
+      } else {
+        if (!this.metronomeBusConnected) {
+          try {
+            this.metronomeGainNode.connect(this.coachBusGainNode);
+          } catch {
+            /* Ignorar. */
+          }
+          this.metronomeBusConnected = true;
+        }
+        setBus(this.metronomeGainNode, 1);
+      }
+    } else {
+      setBus(this.metronomeGainNode, this.metronomeMuted ? 0 : 1);
+    }
   }
 
   public setMusicMuted(muted: boolean) {

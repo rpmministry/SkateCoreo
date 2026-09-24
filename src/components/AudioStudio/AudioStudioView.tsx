@@ -8,7 +8,6 @@ import {
   Plus,
   Play,
   Pause,
-  SkipBack,
   Square,
   Sliders,
   Bell,
@@ -641,13 +640,6 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     flushPendingConsolidation();
   };
 
-  // Volver al inicio (0:00) sin detener: si está reproduciendo, continúa desde
-  // el principio; si está pausado, solo mueve el cabezal.
-  const handleRewind = () => {
-    audioEngine.seek(0);
-    setCurrentTimeSec(0);
-  };
-
   // Regresar / Ir a Inicio: salir del Estudio detiene SIEMPRE la reproducción
   // (cero audio fantasma) y conserva el proyecto y los buffers intactos.
   const handleExitStudio = useCallback(
@@ -933,19 +925,9 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             <Sliders className="w-5 h-5 text-cyan" />
           </button>
 
-          {/* Volver al inicio (0:00) — conserva el estado Play/Pause. */}
-          <button
-            type="button"
-            {...press(handleRewind)}
-            className={`press w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 active:bg-white/15 ${hasTransportAudio ? '' : 'opacity-40'}`}
-            title="Volver al inicio (0:00)"
-            aria-label="Volver al inicio"
-          >
-            <SkipBack className="w-5 h-5" />
-          </button>
-
           {/* Stop / Detener — detiene todo (fuente, pre-roll, metrónomo y voz)
-              y devuelve la posición a 0:00. */}
+              y devuelve la posición a 0:00. Es el único botón de parada/inicio:
+              hace ambas cosas, así que no se duplica con un "volver al inicio". */}
           <button
             type="button"
             {...press(handleStop)}
