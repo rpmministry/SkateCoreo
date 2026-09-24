@@ -58,7 +58,17 @@ export function normalizeSubdivision(value: number | undefined | null): Metronom
   return value === 2 || value === 4 || value === 8 ? value : 1;
 }
 
+/**
+ * Contador de instancias vivas del metrónomo. En SkateCoreo debe ser SIEMPRE 1
+ * (una sola fuente). Sirve para detectar duplicaciones accidentales.
+ */
+let LIVE_METRONOMES = 0;
+
+/** Trazabilidad de diagnóstico (solo en desarrollo, cero coste en producción). */
+const METRONOME_DEBUG = Boolean((import.meta as { env?: { DEV?: boolean } })?.env?.DEV);
+
 export class Metronome {
+  private readonly instanceId: number;
   private ctx: AudioContext | null = null;
   private outputNode: AudioNode | null = null;
   /**
@@ -123,9 +133,29 @@ export class Metronome {
   private readonly maxBeatsPerTick = 64;
 
   constructor(config?: Partial<MetronomeConfig>) {
+    this.instanceId = ++LIVE_METRONOMES;
     if (config) {
       this.config = { ...this.config, ...config };
     }
+    if (METRONOME_DEBUG) {
+      console.debug(`[METRONOME] instancia #${this.instanceId} creada · activas: ${LIVE_METRONOMES}`);
+    }
+  }
+
+  /** Estado para diagnóstico (avalancha de logs solo en DEV). */
+  private logState(context: string) {
+    if (!METRONOME_DEBUG) return;
+    console.debug(
+      `[METRONOME] ${context} · instancia #${this.instanceId}/${LIVE_METRONOMES}` +
+        ` · running=${this.isRunning}` +
+        ` · scheduler=${this.timerId !== null ? 'ON' : 'OFF'}` +
+        ` · enabled=${this.config.enabled}` +
+        ` · muted=${this.hardMuted}` +
+        ` · bpm=${this.config.bpm}` +
+        ` · subdiv=1/${normalizeSubdivision(this.config.subdivision)}` +
+        ` · intervalMs=${(this.getPulseDurationSec() * 1000).toFixed(2)}` +
+        ` · nextPulse=${this.nextBeatIndex}`
+    );
   }
 
   public init(ctx: AudioContext, outputNode: AudioNode) {
@@ -140,9 +170,21 @@ export class Metronome {
    * cadena reencolaran el mismo beat. El planificador la aplica una sola vez y
    * siempre sin retroceder por debajo de lo ya programado.
    */
-  private requestResync() {
-    if (!this.isRunning || !this.ctx) return;
-    this.pendingResync = true;
+  /**
+   * Reconfiguración ATÓMICA: cancela por completo el patrón ANTERIOR (timer +
+   * pulsos ya programados) y rearma UN ÚNICO scheduler con la nueva config.
+   *
+   * Es la clave para que cambiar BPM/compás/subdivisión durante PLAY no deje el
+   * patrón anterior sonando solapado con el nuevo (lo que se percibía como
+   * "todas las subdivisiones a la vez").
+   */
+  private rearmAfterConfigChange() {
+    if (!this.isRunning || !this.config.enabled || this.hardMuted) return;
+    this.haltScheduler(); // cancela el timer y DESTRUYE los clicks ya agendados
+    this.pendingResync = false;
+    this.applyResync();
+    this.runScheduler();
+    this.logState('rearmado por cambio de configuración');
   }
 
   /**
@@ -170,11 +212,25 @@ export class Metronome {
 
   public setConfig(newConfig: Partial<MetronomeConfig>) {
     this.config = { ...this.config, ...newConfig };
-    this.requestResync();
+    this.rearmAfterConfigChange();
   }
 
   public getConfig(): MetronomeConfig {
     return { ...this.config };
+  }
+
+  /** Instancias vivas del metrónomo (debe ser 1 en la app). Diagnóstico/tests. */
+  public static getLiveInstanceCount(): number {
+    return LIVE_METRONOMES;
+  }
+
+  public getInstanceId(): number {
+    return this.instanceId;
+  }
+
+  /** ¿Hay un scheduler activo? (debe haber como máximo uno). */
+  public hasActiveScheduler(): boolean {
+    return this.timerId !== null;
   }
 
   /**
@@ -183,7 +239,7 @@ export class Metronome {
    */
   public setBpm(bpm: number) {
     this.config.bpm = Math.max(30, Math.min(300, Math.round(bpm)));
-    this.requestResync();
+    this.rearmAfterConfigChange();
   }
 
   /**
@@ -193,7 +249,7 @@ export class Metronome {
   public setBeatsPerMeasure(beats: number) {
     const clamped = Math.max(1, Math.min(7, Math.round(beats))) as 1 | 2 | 3 | 4 | 5 | 6 | 7;
     this.config.beatsPerMeasure = clamped;
-    this.requestResync();
+    this.rearmAfterConfigChange();
   }
 
   public setVolume(volume: number) {
@@ -213,11 +269,13 @@ export class Metronome {
     this.hardMuted = muted;
     if (muted) {
       this.haltScheduler();
-    } else if (this.isRunning && this.config.enabled) {
+    } else if (this.isRunning && this.config.enabled && this.timerId === null) {
+      // Solo se rearma si NO hay ya un scheduler activo (evita duplicarlo).
       this.pendingResync = false;
       this.applyResync();
       this.runScheduler();
     }
+    this.logState(muted ? 'mute ON' : 'mute OFF');
   }
 
   public isHardMuted(): boolean {
@@ -230,7 +288,7 @@ export class Metronome {
    */
   public setSubdivision(subdivision: number) {
     this.config.subdivision = normalizeSubdivision(subdivision);
-    this.requestResync();
+    this.rearmAfterConfigChange();
   }
 
   /**
@@ -404,7 +462,15 @@ export class Metronome {
    * Así es imposible que queden dos bucles vivos en paralelo.
    */
   private runScheduler() {
+    // GARANTÍA DE ÚNICO SCHEDULER: si ya hay un timer activo se cancela antes de
+    // crear uno nuevo. Nunca pueden coexistir dos bucles.
+    if (this.timerId !== null) {
+      globalThis.clearTimeout(this.timerId);
+      this.timerId = null;
+    }
+
     const token = ++this.schedulerToken;
+    this.logState('scheduler armado');
 
     const tick = () => {
       if (!this.isRunning || !this.ctx || token !== this.schedulerToken) {

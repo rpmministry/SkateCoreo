@@ -549,6 +549,38 @@ async function runTests() {
     'setMuted(false) rearma el planificador desde el tiempo actual (sin reinicio)'
   );
 
+  // ÚNICO SCHEDULER + ÚNICA SUBDIVISIÓN: cambios rápidos no acumulan bucles ni
+  // patrones. La última subdivisión seleccionada gana.
+  metroMute.setSubdivision(2);
+  metroMute.setSubdivision(4);
+  metroMute.setSubdivision(8);
+  metroMute.setSubdivision(1);
+  assert(
+    metroMute.getConfig().subdivision === 1,
+    'Cambios rápidos de subdivisión: gana la última (sin acumular patrones)'
+  );
+  assert(
+    metroMute.hasActiveScheduler() === true,
+    'Tras reconfigurar sigue habiendo exactamente un scheduler activo'
+  );
+  metroMute.setMuted(true);
+  assert(
+    metroMute.hasActiveScheduler() === false,
+    'MUTE detiene por completo el scheduler (sin bucles vivos)'
+  );
+  const beforeMutedWait = muteOscCount;
+  muteCtx.currentTime = 5.0;
+  await new Promise<void>((resolve) => setTimeout(resolve, 60));
+  assert(
+    muteOscCount === beforeMutedWait,
+    'Mientras está muteado no se crea ningún click aunque avance el tiempo'
+  );
+  metroMute.setMuted(false);
+  assert(
+    metroMute.hasActiveScheduler() === true,
+    'UNMUTE rearma desde el instante actual (un solo scheduler)'
+  );
+
   metroMute.stop();
 
   // 14. PRE-ROLL determinista: selector OFF/3/5/8 y banco de voz único
