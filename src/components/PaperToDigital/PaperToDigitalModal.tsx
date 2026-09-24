@@ -11,73 +11,11 @@ import {
 } from 'lucide-react';
 import { QuadCorners, HomographyWarp } from '../../core/vision/HomographyWarp';
 import { FiducialDetector } from '../../core/vision/FiducialDetector';
-import { PaperOcrEngine, OcrDebugEntry } from '../../core/vision/PaperOcrEngine';
-import { PaperColorDetector } from '../../core/vision/PaperColorDetector';
 import { CornerPinAdjuster } from './CornerPinAdjuster';
+import { ImagePrepareStage } from './ImagePrepareStage';
 import { ErrorBoundary } from '../system/ErrorBoundary';
 import { useChoreographyStore } from '../../store/useChoreographyStore';
 import { ChoreographyPoint } from '../../types/choreography';
-
-/**
- * Overlay de depuración: dibuja el centroide detectado de cada círculo (punto
- * rojo) y, al lado, el texto que el OCR ha leído (o el motivo de descarte).
- */
-/** Convierte un canvas a PNG limitando su ancho (evita dataURLs gigantes en móvil). */
-function canvasToScaledDataUrl(source: HTMLCanvasElement, maxWidth = 1000): string {
-  if (source.width <= maxWidth) return source.toDataURL('image/png');
-  const scale = maxWidth / source.width;
-  const small = document.createElement('canvas');
-  small.width = maxWidth;
-  small.height = Math.max(1, Math.round(source.height * scale));
-  const ctx = small.getContext('2d');
-  if (!ctx) return source.toDataURL('image/png');
-  ctx.drawImage(source, 0, 0, small.width, small.height);
-  return small.toDataURL('image/png');
-}
-
-function buildOcrDebugOverlay(binarized: HTMLCanvasElement, debug: OcrDebugEntry[]): string {
-  const canvas = document.createElement('canvas');
-  canvas.width = binarized.width;
-  canvas.height = binarized.height;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return binarized.toDataURL('image/png');
-
-  ctx.drawImage(binarized, 0, 0);
-
-  for (const d of debug) {
-    // Verde = aceptado (pasa al OCR) · Azul = rechazado por los filtros.
-    const color = d.rejected ? '#3B82F6' : d.accepted ? '#22C55E' : '#F59E0B';
-
-    ctx.beginPath();
-    ctx.arc(d.x, d.y, Math.max(8, d.radius), 0, Math.PI * 2);
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 3;
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.arc(d.x, d.y, 4, 0, Math.PI * 2);
-    ctx.fillStyle = color;
-    ctx.fill();
-
-    const label = d.rejected
-      ? 'FILTRADO'
-      : d.accepted
-        ? d.text
-          ? `OK: ${d.text}`
-          : 'NODO'
-        : d.text
-          ? `X: ${d.text}`
-          : 'PENDIENTE';
-    ctx.font = 'bold 20px monospace';
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = '#FFFFFF';
-    ctx.strokeText(label, d.x + 12, d.y - 10);
-    ctx.fillStyle = color;
-    ctx.fillText(label, d.x + 12, d.y - 10);
-  }
-
-  return canvasToScaledDataUrl(canvas, 1000);
-}
 
 interface PaperToDigitalModalProps {
   isOpen: boolean;
@@ -99,15 +37,11 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   /** Error de alineación: bloquea la digitalización automática si es != null. */
   const [alignmentError, setAlignmentError] = useState<string | null>(null);
-  /** Preview de la imagen preprocesada/binarizada (modo debug). */
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  /** Máscara de color (fondo negro, trazos del marcador en blanco) para depurar. */
-  const [maskUrl, setMaskUrl] = useState<string | null>(null);
-  const [debugView, setDebugView] = useState<'nodes' | 'mask'>('nodes');
-  const [showDebug, setShowDebug] = useState<boolean>(false);
   /** Orientación detectada respecto a la hoja "de pie" (0/90/180/270 aprox.). */
   const [orientationDeg, setOrientationDeg] = useState<number>(0);
   const [originFound, setOriginFound] = useState<boolean>(false);
+  /** Etapa de preparación de imagen (mejora + detección) abierta. */
+  const [prepareOpen, setPrepareOpen] = useState<boolean>(false);
 
   const setPaperTraceOverlay = useChoreographyStore((s) => s.setPaperTraceOverlay);
   const clearPaperTraceOverlay = useChoreographyStore((s) => s.clearPaperTraceOverlay);
@@ -147,9 +81,8 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
   const loadImageAndDetectCorners = (src: string) => {
     setIsProcessing(true);
     setStatusMessage('Detectando marcas fiduciales (targets QR)...');
-    setPreviewUrl(null);
-    setMaskUrl(null);
     setAlignmentError(null);
+    setPrepareOpen(false);
 
     const img = new Image();
     img.src = src;
@@ -259,7 +192,6 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
     ctx.closePath();
     ctx.stroke();
 
-    // Trazos simulados a mano de la entrenadora (tinta azul oscura)
     // Trayectoria neutra (gris, NO saturada) → no interfiere con la máscara de color.
     ctx.strokeStyle = '#64748B';
     ctx.lineWidth = 5;
@@ -271,26 +203,32 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
     ctx.bezierCurveTo(400, 180, 700, 500, 920, 260);
     ctx.stroke();
 
-    // Nodos numerados manuscritos (círculos con 1, 2, 3)
-    const drawNode = (num: number, x: number, y: number) => {
-      ctx.fillStyle = '#1E3A8A';
+    // Nodos manuscritos: círculos de marcador ROJO/AZUL (algunos SIN número).
+    const drawInkNode = (x: number, y: number, color: string, num?: number) => {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 6;
       ctx.beginPath();
-      ctx.arc(x, y, 16, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = 'bold 15px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(`${num}`, x, y + 1);
+      ctx.arc(x, y, 20, 0, Math.PI * 2);
+      ctx.stroke();
+      if (num != null) {
+        ctx.fillStyle = color;
+        ctx.font = 'bold 18px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${num}`, x, y + 1);
+      }
     };
 
-    drawNode(1, 220, 340);
-    drawNode(2, 550, 320);
-    drawNode(3, 920, 260);
+    drawInkNode(220, 340, '#DC2626', 1);
+    drawInkNode(550, 320, '#1D4ED8', 2);
+    drawInkNode(920, 260, '#DC2626'); // nodo sin número
 
     const demoUrl = demoCanvas.toDataURL('image/jpeg', 0.9);
     setImageSrc(demoUrl);
     setCorners({ topLeft: tl, topRight: tr, bottomRight: br, bottomLeft: bl });
+    setOrientationDeg(0);
+    setOriginFound(true);
+    setAlignmentError(null);
     setIsProcessing(false);
     setStatusMessage(null);
   };
@@ -327,124 +265,43 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
     };
   };
 
-  // ── ETAPA 2: Digitalización Automática Completa (Alineación + OCR) ──
-  const handleAutoVectorizeAndOcr = async () => {
-    if (!imageSrc || !corners) return;
+  // ── ETAPA 2: Digitalización (nodos confirmados desde la etapa de preparación) ──
+  const handleConfirmDigitalization = (points: ChoreographyPoint[]) => {
+    if (points.length === 0) return;
+    setPoints(points);
+    setPhase(points.length >= 2 ? 'curve' : 'plot');
 
-    // REQUISITO: si las 4 esquinas no están alineadas, se pide re-escanear en
-    // lugar de generar nodos en coordenadas erróneas.
-    if (alignmentError) {
-      alert(
-        'La alineación no es fiable: no se detectaron las 4 marcas fiduciales.\n\n' +
-        'Vuelve a escanear la hoja con buena luz o ajusta manualmente los 4 pines hasta que coincidan con las marcas, y reintenta.'
-      );
-      return;
+    // Navegación garantizada (además del evento global).
+    try {
+      window.dispatchEvent(new CustomEvent('skatecoreo:goto-rink'));
+    } catch {
+      /* entorno sin window */
     }
+    try {
+      onDigitalized?.();
+    } catch {
+      /* no-op */
+    }
+    setPrepareOpen(false);
+    onClose();
+  };
 
-    setIsProcessing(true);
-    setStatusMessage('Paso 1/3: Corrigiendo perspectiva (homografía)...');
+  const resetAll = () => {
+    setImageSrc(null);
+    setCorners(null);
+    setPrepareOpen(false);
+    clearPaperTraceOverlay();
+  };
 
-    const img = new Image();
-    img.src = imageSrc;
-    img.onload = async () => {
-      try {
-        // Resolución de detección REDUCIDA (1400×700): el motor deriva los metros
-        // del tamaño del canvas, así que es correcto, y baja ~2.7× el uso de
-        // memoria/CPU en móvil (causa de cierres por OOM al digitalizar).
-        const warpedCanvas = HomographyWarp.warpPerspective(img, corners, 1400, 700);
-
-        // ── BLOQUEO ABSOLUTO DE VECTORES/TRAZOS ───────────────────────────────
-        // El escáner NO extrae ni sube líneas: solo coordenadas de nodos. No se
-        // vectoriza nada y el array de trazos queda vacío por diseño.
-
-        // Paso 2/3: reconocimiento SOBRE LA IMAGEN YA ALINEADA (nunca la original).
-        //   · Con clave de Cloud Vision → HTR (lee el número manuscrito).
-        //   · Sin clave → "truco del marcador": segmentación por COLOR rojo/azul.
-        setStatusMessage('Paso 2/3: Reconociendo nodos (IA de visión o segmentación por color)...');
-        const ocrResult = await PaperOcrEngine.detectNumberedNodesWithDebug(warpedCanvas);
-
-        // Debug visual: overlay con los nodos detectados sobre la hoja alineada
-        // y la MÁSCARA DE COLOR (negro + trazos del marcador en blanco).
-        setPreviewUrl(buildOcrDebugOverlay(warpedCanvas, ocrResult.debug));
-        setMaskUrl(canvasToScaledDataUrl(PaperColorDetector.buildMaskCanvas(warpedCanvas), 1000));
-        const rawDetectedNodes = ocrResult.nodes;
-
-        // ── FAIL-SAFE ─────────────────────────────────────────────────────────
-        // TODO contorno detectado se convierte en nodo, aunque el OCR falle
-        // (número 0 = pendiente). Primero los reconocidos por número; luego los
-        // pendientes, en el mismo orden en que se detectaron.
-        const detectedNodes = rawDetectedNodes;
-        const recognizedNodes = detectedNodes.filter((n) => n.sequenceNumber >= 1);
-        const pendingNodes = detectedNodes.filter((n) => n.sequenceNumber < 1);
-        const sortedOcrNodes = [...recognizedNodes].sort((a, b) => a.sequenceNumber - b.sequenceNumber).concat(pendingNodes);
-
-        if (detectedNodes.length > 0) {
-
-          // Solo se generan NODOS sueltos (sin path ni segmentos de unión).
-          const generatedPoints: ChoreographyPoint[] = sortedOcrNodes.map((node, idx) => {
-            const timeMs = idx * 4000; // Distribución temporal base
-            const recognized = node.sequenceNumber >= 1;
-
-            return {
-              id: `node-paper-${Date.now()}-${idx + 1}`,
-              timestamp: timeMs,
-              time_ms: timeMs,
-              x: node.positionMeters.x,
-              y: node.positionMeters.y,
-              controlPoint1: { x: node.positionMeters.x + 3, y: node.positionMeters.y },
-              controlPoint2: { x: node.positionMeters.x + 6, y: node.positionMeters.y },
-              cp1x: node.positionMeters.x + 3,
-              cp1y: node.positionMeters.y,
-              cp2x: node.positionMeters.x + 6,
-              cp2y: node.positionMeters.y,
-              type: recognized ? 'Step' : 'Marker',
-              // La plantilla solo aporta un número de orden, NO una figura técnica.
-              // Nodo pendiente (OCR falló) ⇒ etiqueta '?' para editarla a mano.
-              label: recognized ? '' : '?',
-              isMainNode: true,
-              unrecognized: !recognized,
-              nodeNumber: recognized ? node.sequenceNumber : undefined,
-              // El escáner sube SOLO coordenadas sueltas: sin trazos ni uniones.
-              unlinked: true,
-              path: undefined,
-            };
-          });
-
-          setPoints(generatedPoints);
-          setPhase('curve'); // Pasa directamente a modo curva interactiva
-
-          // Navegación garantizada: la app conmuta a la Pista 2D al terminar.
-          // (Sin `alert()`: los diálogos bloqueantes podían cerrar/suspender la PWA.)
-          try {
-            window.dispatchEvent(new CustomEvent('skatecoreo:goto-rink'));
-          } catch {
-            /* entorno sin window (SSR/tests) */
-          }
-
-          setIsProcessing(false);
-          setStatusMessage(null);
-          // Navegación GARANTIZADA por callback (además del evento global, que
-          // puede no estar montado si el modal se abrió desde otra vista).
-          try {
-            onDigitalized?.();
-          } catch {
-            /* no-op */
-          }
-          onClose();
-          return;
-        }
-
-        // Sin nodos: NO se cierra el modal, para que el usuario revise la máscara.
-        setIsProcessing(false);
-        setStatusMessage(
-          'No se detectaron nodos. Abre «Vista previa → Máscara de color»: dibuja los círculos con marcador ROJO o AZUL ' +
-          'y vuelve a intentar. Si la máscara se ve bien, sube MIN_AREA o baja el filtro de aspecto.'
-        );
-      } catch (err: any) {
-        setIsProcessing(false);
-        setStatusMessage('Error en la digitalización: ' + (err?.message || err));
-      }
-    };
+  /**
+   * Cambiar de foto SOLO descarta la imagen actual: NO debe borrar el calco
+   * (onion skin) que el usuario ya haya colocado en la pista.
+   */
+  const handleChangePhoto = () => {
+    setImageSrc(null);
+    setCorners(null);
+    setPrepareOpen(false);
+    setAlignmentError(null);
   };
 
   return (
@@ -454,7 +311,7 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
         dinámico (dvh) con áreas seguras, header y footer fijos y SOLO el cuerpo
         con scroll interno. Nada se sale de la pantalla ni tapa el escaneo.
       */}
-      <div className="flex h-full max-h-full w-full max-w-4xl flex-col overflow-hidden border-0 border-cyan/30 bg-[#0D1322] text-slate-100 shadow-2xl pt-safe pb-safe sm:h-[90dvh] sm:max-h-[90dvh] sm:rounded-3xl sm:border landscape:h-full landscape:max-h-full landscape:rounded-none landscape:border-0">
+      <div className="flex h-full max-h-full w-full max-w-5xl flex-col overflow-hidden border-0 border-cyan/30 bg-[#0D1322] text-slate-100 shadow-2xl pt-safe pb-safe sm:h-[90dvh] sm:max-h-[90dvh] sm:rounded-3xl sm:border landscape:h-full landscape:max-h-full landscape:rounded-none landscape:border-0">
         {/* ── Modal Header ── */}
         <div className="flex h-14 shrink-0 items-center justify-between border-b border-white/10 bg-slate-950/70 px-4 sm:px-5 landscape:h-11 landscape:px-3">
           <div className="flex items-center gap-2.5">
@@ -469,7 +326,7 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
                 </span>
               </h2>
               <p className="text-[11px] text-slate-400">
-                Convierte tus coreografías dibujadas a mano en trazados digitales interactivos
+                Convierte tus coreografías dibujadas a mano en nodos digitales interactivos
               </p>
             </div>
           </div>
@@ -483,221 +340,175 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
           </button>
         </div>
 
-        {/* ── Modal Body: GRID aislado (imagen 100% limpia | panel lateral) ── */}
+        {/* ── Modal Body ── */}
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 sm:p-4 lg:overflow-hidden landscape:p-2">
-          <div className="grid min-h-0 grid-cols-1 gap-3 sm:gap-4 lg:h-full lg:grid-cols-[minmax(0,1fr)_300px] landscape:h-full landscape:min-h-0 landscape:grid-cols-[minmax(0,1fr)_minmax(200px,42%)]">
+          {prepareOpen && imageSrc && corners ? (
+            <ImagePrepareStage
+              imageSrc={imageSrc}
+              corners={corners}
+              onBack={() => setPrepareOpen(false)}
+              onConfirm={handleConfirmDigitalization}
+            />
+          ) : (
+            <div className="grid min-h-0 grid-cols-1 gap-3 sm:gap-4 lg:h-full lg:grid-cols-[minmax(0,1fr)_300px] landscape:h-full landscape:min-h-0 landscape:grid-cols-[minmax(0,1fr)_minmax(200px,42%)]">
 
-            {/* ░░ COLUMNA 1: ÁREA DE LA HOJA A4 (sin textos superpuestos) ░░ */}
-            <div className="flex min-h-[42dvh] flex-col sm:min-h-[48dvh] lg:min-h-0 landscape:min-h-0">
-              {!imageSrc ? (
-                /* Pantalla inicial de selección de imagen */
-                <div className="flex flex-1 min-h-[350px] flex-col items-center justify-center gap-4 rounded-3xl border-2 border-dashed border-white/15 bg-slate-950/40 p-6 text-center">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-cyan/25 bg-cyan/10 text-cyan shadow-glow-cyan">
-                    <FileText className="h-8 w-8" />
-                  </div>
-
-                  <div className="max-w-md space-y-1">
-                    <h3 className="text-base font-bold text-white">
-                      Sube o toma una foto de la plantilla impresa
-                    </h3>
-                    <p className="text-xs leading-relaxed text-slate-400">
-                      Asegúrate de que la hoja esté bien iluminada y que las{' '}
-                      <strong className="text-cyan">4 marcas fiduciales (⊕)</strong> de las esquinas sean visibles.
-                    </p>
-                  </div>
-
-                  {/* Botones de subida */}
-                  <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="interactive-tap flex items-center gap-2 rounded-2xl bg-cyan px-5 py-2.5 text-xs font-black text-slate-950 shadow-glow-cyan transition-all hover:bg-cyan/90"
-                    >
-                      <Camera className="h-4 w-4" />
-                      <span>Tomar Foto / Subir Imagen</span>
-                    </button>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="hidden"
-                      onChange={handleFileChange}
-                    />
-
-                    <button
-                      type="button"
-                      onClick={handleLoadDemoSheet}
-                      className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-bold text-slate-300 transition-all hover:bg-white/10"
-                    >
-                      <Sparkles className="h-4 w-4 text-amber-400" />
-                      <span>Probar con Hoja Demo</span>
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                /* Visualizador y Calibrador de Esquinas (imagen aislada) */
-                <div className="relative flex min-h-[30dvh] flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950 lg:min-h-0 landscape:h-full landscape:min-h-0 landscape:max-h-full">
-                  {corners && (
-                    <ErrorBoundary
-                      inline
-                      inlineMessage="No se pudo abrir el ajuste de esquinas. Vuelve a intentarlo."
-                    >
-                      <CornerPinAdjuster
-                        imageSrc={imageSrc}
-                        corners={corners}
-                        onChangeCorners={(c) => {
-                          setCorners(c);
-                          // El ajuste manual confirma la alineación: permite continuar.
-                          if (alignmentError) setAlignmentError(null);
-                        }}
-                      />
-                    </ErrorBoundary>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* ░░ COLUMNA 2: PANEL LATERAL (instrucciones, controles y estado) ░░ */}
-            <aside className="flex shrink-0 flex-col gap-3 rounded-2xl border border-white/10 bg-slate-950/95 p-4 lg:min-h-0 lg:overflow-y-auto landscape:min-h-0 landscape:shrink landscape:overflow-y-auto">
-              <h3 className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-cyan">
-                <CheckCircle2 className="h-4 w-4" />
-                Alineación de la hoja
-              </h3>
-
-              <p className="text-[11px] leading-relaxed text-slate-400">
-                Arrastra los <span className="font-bold text-cyan">4 pines circulares</span> hasta las marcas
-                fiduciales (⊕) de las esquinas. Toda la hoja debe quedar dentro del recuadro cian.
-              </p>
-
-              {/* Orientación normalizada (marca de origen asimétrica) */}
-              {imageSrc && corners && !alignmentError && (
-                <div className="rounded-xl border border-cyan/25 bg-cyan/10 px-3 py-2 text-[10px] font-semibold leading-relaxed text-cyan">
-                  Orientación:{' '}
-                  {Math.abs(orientationDeg) < 15
-                    ? 'correcta (0°)'
-                    : `${orientationDeg}° → corregida automáticamente`}
-                  <br />
-                  {originFound
-                    ? 'Marca de origen (cuadrado sólido) localizada.'
-                    : 'Origen estimado por heurística de diseño.'}
-                </div>
-              )}
-
-              {imageSrc && (
-                <div className="flex flex-col gap-2">
-                  <button
-                    type="button"
-                    onClick={() => imageSrc && loadImageAndDetectCorners(imageSrc)}
-                    className="flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-semibold text-slate-200 transition-all hover:bg-white/10"
-                    title="Volver a buscar las marcas automáticamente"
-                  >
-                    <RefreshCw className="h-3.5 w-3.5 text-cyan" />
-                    <span>Auto-Alinear marcas</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setImageSrc(null)}
-                    className="flex items-center justify-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-[11px] font-semibold text-slate-400 transition-colors hover:text-red-400"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                    <span>Cambiar foto</span>
-                  </button>
-                </div>
-              )}
-
-              {/* Estado del procesamiento (SIEMPRE fuera de la imagen) */}
-              {statusMessage && (
-                <div className="flex items-center gap-2 rounded-xl border border-cyan/30 bg-cyan/15 px-3 py-2 text-[11px] font-semibold text-cyan">
-                  <RefreshCw className="h-3.5 w-3.5 shrink-0 animate-spin" />
-                  <span>{statusMessage}</span>
-                </div>
-              )}
-
-              {/* Error de alineación: bloquea la digitalización automática */}
-              {alignmentError && (
-                <div className="rounded-xl border border-red-500/40 bg-red-500/15 px-3 py-2 text-[11px] font-semibold leading-relaxed text-red-200">
-                  {alignmentError}
-                </div>
-              )}
-
-              {/* Modo debug: nodos detectados y MÁSCARA DE COLOR */}
-              {imageSrc && (
-                <div className="space-y-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowDebug((v) => !v)}
-                    className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-semibold text-slate-200 transition-all hover:bg-white/10"
-                  >
-                    <span>Vista previa (depuración)</span>
-                    <span className="text-cyan">{showDebug ? 'Ocultar' : 'Mostrar'}</span>
-                  </button>
-
-                  {showDebug && (
-                    <div className="space-y-2 rounded-xl border border-white/10 bg-black/40 p-2">
-                      <div className="flex gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => setDebugView('nodes')}
-                          className={`flex-1 rounded-lg px-2 py-1.5 text-[10px] font-bold transition-colors ${
-                            debugView === 'nodes' ? 'bg-cyan text-slate-950' : 'bg-white/10 text-slate-300'
-                          }`}
-                        >
-                          Nodos
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDebugView('mask')}
-                          className={`flex-1 rounded-lg px-2 py-1.5 text-[10px] font-bold transition-colors ${
-                            debugView === 'mask' ? 'bg-cyan text-slate-950' : 'bg-white/10 text-slate-300'
-                          }`}
-                        >
-                          Máscara de color
-                        </button>
-                      </div>
-
-                      {(debugView === 'mask' ? maskUrl : previewUrl) ? (
-                        <img
-                          src={(debugView === 'mask' ? maskUrl : previewUrl) as string}
-                          alt={debugView === 'mask' ? 'Máscara de color' : 'Nodos detectados'}
-                          className="w-full rounded-lg border border-white/10 object-contain"
-                        />
-                      ) : (
-                        <p className="p-2 text-center text-[10px] text-slate-500">
-                          La vista previa aparecerá al digitalizar (paso 2/3).
-                        </p>
-                      )}
+              {/* ░░ COLUMNA 1: ÁREA DE LA HOJA A4 (sin textos superpuestos) ░░ */}
+              <div className="flex min-h-[42dvh] flex-col sm:min-h-[48dvh] lg:min-h-0 landscape:min-h-0">
+                {!imageSrc ? (
+                  /* Pantalla inicial de selección de imagen */
+                  <div className="flex flex-1 min-h-[350px] flex-col items-center justify-center gap-4 rounded-3xl border-2 border-dashed border-white/15 bg-slate-950/40 p-6 text-center">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-cyan/25 bg-cyan/10 text-cyan shadow-glow-cyan">
+                      <FileText className="h-8 w-8" />
                     </div>
-                  )}
-                </div>
-              )}
 
-              <div className="mt-auto space-y-1.5 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-[10px] leading-relaxed text-slate-400">
-                <p>
-                  <strong className="text-rose-300">Dibuja los nodos con bolígrafo/marcador ROJO o AZUL</strong>{' '}
-                  (círculo + número). La plantilla impresa desaparece y cada mancha se detecta como un nodo.
-                </p>
-                <p>
-                  Con Google Cloud Vision configurado, la IA lee además el número manuscrito.
-                </p>
-                <p>Si un número no se lee, aparece en naranja: haz doble clic en la Pista 2D para escribirlo.</p>
+                    <div className="max-w-md space-y-1">
+                      <h3 className="text-base font-bold text-white">
+                        Sube o toma una foto de la plantilla impresa
+                      </h3>
+                      <p className="text-xs leading-relaxed text-slate-400">
+                        Asegúrate de que la hoja esté bien iluminada y que las{' '}
+                        <strong className="text-cyan">4 marcas fiduciales (⊕)</strong> de las esquinas sean visibles.
+                      </p>
+                    </div>
+
+                    {/* Botones de subida */}
+                    <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="interactive-tap flex items-center gap-2 rounded-2xl bg-cyan px-5 py-2.5 text-xs font-black text-slate-950 shadow-glow-cyan transition-all hover:bg-cyan/90"
+                      >
+                        <Camera className="h-4 w-4" />
+                        <span>Tomar Foto / Subir Imagen</span>
+                      </button>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={handleFileChange}
+                      />
+
+                      <button
+                        type="button"
+                        onClick={handleLoadDemoSheet}
+                        className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-bold text-slate-300 transition-all hover:bg-white/10"
+                      >
+                        <Sparkles className="h-4 w-4 text-amber-400" />
+                        <span>Probar con Hoja Demo</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* Visualizador y Calibrador de Esquinas (imagen aislada) */
+                  <div className="relative flex min-h-[30dvh] flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950 lg:min-h-0 landscape:h-full landscape:min-h-0 landscape:max-h-full">
+                    {corners && (
+                      <ErrorBoundary
+                        inline
+                        inlineMessage="No se pudo abrir el ajuste de esquinas. Vuelve a intentarlo."
+                      >
+                        <CornerPinAdjuster
+                          imageSrc={imageSrc}
+                          corners={corners}
+                          onChangeCorners={(c) => {
+                            setCorners(c);
+                            // El ajuste manual confirma la alineación: permite continuar.
+                            if (alignmentError) setAlignmentError(null);
+                          }}
+                        />
+                      </ErrorBoundary>
+                    )}
+                  </div>
+                )}
               </div>
-            </aside>
-          </div>
+
+              {/* ░░ COLUMNA 2: PANEL LATERAL (instrucciones, controles y estado) ░░ */}
+              <aside className="flex shrink-0 flex-col gap-3 rounded-2xl border border-white/10 bg-slate-950/95 p-4 lg:min-h-0 lg:overflow-y-auto landscape:min-h-0 landscape:shrink landscape:overflow-y-auto">
+                <h3 className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-cyan">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Alineación de la hoja
+                </h3>
+
+                <p className="text-[11px] leading-relaxed text-slate-400">
+                  Arrastra los <span className="font-bold text-cyan">4 pines circulares</span> hasta las marcas
+                  fiduciales (⊕) de las esquinas. Toda la hoja debe quedar dentro del recuadro cian.
+                </p>
+
+                {/* Orientación normalizada (marca de origen asimétrica) */}
+                {imageSrc && corners && !alignmentError && (
+                  <div className="rounded-xl border border-cyan/25 bg-cyan/10 px-3 py-2 text-[10px] font-semibold leading-relaxed text-cyan">
+                    Orientación:{' '}
+                    {Math.abs(orientationDeg) < 15
+                      ? 'correcta (0°)'
+                      : `${orientationDeg}° → corregida automáticamente`}
+                    <br />
+                    {originFound
+                      ? 'Marca de origen (cuadrado sólido) localizada.'
+                      : 'Origen estimado por heurística de diseño.'}
+                  </div>
+                )}
+
+                {imageSrc && (
+                  <div className="flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={() => imageSrc && loadImageAndDetectCorners(imageSrc)}
+                      className="flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-semibold text-slate-200 transition-all hover:bg-white/10"
+                      title="Volver a buscar las marcas automáticamente"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5 text-cyan" />
+                      <span>Auto-Alinear marcas</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleChangePhoto}
+                      className="flex items-center justify-center gap-1.5 rounded-xl border border-white/10 px-3 py-2 text-[11px] font-semibold text-slate-400 transition-colors hover:text-red-400"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                      <span>Cambiar foto</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Estado del procesamiento (SIEMPRE fuera de la imagen) */}
+                {statusMessage && (
+                  <div className="flex items-center gap-2 rounded-xl border border-cyan/30 bg-cyan/15 px-3 py-2 text-[11px] font-semibold text-cyan">
+                    <RefreshCw className="h-3.5 w-3.5 shrink-0 animate-spin" />
+                    <span>{statusMessage}</span>
+                  </div>
+                )}
+
+                {/* Error de alineación: bloquea la digitalización automática */}
+                {alignmentError && (
+                  <div className="rounded-xl border border-red-500/40 bg-red-500/15 px-3 py-2 text-[11px] font-semibold leading-relaxed text-red-200">
+                    {alignmentError}
+                  </div>
+                )}
+
+                <div className="mt-auto space-y-1.5 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-[10px] leading-relaxed text-slate-400">
+                  <p>
+                    <strong className="text-rose-300">Dibuja los nodos con bolígrafo/marcador ROJO o AZUL</strong>{' '}
+                    (círculo, con o sin número). El número NO es obligatorio: un nodo sin número sigue siendo válido.
+                  </p>
+                  <p>
+                    Al pulsar <strong className="text-cyan">Preparar y Detectar</strong> podrás mejorar la imagen,
+                    comparar Original/Procesada y revisar las máscaras roja/azul antes de digitalizar.
+                  </p>
+                </div>
+              </aside>
+            </div>
+          )}
         </div>
 
-        {/* ── Modal Footer: Botones de Acción (Etapa 1 vs Etapa 2) ── */}
-        {(imageSrc || paperTraceOverlay) && (
+        {/* ── Modal Footer: Botones de Acción (solo en la fase de alineación) ── */}
+        {!prepareOpen && (imageSrc || paperTraceOverlay) && (
           <div className="p-4 border-t border-white/10 bg-slate-950/80 flex flex-wrap items-center justify-between gap-3 shrink-0 landscape:p-2 landscape:gap-2">
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  setImageSrc(null);
-                  setCorners(null);
-                  clearPaperTraceOverlay();
-                }}
+                onClick={resetAll}
                 disabled={isProcessing}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-red-500/15 hover:bg-red-500/25 text-red-300 border border-red-500/30 transition-all interactive-tap disabled:opacity-30"
                 title="Descartar foto cargada y eliminar plantilla"
@@ -721,16 +532,16 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
                   <span>Usar como Fondo de Calco</span>
                 </button>
 
-                {/* Opción B: Etapa 2 (Automatización Mágica) */}
+                {/* Opción B: Etapa 2 (Preparar imagen + detección) */}
                 <button
                   type="button"
-                  onClick={handleAutoVectorizeAndOcr}
-                  disabled={isProcessing}
+                  onClick={() => setPrepareOpen(true)}
+                  disabled={isProcessing || !!alignmentError}
                   className="flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-black bg-cyan text-slate-950 hover:bg-cyan/90 border border-white/20 shadow-glow-cyan transition-all interactive-tap disabled:opacity-30"
-                  title="Aísla la tinta, detecta los números y crea automáticamente los nodos interactivos en la pista"
+                  title="Mejora la imagen, revisa las máscaras roja/azul y detecta los nodos"
                 >
                   <Sparkles className="w-4 h-4" />
-                  <span>Digitalizar Trazos con IA</span>
+                  <span>Preparar y Detectar</span>
                 </button>
               </div>
             )}
@@ -740,4 +551,3 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
     </div>
   );
 };
-

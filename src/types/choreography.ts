@@ -70,6 +70,16 @@ export interface ChoreographyPathPoint {
   unrecognized?: boolean;
   /** Número de nodo leído por el escáner (o escrito a mano). */
   nodeNumber?: number;
+  /** Color de la tinta manuscrita con la que se dibujó el nodo en el papel. */
+  inkColor?: 'red' | 'blue';
+  /**
+   * Estado de confianza por aspecto (0..1). Un nodo SIN número sigue siendo
+   * válido: `digitConfidence = 0` no invalida el nodo. Procede del escáner.
+   */
+  colorConfidence?: number;
+  geometryConfidence?: number;
+  positionConfidence?: number;
+  digitConfidence?: number;
   /**
    * Nodo recién digitalizado SIN conexión: el escáner solo sube coordenadas
    * sueltas. La Pista 2D no dibuja trazos hacia/desde estos nodos hasta que el

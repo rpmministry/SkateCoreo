@@ -1,5 +1,5 @@
 import React from 'react';
-import { PenTool, Route, Eraser, Trash2, Undo2, ChevronDown, ScanLine } from 'lucide-react';
+import { PenTool, Route, Eraser, Trash2, Undo2, ScanLine, Tag } from 'lucide-react';
 import { useChoreographyStore } from '../../store/useChoreographyStore';
 
 export type RinkToolsLayout = 'bar' | 'rail' | 'panel';
@@ -212,7 +212,7 @@ export const RinkContextTools: React.FC<RinkContextToolsProps> = ({
             type="button"
             onClick={onToggleInspector}
             aria-pressed={inspectorOpen}
-            title="Inspector del nodo seleccionado"
+            title="Figuras y datos del nodo seleccionado"
             className={[
               'press flex h-[48px] min-w-[52px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl text-[9px] font-black uppercase tracking-wide',
               inspectorOpen
@@ -220,10 +220,10 @@ export const RinkContextTools: React.FC<RinkContextToolsProps> = ({
                 : IDLE_STYLES,
             ].join(' ')}
           >
-            <ChevronDown
-              className={`h-4 w-4 stroke-[2] transition-transform ${inspectorOpen ? 'rotate-180' : ''}`}
+            <Tag
+              className={`h-4 w-4 stroke-[2] transition-transform ${inspectorOpen ? 'rotate-12' : ''}`}
             />
-            Inspector
+            Figuras
           </button>
         )}
       </div>
@@ -315,7 +315,7 @@ export const RinkContextTools: React.FC<RinkContextToolsProps> = ({
           type="button"
           onClick={onToggleInspector}
           aria-pressed={inspectorOpen}
-          title="Inspector del nodo seleccionado"
+          title="Figuras y datos del nodo seleccionado"
           className={[
             'press flex h-12 w-12 shrink-0 flex-col items-center justify-center gap-1 rounded-xl text-[9px] font-bold',
             inspectorOpen
@@ -323,10 +323,10 @@ export const RinkContextTools: React.FC<RinkContextToolsProps> = ({
               : IDLE_STYLES,
           ].join(' ')}
         >
-          <ChevronDown
-            className={`h-4 w-4 stroke-[2] transition-transform ${inspectorOpen ? 'rotate-180' : ''}`}
+          <Tag
+            className={`h-4 w-4 stroke-[2] transition-transform ${inspectorOpen ? 'rotate-12' : ''}`}
           />
-          Nodo
+          Figuras
         </button>
       )}
     </div>

@@ -613,7 +613,10 @@ export class RinkRenderer {
       ctx.fill();
 
       ctx.lineWidth = isSelected ? 2.5 : 1.8;
-      ctx.strokeStyle = isPending ? '#FB923C' : isSelected ? '#FFFFFF' : '#38BDF8';
+      // Nodo pendiente: se conserva el COLOR de tinta con el que se dibujó (rojo/azul)
+      // para que el usuario reconozca el trazo original aunque falte el número.
+      const pendingStroke = p.inkColor === 'blue' ? '#60A5FA' : p.inkColor === 'red' ? '#F87171' : '#FB923C';
+      ctx.strokeStyle = isPending ? pendingStroke : isSelected ? '#FFFFFF' : '#38BDF8';
       ctx.stroke();
 
       // 3. Número de orden del nodo centrado en el interior (legible).

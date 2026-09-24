@@ -55,6 +55,12 @@ export interface ChoreographyStoreState {
   updatePointMetadata: (id: string, label: string, type?: string, element_id?: string) => void;
   /** Asigna el número de nodo (escáner/manual). null = dejar pendiente. */
   setPointNumber: (id: string, nodeNumber: number | null) => void;
+  /**
+   * Renumeración inteligente: si el número destino ya existe, INTERCAMBIA los
+   * números de ambos nodos (nunca duplica). Es el método central que deben usar
+   * Inspector, menú contextual, waveform y escáner.
+   */
+  swapPointNumber: (id: string, targetNumber: number | null) => void;
   deletePoint: (id: string) => void;
   clearAllPoints: () => void;
   straightenSegment: (id: string) => void;
@@ -103,8 +109,89 @@ function normalizePoint(pt: Partial<ChoreographyPoint> & { id: string; x: number
     label: pt.label || '',
     element_id: pt.element_id,
     isMainNode: pt.isMainNode ?? true,
+    // Metadatos del escáner / edición que ANTES se perdían al normalizar y hacían
+    // que los nodos digitalizados perdieran número, figura o estado.
+    nodeNumber: pt.nodeNumber,
+    inkColor: pt.inkColor,
+    unrecognized: pt.unrecognized,
+    unlinked: pt.unlinked,
+    curveShaped: pt.curveShaped,
+    manual_figures: Array.isArray(pt.manual_figures) ? [...pt.manual_figures] : pt.manual_figures,
+    figures_manuales: Array.isArray(pt.figures_manuales) ? [...pt.figures_manuales] : pt.figures_manuales,
+    colorConfidence: pt.colorConfidence,
+    geometryConfidence: pt.geometryConfidence,
+    positionConfidence: pt.positionConfidence,
+    digitConfidence: pt.digitConfidence,
     path: Array.isArray(pt.path) && pt.path.length > 0 ? pt.path.map((coord) => ({ x: coord.x, y: coord.y })) : undefined
   };
+}
+
+/**
+ * RENUMERACIÓN INTELIGENTE (función central, atómica).
+ *
+ * Reglas:
+ *  · Si el número destino YA pertenece a otro nodo → se INTERCAMBIAN los números.
+ *  · Si el número destino está libre → se asigna.
+ *  · Si `nodeNumber` es null → el nodo queda SIN número (estado válido, muestra «?»).
+ *
+ * NUNCA modifica X/Y, figura, color ni ningún otro metadato: solo `nodeNumber`.
+ * No puede existir un estado intermedio visible con números duplicados porque el
+ * array completo se recalcula y se aplica en una sola operación de estado.
+ */
+export function applySmartNodeNumber(
+  points: ChoreographyPoint[],
+  id: string,
+  nodeNumber: number | null
+): ChoreographyPoint[] {
+  const idx = points.findIndex((p) => p.id === id);
+  if (idx < 0) return points;
+
+  const normalizedTarget =
+    nodeNumber == null || !Number.isFinite(nodeNumber) || nodeNumber < 1
+      ? null
+      : Math.floor(nodeNumber);
+
+  // Sin número: se limpia de forma explícita (nodo pendiente, sigue siendo válido).
+  if (normalizedTarget === null) {
+    if (points[idx].nodeNumber === undefined && points[idx].unrecognized === true) return points;
+    return points.map((p) =>
+      p.id === id ? { ...p, nodeNumber: undefined, unrecognized: true } : p
+    );
+  }
+
+  // Sin cambio real: no se reasigna ni se contamina el historial de deshacer.
+  if (points[idx].nodeNumber === normalizedTarget) return points;
+
+  const ownerIndex = points.findIndex(
+    (p) => p.id !== id && p.nodeNumber === normalizedTarget
+  );
+
+  // Número ya asignado a OTRO nodo → intercambio.
+  if (ownerIndex >= 0) {
+    const currentNumber = points[idx].nodeNumber;
+    return points.map((p) => {
+      if (p.id === id) {
+        return { ...p, nodeNumber: normalizedTarget, unrecognized: false, unlinked: false };
+      }
+      if (p.id === points[ownerIndex].id) {
+        return {
+          ...p,
+          nodeNumber: currentNumber,
+          // Si el nodo destino se queda sin número, vuelve a estado pendiente.
+          unrecognized: currentNumber == null,
+          unlinked: currentNumber == null ? p.unlinked : false,
+        };
+      }
+      return p;
+    });
+  }
+
+  // Número libre → asignación simple.
+  return points.map((p) =>
+    p.id === id
+      ? { ...p, nodeNumber: normalizedTarget, unrecognized: false, unlinked: false }
+      : p
+  );
 }
 
 export const useChoreographyStore = create<ChoreographyStoreState>((set, get) => ({
@@ -464,20 +551,19 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
 
   /** Asigna el número de nodo y lo marca como reconocido/conectado. */
   setPointNumber: (id: string, nodeNumber: number | null) => {
+    get().swapPointNumber(id, nodeNumber);
+  },
+
+  /**
+   * Renumeración inteligente (ver `applySmartNodeNumber`). Atómica: el conjunto
+   * de números se actualiza en una sola operación, sin estados intermedios con
+   * duplicados, y sin tocar la posición física de ningún nodo.
+   */
+  swapPointNumber: (id: string, targetNumber: number | null) => {
     const { points, pushHistory } = get();
+    const updated = applySmartNodeNumber(points, id, targetNumber);
+    if (updated === points) return;
     pushHistory();
-
-    const updated = points.map((p) => {
-      if (p.id !== id) return p;
-      return {
-        ...p,
-        nodeNumber: nodeNumber ?? undefined,
-        unrecognized: nodeNumber != null ? false : p.unrecognized,
-        // Numerar un nodo digitalizado lo integra en la coreografía.
-        unlinked: nodeNumber != null ? false : p.unlinked,
-      };
-    });
-
     set({ points: updated });
   },
   deletePoint: (id: string) => {

@@ -831,14 +831,18 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
           longPressTimerRef.current = null;
         }
         const current = hitNode.nodeNumber != null ? String(hitNode.nodeNumber) : '';
-        const input = window.prompt('Escribe el número del nodo (1, 2, 3…):', current);
+        const input = window.prompt(
+          'Escribe el número del nodo (1, 2, 3…).\nSi el número ya existe en otro nodo, se intercambian.',
+          current
+        );
         if (input !== null) {
           const num = Number.parseInt(input.trim(), 10);
           if (Number.isFinite(num) && num >= 1) {
-            const updated = points.map((p) =>
-              p.id === hitNode.id ? { ...p, nodeNumber: num, unrecognized: false, label: '' } : p
-            );
-      commitPoints(updated);
+            // Renumeración inteligente central: intercambia si el destino ya existe,
+            // nunca duplica. La posición física del nodo no se modifica.
+            useChoreographyStore.getState().swapPointNumber(hitNode.id, num);
+            const updated = useChoreographyStore.getState().points;
+            commitPoints(updated);
             audio.setNodes(updated);
             if (currentProgram && onProgramUpdated) {
               onProgramUpdated({ ...currentProgram, choreography_path: updated });

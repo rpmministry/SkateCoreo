@@ -61,5 +61,76 @@ assert(useChoreographyStore.getState().points.length === 0, 'Pista limpiada a 0 
 useChoreographyStore.getState().undo();
 assert(useChoreographyStore.getState().points.length === countBeforeClear, 'Deshacer restaura puntos previos');
 
-console.log('\nResultado: 14/14 pruebas del Store Audio-First pasadas con éxito.\n');
+// 8. setPoints PRESERVA los metadatos del escáner (regresión: antes se perdían)
+useChoreographyStore.getState().clearAllPoints();
+useChoreographyStore.getState().setPoints([
+  {
+    id: 'scan-a',
+    x: 10,
+    y: 5,
+    time_ms: 1000,
+    timestamp: 1000,
+    nodeNumber: 3,
+    unrecognized: false,
+    unlinked: true,
+    colorConfidence: 0.98,
+    digitConfidence: 0.9,
+  },
+  {
+    id: 'scan-b',
+    x: 20,
+    y: 8,
+    time_ms: 2000,
+    timestamp: 2000,
+    unrecognized: true,
+    digitConfidence: 0,
+  },
+]);
+const persisted = useChoreographyStore.getState().points;
+const scanA = persisted.find((p) => p.id === 'scan-a');
+const scanB = persisted.find((p) => p.id === 'scan-b');
+assert(scanA?.nodeNumber === 3, 'setPoints conserva el número del nodo digitalizado');
+assert(scanA?.unlinked === true, 'setPoints conserva el estado unlinked del escáner');
+assert(scanA?.colorConfidence === 0.98, 'setPoints conserva las confidencias del escáner');
+assert(scanB?.unrecognized === true, 'setPoints conserva el nodo sin número como pendiente');
+
+// 9. Renumeración inteligente: 1,2,3,4 → cambiar el 4 por el 1 INTERCAMBIA
+useChoreographyStore.getState().clearAllPoints();
+const s0 = useChoreographyStore.getState();
+const nA = s0.addPointAtCanvas(10, 5, 1000);
+const nB = useChoreographyStore.getState().addPointAtCanvas(20, 10, 2000);
+const nC = useChoreographyStore.getState().addPointAtCanvas(30, 15, 3000);
+const nD = useChoreographyStore.getState().addPointAtCanvas(40, 20, 4000);
+const store = useChoreographyStore.getState();
+store.setPointNumber(nA.id, 1);
+store.setPointNumber(nB.id, 2);
+store.setPointNumber(nC.id, 3);
+store.setPointNumber(nD.id, 4);
+
+const posDBefore = useChoreographyStore.getState().points.find((p) => p.id === nD.id)!;
+store.swapPointNumber(nD.id, 1);
+const afterSwap = useChoreographyStore.getState().points;
+const byId = (id: string) => useChoreographyStore.getState().points.find((p) => p.id === id)!;
+assert(byId(nD.id).nodeNumber === 1, 'Intercambio: el Nodo D pasa a 1');
+assert(byId(nA.id).nodeNumber === 4, 'Intercambio: el Nodo A pasa a 4');
+assert(byId(nB.id).nodeNumber === 2 && byId(nC.id).nodeNumber === 3, 'Intercambio: B y C conservan 2 y 3');
+assert(
+  byId(nD.id).x === posDBefore.x && byId(nD.id).y === posDBefore.y,
+  'Intercambio: la posición física del Nodo D NO cambia'
+);
+const numsAfterSwap = afterSwap.map((p) => p.nodeNumber).filter((n) => n != null);
+assert(new Set(numsAfterSwap).size === numsAfterSwap.length, 'Intercambio: nunca quedan números duplicados');
+
+// 10. Número libre: se asigna sin colisión; borrar deja el nodo pendiente («?»)
+store.swapPointNumber(nB.id, 8);
+assert(byId(nB.id).nodeNumber === 8, 'Número libre: se asigna 8 sin colisión');
+const numsAfterFree = useChoreographyStore.getState().points.map((p) => p.nodeNumber).filter((n) => n != null);
+assert(new Set(numsAfterFree).size === numsAfterFree.length, 'Número libre: sin duplicados tras asignar');
+
+store.swapPointNumber(nC.id, null);
+const clearedC = useChoreographyStore.getState().points.find((p) => p.id === nC.id)!;
+assert(clearedC.nodeNumber === undefined, 'Borrar número: el nodo queda sin número');
+assert(clearedC.unrecognized === true, 'Borrar número: el nodo se marca como pendiente (?)');
+
+console.log('\nResultado: todas las pruebas del Store Audio-First pasaron con éxito.\n');
 

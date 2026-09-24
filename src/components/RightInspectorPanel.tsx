@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Trash2,
   Tag,
@@ -50,7 +50,7 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
   const selectedPointId = useChoreographyStore((s) => s.selectedPointId);
   const setSelectedPointId = useChoreographyStore((s) => s.setSelectedPointId);
   const updatePointMetadata = useChoreographyStore((s) => s.updatePointMetadata);
-  const setPointNumber = useChoreographyStore((s) => s.setPointNumber);
+  const swapPointNumber = useChoreographyStore((s) => s.swapPointNumber);
   const deletePoint = useChoreographyStore((s) => s.deletePoint);
   const setPoints = useChoreographyStore((s) => s.setPoints);
   const pushHistory = useChoreographyStore((s) => s.pushHistory);
@@ -68,6 +68,46 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
   const selectedPointIndex = selectedPoint
     ? points.findIndex((p) => p.id === selectedPoint.id)
     : -1;
+
+  /** Nodo sin número = «?» (válido); solo se usa el índice si no es pendiente. */
+  const displayNumber = selectedPoint
+    ? selectedPoint.nodeNumber != null
+      ? String(selectedPoint.nodeNumber)
+      : selectedPoint.unrecognized
+        ? '?'
+        : String(selectedPointIndex + 1)
+    : '';
+  const hasConfidence =
+    selectedPoint != null &&
+    (selectedPoint.colorConfidence != null ||
+      selectedPoint.geometryConfidence != null ||
+      selectedPoint.positionConfidence != null ||
+      selectedPoint.digitConfidence != null);
+
+  /**
+   * Borrador local del número: permite teclear sin disparar un intercambio por
+   * cada pulsación. El cambio se confirma al salir del campo / Enter, usando la
+   * renumeración inteligente central (intercambia si el destino ya existe).
+   */
+  const [numberDraft, setNumberDraft] = useState<string>('');
+  useEffect(() => {
+    setNumberDraft(selectedPoint?.nodeNumber != null ? String(selectedPoint.nodeNumber) : '');
+  }, [selectedPoint?.id, selectedPoint?.nodeNumber]);
+
+  const commitNumberDraft = () => {
+    if (!selectedPoint) return;
+    const raw = numberDraft.trim();
+    if (raw === '') {
+      swapPointNumber(selectedPoint.id, null);
+      return;
+    }
+    const value = Number.parseInt(raw, 10);
+    if (Number.isFinite(value) && value >= 1) {
+      swapPointNumber(selectedPoint.id, value);
+    } else {
+      setNumberDraft(selectedPoint.nodeNumber != null ? String(selectedPoint.nodeNumber) : '');
+    }
+  };
 
   const updateControlPoint1 = useChoreographyStore((s) => s.updateControlPoint1);
   const updateControlPoint2 = useChoreographyStore((s) => s.updateControlPoint2);
@@ -140,7 +180,7 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
             aria-label="Eliminar nodo seleccionado"
           >
             <Trash2 className="w-4 h-4 stroke-[2.5]" />
-            Eliminar nodo #{selectedPoint.nodeNumber ?? selectedPointIndex + 1}
+            Eliminar nodo {displayNumber === '?' ? 'sin número' : `#${displayNumber}`}
           </button>
         </div>
       )}
@@ -294,7 +334,7 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
             {/* Identidad del nodo con halo Menta */}
             <div className="flex items-center gap-3 bg-neon-card p-3 rounded-2xl shadow-soft-elevation">
               <span className="w-8 h-8 rounded-xl bg-mint text-neon-canvas shadow-glow-mint flex items-center justify-center text-xs font-mono font-black shrink-0">
-                #{selectedPoint.nodeNumber ?? selectedPointIndex + 1}
+                {displayNumber === '?' ? '?' : `#${displayNumber}`}
               </span>
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-bold text-white truncate-safe">
@@ -305,6 +345,14 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                 <p className="text-[10px] font-mono text-slate-400">
                   X: {selectedPoint.x.toFixed(1)}m · Y: {selectedPoint.y.toFixed(1)}m
                 </p>
+                {hasConfidence && (
+                  <p className="mt-0.5 text-[9px] font-mono text-slate-500">
+                    color {(selectedPoint.colorConfidence ?? 0).toFixed(2)} · geom{' '}
+                    {(selectedPoint.geometryConfidence ?? 0).toFixed(2)} · pos{' '}
+                    {(selectedPoint.positionConfidence ?? 0).toFixed(2)} · nº{' '}
+                    {(selectedPoint.digitConfidence ?? 0).toFixed(2)}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -315,20 +363,22 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                 Número de nodo
               </label>
               <input
-                type="number"
-                min={1}
+                type="text"
                 inputMode="numeric"
-                value={selectedPoint.nodeNumber ?? ''}
-                onChange={(e) => {
-                  const raw = e.target.value.trim();
-                  setPointNumber(
-                    selectedPoint.id,
-                    raw === '' ? null : Math.max(1, Number.parseInt(raw, 10) || 1)
-                  );
+                pattern="[0-9]*"
+                value={numberDraft}
+                onChange={(e) => setNumberDraft(e.target.value.replace(/[^0-9]/g, ''))}
+                onBlur={commitNumberDraft}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
                 }}
                 placeholder="1, 2, 3…"
                 className="w-full rounded-xl bg-neon-card px-3 py-2.5 font-mono text-sm text-slate-100 outline-none shadow-soft-elevation focus:bg-neon-hover"
               />
+              <p className="text-[10px] text-slate-500 leading-snug">
+                Si el número ya existe en otro nodo, se <strong className="text-slate-300">intercambian</strong>.
+                Déjalo vacío para un nodo sin número («?»).
+              </p>
               {selectedPoint.unrecognized && (
                 <p className="text-[10px] font-semibold text-orange-400">
                   Nodo pendiente: escribe su número para integrarlo.

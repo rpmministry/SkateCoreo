@@ -65,6 +65,25 @@ function parseSequenceToken(raw: string | null | undefined): number | null {
 }
 
 export class PaperOcrEngine {
+  /**
+   * Lectura de números manuscritos (HTR) para emparejarlos con los nodos ya
+   * detectados por color/geometría. Devuelve [] si no hay clave de Cloud Vision.
+   * El número es INFORMACIÓN COMPLEMENTARIA: nunca condiciona la existencia del nodo.
+   */
+  public static async readHandwrittenNumbers(
+    canvas: HTMLCanvasElement,
+    rink: RinkDimensions = DEFAULT_RINK_DIMENSIONS
+  ): Promise<DetectedNodeMarker[]> {
+    const apiKey = (import.meta as any).env?.VITE_GOOGLE_VISION_API_KEY;
+    if (!apiKey) return [];
+    try {
+      return await this.detectWithGoogleVision(canvas, apiKey, rink);
+    } catch (err) {
+      console.warn('[PaperOcrEngine] HTR no disponible:', err);
+      return [];
+    }
+  }
+
   public static async detectNumberedNodes(
     warpedCanvas: HTMLCanvasElement,
     rink: RinkDimensions = DEFAULT_RINK_DIMENSIONS,
