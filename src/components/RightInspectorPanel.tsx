@@ -213,25 +213,22 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                 <span>Nodos</span>
               </button>
 
-              {/* Botón 2: Trazar Líneas (Toggle mutuamente excluyente) */}
+              {/* Botón 2: Trazar Líneas (Toggle mutuamente excluyente).
+                  Herramienta independiente y siempre disponible: separa el
+                  trazado/conexión del modo Nodos (colocar/mover). */}
               <button
                 type="button"
                 onClick={() => {
-                  if (phase === 'curve') {
-                    setPhase('plot');
-                  } else if (points.length >= 2) {
-                    setPhase('curve');
-                  }
+                  setPhase(phase === 'curve' ? 'plot' : 'curve');
                   setSelectedPointId(null);
                 }}
-                disabled={points.length < 2}
                 className={[
                   'flex flex-col items-center justify-center gap-1 py-2.5 px-1 rounded-xl text-[11px] font-black transition-all interactive-tap shadow-soft-elevation text-center',
                   phase === 'curve'
                     ? 'bg-cyan text-black shadow-glow-cyan ring-2 ring-cyan-400'
-                    : 'bg-neon-card hover:bg-neon-hover text-slate-300 hover:text-white disabled:opacity-30 disabled:pointer-events-none',
+                    : 'bg-neon-card hover:bg-neon-hover text-slate-300 hover:text-white',
                 ].join(' ')}
-                title={points.length >= 2 ? 'Modo Trazado: Líneas visibles. Arrastra los puntos sobre el trazo para esculpir curvas.' : 'Mínimo 2 nodos requeridos'}
+                title="Modo Trazado: conecta nodos y esculpe curvas. Arrastra sobre el trazo para curvarlo."
               >
                 <Route className="w-4 h-4 stroke-[2.5]" />
                 <span>Trazar</span>
@@ -267,12 +264,17 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
             {phase === 'plot' ? (
               <p className="text-amber-300 flex items-center gap-1.5 font-medium">
                 <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
-                Modo Nodos: Haz un clic en la pista para colocar nodos. Líneas ocultas.
+                Modo Nodos: toca un espacio vacío para crear y arrastra un nodo para moverlo. El trazado está desactivado.
               </p>
-            ) : (
+            ) : phase === 'curve' ? (
               <p className="text-cyan flex items-center gap-1.5 font-medium">
                 <span className="w-2 h-2 rounded-full bg-cyan shrink-0" />
-                Modo Trazado: Líneas visibles. Arrastra los puntos sobre la línea para esculpir la curva.
+                Modo Trazado: dibuja/conecta desde un nodo o sobre la pista. Arrastra el trazo para esculpir curvas.
+              </p>
+            ) : (
+              <p className="text-red-300 flex items-center gap-1.5 font-medium">
+                <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+                Modo Borrador: toca un nodo para eliminarlo.
               </p>
             )}
           </div>

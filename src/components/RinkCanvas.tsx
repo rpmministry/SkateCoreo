@@ -298,6 +298,13 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     cp2: { x: number; y: number };
   } | null>(null);
   const pointsBeforeDragRef = useRef<ChoreographyPathPoint[] | null>(null);
+  /**
+   * Desfase entre el punto de agarre y el centro del nodo. Permite que el nodo
+   * siga al dedo/cursor SIN saltar al iniciar el arrastre (movimiento directo).
+   */
+  const dragGrabOffsetRef = useRef<{ dx: number; dy: number } | null>(null);
+  /** ¿El nodo tocado ya estaba seleccionado antes de este pointerdown? */
+  const wasNodeSelectedRef = useRef(false);
   const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
   const [cursorStyle, setCursorStyle] = useState<'default' | 'crosshair' | 'grab' | 'grabbing' | 'pointer'>('crosshair');
 
@@ -558,6 +565,9 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
         showControlHandles: currentShowHandles,
         selectedPointId: currentSelectedId,
         activeSegmentIndex: currentAvatar?.activePointIndex ?? null,
+        // Nodo en arrastre activo → feedback visual reforzado en el render.
+        draggingPointId:
+          dragTargetRef.current?.type === 'point' ? dragTargetRef.current.targetId : null,
         isPathGenerated: currentPoints.length >= 2,
         phase,
         isPlaying: audio.isPlaying,
@@ -629,7 +639,13 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       RinkRenderer.drawTrajectories(ctx, metrics, currentPoints, renderOpts);
 
       // Capa 2: Puntos de anclaje de Nodos Principales exclusivamente (Menta Neón)
-      RinkRenderer.drawAnchorPoints(ctx, metrics, currentPoints, currentSelectedId);
+      RinkRenderer.drawAnchorPoints(
+        ctx,
+        metrics,
+        currentPoints,
+        currentSelectedId,
+        renderOpts.draggingPointId ?? null
+      );
 
       // Capa 5: Elementos técnicos RollArt
       RinkRenderer.drawTechnicalElements(ctx, metrics, currentPoints, elements);
@@ -773,6 +789,12 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     const { mX, mY } = RinkMath.pixelsToMeters(worldPx, worldPy, metrics, DEFAULT_RINK_DIMENSIONS);
     pointsBeforeDragRef.current = points;
     pointerDownPosRef.current = { x: e.clientX, y: e.clientY };
+    wasNodeSelectedRef.current = false;
+    dragGrabOffsetRef.current = null;
+
+    // Si ya hay otro puntero activo, este es un gesto de 2 dedos (zoom/pan):
+    // no se inicia ni arrastre de nodo ni trazado, la cámara toma el control.
+    const isMultiPointerGesture = cameraEngine.getActivePointerCount() >= 1;
 
     // Radio de hit-test dinámico para Nodos Principales: 32px en pantalla
     const hitRadius = 44 / camera.zoom;
@@ -855,38 +877,61 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       lastNodeTapRef.current = { id: hitNode.id, time: nowTap };
 
       hitFound = true;
-      strokeStartNodeRef.current = hitNode;
+      wasNodeSelectedRef.current = selectedPointId === hitNode.id;
+      // Selección inmediata: feedback visual al instante (sin abrir aún el sheet).
+      setSelectedPointId(hitNode.id);
 
-      // Configurar temporizador de Long Press (~600ms) para abrir inspector de propiedades si no hay arrastre
-      const targetNode = hitNode;
-      longPressTimerRef.current = setTimeout(() => {
-        isLongPressActiveRef.current = true;
-        // Feedback háptico
-        try {
-          if (typeof navigator !== 'undefined' && navigator.vibrate) {
-            navigator.vibrate(50);
-          }
-        } catch (err) {}
-        // Seleccionar nodo y abrir el modal / Bottom Sheet de propiedades
-        setSelectedPointId(targetNode.id);
-        onNodeSelect?.(targetNode.id);
-        // Cancelar el trazo en curso para evitar dibujar mientras se abre el menú
-        rawStrokeRef.current = [];
-        strokeStartNodeRef.current = null;
+      if (phase === 'curve') {
+        // ── MODO TRAZAR: el nodo es el ORIGEN de una nueva trayectoria ──
+        // Nunca se mueve el nodo mientras se traza.
+        strokeStartNodeRef.current = hitNode;
+        rawStrokeRef.current = [{ x: hitNode.x, y: hitNode.y }];
         dragTargetRef.current = null;
-        setIsDragging(false);
-        renderFrame();
-      }, 600);
+        setCursorStyle('crosshair');
+      } else {
+        // ── MODO NODOS: el nodo se puede ARRASTRAR libremente ──
+        dragTargetRef.current = { targetId: hitNode.id, type: 'point' };
+        // Desfase de agarre: el nodo conserva su posición relativa bajo el
+        // dedo/cursor y no salta al empezar a mover.
+        dragGrabOffsetRef.current = { dx: hitNode.x - mX, dy: hitNode.y - mY };
+        // Se marca como posible "tap" (selección) hasta superar el umbral de
+        // movimiento; si no se mueve, el pointerup selecciona/abre opciones.
+        strokeStartNodeRef.current = hitNode;
+        rawStrokeRef.current = [];
+        setCursorStyle('grab');
 
-      // Caso B (Sobre un nodo existente): Captura el nodo y lo establece como startNode temporal.
-      // El trazo se ancla ESTRICTAMENTE a las coordenadas exactas de ese nodo (previene duplicados).
-      dragTargetRef.current = null;
-      rawStrokeRef.current = [{ x: hitNode.x, y: hitNode.y }];
+        // Long press (~500 ms) → abre el Inspector/opciones del nodo. Solo en
+        // táctil/stylus: el movimiento del dedo cancela el temporizador.
+        if (!isMultiPointerGesture && e.pointerType !== 'mouse') {
+          const targetNode = hitNode;
+          longPressTimerRef.current = setTimeout(() => {
+            isLongPressActiveRef.current = true;
+            if (longPressTimerRef.current) {
+              clearTimeout(longPressTimerRef.current);
+              longPressTimerRef.current = null;
+            }
+            // El long press abre opciones: se cancela cualquier arrastre.
+            dragTargetRef.current = null;
+            dragGrabOffsetRef.current = null;
+            rawStrokeRef.current = [];
+            strokeStartNodeRef.current = null;
+            setIsDragging(false);
+            onDragChange?.(false);
+            setSelectedPointId(targetNode.id);
+            onNodeSelect?.(targetNode.id);
+            try {
+              if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(50);
+            } catch (err) {}
+            renderFrame();
+          }, 500);
+        }
+      }
     }
 
     // 2. Manipulación Directa de Curvas (Drag-to-Curve sin tiradores visuales)
+    //    Es parte de la HERRAMIENTA TRAZAR: solo activa en modo 'curve'.
     // Path Proximity Detection con tolerancia invisible (~24px en pantalla) para facilitar agarre táctil
-    if (!hitFound && !audio.isPlaying && points.length >= 2) {
+    if (!hitFound && !isMultiPointerGesture && phase === 'curve' && !audio.isPlaying && points.length >= 2) {
       const touchTolerance = 24 / camera.zoom;
       let closestSegment: { p0: ChoreographyPoint; p1: ChoreographyPoint; t: number } | null = null;
       let minCurveDist = Infinity;
@@ -920,14 +965,16 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       }
     }
 
-    // 3. Si no tocó ningún elemento y está dentro de la pista, preparar trazo a mano alzada nuevo
-    if (!hitFound && mX >= 0.2 && mX <= 49.8 && mY >= 0.2 && mY <= 24.8) {
+    // 3. MODO TRAZAR: trazo a mano alzada nuevo desde espacio libre.
+    //    En Modo Nodos, el arrastre en vacío es PANEO de cámara y el tap crea
+    //    un nodo (nunca una trayectoria).
+    if (!hitFound && !isMultiPointerGesture && phase === 'curve' && mX >= 0.2 && mX <= 49.8 && mY >= 0.2 && mY <= 24.8) {
       strokeStartNodeRef.current = null;
       rawStrokeRef.current = [{ x: mX, y: mY }];
     }
 
     // Notificar al motor de cámara (si tocó un nodo o control, no activa paneo de 1 dedo)
-    camPointerDown(e, hitFound);
+    camPointerDown(e, hitFound || isMultiPointerGesture);
   };
 
   // POINTER MOVE: Trazado libre en tiempo real a 60fps con cancelación de Long Press (>8px)
@@ -946,6 +993,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       camPointerMove(e);
       if (dragTargetRef.current) {
         dragTargetRef.current = null;
+        dragGrabOffsetRef.current = null;
         setIsDragging(false);
         onDragChange?.(false);
       }
@@ -978,15 +1026,21 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     const { mX, mY } = RinkMath.pixelsToMeters(worldPx, worldPy, metrics, DEFAULT_RINK_DIMENSIONS);
 
     // 3. REPOSICIONAMIENTO DE NODOS EN TIEMPO REAL (MODO NODOS: DRAG & DROP A 60 FPS)
-    if (dragTargetRef.current && dragTargetRef.current.type === 'point' && movedDistance >= 5) {
+    const dragThreshold = e.pointerType === 'touch' ? 8 : 4;
+    if (dragTargetRef.current && dragTargetRef.current.type === 'point' && movedDistance >= dragThreshold) {
       if (!isDragging) {
         setIsDragging(true);
+        setCursorStyle('grabbing');
         onDragChange?.(true);
       }
 
-      // Restringir a los límites de la pista reglamentaria (0.4m margen de seguridad)
-      const clampedX = Math.max(0.4, Math.min(DEFAULT_RINK_DIMENSIONS.lengthMeters - 0.4, mX));
-      const clampedY = Math.max(0.4, Math.min(DEFAULT_RINK_DIMENSIONS.widthMeters - 0.4, mY));
+      // El nodo sigue al dedo/cursor conservando el desfase de agarre (sin
+      // saltos) y se restringe a los límites de la pista (0.4m de seguridad).
+      const grab = dragGrabOffsetRef.current;
+      const rawX = mX + (grab?.dx ?? 0);
+      const rawY = mY + (grab?.dy ?? 0);
+      const clampedX = Math.max(0.4, Math.min(DEFAULT_RINK_DIMENSIONS.lengthMeters - 0.4, rawX));
+      const clampedY = Math.max(0.4, Math.min(DEFAULT_RINK_DIMENSIONS.widthMeters - 0.4, rawY));
 
       const targetId = dragTargetRef.current.targetId;
       useChoreographyStore.getState().updatePointPosition(targetId, clampedX, clampedY);
@@ -1081,7 +1135,14 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       }
     }
 
-    setCursorStyle(isHovering ? 'grab' : 'crosshair');
+    // Feedback de cursor según la HERRAMIENTA activa: nunca una única "mano".
+    // (El modo Borrador ya retorna arriba con cursor 'pointer'.)
+    if (isHovering) {
+      // Sobre un nodo: en Nodos se puede mover (grab); en Trazar inicia el trazo.
+      setCursorStyle(phase === 'curve' ? 'pointer' : 'grab');
+    } else {
+      setCursorStyle('crosshair');
+    }
   };
 
   // POINTER UP: Finalización de trazo a mano alzada, creación de Nodos Maestros o Tap contextual
@@ -1104,6 +1165,8 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       isLongPressActiveRef.current = false;
       rawStrokeRef.current = [];
       strokeStartNodeRef.current = null;
+      dragTargetRef.current = null;
+      dragGrabOffsetRef.current = null;
       setIsDragging(false);
       onDragChange?.(false);
       renderFrame();
@@ -1144,7 +1207,9 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       }
       setIsDragging(false);
       dragTargetRef.current = null;
+      dragGrabOffsetRef.current = null;
       onDragChange?.(false);
+      setCursorStyle('crosshair');
       renderFrame();
       return;
     }
@@ -1366,13 +1431,18 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       return;
     }
 
-    // 3. CASO TOQUE RÁPIDO (TAP < 8px):
-    if (movedDistance < 8) {
+    // 3. CASO TOQUE RÁPIDO (TAP): seleccionar o colocar, nunca mover/trazar.
+    if (movedDistance < (e.pointerType === 'touch' ? 8 : 4)) {
       if (startNode) {
-        // Tap rápido en nodo existente: Seleccionar nodo
-        // (El menú de propiedades solo se abre con Long Press ~600ms)
+        // Tap rápido en nodo existente: seleccionar. Si YA estaba seleccionado,
+        // un segundo tap muestra sus opciones (abre el Inspector en móvil).
         setSelectedPointId(startNode.id);
+        if (wasNodeSelectedRef.current) {
+          onNodeSelect?.(startNode.id);
+        }
       } else if (currentTarget && (currentTarget.type === 'curve' || currentTarget.type === 'grip')) {
+        setSelectedPointId(currentTarget.targetId);
+      } else if (currentTarget && currentTarget.type === 'point') {
         setSelectedPointId(currentTarget.targetId);
       } else if (canvas) {
         // Clic en fondo vacío
@@ -1440,6 +1510,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
 
     setIsDragging(false);
     dragTargetRef.current = null;
+    dragGrabOffsetRef.current = null;
     pointerDownPosRef.current = null;
     curveDragStartPosRef.current = null;
     curveInitialCpsRef.current = null;
@@ -1705,14 +1776,15 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
 
         {/* Pista limpia sin overlays — el zoom se controla con gestos pinch-to-zoom y los botones de la barra de herramientas */}
 
-        {/* Controles de cámara del editor (zoom + restablecer vista) */}
+        {/* Controles de cámara del editor (zoom + restablecer vista) —
+            área táctil ≥44px para uso con dedo/stylus. */}
         <div className="absolute bottom-3 left-3 z-20 flex flex-col items-center gap-1 rounded-2xl border border-white/10 bg-slate-950/80 p-1 backdrop-blur-md">
           <button
             type="button"
             onClick={() => zoomIn(canvasRef.current)}
             title="Acercar (rueda del ratón / pinch)"
             aria-label="Acercar"
-            className="press flex h-9 w-9 items-center justify-center rounded-xl text-slate-300 hover:bg-white/10 hover:text-white"
+            className="press flex h-11 w-11 items-center justify-center rounded-xl text-slate-300 hover:bg-white/10 hover:text-white"
           >
             <Plus className="h-4 w-4" />
           </button>
@@ -1721,7 +1793,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
             onClick={resetCamera}
             title="Restablecer vista"
             aria-label="Restablecer vista"
-            className="press flex h-9 w-9 items-center justify-center rounded-xl text-[10px] font-bold text-slate-300 hover:bg-white/10 hover:text-white"
+            className="press flex h-11 w-11 items-center justify-center rounded-xl text-[10px] font-bold text-slate-300 hover:bg-white/10 hover:text-white"
           >
             {Math.round(camera.zoom * 100)}%
           </button>
@@ -1730,7 +1802,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
             onClick={() => zoomOut(canvasRef.current)}
             title="Alejar"
             aria-label="Alejar"
-            className="press flex h-9 w-9 items-center justify-center rounded-xl text-slate-300 hover:bg-white/10 hover:text-white"
+            className="press flex h-11 w-11 items-center justify-center rounded-xl text-slate-300 hover:bg-white/10 hover:text-white"
           >
             <Minus className="h-4 w-4" />
           </button>

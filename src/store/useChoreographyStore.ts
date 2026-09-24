@@ -701,7 +701,10 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
       activeTrayNodeIndex: nextIndex,
       // Si ya se ubicaron todos los nodos de la bandeja, se limpia
       unplacedNodes: nextIndex >= unplacedNodes.length ? [] : unplacedNodes,
-      phase: newPoints.length >= 2 ? 'curve' : get().phase,
+      // Separación de herramientas: mientras la bandeja siga colocando nodos se
+      // PERMANECE en modo Nodos (colocar/mover). El modo Trazar solo se activa
+      // cuando ya se ubicaron todos los nodos de la bandeja.
+      phase: nextIndex >= unplacedNodes.length ? 'curve' : get().phase,
     });
 
     return newPoint;

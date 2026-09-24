@@ -9,6 +9,8 @@ export interface RenderOptions {
   showControlHandles: boolean;
   selectedPointId: string | null;
   activeSegmentIndex: number | null;
+  /** Nodo que se está arrastrando ahora mismo (feedback visual reforzado). */
+  draggingPointId?: string | null;
   isPathGenerated?: boolean;
   phase?: ChoreographyPhase;
   isPlaying?: boolean;
@@ -571,12 +573,14 @@ export class RinkRenderer {
     ctx: CanvasRenderingContext2D,
     metrics: CanvasViewportMetrics,
     points: ChoreographyPathPoint[],
-    selectedPointId: string | null
+    selectedPointId: string | null,
+    draggingPointId: string | null = null
   ) {
     let visibleIndex = 0;
 
     points.forEach((p, idx) => {
       const isSelected = selectedPointId === p.id;
+      const isDraggingNode = draggingPointId === p.id;
       // Nodo pendiente: detectado por el escáner pero sin número reconocido.
       const isPending = p.unrecognized === true;
 
@@ -604,11 +608,26 @@ export class RinkRenderer {
         ctx.stroke();
       }
 
+      // 1.b Feedback de ARRASTRE: anillo cian punteado con resplandor para que
+      //     quede inequívoco que el nodo se está MOVIENDO bajo el dedo/cursor.
+      if (isDraggingNode) {
+        ctx.save();
+        ctx.setLineDash([4, 3]);
+        ctx.strokeStyle = 'rgba(0, 210, 255, 0.95)';
+        ctx.lineWidth = 2;
+        ctx.shadowColor = 'rgba(0, 210, 255, 0.9)';
+        ctx.shadowBlur = 14;
+        ctx.beginPath();
+        ctx.arc(px, py, 20, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
       // 2. Círculo del ancla de alto contraste. Visual reducido en móvil, pero el
       //    área táctil se mantiene amplia (44px) y desacoplada del tamaño visual.
-      // Inactivo: Radio 9px · Seleccionado: Radio 11px
+      // Inactivo: Radio 9px · Seleccionado: Radio 11px · Arrastrando: Radio 12px
       ctx.beginPath();
-      ctx.arc(px, py, isSelected ? 11 : 9, 0, Math.PI * 2);
+      ctx.arc(px, py, isDraggingNode ? 12 : isSelected ? 11 : 9, 0, Math.PI * 2);
       ctx.fillStyle = isPending ? '#7C2D12' : isSelected ? '#10F49C' : '#0F172A';
       ctx.fill();
 

@@ -49,12 +49,13 @@ export const RinkContextTools: React.FC<RinkContextToolsProps> = ({
   const history = useChoreographyStore((s) => s.history);
   const undo = useChoreographyStore((s) => s.undo);
 
-  const canDraw = points.length >= 2;
+  // Trazar es una herramienta INDEPENDIENTE y siempre disponible: además de
+  // conectar nodos existentes, permite dibujar a mano alzada (incluso desde
+  // cero), por lo que no depende del número de nodos.
   const hasPoints = points.length > 0;
   const canUndo = history.length > 0;
 
   const selectMode = (mode: 'plot' | 'curve' | 'erase') => {
-    if (mode === 'curve' && !canDraw) return;
     setPhase(phase === mode && mode !== 'plot' ? 'plot' : mode);
     useChoreographyStore.getState().setSelectedPointId(null);
   };
@@ -79,21 +80,19 @@ export const RinkContextTools: React.FC<RinkContextToolsProps> = ({
           <PenTool className="h-4 w-4 stroke-[2.4]" />
           Nodos
         </button>
-        <button
-          type="button"
-          onClick={() => selectMode('curve')}
-          disabled={!canDraw}
-          aria-pressed={phase === 'curve'}
-          title={canDraw ? 'Modo Trazado' : 'Mínimo 2 nodos'}
-          className={[
-            'press flex h-[48px] min-w-[52px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl text-[9px] font-black uppercase tracking-wide',
-            phase === 'curve' ? ACTIVE_STYLES.curve : IDLE_STYLES,
-            !canDraw ? 'pointer-events-none opacity-30' : '',
-          ].join(' ')}
-        >
-          <Route className="h-4 w-4 stroke-[2.4]" />
-          Trazar
-        </button>
+          <button
+            type="button"
+            onClick={() => selectMode('curve')}
+            aria-pressed={phase === 'curve'}
+            title="Modo Trazado: dibuja y conecta trayectorias"
+            className={[
+              'press flex h-[48px] min-w-[52px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl text-[9px] font-black uppercase tracking-wide',
+              phase === 'curve' ? ACTIVE_STYLES.curve : IDLE_STYLES,
+            ].join(' ')}
+          >
+            <Route className="h-4 w-4 stroke-[2.4]" />
+            Trazar
+          </button>
         <button
           type="button"
           onClick={() => selectMode('erase')}
@@ -173,13 +172,11 @@ export const RinkContextTools: React.FC<RinkContextToolsProps> = ({
         <button
           type="button"
           onClick={() => selectMode('curve')}
-          disabled={!canDraw}
           aria-pressed={phase === 'curve'}
-          title={canDraw ? 'Modo Trazado: esculpe las curvas entre nodos' : 'Requiere al menos 2 nodos'}
+          title="Modo Trazado: dibuja/conecta y esculpe las curvas"
           className={[
             'press flex min-h-touch flex-col items-center justify-center gap-1 rounded-xl px-1 py-2 text-[11px] font-bold',
             phase === 'curve' ? ACTIVE_STYLES.curve : IDLE_STYLES,
-            !canDraw ? 'pointer-events-none opacity-30' : '',
           ].join(' ')}
         >
           <Route className="h-4 w-4 stroke-[2]" />
