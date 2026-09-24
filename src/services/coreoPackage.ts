@@ -61,7 +61,7 @@ export async function exportCoreoProject(
 
   // 1. Recopilar y empaquetar audios TTS cacheados para las figuras de la coreografía
   const speakableFigures = points
-    .filter((p) => isSpeakableFigure(p.label, p.type))
+    .filter((p) => isSpeakableFigure(p.label, p.type, undefined, { allowManual: true }))
     .map((p) => p.label!.trim());
   const uniqueFigures = Array.from(new Set(speakableFigures));
 

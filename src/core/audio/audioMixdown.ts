@@ -133,7 +133,9 @@ export async function renderChoreographyMixdown(
 
       // Generar o recuperar audio sintetizado para el nombre de la figura
       try {
-        const figureBuffer = await ttsService.getAudioBufferForText(figureName);
+        const figureBuffer = await ttsService.getAudioBufferForText(figureName, {
+          allowManual: true,
+        });
         if (figureBuffer && cueTimeSec < durationSec) {
           const cueSource = offlineCtx.createBufferSource();
           cueSource.buffer = figureBuffer;

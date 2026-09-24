@@ -31,6 +31,12 @@ export interface TTSOptions {
    */
   force?: boolean;
   /**
+   * Habilita ETIQUETAS MANUALES (figuras no catalogadas) escritas por el usuario.
+   * Mantiene los rechazos de seguridad (estructura/notas/archivos/longitud). Se
+   * propaga al proxy para que el servidor aplique la misma política.
+   */
+  allowManual?: boolean;
+  /**
    * Permite el fallback a `window.speechSynthesis` cuando el TTS natural falla.
    *
    * Por defecto `false`: en producción la Voz Guía NO cambia de identidad. Si el
@@ -341,7 +347,9 @@ export class TTSService {
     // Filtro de Voz Guía estricto (whitelist del catálogo oficial):
     // solo pasan comandos explícitos y nombres de figuras reales. Cualquier
     // etiqueta de nodo, nota al margen o metadato se descarta en silencio.
-    const cleanText = options?.force ? String(text).trim() : sanitizeSpeechText(text);
+    const cleanText = options?.force
+      ? String(text).trim()
+      : sanitizeSpeechText(text, { allowManual: options?.allowManual });
     if (!cleanText) {
       console.warn('[TTSService] Texto no vocalizable descartado por el filtro de Voz Guía:', text);
       return;
@@ -368,7 +376,8 @@ export class TTSService {
           gender,
           lang,
           options?.speed,
-          options?.voiceName
+          options?.voiceName,
+          options?.allowManual
         );
         if (audioBuffer) {
           this.playAudioBuffer(audioBuffer);
@@ -424,9 +433,11 @@ export class TTSService {
 
     for (const phrase of phrases) {
       // Solo se cachean frases vocalizables (ahorra cuota de Google Cloud)
-      const clean = options?.force ? phrase.trim() : sanitizeSpeechText(phrase);
+      const clean = options?.force
+        ? phrase.trim()
+        : sanitizeSpeechText(phrase, { allowManual: options?.allowManual });
       if (!clean) continue;
-      this.synthesizeWithGoogleTTS(clean, gender, lang, options?.speed).catch(() => {});
+      this.synthesizeWithGoogleTTS(clean, gender, lang, options?.speed, options?.voiceName, options?.allowManual).catch(() => {});
     }
   }
 
@@ -438,7 +449,7 @@ export class TTSService {
     options?: TTSOptions
   ): Promise<void> {
     const speakableLabels = points
-      .map((p) => (p.label ? sanitizeSpeechText(p.label) : null))
+      .map((p) => (p.label ? sanitizeSpeechText(p.label, { allowManual: options?.allowManual }) : null))
       .filter((label): label is string => Boolean(label));
 
     if (speakableLabels.length > 0) {
@@ -454,14 +465,16 @@ export class TTSService {
     options?: TTSOptions
   ): Promise<AudioBuffer | null> {
     // Defensa en profundidad: nunca se envía texto no vocalizable a la API
-    const cleanText = options?.force ? text.trim() : sanitizeSpeechText(text);
+    const cleanText = options?.force
+      ? text.trim()
+      : sanitizeSpeechText(text, { allowManual: options?.allowManual });
     if (!cleanText) return null;
 
     const gender = options?.gender || this.voiceGender;
     const lang = options?.language || this.language;
     const speed = options?.speed || 1.05;
 
-    return this.synthesizeWithGoogleTTS(cleanText, gender, lang, speed, options?.voiceName);
+    return this.synthesizeWithGoogleTTS(cleanText, gender, lang, speed, options?.voiceName, options?.allowManual);
   }
 
   /**
@@ -503,6 +516,7 @@ export class TTSService {
     text: string;
     voiceName: string;
     speed: number;
+    allowManual?: boolean;
   }): Promise<ArrayBuffer | null> {
     try {
       const response = await fetch(getTtsProxyUrl(), {
@@ -512,6 +526,7 @@ export class TTSService {
           text: params.text,
           voiceName: params.voiceName,
           speed: params.speed,
+          allowManual: params.allowManual === true,
         }),
       });
 
@@ -610,6 +625,7 @@ export class TTSService {
     languageCode: string;
     speed: number;
     fallbackVoiceName?: string;
+    allowManual?: boolean;
   }): Promise<ArrayBuffer | null> {
     // El endpoint propio es same-origin: solo tiene sentido en un navegador.
     // En entornos sin `window` (SSR, pruebas) se omite y se usa el respaldo.
@@ -618,6 +634,7 @@ export class TTSService {
         text: params.text,
         voiceName: params.voiceName,
         speed: params.speed,
+        allowManual: params.allowManual,
       });
       if (viaProxy) return viaProxy;
     }
@@ -640,7 +657,8 @@ export class TTSService {
     _gender: VoiceGender,
     lang: 'es' | 'en',
     speed: number = 1.05,
-    voiceNameOverride?: string
+    voiceNameOverride?: string,
+    allowManual: boolean = false
   ): Promise<AudioBuffer | null> {
     // La voz es femenina por definición; `_gender` se conserva por compatibilidad
     // de firma con los llamadores existentes.
@@ -687,6 +705,7 @@ export class TTSService {
           languageCode,
           speed,
           fallbackVoiceName: wavenetFallback,
+          allowManual,
         });
         if (!rawArrayBuffer) return null;
 

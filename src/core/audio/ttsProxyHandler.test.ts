@@ -334,4 +334,31 @@ for (const sample of paritySamples) {
   );
 }
 
+// ── 13. Etiquetas MANUALES (guía vocal escrita por el usuario) ──
+//  Con `allowManual` el cliente y el servidor aceptan figuras no catalogadas,
+//  pero siguen rechazando estructura/metadatos.
+const manualAccepted = 'Trompo casero';
+assert(
+  sanitizeClientSpeech(manualAccepted, { allowManual: true }) === manualAccepted,
+  'Cliente acepta una etiqueta manual ("Trompo casero") en modo manual'
+);
+assert(
+  sanitizeServerSpeech(manualAccepted, { allowManual: true }) === manualAccepted,
+  'Servidor acepta la MISMA etiqueta manual (paridad cliente/servidor)'
+);
+assert(
+  sanitizeServerSpeech(manualAccepted) === null && sanitizeClientSpeech(manualAccepted) === null,
+  'Sin modo manual, la etiqueta no catalogada se descarta en cliente y servidor'
+);
+assert(
+  sanitizeClientSpeech('Nodo 3', { allowManual: true }) === null &&
+    sanitizeServerSpeech('Nodo 3', { allowManual: true }) === null,
+  'El modo manual sigue bloqueando etiquetas estructurales ("Nodo 3")'
+);
+assert(
+  sanitizeClientSpeech('Pista_Musical.mp3', { allowManual: true }) === null &&
+    sanitizeServerSpeech('Pista_Musical.mp3', { allowManual: true }) === null,
+  'El modo manual sigue bloqueando nombres de archivo'
+);
+
 console.log('\n✅ TODAS LAS PRUEBAS DEL NÚCLEO DEL PROXY PASARON\n');

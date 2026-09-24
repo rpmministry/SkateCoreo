@@ -696,6 +696,8 @@ export class VoiceCueEngine {
       gender: this.config.voiceGender,
       language: this.config.language,
       voiceName: this.config.googleVoiceName,
+      // Precalienta también las etiquetas manuales del usuario.
+      allowManual: true,
     });
   }
 
@@ -874,6 +876,9 @@ export class VoiceCueEngine {
       speed: this.config.voiceSpeed,
       language: this.config.language,
       voiceName: this.config.googleVoiceName,
+      // Las etiquetas escritas a mano por el usuario (figuras manuales) también
+      // se leen: se habilita el modo manual en cliente y en el proxy.
+      allowManual: true,
     };
 
     const pending = this.cues.filter((cue) => !this.prefetchedBuffers.has(cue.id));
@@ -886,7 +891,7 @@ export class VoiceCueEngine {
         const batch = pending.slice(i, i + BATCH_SIZE);
         await Promise.all(
           batch.map(async (cue) => {
-            const safeText = sanitizeSpeechText(cue.text);
+            const safeText = sanitizeSpeechText(cue.text, { allowManual: true });
             if (!safeText) return;
             try {
               // `ttsService` cachea por texto en memoria e IndexedDB, así que los
@@ -1289,6 +1294,8 @@ export class VoiceCueEngine {
         gender: this.config.voiceGender,
         language: this.config.language,
         voiceName: this.config.googleVoiceName,
+        // Permite etiquetas manuales del usuario (ya pasaron el filtro cliente).
+        allowManual: true,
         // Solo la prueba manual autoriza el fallback del navegador. Los cues
         // automáticos nunca cambian de identidad vocal.
         allowBrowserFallback: options?.allowBrowserFallback === true,

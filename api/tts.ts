@@ -221,8 +221,19 @@ export function hasBlockedContent(text: string): boolean {
   return BLOCKED_PATTERNS.some((pattern) => pattern.test(normalized));
 }
 
-/** Veredicto del filtro de Voz Guía: texto vocalizable o `null`. */
-export function sanitizeSpeechText(raw: string | null | undefined): string | null {
+/**
+ * Veredicto del filtro de Voz Guía: texto vocalizable o `null`.
+ *
+ * `options.allowManual` habilita las ETIQUETAS MANUALES escritas por el usuario
+ * (figuras no catalogadas). Se mantienen TODOS los rechazos de seguridad
+ * (estructura, notas, metadatos, archivos y longitud), exactamente igual que en
+ * el filtro del cliente (`voiceCueSanitizer`), de modo que una guía escrita a
+ * mano se lee pero "Nodo 3 (Papel)" o "Pista_Musical.mp3" siguen mudos.
+ */
+export function sanitizeSpeechText(
+  raw: string | null | undefined,
+  options?: { allowManual?: boolean }
+): string | null {
   if (!raw) return null;
 
   const collapsed = String(raw).replace(/\s+/g, ' ').trim();
@@ -252,6 +263,12 @@ export function sanitizeSpeechText(raw: string | null | undefined): string | nul
   const cleaned = cleanFigureNameForSpeech(candidate);
   if (!cleaned) return null;
   if (cleaned.length > MAX_SPEECH_CHARS) return null;
+
+  // FIGURA MANUAL: aceptada si superó los rechazos de seguridad anteriores.
+  if (options?.allowManual) {
+    return suffix ? `${cleaned} ${suffix}` : cleaned;
+  }
+
   if (!isKnownFigure(cleaned)) return null;
 
   return suffix ? `${cleaned} ${suffix}` : cleaned;
@@ -290,7 +307,10 @@ export function validateTtsPayload(raw: unknown): TtsValidation {
 
   const body = raw as Record<string, unknown>;
 
-  const safeText = sanitizeSpeechText(typeof body.text === 'string' ? body.text : '');
+  const safeText = sanitizeSpeechText(
+    typeof body.text === 'string' ? body.text : '',
+    { allowManual: body.allowManual === true }
+  );
   if (!safeText) return { ok: false, status: 422, error: 'Texto no vocalizable' };
   if (safeText.length > MAX_TEXT_LEN) {
     return { ok: false, status: 422, error: 'Texto demasiado largo' };
