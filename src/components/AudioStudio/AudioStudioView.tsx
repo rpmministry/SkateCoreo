@@ -8,7 +8,6 @@ import {
   Plus,
   Play,
   Pause,
-  SkipBack,
   Square,
   Sliders,
   Bell,
@@ -641,12 +640,6 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     flushPendingConsolidation();
   };
 
-  // Return to start
-  const handleRewind = () => {
-    audioEngine.seek(0);
-    setCurrentTimeSec(0);
-  };
-
   // Regresar / Ir a Inicio: salir del Estudio detiene SIEMPRE la reproducción
   // (cero audio fantasma) y conserva el proyecto y los buffers intactos.
   const handleExitStudio = useCallback(
@@ -932,29 +925,16 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             <Sliders className="w-5 h-5 text-cyan" />
           </button>
 
-          {/* Rewind to 0:00
-              Activación multimodal con `usePressAction`: dispara en `pointerdown`
-              (táctil/ratón/touchpad, latencia cero) y ADEMÁS conserva `onClick`
-              como respaldo (teclado o navegadores que no emiten pointer events).
-              Depender solo de `onClick` fallaba en móviles WebKit porque el
-              `click` no se sintetiza de forma fiable. Nunca se deshabilita. */}
-          <button
-            type="button"
-            {...press(handleRewind)}
-            className={`press w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 active:bg-white/15 ${hasTransportAudio ? '' : 'opacity-40'}`}
-            title="Volver al inicio (0:00)"
-            aria-label="Volver al inicio"
-          >
-            <SkipBack className="w-5 h-5" />
-          </button>
-
-          {/* Stop / Detener */}
+          {/* Stop / Detener — botón ÚNICO de parada: detiene todo (fuente,
+              pre-roll, metrónomo y voz) y devuelve la posición a 0:00.
+              Se eliminó el botón «Volver al inicio» para no duplicar/comparar
+              dos acciones que terminaban en el mismo sitio. */}
           <button
             type="button"
             {...press(handleStop)}
             className={`press w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 active:bg-white/15 ${hasTransportAudio ? '' : 'opacity-40'}`}
-            title="Detener reproducción y reiniciar posición"
-            aria-label="Detener reproducción"
+            title="Detener y volver al inicio (0:00)"
+            aria-label="Detener y volver al inicio"
           >
             <Square className="w-4 h-4 fill-current" />
           </button>
