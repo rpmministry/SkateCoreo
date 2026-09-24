@@ -45,6 +45,12 @@ export {
 /** Códigos de región latinos preferidos al elegir una voz del navegador. */
 const LATIN_REGION_PRIORITY = ['es-419', 'es-us', 'es-mx', 'es-ar', 'es-co', 'es-cl', 'es-pe', 'es-ve', 'es-uy', 'es-do', 'es-ec', 'es-gt', 'es-pr'];
 
+/**
+ * Trazabilidad de voz en DESARROLLO (requisito de auditoría): registra qué voz
+ * usa cada cue. Desactivado en producción para no generar ruido ni coste.
+ */
+const VOICE_GUIDE_DEBUG = Boolean((import.meta as { env?: { DEV?: boolean } })?.env?.DEV);
+
 function scoreBrowserVoice(voice: SpeechSynthesisVoice, lang: 'es' | 'en'): number {
   const voiceLang = voice.lang.toLowerCase();
   if (!voiceLang.startsWith(lang)) return -1;
@@ -326,6 +332,10 @@ export class VoiceCueEngine {
    */
   public speakCountdown(text: string) {
     if (!this.config.enabled || this.config.volume <= 0) return;
+    // IDENTIDAD ÚNICA: con el motor natural, el conteo SIEMPRE sale del banco TTS
+    // femenino latino. Si el banco no está listo, se prefiere el SILENCIO antes
+    // que cambiar a la voz del navegador (nunca una segunda identidad vocal).
+    if (this.config.ttsEngine === 'google-cloud') return;
     this.speakBrowser(text);
   }
 
@@ -982,6 +992,11 @@ export class VoiceCueEngine {
     // ── Voz pre-renderizada: latencia cero y solapamiento nativo ──
     const buffer = this.prefetchedBuffers.get(cue.id);
     if (buffer) {
+      if (VOICE_GUIDE_DEBUG) {
+        console.debug(
+          `[VoiceCue] ${cue.id} → ${this.config.googleVoiceName} (${this.config.ttsEngine})`
+        );
+      }
       if (this.cueTicksEnabled) this.playTickTone(tickFreq, targetCtxTime);
       try {
         const source = this.ctx.createBufferSource();
@@ -1010,17 +1025,10 @@ export class VoiceCueEngine {
     }
 
     // ── Red de seguridad ──
-    // Si el buffer no llegó a tiempo y el instante es inminente, se usa el
-    // sintetizador del navegador para NO perder la figura. Si todavía hay
-    // margen, se devuelve `false` y se reintenta en el siguiente tick.
-    const delaySec = targetCtxTime - this.ctx.currentTime;
-    if (delaySec <= 0.3) {
-      if (this.cueTicksEnabled) this.playTickTone(tickFreq, targetCtxTime);
-      const delayMs = Math.max(0, Math.round(delaySec * 1000));
-      globalThis.setTimeout(() => this.speakRaw(safeText), delayMs);
-      return true;
-    }
-
+    // El buffer natural aún no está listo. NUNCA se cambia de voz: se reintenta
+    // en el siguiente tick mientras exista margen. Si el instante se agota, el
+    // propio scheduler descarta el cue (`lateToleranceSec`) → SILENCIO, jamás
+    // otra voz (ni `speechSynthesis`, ni masculina, ni `es-ES`).
     return false;
   }
 
@@ -1226,8 +1234,9 @@ export class VoiceCueEngine {
   public testVoice(sampleText?: string) {
     const isEs = this.config.language === 'es';
     const text = sampleText || (isEs ? 'Doble Axel en 3, 2, 1, ¡ya!' : 'Double Axel in 3, 2, 1, go!');
-    // Acción explícita del usuario: se salta el filtro para permitir cualquier muestra
-    this.speakRaw(text);
+    // Acción explícita del usuario: se salta el filtro para permitir cualquier
+    // muestra y se autoriza el fallback del navegador (solo en esta prueba).
+    this.speakRaw(text, { allowBrowserFallback: true });
     if (this.config.ttsEngine === 'browser') {
       this.playAlertTone();
     }
@@ -1256,7 +1265,7 @@ export class VoiceCueEngine {
    * `POST /api/tts` (credencial en el servidor) o clave local del usuario.
    * Este motor ya NO guarda credenciales ni llama a Google por su cuenta.
    */
-  public speakRaw(text: string) {
+  public speakRaw(text: string, options?: { allowBrowserFallback?: boolean }) {
     if (!this.config.enabled || this.config.volume <= 0) return;
     const trimmed = (text || '').trim();
     if (!trimmed) return;
@@ -1268,6 +1277,9 @@ export class VoiceCueEngine {
         gender: this.config.voiceGender,
         language: this.config.language,
         voiceName: this.config.googleVoiceName,
+        // Solo la prueba manual autoriza el fallback del navegador. Los cues
+        // automáticos nunca cambian de identidad vocal.
+        allowBrowserFallback: options?.allowBrowserFallback === true,
       });
       return;
     }
@@ -1350,6 +1362,10 @@ export class VoiceCueEngine {
 
         utterance.voice = chosen;
         utterance.lang = chosen.lang;
+
+        if (VOICE_GUIDE_DEBUG) {
+          console.debug(`[VoiceCue] browser → ${chosen.name} (${chosen.lang})`);
+        }
 
         utterance.rate = this.config.voiceSpeed;
         utterance.pitch = Math.max(0.1, Math.min(2, this.config.voicePitch));

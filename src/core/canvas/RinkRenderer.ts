@@ -294,21 +294,27 @@ export class RinkRenderer {
     const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
     if (sorted.length < 2) return;
 
-    const isPlaying = options.isPlaying ?? false;
+    // `isPlaying` = CONTEXTO de reproducción (PLAY o PAUSA congelada), no "frame
+    // avanzando". Permite que al pausar el segmento quede congelado en su punto.
+    const playbackActive = options.isPlaying ?? false;
     const showFullTrailOverride = options.showFullTrailOverride ?? false;
 
-    // 1) LA TRAYECTORIA REAL DEL USUARIO SIEMPRE SE DIBUJA.
-    //    Es una capa INDEPENDIENTE del avatar: aunque la patinadora esté oculta
-    //    durante PLAY, el recorrido creado con Trazar permanece visible. Durante
-    //    la reproducción (o el modo "Ver Trazo Completo") se pinta en alto
-    //    contraste; en edición, como guía suave.
-    this.drawTracedPath(ctx, metrics, sorted, options, isPlaying || showFullTrailOverride);
-
-    // 2) La ESTELA DINÁMICA de progreso es ADITIVA: se superpone al trazado
-    //    únicamente durante PLAY y cuando el avatar está visible. Nunca lo sustituye.
-    if (isPlaying && options.avatar) {
-      this.drawDynamicTrail(ctx, metrics, sorted, options);
+    // CAPA 1 — TRAYECTORIA COMPLETA: sólo si el usuario la solicita explícitamente.
+    if (showFullTrailOverride) {
+      this.drawTracedPath(ctx, metrics, sorted, options, true);
+      return;
     }
+
+    // CAPA 2 — SEGMENTO PROGRESIVO: durante PLAY/PAUSA se dibuja ÚNICAMENTE el
+    // segmento activo, progresando con `currentTimeMs`. Es INDEPENDIENTE del
+    // avatar: funciona igual con la patinadora visible u oculta.
+    if (playbackActive) {
+      this.drawProgressiveSegment(ctx, metrics, sorted, options);
+      return;
+    }
+
+    // EDICIÓN — guía completa de los trazos creados por el usuario.
+    this.drawTracedPath(ctx, metrics, sorted, options, false);
   }
 
   /**
@@ -455,11 +461,17 @@ export class RinkRenderer {
   }
 
   /**
-   * Trazado Dinámico (Dynamic Trail Rendering):
-   * Dibuja la estela activa desde el último checkpoint alcanzado hasta el avatar,
-   * y aplica un desvanecimiento suave (Fade-Out) al tramo anterior para evitar saturación y flickering.
+   * TRAZADO PROGRESIVO DE REPRODUCCIÓN.
+   *
+   * Dibuja ÚNICAMENTE el segmento activo, desde su nodo de origen hasta el punto
+   * correspondiente al progreso temporal actual (`currentTimeMs`). Al alcanzar el
+   * nodo final del segmento, éste desaparece y el siguiente comienza desde cero:
+   * la coreografía se "dibuja en tiempo real".
+   *
+   * NO depende del avatar: funciona igual con la patinadora visible u oculta.
+   * No usa temporizadores propios; el progreso sale del reloj de audio existente.
    */
-  public static drawDynamicTrail(
+  public static drawProgressiveSegment(
     ctx: CanvasRenderingContext2D,
     metrics: CanvasViewportMetrics,
     sortedPoints: ChoreographyPathPoint[],
@@ -467,8 +479,31 @@ export class RinkRenderer {
   ) {
     if (sortedPoints.length < 2) return;
     const currentTimeMs = options.currentTimeMs ?? 0;
-    const avatar = options.avatar;
-    if (!avatar) return;
+
+    // Segmento activo: p[i].time_ms <= t < p[i+1].time_ms
+    let activeSegIdx = -1;
+    for (let i = 0; i < sortedPoints.length - 1; i++) {
+      if (
+        currentTimeMs >= sortedPoints[i].time_ms &&
+        currentTimeMs < sortedPoints[i + 1].time_ms
+      ) {
+        activeSegIdx = i;
+        break;
+      }
+    }
+    // Antes del primer nodo o después del último no hay tramo en curso.
+    if (activeSegIdx < 0) return;
+
+    const p0 = sortedPoints[activeSegIdx];
+    const p1 = sortedPoints[activeSegIdx + 1];
+    const totalTimeMs = p1.time_ms - p0.time_ms;
+    const t = totalTimeMs > 0 ? Math.min(1, Math.max(0, (currentTimeMs - p0.time_ms) / totalTimeMs)) : 1;
+
+    const hasSplinePath = Boolean(p0.path && p0.path.length >= 2);
+    const hasCustomCps =
+      p0.curveShaped === true && p0.cp1x !== undefined && p0.cp2x !== undefined;
+    // Sin trazo explícito no hay recorrido que dibujar (nunca una línea automática).
+    if (!hasSplinePath && !hasCustomCps) return;
 
     const { offsetX, offsetY, renderedW, renderedH, scale } = metrics;
     const cornerRadiusPx = 3.5 * scale;
@@ -477,104 +512,57 @@ export class RinkRenderer {
     ctx.beginPath();
     roundRectPath(ctx, offsetX, offsetY, renderedW, renderedH, cornerRadiusPx);
     ctx.clip();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
 
-    // 1. Encontrar el tramo actual del avatar
-    let activeSegIdx = -1;
-    for (let i = 0; i < sortedPoints.length - 1; i++) {
-      if (currentTimeMs >= sortedPoints[i].time_ms && currentTimeMs <= sortedPoints[i + 1].time_ms) {
-        activeSegIdx = i;
-        break;
-      }
-    }
+    // Cabeza del trazo (punto actual del recorrido), calculada del propio `t`.
+    let headX = p0.x;
+    let headY = p0.y;
 
-    if (activeSegIdx < 0) {
-      if (currentTimeMs > sortedPoints[sortedPoints.length - 1].time_ms) {
-        activeSegIdx = sortedPoints.length - 2;
-      } else {
-        ctx.restore();
-        return;
-      }
-    }
-
-    const p0 = sortedPoints[activeSegIdx];
-    const p1 = sortedPoints[activeSegIdx + 1];
-    const totalTimeMs = p1.time_ms - p0.time_ms;
-    const t = totalTimeMs > 0 ? Math.min(1, Math.max(0, (currentTimeMs - p0.time_ms) / totalTimeMs)) : 1;
-
-    // 2. Efecto Estela / Fade-Out del Segmento Anterior (evita corte seco visual)
-    if (activeSegIdx > 0) {
-      const prevP0 = sortedPoints[activeSegIdx - 1];
-      const prevP1 = sortedPoints[activeSegIdx];
-      const fadeAlpha = Math.max(0, 0.45 * (1 - t));
-      if (fadeAlpha > 0.02) {
-        ctx.save();
-        ctx.strokeStyle = `rgba(0, 210, 255, ${fadeAlpha})`;
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        if (prevP0.path && prevP0.path.length >= 2) {
-          RinkRenderer.traceSplinePath(ctx, prevP0.path, metrics);
-        } else if (prevP0.cp1x !== undefined && prevP0.cp2x !== undefined) {
-          const ptPrev0 = RinkMath.metersToPixels(prevP0.x, prevP0.y, metrics);
-          const ptPrev1 = RinkMath.metersToPixels(prevP1.x, prevP1.y, metrics);
-          const cpPrev1 = RinkMath.metersToPixels(prevP0.cp1x, prevP0.cp1y ?? prevP0.y, metrics);
-          const cpPrev2 = RinkMath.metersToPixels(prevP0.cp2x, prevP0.cp2y ?? prevP1.y, metrics);
-          ctx.moveTo(ptPrev0.px, ptPrev0.py);
-          ctx.bezierCurveTo(cpPrev1.px, cpPrev1.py, cpPrev2.px, cpPrev2.py, ptPrev1.px, ptPrev1.py);
-        } else {
-          const ptPrev0 = RinkMath.metersToPixels(prevP0.x, prevP0.y, metrics);
-          const ptPrev1 = RinkMath.metersToPixels(prevP1.x, prevP1.y, metrics);
-          ctx.moveTo(ptPrev0.px, ptPrev0.py);
-          ctx.lineTo(ptPrev1.px, ptPrev1.py);
-        }
-        ctx.stroke();
-        ctx.restore();
-      }
-    }
-
-    // 3. Trazado Dinámico Activo: desde p0 hasta la posición actual del avatar (t)
-    const avatarPx = RinkMath.metersToPixels(avatar.x, avatar.y, metrics);
-
-    ctx.save();
-
-    const traceActive = () => {
+    const drawPartial = () => {
       ctx.beginPath();
-      if (p0.path && p0.path.length >= 2) {
-        RinkRenderer.tracePartialSplinePath(ctx, p0.path, t, metrics);
-      } else if (p0.cp1x !== undefined && p0.cp2x !== undefined) {
+      if (hasSplinePath) {
+        RinkRenderer.tracePartialSplinePath(ctx, p0.path!, t, metrics);
+        const hp = RinkMath.evaluateSplinePath(p0.path!, t);
+        headX = hp.x;
+        headY = hp.y;
+      } else {
+        // Sub-curva Bézier exacta de p0 al punto t (subdivisión de De Casteljau).
+        const cp1 = { x: p0.cp1x!, y: p0.cp1y ?? p0.y };
+        const cp2 = { x: p0.cp2x!, y: p0.cp2y ?? p1.y };
+        const q1x = (1 - t) * p0.x + t * cp1.x;
+        const q1y = (1 - t) * p0.y + t * cp1.y;
+        const q2x = (1 - t) * cp1.x + t * cp2.x;
+        const q2y = (1 - t) * cp1.y + t * cp2.y;
+        headX = (1 - t) * q1x + t * q2x;
+        headY = (1 - t) * q1y + t * q2y;
+
         const pt0 = RinkMath.metersToPixels(p0.x, p0.y, metrics);
-        const q1x = (1 - t) * p0.x + t * p0.cp1x;
-        const q1y = (1 - t) * p0.y + t * (p0.cp1y ?? p0.y);
-        const q2x = (1 - t) * p0.cp1x + t * p0.cp2x;
-        const q2y = (1 - t) * (p0.cp1y ?? p0.y) + t * (p0.cp2y ?? p1.y);
         const subCp1 = RinkMath.metersToPixels(q1x, q1y, metrics);
         const subCp2 = RinkMath.metersToPixels(q2x, q2y, metrics);
+        const headPx = RinkMath.metersToPixels(headX, headY, metrics);
         ctx.moveTo(pt0.px, pt0.py);
-        ctx.bezierCurveTo(subCp1.px, subCp1.py, subCp2.px, subCp2.py, avatarPx.px, avatarPx.py);
-      } else {
-        const pt0 = RinkMath.metersToPixels(p0.x, p0.y, metrics);
-        ctx.moveTo(pt0.px, pt0.py);
-        ctx.lineTo(avatarPx.px, avatarPx.py);
+        ctx.bezierCurveTo(subCp1.px, subCp1.py, subCp2.px, subCp2.py, headPx.px, headPx.py);
       }
       ctx.stroke();
     };
 
-    // Resplandor Neón exterior de la cuchilla
-    ctx.strokeStyle = 'rgba(0, 210, 255, 0.65)';
+    // Resplandor neón exterior + línea sólida del tramo activo.
+    ctx.strokeStyle = 'rgba(0, 210, 255, 0.55)';
     ctx.lineWidth = 8;
-    traceActive();
+    drawPartial();
 
-    // Línea sólida de trazado dinámico
     ctx.strokeStyle = '#00D2FF';
     ctx.lineWidth = 3.5;
-    traceActive();
+    drawPartial();
 
-    // Chispazo luminoso sutil en la cuchilla de la patinadora
+    // Cabeza luminosa: refuerza la sensación de "dibujado en tiempo real".
+    const headPx = RinkMath.metersToPixels(headX, headY, metrics);
     ctx.fillStyle = '#FFFFFF';
     ctx.beginPath();
-    ctx.arc(avatarPx.px, avatarPx.py, 3, 0, Math.PI * 2);
+    ctx.arc(headPx.px, headPx.py, 3.2, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.restore();
     ctx.restore();
   }
 

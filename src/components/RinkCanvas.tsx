@@ -599,10 +599,9 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
           dragTargetRef.current?.type === 'point' ? dragTargetRef.current.targetId : null,
         isPathGenerated: currentPoints.length >= 2,
         phase,
-        // La reproducción es REAL e independiente del avatar: el trazado creado
-        // por el usuario permanece visible aunque se oculte la patinadora. La
-        // estela dinámica de progreso sólo se superpone si hay avatar.
-        isPlaying: audio.isPlaying,
+        // Contexto de reproducción (PLAY o pausa congelada): activa el TRAZADO
+        // PROGRESIVO del segmento actual. Independiente del avatar.
+        isPlaying: playbackEngaged,
         showFullTrailOverride: currentFullTrail,
         currentTimeMs: currentPlayTime,
         avatar: currentAvatar,

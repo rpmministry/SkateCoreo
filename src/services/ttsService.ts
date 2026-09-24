@@ -30,6 +30,14 @@ export interface TTSOptions {
    * de voz solicitada por el usuario desde Ajustes.
    */
   force?: boolean;
+  /**
+   * Permite el fallback a `window.speechSynthesis` cuando el TTS natural falla.
+   *
+   * Por defecto `false`: en producción la Voz Guía NO cambia de identidad. Si el
+   * TTS natural no está disponible, la locución queda en SILENCIO. Solo la prueba
+   * manual de voz (`testVoice`) lo activa.
+   */
+  allowBrowserFallback?: boolean;
 }
 
 export interface GoogleVoiceDefinition {
@@ -335,7 +343,7 @@ export class TTSService {
     // Detener locución previa si está activa
     this.stop();
 
-    // 1. Voz natural (Neural2/Wavenet/Journey).
+    // 1. Voz natural (Neural2/Wavenet/Journey) — ÚNICA ruta de producción.
     //
     // BUG corregido: aquí se comprobaba `hasGoogleApiKey()`, que solo mira la
     // clave LOCAL del usuario. En producción esa clave no existe (la custodia el
@@ -357,11 +365,20 @@ export class TTSService {
           return;
         }
       } catch (err) {
-        console.warn('[TTSService] Falló Google Cloud TTS, recurriendo a voz del navegador:', err);
+        console.warn('[TTSService] Falló Google Cloud TTS:', err);
+      }
+
+      // REGLA DE VOZ ÚNICA: la Voz Guía automática NUNCA cambia de identidad.
+      // Si el TTS natural no está disponible, la locución queda en silencio.
+      // El fallback al navegador solo se permite de forma explícita (test manual).
+      if (options?.allowBrowserFallback !== true) {
+        console.warn('[TTSService] Voz natural no disponible: locución omitida (sin cambio de voz).');
+        return;
       }
     }
 
-    // 2. Fallback transparente al sintetizador del navegador (Web Speech API)
+    // 2. Fallback del navegador — SOLO con autorización explícita o cuando no
+    //    existe backend natural (modo offline/dev). Voz femenina latina validada.
     this.speakBrowserFallback(cleanText, gender, lang, options?.speed);
   }
 
