@@ -1,6 +1,6 @@
 import { StrictVoiceCuePayload } from '../types/audio';
 import { sanitizeSpeechText } from '../core/audio/voiceCueSanitizer';
-import { voiceMatchesGender } from '../core/audio/voiceGender';
+import { isAcceptableFemaleVoice } from '../core/audio/voiceGender';
 import {
   getTtsProxyUrl,
   getUserGoogleTtsApiKey,
@@ -732,7 +732,7 @@ export class TTSService {
    */
   private speakBrowserFallback(
     text: string,
-    gender: VoiceGender,
+    _gender: VoiceGender,
     lang: 'es' | 'en',
     speed: number = 1.05
   ) {
@@ -747,34 +747,27 @@ export class TTSService {
       utterance.rate = speed;
 
       const voices = window.speechSynthesis.getVoices();
-      if (voices && voices.length > 0) {
-        const langVoices = voices.filter((v) => v.lang.toLowerCase().startsWith(lang));
 
-        // 1. Preferir región latina (es-419 / es-US / es-MX ...) sobre es-ES
-        const latinVoices = lang === 'es'
-          ? langVoices
-              .map((v) => ({ voice: v, rank: LATIN_BROWSER_REGIONS.indexOf(v.lang.toLowerCase()) }))
-              .filter((entry) => entry.rank >= 0)
-              .sort((a, b) => a.rank - b.rank)
-              .map((entry) => entry.voice)
-          : langVoices.filter((v) => v.lang.toLowerCase().startsWith('en-us'));
+      // REGLA DE VOZ ÚNICA: el fallback del navegador SOLO puede hablar con una
+      // voz femenina latina validada. Nunca una voz masculina, de género
+      // desconocido o `es-ES`. Si no existe, se prefiere el SILENCIO.
+      const candidates = (voices || [])
+        .filter((v) => isAcceptableFemaleVoice(v, lang))
+        .map((v) => ({
+          v,
+          rank: lang === 'es' ? LATIN_BROWSER_REGIONS.indexOf(v.lang.toLowerCase()) : 0,
+        }))
+        .sort((a, b) => (a.rank < 0 ? 999 : a.rank) - (b.rank < 0 ? 999 : b.rank));
 
-        const pool = latinVoices.length > 0 ? latinVoices : langVoices;
-
-        // 2. Dentro del pool, priorizar la voz cuyo nombre declare el género pedido
-        const matched =
-          pool.find((v) => voiceMatchesGender(v.name, gender) === true) ||
-          pool.find((v) => voiceMatchesGender(v.name, gender) === null) ||
-          pool[0];
-
-        utterance.voice = matched;
-
-        // 3. Si la voz no declara su género, se refuerza el timbre femenino con
-        //    el tono (la Voz Guía es siempre femenina).
-        if (voiceMatchesGender(matched.name, gender) !== true) {
-          utterance.pitch = 1.12;
-        }
+      const chosen = candidates.length > 0 ? candidates[0].v : null;
+      if (!chosen) {
+        console.warn('[TTSService] Sin voz femenina latina válida: locución omitida (nunca masculina).');
+        return;
       }
+
+      utterance.voice = chosen;
+      utterance.lang = chosen.lang;
+      utterance.rate = speed;
 
       window.speechSynthesis.speak(utterance);
     } catch (e) {

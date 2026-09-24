@@ -62,3 +62,34 @@ export function voiceMatchesGender(
   if (!detected) return null;
   return detected === gender;
 }
+
+/** ¿El código de idioma es español latinoamericano (excluye `es-ES`)? */
+export function isLatinSpanishLang(lang: string): boolean {
+  const l = (lang || '').toLowerCase();
+  return l.startsWith('es') && l !== 'es-es';
+}
+
+/**
+ * REGLA DE VOZ ÚNICA (Voz Guía).
+ *
+ * Una voz del navegador solo es aceptable si:
+ *   · declara EXPLÍCITAMENTE género femenino (nunca `unknown`), y
+ *   · para español, es variante latinoamericana (nunca `es-ES`).
+ *
+ * Es el blindaje que impide que el fallback de Web Speech introduzca una voz
+ * masculina o castellana cuando el TTS natural no está disponible.
+ */
+export function isAcceptableFemaleVoice(
+  voice: { name: string; lang: string } | null | undefined,
+  lang: 'es' | 'en'
+): boolean {
+  if (!voice) return false;
+  const vLang = (voice.lang || '').toLowerCase();
+  if (lang === 'es') {
+    if (!isLatinSpanishLang(vLang)) return false;
+  } else if (!vLang.startsWith('en')) {
+    return false;
+  }
+  return voiceMatchesGender(voice.name, 'female') === true;
+}
+

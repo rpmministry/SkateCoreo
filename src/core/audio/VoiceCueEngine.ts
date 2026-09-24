@@ -7,7 +7,7 @@ import {
   splitFigureList,
 } from './voiceCueSanitizer';
 import {
-  voiceMatchesGender,
+  isAcceptableFemaleVoice,
   type VoiceGender,
 } from './voiceGender';
 import {
@@ -256,6 +256,16 @@ export class VoiceCueEngine {
     if (this.countdownBankReady) return;
     if (this.countdownBankPromise) return this.countdownBankPromise;
 
+    // COHERENCIA DE IDENTIDAD VOCAL: el banco se genera con la MISMA voz natural
+    // que los cues de figuras. Si el motor efectivo no es natural, NO se genera:
+    // así el conteo nunca mezcla la voz natural con la del navegador (el fallo
+    // "conteo femenino → figuras con otra voz").
+    if (this.config.ttsEngine !== 'google-cloud' || !ttsService.hasNaturalVoice()) {
+      this.countdownBank = new Map();
+      this.countdownBankReady = false;
+      return;
+    }
+
     this.countdownBankPromise = (async () => {
       const results = await Promise.all(
         VoiceCueEngine.COUNTDOWN_WORDS.map(async ({ key, text }) => {
@@ -328,13 +338,10 @@ export class VoiceCueEngine {
       this.config.googleApiKey = userApiKey;
     }
 
-    let hasSavedEnginePreference = false;
-
     if (typeof localStorage !== 'undefined') {
       const savedEngine = localStorage.getItem('skatecoreo_tts_engine') || localStorage.getItem('skateart_tts_engine');
       if (savedEngine === 'browser' || savedEngine === 'google-cloud') {
         this.config.ttsEngine = savedEngine;
-        hasSavedEnginePreference = true;
       }
 
       // Migración única: las primeras versiones usaban 'browser' por defecto
@@ -378,12 +385,19 @@ export class VoiceCueEngine {
       this.config.voiceGender = 'female';
     }
 
-    // Si hay voz natural disponible (endpoint propio o clave del usuario) y el
-    // usuario nunca eligió motor, se usa el natural de fábrica.
-    // Fuera del bloque de localStorage para que la decisión sea determinista en
-    // cualquier entorno (navegador, SSR y pruebas).
-    if (hasNaturalVoiceBackend() && !hasSavedEnginePreference) {
+    // Si hay voz natural disponible (endpoint propio o clave del usuario), TODA
+    // la guía usa la MISMA voz natural premium: se fuerza el motor aunque exista
+    // una preferencia heredada 'browser', para no mezclar voces (natural en el
+    // conteo + navegador en las figuras) dentro de una misma rutina. Fuera del
+    // bloque de localStorage para que la decisión sea determinista en cualquier
+    // entorno (navegador, SSR y pruebas).
+    if (hasNaturalVoiceBackend()) {
       this.config.ttsEngine = 'google-cloud';
+      if (typeof localStorage !== 'undefined') {
+        try {
+          localStorage.setItem('skatecoreo_tts_engine', 'google-cloud');
+        } catch (e) {}
+      }
     }
 
     if (config) {
@@ -407,16 +421,27 @@ export class VoiceCueEngine {
             // Restore saved voice preference from localStorage if available
             if (!this.config.selectedVoiceURI && typeof localStorage !== 'undefined') {
               const saved = localStorage.getItem('skatecoreo_voice_uri') || localStorage.getItem('skateart_voice_uri');
-              if (saved && list.some(v => v.voiceURI === saved)) {
+              const savedVoice = saved ? list.find((v) => v.voiceURI === saved) || null : null;
+              if (savedVoice && isAcceptableFemaleVoice(savedVoice, this.config.language)) {
                 this.config.selectedVoiceURI = saved;
+              } else if (saved) {
+                // MIGRACIÓN: una preferencia heredada (masculina, `es-ES` o ya no
+                // disponible) se descarta para no reintroducir una voz prohibida.
+                try {
+                  localStorage.removeItem('skatecoreo_voice_uri');
+                  localStorage.removeItem('skateart_voice_uri');
+                } catch (e) {}
               }
             }
 
-            // Sin preferencia guardada: elegir la mejor voz (prioriza acento latino)
+            // Sin preferencia guardada (o descartada): elegir la única voz válida.
             if (!this.config.selectedVoiceURI) {
               const best = this.pickBestBrowserVoice(list, this.config.language);
               if (best) {
                 this.config.selectedVoiceURI = best.voiceURI;
+                try {
+                  localStorage.setItem('skatecoreo_voice_uri', best.voiceURI);
+                } catch (e) {}
               }
             }
           }
@@ -429,16 +454,12 @@ export class VoiceCueEngine {
   }
 
   /**
-   * Elige la mejor voz del navegador para el idioma Y EL GÉNERO pedidos.
+   * Elige la ÚNICA voz válida del navegador para el idioma pedido.
    *
-   * Prioriza, en este orden:
-   *  1. Género coincidente (si el nombre lo declara) — esto es lo que hace que
-   *     "Femenina" y "Masculina" suenen realmente distinto.
-   *  2. Acento latino (es-419 / es-US / es-MX / …) sobre castellano.
-   *  3. Voces "neural / natural / premium / enhanced" sobre las básicas.
-   *
-   * Si ninguna voz declara su género, se devuelve la mejor del idioma y el
-   * llamador aplica un ajuste de `pitch` para diferenciarlas acústicamente.
+   * REGLA DE VOZ ÚNICA: solo se acepta una voz que declare explícitamente género
+   * femenino y, en español, variante latinoamericana. Si no existe, se devuelve
+   * `null` y el llamador DEBE permanecer en silencio: nunca una voz masculina,
+   * de género desconocido o `es-ES`.
    */
   public pickBestBrowserVoice(
     voices: SpeechSynthesisVoice[],
@@ -450,34 +471,17 @@ export class VoiceCueEngine {
     const cacheKey = `${lang}:${gender}`;
     const cached = this.browserVoiceCache.get(cacheKey);
     if (cached && voices.some((v) => v.voiceURI === cached.voiceURI)) return cached;
+    if (cached) this.browserVoiceCache.delete(cacheKey);
 
-    const genderMatched: Array<{ voice: SpeechSynthesisVoice; score: number }> = [];
-    const unknownGender: Array<{ voice: SpeechSynthesisVoice; score: number }> = [];
-    const mismatched: Array<{ voice: SpeechSynthesisVoice; score: number }> = [];
+    const candidates = voices
+      .filter((voice) => isAcceptableFemaleVoice(voice, lang))
+      .map((voice) => ({ voice, score: scoreBrowserVoice(voice, lang) }));
 
-    for (const voice of voices) {
-      const baseScore = scoreBrowserVoice(voice, lang);
-      if (baseScore < 0) continue;
+    if (candidates.length === 0) return null;
 
-      const match = voiceMatchesGender(voice.name, gender);
-      const entry = { voice, score: baseScore };
-      if (match === true) genderMatched.push(entry);
-      else if (match === null) unknownGender.push(entry);
-      else mismatched.push(entry);
-    }
-
-    const pool =
-      genderMatched.length > 0
-        ? genderMatched
-        : unknownGender.length > 0
-          ? unknownGender
-          : mismatched;
-
-    if (pool.length === 0) return null;
-
-    pool.sort((a, b) => b.score - a.score);
-    this.browserVoiceCache.set(cacheKey, pool[0].voice);
-    return pool[0].voice;
+    candidates.sort((a, b) => b.score - a.score);
+    this.browserVoiceCache.set(cacheKey, candidates[0].voice);
+    return candidates[0].voice;
   }
 
   /** Género activo de la Voz Guía. Siempre femenino. */
@@ -513,6 +517,17 @@ export class VoiceCueEngine {
   }
 
   public setSelectedVoice(voiceURI: string | null) {
+    if (voiceURI) {
+      const voices = this.getAvailableVoices();
+      const found = voices.find((v) => v.voiceURI === voiceURI) || null;
+      // Solo se admite una voz femenina latina validada. Una voz masculina,
+      // `es-ES` o desconocida se sustituye por la única voz válida disponible.
+      if (!isAcceptableFemaleVoice(found, this.config.language)) {
+        const best = this.pickBestBrowserVoice(voices, this.config.language);
+        this.config.selectedVoiceURI = best ? best.voiceURI : null;
+        return;
+      }
+    }
     this.config.selectedVoiceURI = voiceURI;
     if (typeof localStorage !== 'undefined' && voiceURI) {
       localStorage.setItem('skatecoreo_voice_uri', voiceURI);
@@ -596,12 +611,12 @@ export class VoiceCueEngine {
   public setLanguage(lang: 'es' | 'en') {
     this.config.language = lang;
     if (this.availableVoices.length > 0) {
-      const current = this.availableVoices.find(v => v.voiceURI === this.config.selectedVoiceURI);
-      const prefix = lang === 'es' ? 'es' : 'en';
-      const needsSwitch = !current || !current.lang.toLowerCase().startsWith(prefix);
+      const current = this.availableVoices.find(v => v.voiceURI === this.config.selectedVoiceURI) || null;
+      const needsSwitch = !isAcceptableFemaleVoice(current, lang);
       if (needsSwitch) {
         const best = this.pickBestBrowserVoice(this.availableVoices, lang);
         if (best) this.setSelectedVoice(best.voiceURI);
+        else this.config.selectedVoiceURI = null;
       }
     }
 
@@ -705,7 +720,7 @@ export class VoiceCueEngine {
       })
       .filter((cue): cue is VoiceCueEvent => cue !== null);
 
-    if (this.config.ttsEngine === 'google-cloud' && this.config.googleApiKey) {
+    if (this.config.ttsEngine === 'google-cloud') {
       void this.preloadGoogleTTS(this.cues.map((c) => c.text));
     }
   }
@@ -813,7 +828,7 @@ export class VoiceCueEngine {
     this.cues = newCues.sort((a, b) => a.timeMs - b.timeMs);
 
     // Precalentar voces en segundo plano con las frases de aviso anticipado
-    if (this.config.ttsEngine === 'google-cloud' && this.config.googleApiKey) {
+    if (this.config.ttsEngine === 'google-cloud') {
       const phrasesToPreload = [
         'tres', 'dos', 'uno', '¡ya!', 'three', 'two', 'one', 'go!',
         ...speakableNodes.map(({ figures }) => {
@@ -1121,6 +1136,28 @@ export class VoiceCueEngine {
   }
 
   /**
+   * Silencia de inmediato la locución en curso (buffers agendados + voz del
+   * navegador) SIN detener el planificador de hardware. Así, al reactivar la
+   * Voz Guía, los cues posteriores siguen programándose con normalidad y la
+   * pista maestra nunca se detiene ni se desincroniza.
+   */
+  public silenceImmediate() {
+    ttsService.stop();
+    for (const source of this.activeSources) {
+      try {
+        source.stop();
+        source.disconnect();
+      } catch (e) {}
+    }
+    this.activeSources.clear();
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch (e) {}
+    }
+  }
+
+  /**
    * Detiene de inmediato cualquier reproducción vocal activa y cancela el pre-roll
    */
   public stop() {
@@ -1297,30 +1334,25 @@ export class VoiceCueEngine {
         const pinned = this.config.selectedVoiceURI
           ? voices.find((v) => v.voiceURI === this.config.selectedVoiceURI) || null
           : null;
-        const pinnedMatchesGender = pinned
-          ? voiceMatchesGender(pinned.name, gender) !== false
-          : false;
+        // La voz fijada SÓLO se respeta si es una voz femenina latina validada.
+        const pinnedOk = isAcceptableFemaleVoice(pinned, this.config.language);
 
-        const chosen = pinnedMatchesGender
+        const chosen = pinnedOk
           ? pinned
           : this.pickBestBrowserVoice(voices, this.config.language, gender);
 
-        if (chosen) {
-          utterance.voice = chosen;
-          utterance.lang = chosen.lang;
-        } else {
-          utterance.lang = this.config.language === 'es' ? 'es-US' : 'en-US';
+        // REGLA DE VOZ ÚNICA: si no hay una voz femenina latina validada, se
+        // omite la locución (silencio) en lugar de reproducir una voz masculina.
+        if (!chosen) {
+          console.warn('[VoiceCueEngine] Sin voz femenina latina válida: locución omitida.');
+          return;
         }
 
-        // Voz única femenina: si la voz del navegador elegida no declara su
-        // género, se refuerza el timbre femenino con el tono.
-        const genderConfirmed = chosen
-          ? voiceMatchesGender(chosen.name, gender) === true
-          : false;
-        const pitchOffset = genderConfirmed ? 1 : 1.12;
+        utterance.voice = chosen;
+        utterance.lang = chosen.lang;
 
         utterance.rate = this.config.voiceSpeed;
-        utterance.pitch = Math.max(0.1, Math.min(2, this.config.voicePitch * pitchOffset));
+        utterance.pitch = Math.max(0.1, Math.min(2, this.config.voicePitch));
         utterance.volume = this.config.volume;
 
         setTimeout(() => {

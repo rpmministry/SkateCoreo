@@ -9,7 +9,7 @@
  */
 
 import { VoiceCueEngine, GOOGLE_TTS_VOICES, DEFAULT_LATIN_FEMALE_VOICE, PREMIUM_LATIN_FEMALE_VOICES } from './VoiceCueEngine';
-import { detectGoogleVoiceGender, voiceMatchesGender } from './voiceGender';
+import { detectGoogleVoiceGender, voiceMatchesGender, isAcceptableFemaleVoice } from './voiceGender';
 import { timeToPlayheadPx } from './PlaybackClock';
 
 function assert(condition: boolean, msg: string) {
@@ -106,5 +106,28 @@ assert(
   `La proyección conserva precisión de coma flotante (${fractional})`
 );
 assert(!Number.isInteger(fractional), 'El resultado NO se redondea a píxeles enteros (evita micro-saltos)');
+
+// ── 6. Política de VOZ ÚNICA en el fallback del navegador ───────
+// Nunca masculina, nunca de género desconocido, nunca es-ES.
+const mk = (name: string, lang: string) => ({ name, lang, voiceURI: `${lang}:${name}` } as unknown as SpeechSynthesisVoice);
+
+assert(isAcceptableFemaleVoice(mk('Microsoft Monica', 'es-MX'), 'es') === true, 'Monica (es-MX) es voz femenina latina válida');
+assert(isAcceptableFemaleVoice(mk('Voice 42', 'es-MX'), 'es') === false, 'Género desconocido se rechaza (no se asume femenina)');
+assert(isAcceptableFemaleVoice(mk('Microsoft Pablo', 'es-MX'), 'es') === false, 'Voz masculina (Pablo) se rechaza');
+assert(isAcceptableFemaleVoice(mk('Microsoft Monica', 'es-ES'), 'es') === false, 'es-ES se rechaza por acento castellano');
+assert(isAcceptableFemaleVoice(mk('Google español', 'es-US'), 'es') === false, 'Sin género explícito en el nombre se rechaza');
+
+const onlyBad = [mk('Microsoft Pablo', 'es-MX'), mk('Voice 42', 'es-MX'), mk('Microsoft Monica', 'es-ES')];
+assert(
+  engine.pickBestBrowserVoice(onlyBad, 'es') === null,
+  'Sin voz femenina latina válida → null: silencio, NUNCA una voz masculina'
+);
+
+const mixed = [mk('Microsoft Pablo', 'es-MX'), mk('Voice 42', 'es-US'), mk('Microsoft Monica', 'es-US')];
+const picked = engine.pickBestBrowserVoice(mixed, 'es');
+assert(
+  picked !== null && picked.name === 'Microsoft Monica',
+  'Entre voces mixtas elige la única femenina latina validada'
+);
 
 console.log('\n✅ TODAS LAS PRUEBAS DE VOZ GUÍA Y PLAYHEAD PASARON\n');

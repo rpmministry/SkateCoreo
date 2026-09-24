@@ -428,6 +428,9 @@ export class AudioEngine {
 
   public setVoiceGuideMuted(muted: boolean) {
     this.voiceGuideMuted = muted;
+    // Silencio INMEDIATO de la locución en curso (buffers agendados + voz del
+    // navegador) sin detener la música ni el reloj de sincronización.
+    if (muted) this.voiceCueEngine.silenceImmediate();
     this.applyBusMutes();
     this.emitStateChange();
   }
@@ -1208,14 +1211,17 @@ export class AudioEngine {
     const buffer = this.voiceCueEngine.getCountdownBuffer(value);
     const volume = Math.max(0, Math.min(1, this.voiceCueEngine.getConfig().volume ?? 1));
 
-    if (buffer && this.coachBusGainNode) {
+    if (buffer && this.voiceCueGainNode) {
       try {
         const source = ctx.createBufferSource();
         source.buffer = buffer;
         const gain = ctx.createGain();
         gain.gain.value = volume;
         source.connect(gain);
-        gain.connect(this.coachBusGainNode);
+        // Se enruta por el sub-bus de Voz Guía (no directamente al bus de coach):
+        // así el mute global de la Voz Guía silencia también el conteo ya agendado,
+        // sin afectar a la música ni a la voz grabada de la entrenadora.
+        gain.connect(this.voiceCueGainNode);
         this.preRollSources.push(source);
         source.onended = () => {
           this.preRollSources = this.preRollSources.filter((s) => s !== source);

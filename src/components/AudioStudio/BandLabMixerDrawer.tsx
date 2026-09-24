@@ -170,7 +170,7 @@ export const BandLabMixerDrawer: React.FC<BandLabMixerDrawerProps> = ({
               <span className="text-[10px] font-mono font-black text-fuchsia-400 flex items-center justify-center gap-1">
                 <Mic className="w-2.5 h-2.5" /> GUÍAS
               </span>
-              <p className="text-[10px] text-slate-400 truncate">Voz / Cues</p>
+              <p className="text-[10px] text-slate-400 truncate" title="Voz Guía automática (IA). Independiente de la voz grabada.">Voz Guía IA</p>
             </div>
 
             <div className="h-32 flex items-center justify-center my-2">

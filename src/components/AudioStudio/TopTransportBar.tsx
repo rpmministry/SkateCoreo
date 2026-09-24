@@ -8,7 +8,7 @@ import {
   FileText, 
   Layers, 
   Bell, 
-  Mic, 
+  Sparkles, 
   Magnet,
   X
 } from 'lucide-react';
@@ -336,11 +336,14 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
               />
             </div>
 
-            {/* Voces Guía */}
+            {/* Voz Guía automática (IA) — distinta de la voz grabada de la entrenadora */}
             <div className="pt-2 border-t border-white/10 flex flex-col gap-1.5">
               <div className="flex items-center justify-between text-xs font-bold text-fuchsia-400">
-                <span className="flex items-center gap-1">
-                  <Mic className="w-3.5 h-3.5" /> Cues & Guías Vocales
+                <span
+                  className="flex items-center gap-1"
+                  title="Voz Guía automática (IA, femenina latina). No afecta a la voz grabada de la entrenadora."
+                >
+                  <Sparkles className="w-3.5 h-3.5" /> Voz Guía IA
                 </span>
                 <button
                   type="button"

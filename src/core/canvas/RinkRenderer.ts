@@ -292,24 +292,36 @@ export class RinkRenderer {
   ) {
     if (points.length < 2) return;
     const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
+    if (sorted.length < 2) return;
 
     const isPlaying = options.isPlaying ?? false;
     const showFullTrailOverride = options.showFullTrailOverride ?? false;
 
-    // FASE DE REPRODUCCIÓN (PLAY): Líneas estáticas desaparecen por completo.
-    // Solo se renderiza el Trazado Dinámico (Dynamic Trail) siguiendo al avatar.
-    if (isPlaying && !showFullTrailOverride) {
+    // 1) LA TRAYECTORIA REAL DEL USUARIO SIEMPRE SE DIBUJA.
+    //    Es una capa INDEPENDIENTE del avatar: aunque la patinadora esté oculta
+    //    durante PLAY, el recorrido creado con Trazar permanece visible. Durante
+    //    la reproducción (o el modo "Ver Trazo Completo") se pinta en alto
+    //    contraste; en edición, como guía suave.
+    this.drawTracedPath(ctx, metrics, sorted, options, isPlaying || showFullTrailOverride);
+
+    // 2) La ESTELA DINÁMICA de progreso es ADITIVA: se superpone al trazado
+    //    únicamente durante PLAY y cuando el avatar está visible. Nunca lo sustituye.
+    if (isPlaying && options.avatar) {
       this.drawDynamicTrail(ctx, metrics, sorted, options);
-      return;
     }
+  }
 
-    // Si hay menos de 2 nodos, no hay trayectorias continuas que trazar
-    if (sorted.length < 2) {
-      return;
-    }
-
-    // FASE DE EDICIÓN / PREVIEW (o botón Ver Trazo Completo):
-    // Se dibuja la guía visual de las trayectorias
+  /**
+   * Dibuja la trayectoria real trazada por el usuario (solo segmentos creados
+   * explícitamente con Trazar). Capa independiente del avatar.
+   */
+  private static drawTracedPath(
+    ctx: CanvasRenderingContext2D,
+    metrics: CanvasViewportMetrics,
+    sorted: ChoreographyPathPoint[],
+    options: RenderOptions,
+    highContrast: boolean
+  ) {
     const { offsetX, offsetY, renderedW, renderedH, scale } = metrics;
     const cornerRadiusPx = 3.5 * scale;
 
@@ -357,8 +369,8 @@ export class RinkRenderer {
         ctx.stroke();
       };
 
-      if (showFullTrailOverride) {
-        // Modo Didáctico Iluminado: Alto contraste
+      if (highContrast) {
+        // Reproducción / Modo Didáctico: trazado claro y siempre visible.
         ctx.strokeStyle = isSegmentSelected ? 'rgba(0, 210, 255, 0.6)' : 'rgba(0, 210, 255, 0.35)';
         ctx.lineWidth = isSegmentSelected ? 8 : 5;
         strokeCurve();
