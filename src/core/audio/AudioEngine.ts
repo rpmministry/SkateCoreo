@@ -15,6 +15,9 @@ import { renderChoreographyMixdown } from './audioMixdown';
 import { adquirirPantallaActiva, liberarPantallaActiva } from '../system/wakeLock';
 import { loadProgress } from '../../store/loadProgressStore';
 
+/** Trazabilidad de audio solo en desarrollo (cero coste en producción). */
+const AUDIO_DEBUG = Boolean((import.meta as { env?: { DEV?: boolean } })?.env?.DEV);
+
 /**
  * Lee un Blob/File como ArrayBuffer priorizando `FileReader`.
  *
@@ -576,18 +579,23 @@ export class AudioEngine {
     this.metronomeMuted = !audible;
     this.metronome.setEnabled(audible);
     // Mute ABSOLUTO: además del estado lógico, se destruyen los pulsos ya
-    // programados y se bloquea toda creación futura de osciladores (silencio
-    // real, nunca "volumen muy bajo").
+    // programados y se bloquea toda creación futura de osciladores.
     this.metronome.setMuted(!audible);
     if (!audible) {
       this.metronome.suspend();
     }
-    // MUTE del metrónomo = silencio total: se desactivan y DETIENEN los acentos
-    // de cue (que son una segunda ruta de click en el bus de Voz Guía), de modo
-    // que al mutear no quede ningún beep de fondo parecido a un metrónomo.
     const metronomeOff = !this.metronome.getConfig().enabled;
     this.voiceCueEngine.setCueTicksEnabled(metronomeOff && !this.metronomeMuted);
     this.applyBusMutes();
+    if (AUDIO_DEBUG) {
+      console.debug(
+        `[METRONOME] mute ${this.metronomeMuted ? 'ON' : 'OFF'}` +
+          ` · instancias=${Metronome.getLiveInstanceCount()}` +
+          ` · scheduler=${this.metronome.hasActiveScheduler() ? 'ON' : 'OFF'}` +
+          ` · busConnected=${this.metronomeBusConnected}` +
+          ` · ctx=${this.ctx?.state ?? 'none'}`
+      );
+    }
     this.emitStateChange();
   }
 

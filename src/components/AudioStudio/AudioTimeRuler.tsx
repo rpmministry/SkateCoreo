@@ -239,7 +239,8 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
               onPointerUp={(e) => handleNodePointerUp(node.id, e)}
               className={[
                 'absolute top-4 -translate-x-1/2 z-20 group cursor-grab active:cursor-grabbing',
-                'flex items-center gap-1 px-2 py-0.5 rounded-full border shadow-lg transition-transform shrink-0',
+                'flex max-w-[72px] items-center gap-0.5 px-1 py-0.5 rounded-full border shadow-lg transition-transform shrink-0',
+                'sm:max-w-none sm:gap-1 sm:px-2',
                 isDragging ? 'scale-110 z-40' : '',
                 isSelected
                   ? 'bg-cyan text-slate-950 font-black border-white shadow-cyan/40 shadow-glow-cyan'
@@ -248,21 +249,22 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
               style={{ left: `${leftPx}px` }}
               title={`Nodo ${node.numeroSecuencial} · ${formattedTime}s (Arrastra para mover)`}
             >
-              <span className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-black bg-cyan-950/60 text-cyan shrink-0">
+              <span className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-black bg-cyan-950/60 text-cyan shrink-0 sm:w-4 sm:h-4 sm:text-[10px]">
                 {node.numeroSecuencial}
               </span>
-              <span className="text-[10px] font-mono font-bold whitespace-nowrap">
+              <span className="truncate text-[9px] font-mono font-bold whitespace-nowrap sm:text-[10px]">
                 {formattedTime}
               </span>
 
-              {/* Botón rápido para eliminar marcador */}
+              {/* Botón rápido para eliminar marcador (oculto en móvil para no
+                  desbordar; en móvil se elimina desde el menú/gesto). */}
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   deleteTimeNode(node.id);
                 }}
-                className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-slate-400 hover:text-red-400 hover:bg-red-500/20 transition-all opacity-0 group-hover:opacity-100 shrink-0"
+                className="hidden w-3.5 h-3.5 rounded-full items-center justify-center text-slate-400 hover:text-red-400 hover:bg-red-500/20 transition-all opacity-0 group-hover:opacity-100 shrink-0 sm:flex"
                 title="Eliminar este marcador"
               >
                 <Trash2 className="w-2.5 h-2.5" />

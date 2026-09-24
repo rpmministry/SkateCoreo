@@ -21,6 +21,8 @@ export interface RenderOptions {
   showCompulsoryFigures?: boolean;
   paperTraceOverlay?: { imageUrl: string; opacity: number; visible: boolean } | null;
   paperTraceImageElement?: HTMLImageElement | null;
+  /** Nodo objetivo del "snap" durante el trazado (se resalta para feedback). */
+  snapTargetId?: string | null;
 }
 
 // Pre-carga de imágenes de los patinadores artísticos (SVG de alta resolución)
@@ -576,13 +578,15 @@ export class RinkRenderer {
     metrics: CanvasViewportMetrics,
     points: ChoreographyPathPoint[],
     selectedPointId: string | null,
-    draggingPointId: string | null = null
+    draggingPointId: string | null = null,
+    snapTargetId: string | null = null
   ) {
     let visibleIndex = 0;
 
     points.forEach((p, idx) => {
       const isSelected = selectedPointId === p.id;
       const isDraggingNode = draggingPointId === p.id;
+      const isSnapTarget = snapTargetId === p.id;
       // Nodo pendiente: detectado por el escáner pero sin número reconocido.
       const isPending = p.unrecognized === true;
 
@@ -598,19 +602,34 @@ export class RinkRenderer {
 
       ctx.save();
 
-      // Escala visual ADAPTATIVA: en lienzos pequeños (móvil vertical) el nodo se
-      // dibuja más compacto para no desbordar el área útil, SIN tocar la posición
-      // lógica ni el hit area táctil (que se calcula aparte, ~44px en pantalla).
-      const rinkShortSide = Math.max(1, Math.min(metrics.renderedW, metrics.renderedH));
-      const visualScale = Math.max(0.68, Math.min(1, rinkShortSide / 420));
-      const baseRadius = isDraggingNode ? 12 : isSelected ? 11 : 9;
-      const nodeRadius = baseRadius * visualScale;
+      // TAMAÑO VISUAL DEL NODO — responsive y adaptado al zoom.
+      //   · Base derivada de `metrics.scale` (px/metro, que YA incluye el zoom):
+      //     al acercar, el nodo crece de forma controlada; al alejar, mantiene un
+      //     mínimo claro para NO volverse microscópico.
+      //   · Acotado [min,max] para que nunca sea diminuto ni gigante.
+      //   · NO altera la posición lógica (x/y) ni el hit real (44px en pantalla).
+      const nodeBase = Math.max(11, Math.min(19, metrics.scale * 0.62));
+      const nodeRadius = nodeBase + (isDraggingNode ? 3 : isSelected ? 2 : 0);
+
+      // 0. Feedback de SNAP: el nodo objetivo del trazado se resalta con un anillo
+      //    ámbar para que el usuario sepa que la línea se conectará ahí.
+      if (isSnapTarget) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.95)';
+        ctx.lineWidth = 3;
+        ctx.shadowColor = 'rgba(251, 191, 36, 0.9)';
+        ctx.shadowBlur = 16;
+        ctx.beginPath();
+        ctx.arc(px, py, nodeRadius + 8, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
 
       // 1. Halo luminoso exterior si está seleccionado (Neón Menta #10F49C)
       if (isSelected) {
         ctx.fillStyle = 'rgba(16, 244, 156, 0.25)';
         ctx.beginPath();
-        ctx.arc(px, py, 16 * visualScale, 0, Math.PI * 2);
+        ctx.arc(px, py, nodeRadius + 5, 0, Math.PI * 2);
         ctx.fill();
 
         ctx.strokeStyle = 'rgba(16, 244, 156, 0.75)';
@@ -628,7 +647,7 @@ export class RinkRenderer {
         ctx.shadowColor = 'rgba(0, 210, 255, 0.9)';
         ctx.shadowBlur = 14;
         ctx.beginPath();
-        ctx.arc(px, py, 20 * visualScale, 0, Math.PI * 2);
+        ctx.arc(px, py, nodeRadius + 9, 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
       }
@@ -649,7 +668,7 @@ export class RinkRenderer {
       // 3. Número de orden del nodo centrado en el interior (legible).
       //    Los nodos pendientes muestran "?" en naranja hasta editarse a mano.
       ctx.fillStyle = isPending ? '#FDBA74' : isSelected ? '#000000' : '#FFFFFF';
-      ctx.font = `900 ${Math.max(9, Math.round((isSelected ? 11 : 10) * visualScale))}px JetBrains Mono, system-ui, monospace`;
+      ctx.font = `900 ${Math.max(10, Math.round(nodeRadius * 0.95))}px JetBrains Mono, system-ui, monospace`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(isPending ? '?' : `${p.nodeNumber ?? visibleIndex}`, px, py);
@@ -674,7 +693,7 @@ export class RinkRenderer {
         const badgeX = Math.max(minX, Math.min(maxX, px - badgeW / 2));
         const minY = metrics.offsetY + 2;
         const maxY = metrics.offsetY + metrics.renderedH - badgeH - 2;
-        const badgeY = Math.max(minY, Math.min(maxY, py + (isSelected ? 18 : 15)));
+        const badgeY = Math.max(minY, Math.min(maxY, py + nodeRadius + 5));
 
         ctx.fillStyle = isSelected ? 'rgba(16, 244, 156, 0.2)' : 'rgba(18, 24, 38, 0.85)';
         ctx.beginPath();

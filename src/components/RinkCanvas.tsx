@@ -41,6 +41,13 @@ import { useCanvasCamera } from '../hooks/useCanvasCamera';
 import type { CameraBounds } from '../core/canvas/cameraBounds';
 import { FreehandPathEngine, Point2D } from '../core/math/FreehandPathEngine';
 
+/**
+ * Tolerancia de SNAP del trazado, en PÍXELES de pantalla (independiente del zoom).
+ * Al acercar el trazo a un nodo existente dentro de este radio, la trayectoria se
+ * conecta a ese nodo en lugar de crear uno nuevo (evita nodos accidentales).
+ */
+const SNAP_RADIUS_PX = 44;
+
 interface RinkCanvasProps {
   currentProgram: Program | null;
   onProgramUpdated: (updated: Program) => void;
@@ -307,6 +314,8 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
   const dragGrabOffsetRef = useRef<{ dx: number; dy: number } | null>(null);
   /** ¿El nodo tocado ya estaba seleccionado antes de este pointerdown? */
   const wasNodeSelectedRef = useRef(false);
+  /** Nodo objetivo del snap actual (se resalta mientras se traza). */
+  const snapTargetRef = useRef<string | null>(null);
   const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
   const [cursorStyle, setCursorStyle] = useState<'default' | 'crosshair' | 'grab' | 'grabbing' | 'pointer'>('crosshair');
 
@@ -690,7 +699,8 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
         metrics,
         currentPoints,
         currentSelectedId,
-        renderOpts.draggingPointId ?? null
+        renderOpts.draggingPointId ?? null,
+        snapTargetRef.current
       );
 
       // Capa 5: Elementos técnicos RollArt
@@ -970,8 +980,10 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
             // El long press abre opciones: se cancela cualquier arrastre.
             dragTargetRef.current = null;
             dragGrabOffsetRef.current = null;
-            rawStrokeRef.current = [];
-            strokeStartNodeRef.current = null;
+    rawStrokeRef.current = [];
+    strokeStartNodeRef.current = null;
+    snapTargetRef.current = null;
+
             setIsDragging(false);
             onDragChange?.(false);
             setSelectedPointId(targetNode.id);
@@ -1144,8 +1156,25 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       const minStepMeters = Math.max(0.03, 2.5 / (metrics.scale * (camera.zoom || 1)));
       if (!lastPt || Math.hypot(clampedX - lastPt.x, clampedY - lastPt.y) >= minStepMeters) {
         rawStrokeRef.current.push({ x: clampedX, y: clampedY });
-        renderFrame();
       }
+
+      // SNAP INTELIGENTE (feedback en vivo): si el trazo se aproxima a un nodo
+      // existente, se resalta para indicar que la línea se conectará ahí. La
+      // tolerancia se define en PÍXELES de pantalla (consistente en cualquier zoom).
+      const snapRadiusMeters = SNAP_RADIUS_PX / (metrics.scale * (camera.zoom || 1));
+      const startId = strokeStartNodeRef.current?.id ?? null;
+      let nearestId: string | null = null;
+      let nearestDist = Infinity;
+      for (const p of points) {
+        if (startId && p.id === startId) continue;
+        const d = Math.hypot(mX - p.x, mY - p.y);
+        if (d < snapRadiusMeters && d < nearestDist) {
+          nearestDist = d;
+          nearestId = p.id;
+        }
+      }
+      snapTargetRef.current = nearestId;
+      renderFrame();
       return;
     }
 
@@ -1309,7 +1338,9 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     let targetEndNode: ChoreographyPoint | null = null;
     if (touchEndM) {
       let minEndDist = Infinity;
-      const snapRadiusMeters = 1.5; // Tolerancia de enganche táctil en pista (~30px)
+      // Tolerancia en PÍXELES de pantalla (consistente en cualquier zoom/dispositivo).
+      const endMetrics = getMetrics();
+      const snapRadiusMeters = SNAP_RADIUS_PX / (endMetrics.scale * (camera.zoom || 1));
       for (const p of points) {
         if (startNode && p.id === startNode.id) continue;
         const d = Math.hypot(touchEndM.mX - p.x, touchEndM.mY - p.y);
@@ -1568,6 +1599,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     setIsDragging(false);
     dragTargetRef.current = null;
     dragGrabOffsetRef.current = null;
+    snapTargetRef.current = null;
     pointerDownPosRef.current = null;
     curveDragStartPosRef.current = null;
     curveInitialCpsRef.current = null;
