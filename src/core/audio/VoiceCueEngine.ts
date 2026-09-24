@@ -202,6 +202,12 @@ export class VoiceCueEngine {
    * cortarse entre sí (que era el motivo de que se "omitieran" figuras).
    */
   private activeSources: Set<AudioBufferSourceNode> = new Set();
+  /**
+   * Osciladores de los "cue ticks" (acentos cortos). Se rastrean para poder
+   * DETENERLOS de inmediato: si no se controlan, siguen sonando tras mutear el
+   * metrónomo y se perciben como un SEGUNDO metrónomo de fondo.
+   */
+  private activeToneNodes: Set<OscillatorNode> = new Set();
 
   // Parámetros del scheduler de hardware
   private readonly lookaheadMs = 20;
@@ -227,6 +233,25 @@ export class VoiceCueEngine {
   /** Activa/desactiva los beeps de acento de los cues (no afecta a la voz). */
   public setCueTicksEnabled(enabled: boolean) {
     this.cueTicksEnabled = enabled;
+    // Al DESACTIVAR se detienen de inmediato los acentos ya programados: sin
+    // esto seguirían sonando y parecería que el mute no hizo nada.
+    if (!enabled) this.stopCueTones();
+  }
+
+  public getCueTicksEnabled(): boolean {
+    return this.cueTicksEnabled;
+  }
+
+  /** Detiene y libera todos los osciladores de acento (cue ticks / alertas). */
+  public stopCueTones() {
+    for (const osc of this.activeToneNodes) {
+      try {
+        osc.onended = null;
+        osc.stop();
+        osc.disconnect();
+      } catch (e) {}
+    }
+    this.activeToneNodes.clear();
   }
 
   // ── Banco de VOZ para el COUNTDOWN (una única voz estándar) ────────────────
@@ -1175,6 +1200,8 @@ export class VoiceCueEngine {
       } catch (e) {}
     }
     this.activeSources.clear();
+    // Los acentos (cue ticks) viven en su propia ruta: se detienen aquí también.
+    this.stopCueTones();
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       try {
         window.speechSynthesis.cancel();
@@ -1203,6 +1230,7 @@ export class VoiceCueEngine {
       } catch (e) {}
     }
     this.activeSources.clear();
+    this.stopCueTones();
   }
 
   private static readonly NUMBER_WORDS_ES: Record<number, string> = {
@@ -1428,6 +1456,14 @@ export class VoiceCueEngine {
       osc.connect(gain);
       gain.connect(this.outputNode);
 
+      this.activeToneNodes.add(osc);
+      osc.onended = () => {
+        this.activeToneNodes.delete(osc);
+        try {
+          osc.disconnect();
+          gain.disconnect();
+        } catch (e) {}
+      };
       osc.start(now);
       osc.stop(now + 0.23);
     } catch (e) {}
@@ -1450,6 +1486,14 @@ export class VoiceCueEngine {
       osc.connect(gain);
       gain.connect(this.outputNode);
 
+      this.activeToneNodes.add(osc);
+      osc.onended = () => {
+        this.activeToneNodes.delete(osc);
+        try {
+          osc.disconnect();
+          gain.disconnect();
+        } catch (e) {}
+      };
       osc.start(now);
       osc.stop(now + 0.07);
     } catch (e) {}

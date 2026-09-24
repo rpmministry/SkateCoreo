@@ -541,6 +541,11 @@ export class AudioEngine {
     if (!audible) {
       this.metronome.suspend();
     }
+    // MUTE del metrónomo = silencio total: se desactivan y DETIENEN los acentos
+    // de cue (que son una segunda ruta de click en el bus de Voz Guía), de modo
+    // que al mutear no quede ningún beep de fondo parecido a un metrónomo.
+    const metronomeOff = !this.metronome.getConfig().enabled;
+    this.voiceCueEngine.setCueTicksEnabled(metronomeOff && !this.metronomeMuted);
     this.applyBusMutes();
     this.emitStateChange();
   }
@@ -1370,10 +1375,12 @@ export class AudioEngine {
     // fuentes se detienen: son exclusivas del Rink y no deben contaminar el editor.
     if (this.playbackDomain === 'rink') {
       this.metronome.start(clampedOffsetSec, this.playbackRate, whenCtxTime);
-      // UNA SOLA FUENTE RÍTMICA: con el metrónomo sonando, se silencian los beeps
-      // de acento de los cues (sin "doble metrónomo").
-      const metronomeAudible = this.metronome.getConfig().enabled && !this.metronomeMuted;
-      this.voiceCueEngine.setCueTicksEnabled(!metronomeAudible);
+      // UNA SOLA FUENTE RÍTMICA: los "cue ticks" son un acento corto de la Voz
+      // Guía que podía percibirse como un SEGUNDO metrónomo. Solo se permiten si
+      // el usuario APAGÓ el metrónomo por completo (no si lo muteó): así MUTE =
+      // silencio total y no queda ningún click de fondo.
+      const metronomeOff = !this.metronome.getConfig().enabled;
+      this.voiceCueEngine.setCueTicksEnabled(metronomeOff && !this.metronomeMuted);
       this.voiceCueEngine.resetTriggeredCues(offsetMs);
       this.voiceCueEngine.startSync(
         whenCtxTime - clampedOffsetSec / this.playbackRate,

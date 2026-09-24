@@ -50,4 +50,18 @@ assert(
   "El origen por defecto de la pista del Rink es 'file'"
 );
 
+// ── FUENTE ÚNICA DE METRÓNOMO: mutear desactiva los cue ticks ──
+// Los "cue ticks" (acentos de la Voz Guía) eran una SEGUNDA ruta de click que
+// seguía sonando tras mutear el metrónomo. Ahora el mute los desactiva.
+audioEngine.setMetronomeAudible(false);
+assert(
+  audioEngine.voiceCueEngine.getCueTicksEnabled() === false,
+  'MUTE del metrónomo desactiva los cue ticks (sin segundo metrónomo de fondo)'
+);
+audioEngine.setMetronomeAudible(true);
+assert(
+  audioEngine.voiceCueEngine.getCueTicksEnabled() === false,
+  'Con el metrónomo audible tampoco hay cue ticks (una sola fuente rítmica)'
+);
+
 console.log(`\nTODAS LAS PRUEBAS DE DOMINIO DE AUDIO PASARON: ${total}/${total}`);
