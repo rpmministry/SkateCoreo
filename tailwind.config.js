@@ -9,11 +9,22 @@ export default {
   ],
   theme: {
     screens: {
-      'xs': '320px',          // mobile_portrait: 320px a 479px
-      'sm': '480px',          // mobile_landscape: 480px a 767px
-      'md': '768px',          // tablet_portrait: 768px a 1023px
-      'lg': '1024px',         // tablet_landscape_and_laptop: 1024px a 1279px
-      'xl': '1280px',         // desktop_large: 1280px o más
+      // Rangos REALES para una app portrait-first.
+      //
+      // ⚠️ El antiguo `sm: 480px` estaba pensado para móvil en HORIZONTAL y
+      // provocaba una regresión grave: teléfonos grandes en VERTICAL reportan
+      // anchos CSS > 480 (p. ej. Pixel 8 Pro ≈ 512, algunos Android 480–540),
+      // por lo que al crecer el teléfono se cruzaba `sm` y la interfaz se
+      // "reorganizaba" con reglas de paisaje: paneles de Audio/Nodos recortados.
+      //
+      // Ahora los teléfonos en vertical (hasta ~639 px CSS) permanecen SIEMPRE
+      // en el layout móvil compacto/ampliado; la reorganización (2 columnas,
+      // paneles laterales) empieza en tablet (`md`) y escritorio (`lg`).
+      'xs': '320px',          // móvil pequeño
+      'sm': '640px',          // móvil grande vertical / plegables / horizontal
+      'md': '768px',          // tablet portrait
+      'lg': '1024px',         // tablet landscape / laptop
+      'xl': '1280px',         // desktop
       '2xl': '1536px',
     },
     extend: {

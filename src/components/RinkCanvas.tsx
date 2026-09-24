@@ -1835,9 +1835,15 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
             onClick={resetCamera}
             title="Restablecer vista"
             aria-label="Restablecer vista"
-            className="press flex h-11 w-11 items-center justify-center rounded-xl text-[10px] font-bold text-slate-300 hover:bg-white/10 hover:text-white"
+            className="press flex h-11 w-11 items-center justify-center rounded-xl text-slate-300 hover:bg-white/10 hover:text-white"
           >
-            {Math.round(camera.zoom * 100)}%
+            {/* En móvil NO se muestra el porcentaje sobre la pista (indicador
+                fuera de la zona útil): solo el icono de recentrar. En escritorio
+                se conserva el % porque no compite con el área táctil. */}
+            <Maximize2 className="h-4 w-4 lg:hidden" />
+            <span className="hidden font-mono text-[10px] font-bold lg:inline">
+              {Math.round(camera.zoom * 100)}%
+            </span>
           </button>
           <button
             type="button"

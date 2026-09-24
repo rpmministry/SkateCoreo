@@ -885,8 +885,9 @@ export function App() {
               inspector/paneles laterales (flota sobre el propio editor). */}
           <NodePlacementTray onOpenAudioStudio={() => setActiveView('studio')} />
 
-          {/* 2D Canvas Rink Engine — Zero Distortion */}
-          <div className="flex-1 min-h-0 overflow-hidden">
+          {/* 2D Canvas Rink Engine — Zero Distortion. Zona protegida: conserva
+              una altura mínima útil y absorbe el espacio restante (protagonista). */}
+          <div className="workspace-canvas overflow-hidden">
             <RinkCanvas
               layoutMode="ide"
               currentProgram={selectedProgram}
@@ -898,11 +899,11 @@ export function App() {
           </div>
 
           {/* ── AUDIO DOCK: Transporte + Waveform ──
-              Portrait-first: siempre en columna (transporte arriba, waveform
-              debajo), también en móvil/tablet. No hay variante horizontal. El
-              dock ocupa poca altura y el lienzo de la Pista 2D —protagonista de
-              la app— conserva el máximo espacio vertical. */}
-          <div className="landscape-audio-dock shrink-0 h-[26%] max-h-[170px] min-h-[104px] border-t border-white/5 pb-safe bg-neon-surface/30">
+              Portrait-first: en columna, dimensionado por CONTENIDO con tope
+              fluido (`.audio-dock`), de modo que el panel de audio nunca queda
+              recortado en teléfonos grandes ni pequeños. La pista conserva el
+              máximo espacio vertical. */}
+          <div className="landscape-audio-dock audio-dock shrink-0 border-t border-white/5 pb-safe bg-neon-surface/30">
 
             {/* Transporte compacto (en desktop lo reemplaza el del header) */}
             <div className="shrink-0 flex items-center border-b border-white/5 bg-neon-surface/60 px-2 py-1.5 pl-safe pr-safe lg:hidden">
@@ -918,7 +919,7 @@ export function App() {
             </div>
 
             {/* Waveform Timeline */}
-            <div className="flex-1 min-w-0 min-h-0 bg-neon-surface/40">
+            <div className="flex-1 min-w-0 min-h-[56px] bg-neon-surface/40">
               <InteractiveWaveform
                 currentTimeMs={currentTimeMs}
                 durationMs={audioState.durationMs}

@@ -393,6 +393,48 @@ body {
   flex-direction: column;
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   ZONA PROTEGIDA DE LA PISTA 2D (protagonista) + DOCK DE AUDIO
+
+   La Pista 2D conserva una altura mínima útil y el dock de audio se
+   dimensiona por CONTENIDO (no por un `%` frágil que dependía de que el
+   contenedor flex tuviera altura definida). Así, en teléfonos grandes o
+   pequeños, el panel de audio NUNCA queda recortado y la pista gana todo el
+   espacio restante. Se usa `dvh` con fallback a `vh` para WebKit antiguo.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.workspace-canvas {
+  flex: 1 1 auto;
+  min-height: 196px;
+}
+
+.audio-dock {
+  flex: 0 0 auto;
+  max-height: clamp(112px, 30vh, 188px);
+  max-height: clamp(112px, 30dvh, 188px);
+  overflow: hidden;
+}
+
+/* En viewports bajos (móviles apaisados o ventanas pequeñas) se reduce el
+   mínimo del lienzo para que sigan cabiendo dock + barra + navegación sin
+   recortes, sin llegar a ocultar ningún control. */
+@media (max-height: 640px) {
+  .workspace-canvas {
+    min-height: 132px;
+  }
+  .audio-dock {
+    max-height: clamp(104px, 34vh, 150px);
+    max-height: clamp(104px, 34dvh, 150px);
+  }
+}
+
+/* Alturas amplias (teléfonos Pro/Pro Max y tablet vertical): la pista crece. */
+@media (min-height: 860px) {
+  .audio-dock {
+    max-height: clamp(132px, 24dvh, 188px);
+  }
+}
+
 /* Timeline safe zones: portrait mobile only (avoid edge swipe zones) */
 @media (max-width: 768px) and (orientation: portrait) {
   .timeline-container,
