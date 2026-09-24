@@ -241,20 +241,6 @@ body {
   color: transparent;
 }
 
-/* ── Hero aurora halo ── */
-.hero-aurora::before {
-  content: '';
-  position: absolute;
-  inset: -30% -10% auto -10%;
-  height: 130%;
-  background:
-    radial-gradient(42% 52% at 18% 8%, rgba(0, 210, 255, 0.22) 0%, transparent 62%),
-    radial-gradient(38% 48% at 82% 0%, rgba(255, 76, 121, 0.16) 0%, transparent 60%),
-    radial-gradient(50% 60% at 50% 100%, rgba(16, 244, 156, 0.10) 0%, transparent 70%);
-  pointer-events: none;
-  z-index: 0;
-}
-
 .grid-veil {
   background-image:
     linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
@@ -452,4 +438,44 @@ body {
     overflow-y: hidden;
     -webkit-overflow-scrolling: touch;
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   MODALES — Altura segura
+   `dvh` no existe en WebKit antiguo; se declara primero `vh` como fallback y
+   después `dvh`, de modo que el motor moderno lo sobrescriba y el antiguo
+   conserve una altura válida (nunca `max-height: none`).
+   ═══════════════════════════════════════════════════════════════════ */
+
+.modal-safe-height {
+  max-height: 92vh;
+  max-height: 92dvh;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PAYPAL SMART BUTTONS — Contención responsive
+
+   El SDK inyecta un iframe con ancho intrínseco que puede desbordar tarjetas
+   estrechas (móvil). Se limita el contenedor y el iframe al ancho disponible
+   SIN tocar el contenido interno del iframe (solo su caja exterior). El flujo
+   de pago y las llamadas createOrder/captureOrder no se ven afectados.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.paypal-safe {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.paypal-safe .paypal-buttons,
+.paypal-safe [id^='zoid-paypal-buttons'],
+.paypal-safe [data-nc-container],
+.paypal-safe iframe {
+  max-width: 100% !important;
+  min-width: 0 !important;
+}
+
+.paypal-safe iframe {
+  width: 100% !important;
 }

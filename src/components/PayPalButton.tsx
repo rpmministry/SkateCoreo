@@ -3,6 +3,14 @@
  *
  * Exige el correo del comprador antes de activar el pago, vinculando el recibo
  * con 'custom_id' en PayPal para evitar pagos huérfanos y permitir registro condicionado.
+ *
+ * Presentación: el contenedor (`paypal-safe`) se limita al ancho disponible de
+ * la tarjeta para evitar desbordes en móvil. El SDK se configura en español de
+ * Ecuador (`es_EC`) por defecto, verificable/ajustable con `VITE_PAYPAL_LOCALE`;
+ * si el valor no tiene el formato soportado (`xx_XX`) se omite el parámetro
+ * `locale` para que PayPal lo autodetecte y nunca falle la carga del SDK. No se
+ * modifica el flujo de pago, ni `createOrder`/`captureOrder`, ni el servicio
+ * PayPal.
  */
 
 import React, { useEffect, useRef, useState } from 'react';
@@ -45,6 +53,13 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
 
     const clientId = import.meta.env.VITE_PAYPAL_CLIENT_ID || 'sb';
     const currency = 'USD';
+    // Español de Ecuador (soportado por el SDK). Un valor sin el formato
+    // `xx_XX` se descarta en lugar de enviarse: PayPal responde 400 a locales
+    // inválidos y el script no cargaría, rompiendo el pago. Si no hay locale
+    // válido se omite el parámetro y PayPal autodetecta el idioma.
+    const requestedLocale = import.meta.env.VITE_PAYPAL_LOCALE || 'es_EC';
+    const locale = /^[a-z]{2}_[A-Z]{2}$/.test(requestedLocale) ? requestedLocale : '';
+    const localeParam = locale ? `&locale=${locale}` : '';
     const scriptId = 'paypal-sdk-official';
 
     const renderButtons = () => {
@@ -61,6 +76,8 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
             shape: 'rect',
             label: 'pay',
             height: 48,
+            // Sin tagline: reduce el ancho/alto intrínseco y evita desborde.
+            tagline: false,
           },
 
           createOrder: (_data: any, actions: any) => {
@@ -123,7 +140,7 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
     if (!script) {
       script = document.createElement('script');
       script.id = scriptId;
-      script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&currency=${currency}&intent=capture&components=buttons`;
+      script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&currency=${currency}&intent=capture&components=buttons${localeParam}`;
       script.async = true;
       script.onload = () => renderButtons();
       script.onerror = () => {
@@ -142,40 +159,39 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
 
   if (!isEmailValid) {
     return (
-      <div className="w-full p-4 rounded-2xl bg-slate-900/60 border border-dashed border-white/15 text-center space-y-1.5 transition-all">
-        <div className="flex items-center justify-center gap-1.5 text-xs text-amber-400 font-semibold">
-          <Mail className="w-4 h-4" />
+      <div className="paypal-safe w-full rounded-2xl border border-dashed border-white/15 bg-slate-900/60 p-4 text-center">
+        <div className="flex items-center justify-center gap-1.5 text-xs font-semibold text-amber-400">
+          <Mail className="h-4 w-4" />
           <span>Ingresa tu correo arriba</span>
         </div>
-        <p className="text-[11px] text-slate-400 max-w-xs mx-auto">
-          El botón de pago oficial de PayPal se habilitará automáticamente al ingresar un correo válido para asociar tu licencia.
+        <p className="mx-auto mt-1.5 max-w-xs text-[11px] leading-snug text-slate-400">
+          El botón de pago oficial de PayPal se habilitará automáticamente al ingresar un
+          correo válido para asociar tu licencia.
         </p>
       </div>
     );
   }
 
   return (
-    <div className="w-full space-y-2">
+    <div className="paypal-safe w-full space-y-2">
       {isLoadingSdk && (
-        <div className="w-full h-12 rounded-xl bg-slate-800/80 border border-white/5 animate-pulse flex items-center justify-center text-xs text-slate-400 font-medium">
+        <div className="flex h-12 w-full items-center justify-center rounded-xl border border-white/5 bg-slate-800/80 text-xs font-medium text-slate-400 animate-pulse">
           <span className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-cyan animate-ping" />
+            <span className="h-2 w-2 rounded-full bg-cyan animate-ping" />
             Cargando pasarela de pago segura...
           </span>
         </div>
       )}
 
       {isProcessing && (
-        <div className="w-full p-3 rounded-xl bg-cyan/15 border border-cyan/30 text-cyan text-xs text-center font-bold animate-pulse flex items-center justify-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-cyan shrink-0" />
+        <div className="flex w-full items-center justify-center gap-2 rounded-xl border border-cyan/30 bg-cyan/15 p-3 text-xs font-bold text-cyan animate-pulse">
+          <ShieldCheck className="h-4 w-4 shrink-0 text-cyan" />
           <span>Confirmando pago y generando recibo seguro...</span>
         </div>
       )}
 
-      <div 
-        ref={containerRef} 
-        className={isLoadingSdk ? 'hidden' : 'w-full'} 
-      />
+      {/* El SDK inyecta aquí el botón; el contenedor lo mantiene dentro del ancho. */}
+      <div ref={containerRef} className={isLoadingSdk ? 'hidden' : 'w-full'} />
     </div>
   );
 };

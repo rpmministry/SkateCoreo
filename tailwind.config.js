@@ -119,10 +119,6 @@ export default {
       },
       // Animaciones nativas (sin dependencias externas)
       keyframes: {
-        'fade-up': {
-          '0%': { opacity: '0', transform: 'translateY(10px)' },
-          '100%': { opacity: '1', transform: 'translateY(0)' },
-        },
         'fade-in': {
           '0%': { opacity: '0' },
           '100%': { opacity: '1' },
@@ -137,7 +133,6 @@ export default {
         },
       },
       animation: {
-        'fade-up': 'fade-up 420ms cubic-bezier(0.16, 1, 0.3, 1) both',
         'fade-in': 'fade-in 220ms ease-out both',
         'scale-in': 'scale-in 200ms cubic-bezier(0.16, 1, 0.3, 1) both',
         'glow-pulse': 'glow-pulse 3.2s ease-in-out infinite',

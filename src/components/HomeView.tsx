@@ -17,9 +17,11 @@ import {
   CheckCircle2,
   Loader2,
   ScanLine,
+  ArrowRight,
 } from 'lucide-react';
 import { SkateCoreoBrand } from './brand/SkateCoreoBrand';
 import { useAuthStore } from '../store/useAuthStore';
+import { Button } from './ui/Button';
 
 export interface HomeViewProps {
   skaterName?: string | null;
@@ -44,59 +46,131 @@ export interface HomeViewProps {
   onOpenPaperToDigital?: () => void;
 }
 
-/* ── Subcomponentes presentacionales ─────────────────────────── */
+type Tone = 'cyan' | 'mint' | 'coral' | 'amber' | 'violet' | 'slate';
 
-const StatChip: React.FC<{
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  tone?: 'cyan' | 'mint' | 'coral' | 'slate';
-}> = ({ icon, label, value, tone = 'slate' }) => {
-  const tones: Record<string, string> = {
-    cyan: 'text-cyan border-cyan/25 bg-cyan/10',
-    mint: 'text-mint border-mint/25 bg-mint/10',
-    coral: 'text-coral border-coral/25 bg-coral/10',
-    slate: 'text-slate-300 border-white/10 bg-white/[0.04]',
-  };
-  return (
-    <div
-      className={`flex min-w-0 flex-1 items-center gap-2 rounded-xl border px-2.5 py-2 ${tones[tone]}`}
-    >
-      <span className="shrink-0 opacity-90">{icon}</span>
-      <span className="flex min-w-0 flex-col leading-tight">
-        <span className="truncate text-[9px] font-bold uppercase tracking-wider text-slate-400">
-          {label}
-        </span>
-        <span className="truncate text-xs font-black text-white">{value}</span>
-      </span>
-    </div>
-  );
+const PILL_TONE: Record<Tone, string> = {
+  cyan: 'text-cyan border-cyan/25 bg-cyan/10',
+  mint: 'text-mint border-mint/25 bg-mint/10',
+  coral: 'text-coral border-coral/25 bg-coral/10',
+  amber: 'text-amber-400 border-amber-400/25 bg-amber-400/10',
+  violet: 'text-violet-300 border-violet-400/25 bg-violet-400/10',
+  slate: 'text-slate-300 border-white/10 bg-white/[0.04]',
 };
 
-interface ActionCardProps {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  onClick: () => void;
-  tone: 'cyan' | 'mint' | 'coral' | 'amber' | 'violet';
-  disabled?: boolean;
-  badge?: string;
-}
-
-const TONE_RING: Record<ActionCardProps['tone'], string> = {
+const ICON_RING: Record<Tone, string> = {
   cyan: 'bg-cyan/12 text-cyan ring-cyan/25',
   mint: 'bg-mint/12 text-mint ring-mint/25',
   coral: 'bg-coral/12 text-coral ring-coral/25',
   amber: 'bg-amber-400/12 text-amber-400 ring-amber-400/25',
   violet: 'bg-violet-400/12 text-violet-300 ring-violet-400/25',
+  slate: 'bg-white/[0.06] text-slate-300 ring-white/10',
 };
 
-const ActionCard: React.FC<ActionCardProps> = ({
+/* ── Presentacionales ─────────────────────────────────────────── */
+
+const SectionHeading: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <div className="mb-3 flex items-center gap-2">
+    <h2 className="font-display text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">
+      {children}
+    </h2>
+    <span aria-hidden="true" className="h-px flex-1 bg-gradient-to-r from-white/15 to-transparent" />
+  </div>
+);
+
+const MetaPill: React.FC<{
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  tone?: Tone;
+}> = ({ icon, label, value, tone = 'slate' }) => (
+  <div className={`flex min-w-0 flex-col gap-0.5 rounded-xl border px-2.5 py-2 ${PILL_TONE[tone]}`}>
+    <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-slate-400">
+      <span className="shrink-0 opacity-90">{icon}</span>
+      {label}
+    </span>
+    <span className="truncate text-xs font-black text-white">{value}</span>
+  </div>
+);
+
+interface ModuleCardProps {
+  tone: 'cyan' | 'mint';
+  eyebrow: string;
+  title: string;
+  description: string;
+  cta: string;
+  icon: React.ReactNode;
+  onClick: () => void;
+  badge?: number;
+}
+
+const ModuleCard: React.FC<ModuleCardProps> = ({
+  tone,
+  eyebrow,
+  title,
+  description,
+  cta,
+  icon,
+  onClick,
+  badge,
+}) => {
+  const border = tone === 'cyan' ? 'border-cyan/25 hover:border-cyan/50' : 'border-mint/25 hover:border-mint/50';
+  const wash = tone === 'cyan' ? 'from-cyan/12' : 'from-mint/12';
+  const ctaColor = tone === 'cyan' ? 'text-cyan' : 'text-mint';
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={description}
+      className={`press group relative flex min-h-[150px] flex-col justify-between overflow-hidden rounded-3xl border bg-white/[0.03] bg-gradient-to-br ${wash} to-transparent p-4 text-left shadow-soft-elevation sm:p-5 ${border}`}
+    >
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full bg-white/[0.05] blur-2xl"
+      />
+      <span className="relative flex items-start justify-between gap-3">
+        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ring-1 ${ICON_RING[tone]}`}>
+          {icon}
+        </span>
+        {typeof badge === 'number' && badge > 0 && (
+          <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-amber-400 px-1.5 text-[10px] font-black text-slate-950">
+            {badge > 9 ? '9+' : badge}
+          </span>
+        )}
+      </span>
+
+      <span className="relative mt-4 flex flex-col gap-0.5">
+        <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
+          {eyebrow}
+        </span>
+        <span className="font-display text-base font-black leading-tight text-white">{title}</span>
+        <span className="text-[11px] leading-snug text-slate-400">{description}</span>
+      </span>
+
+      <span className={`relative mt-3 inline-flex items-center gap-1.5 text-xs font-black ${ctaColor}`}>
+        {cta}
+        <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+      </span>
+    </button>
+  );
+};
+
+interface ToolItemProps {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  onClick: () => void;
+  tone?: Tone;
+  disabled?: boolean;
+  badge?: string;
+}
+
+const ToolItem: React.FC<ToolItemProps> = ({
   icon,
   title,
   description,
   onClick,
-  tone,
+  tone = 'slate',
   disabled,
   badge,
 }) => (
@@ -105,31 +179,25 @@ const ActionCard: React.FC<ActionCardProps> = ({
     onClick={onClick}
     disabled={disabled}
     title={description}
-    className="press group relative flex min-h-[104px] flex-col items-start gap-2 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-left hover:border-white/20 hover:bg-white/[0.07] disabled:pointer-events-none disabled:opacity-40 lg:p-4"
+    className="press group flex min-h-touch items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-2.5 text-left hover:border-white/20 hover:bg-white/[0.07] disabled:pointer-events-none disabled:opacity-40 sm:flex-col sm:items-start sm:gap-2 sm:p-4"
   >
-    {/* Halo decorativo de la tarjeta */}
     <span
-      aria-hidden="true"
-      className="pointer-events-none absolute -right-8 -top-10 h-24 w-24 rounded-full bg-white/[0.04] blur-2xl transition-opacity group-hover:opacity-100"
-    />
-    <span className="flex w-full items-start justify-between gap-2">
-      <span
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 ${TONE_RING[tone]}`}
-      >
-        {icon}
-      </span>
-      {badge && (
-        <span className="rounded-full border border-white/10 bg-black/30 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-slate-300">
-          {badge}
-        </span>
-      )}
+      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1 ${ICON_RING[tone]}`}
+    >
+      {icon}
     </span>
-    <span className="flex min-w-0 flex-col gap-0.5">
-      <span className="wrap-anywhere font-display text-[13px] font-bold leading-tight text-white">
-        {title}
+    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+      <span className="flex items-center gap-1.5">
+        <span className="wrap-anywhere text-[13px] font-bold leading-tight text-white">{title}</span>
+        {badge && (
+          <span className="rounded-full border border-mint/30 bg-mint/10 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-mint">
+            {badge}
+          </span>
+        )}
       </span>
       <span className="wrap-anywhere text-[11px] leading-snug text-slate-400">{description}</span>
     </span>
+    <ChevronRight className="h-4 w-4 shrink-0 text-slate-500 sm:hidden" />
   </button>
 );
 
@@ -173,228 +241,175 @@ export const HomeView: React.FC<HomeViewProps> = ({
       aria-label="Inicio"
       className="flex-1 min-h-0 overflow-y-auto scroll-touch bg-neon-canvas"
     >
-      <div className="mx-auto w-full max-w-[1440px] px-3 pb-6 pt-3 sm:px-5 sm:pb-8 sm:pt-4 lg:px-8 lg:pt-6">
-        {/* ══════════ INDICADOR BETA TESTER (acceso de 30 días) ══════════ */}
+      <div className="mx-auto w-full max-w-[1200px] px-3 pb-8 pt-3 sm:px-5 sm:pt-5 lg:px-8 lg:pt-8">
+        {/* ══════════ INDICADOR BETA TESTER (discreto) ══════════ */}
         {isBetaTester && (
           <div
             role="status"
-            className="mb-3 flex flex-wrap items-center gap-2 rounded-2xl border border-coral/40 bg-coral/12 px-4 py-3 sm:mb-4"
+            className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl border border-coral/30 bg-coral/10 px-3 py-2 text-[11px]"
           >
-            <Sparkles className="h-4 w-4 shrink-0 text-coral" />
-            <span className="text-xs font-black uppercase tracking-wide text-coral">
-              Acceso Beta Tester
+            <Sparkles className="h-3.5 w-3.5 shrink-0 text-coral" />
+            <span className="font-black uppercase tracking-wide text-coral">Beta Tester</span>
+            <span aria-hidden="true" className="text-slate-300">
+              ·
             </span>
-            <span className="rounded-full border border-coral/40 bg-black/30 px-2.5 py-0.5 font-mono text-[11px] font-bold text-white">
+            <span className="font-mono font-bold text-white">
               {betaDays} {betaDays === 1 ? 'día restante' : 'días restantes'}
             </span>
             {betaExpiry && (
-              <span className="text-[11px] text-slate-300">Vence el {betaExpiry}</span>
+              <>
+                <span aria-hidden="true" className="text-slate-300">
+                  ·
+                </span>
+                <span className="text-slate-400">vence {betaExpiry}</span>
+              </>
             )}
-            <span className="ml-auto hidden text-[10px] text-slate-400 sm:inline">
-              Cortesía de 30 días · un solo uso
-            </span>
           </div>
         )}
 
-        {/* ══════════ HERO HEADER ══════════ */}
-        <header className="hero-aurora relative isolate overflow-hidden rounded-[24px] border border-white/10 glass-panel shadow-soft-elevation">
-          <span aria-hidden="true" className="absolute inset-0 grid-veil opacity-70" />
-
-          <div className="relative z-10 flex flex-col gap-6 p-5 sm:p-7 lg:flex-row lg:items-end lg:justify-between lg:gap-10 lg:p-9">
-            {/* Identidad + Propuesta de valor */}
-            <div className="flex min-w-0 flex-col gap-4 lg:max-w-[620px]">
-              <SkateCoreoBrand size="xl" className="animate-fade-up" />
-
-              <h1 className="animate-fade-up font-display text-[clamp(1.6rem,5.2vw,2.65rem)] font-extrabold leading-[1.08] tracking-[-0.03em] text-white [animation-delay:60ms]">
-                Diseña, sincroniza y <span className="text-gradient-brand">domina</span> cada trazo
-                de tu rutina.
-              </h1>
-
-              <p className="max-w-[54ch] text-[13px] leading-relaxed text-slate-300/90 sm:text-sm">
-                Pista reglamentaria 2D, mezclador multipista con cues vocales y cálculo técnico
-                World Skate en un solo flujo de trabajo. Todo funciona sin conexión.
+        {/* ══════════ ENCABEZADO COMPACTO ══════════ */}
+        <header className="relative isolate overflow-hidden rounded-3xl glass-panel px-4 py-4 shadow-soft-elevation sm:px-6 sm:py-6">
+          <span aria-hidden="true" className="absolute inset-0 grid-veil opacity-60" />
+          <div className="relative z-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+            <div className="min-w-0">
+              <SkateCoreoBrand size="lg" />
+              <p className="mt-2 max-w-[48ch] text-[13px] leading-relaxed text-slate-300 sm:text-sm">
+                Tu espacio de trabajo para diseñar, sincronizar y preparar coreografías.
               </p>
-
-              <div className="flex flex-col gap-2.5 pt-1 sm:flex-row sm:flex-wrap sm:items-center">
-                <button
-                  type="button"
-                  onClick={onOpenRink}
-                  className="press flex min-h-touch items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan to-teal-400 px-5 py-3 text-sm font-black text-neon-canvas shadow-glow-cyan hover:brightness-110"
-                >
-                  <Sparkles className="h-4 w-4 shrink-0" />
-                  Nueva Coreografía
-                </button>
-                <button
-                  type="button"
-                  onClick={onOpenStudio}
-                  className="press flex min-h-touch items-center justify-center gap-2 rounded-2xl border border-cyan/40 bg-cyan/12 px-5 py-3 text-sm font-bold text-cyan hover:bg-cyan/20"
-                >
-                  <AudioLines className="h-4 w-4 shrink-0" />
-                  Abrir Editor de Audio
-                  {unplacedNodesCount > 0 && (
-                    <span className="ml-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400 px-1 text-[10px] font-black text-slate-950">
-                      {unplacedNodesCount}
-                    </span>
-                  )}
-                </button>
-                {onOpenPaperToDigital && (
-                  <button
-                    type="button"
-                    onClick={onOpenPaperToDigital}
-                    className="press flex min-h-touch items-center justify-center gap-2 rounded-2xl border border-mint/40 bg-mint/12 px-5 py-3 text-sm font-bold text-mint hover:bg-mint/20"
-                  >
-                    <ScanLine className="h-4 w-4 shrink-0" />
-                    Plantilla A4 · Digitalizar
-                  </button>
-                )}
-              </div>
             </div>
 
-            {/* Panel de estado en vivo */}
-            <div className="flex w-full min-w-0 flex-col gap-3 lg:max-w-[420px]">
-              <div className="rounded-2xl border border-white/10 bg-black/25 p-3">
-                <div className="mb-2.5 flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-                    Sesión activa
-                  </span>
-                  <span
-                    className={[
-                      'flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider',
-                      hasAudioLoaded
-                        ? 'border-mint/30 bg-mint/10 text-mint'
-                        : 'border-white/10 bg-white/[0.04] text-slate-400',
-                    ].join(' ')}
-                  >
-                    <span
-                      className={`h-1.5 w-1.5 rounded-full ${hasAudioLoaded ? 'bg-mint animate-glow-pulse' : 'bg-slate-600'}`}
-                    />
-                    {hasAudioLoaded ? 'Audio listo' : 'Sin audio'}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <StatChip
-                    icon={<Users className="h-4 w-4" />}
-                    label="Atleta"
-                    value={skaterName || 'Sin atleta'}
-                    tone="cyan"
-                  />
-                  <StatChip
-                    icon={<Compass className="h-4 w-4" />}
-                    label="Categoría"
-                    value={skaterCategory || '—'}
-                    tone="mint"
-                  />
-                  <StatChip
-                    icon={<CircleDot className="h-4 w-4" />}
-                    label="Nodos en pista"
-                    value={`${pointsCount}`}
-                    tone="coral"
-                  />
-                  <StatChip
-                    icon={<Gauge className="h-4 w-4" />}
-                    label="Tempo"
-                    value={`${bpm} BPM`}
-                    tone="slate"
-                  />
-                </div>
-
-                <div className="mt-2.5 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-2.5 py-2">
-                  <Music4 className="h-4 w-4 shrink-0 text-cyan" />
-                  <span className="flex min-w-0 flex-col leading-tight">
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                      Pista musical
-                    </span>
-                    <span className="truncate text-xs font-bold text-slate-200">
-                      {trimmedAudio || 'Ninguna pista cargada'}
-                    </span>
-                  </span>
-                </div>
-              </div>
-            </div>
+            <span
+              className={[
+                'inline-flex shrink-0 items-center gap-1.5 self-start rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-wider sm:self-auto',
+                hasAudioLoaded
+                  ? 'border-mint/30 bg-mint/10 text-mint'
+                  : 'border-white/10 bg-white/[0.04] text-slate-400',
+              ].join(' ')}
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${hasAudioLoaded ? 'bg-mint animate-glow-pulse' : 'bg-slate-600'}`}
+              />
+              {hasAudioLoaded ? 'Audio listo' : 'Sin audio'}
+            </span>
           </div>
         </header>
 
         {/* ══════════ PROYECTO ACTUAL ══════════ */}
-        <section aria-label="Proyecto actual" className="mt-4 lg:mt-6">
-          <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.035] p-4 sm:flex-row sm:items-center sm:justify-between lg:p-5">
+        <section aria-label="Proyecto actual" className="mt-4">
+          <SectionHeading>Proyecto actual</SectionHeading>
+
+          <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-4 sm:p-5">
             <div className="flex min-w-0 items-center gap-3">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-cyan/12 text-cyan ring-1 ring-cyan/25">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan/12 text-cyan ring-1 ring-cyan/25">
                 <FolderClock className="h-5 w-5" />
               </span>
               <div className="min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-                  Programa en curso
-                </p>
-                <p className="wrap-anywhere font-display text-base font-bold leading-tight text-white">
+                <p className="wrap-anywhere font-display text-base font-black leading-tight text-white sm:text-lg">
                   {programTitle || 'Sin programa seleccionado'}
                 </p>
                 <p className="text-[11px] text-slate-400">
-                  {skaterName ? `${skaterName} · ${skaterCategory || 'Standard'}` : 'Selecciona un atleta para comenzar'}
+                  {skaterName
+                    ? `${skaterName} · ${skaterCategory || 'Standard'}`
+                    : 'Selecciona un atleta para comenzar'}
                 </p>
               </div>
             </div>
 
-            <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center">
-              <button
-                type="button"
-                onClick={onOpenSkaters}
-                className="press flex min-h-touch items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs font-bold text-slate-200 hover:bg-white/[0.09] hover:text-white"
-              >
-                <Users className="h-4 w-4 text-cyan" />
-                Cambiar atleta o programa
-              </button>
-              <button
-                type="button"
-                onClick={onOpenRink}
-                className="press flex min-h-touch items-center justify-center gap-2 rounded-xl bg-white/[0.06] px-4 py-2.5 text-xs font-bold text-white hover:bg-white/[0.12]"
-              >
+            <div className="mt-3.5 grid grid-cols-3 gap-2">
+              <MetaPill
+                icon={<CircleDot className="h-3.5 w-3.5" />}
+                label="Nodos"
+                value={`${pointsCount}`}
+                tone="coral"
+              />
+              <MetaPill
+                icon={<Gauge className="h-3.5 w-3.5" />}
+                label="Tempo"
+                value={`${bpm} BPM`}
+                tone="slate"
+              />
+              <MetaPill
+                icon={<Music4 className="h-3.5 w-3.5" />}
+                label="Pista"
+                value={trimmedAudio || 'Sin audio'}
+                tone="cyan"
+              />
+            </div>
+
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+              <Button variant="primary" block onClick={onOpenRink}>
                 Continuar en Pista 2D
                 <ChevronRight className="h-4 w-4" />
-              </button>
+              </Button>
+              <Button variant="secondary" block onClick={onOpenSkaters}>
+                <Users className="h-4 w-4 text-cyan" />
+                Cambiar atleta o programa
+              </Button>
             </div>
           </div>
         </section>
 
-        {/* ══════════ ACCIONES RÁPIDAS ══════════ */}
-        <section aria-label="Acciones rápidas" className="mt-5 lg:mt-7">
-          <div className="mb-3 flex items-center gap-2">
-            <h2 className="font-display text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">
-              Acciones rápidas
-            </h2>
-            <span aria-hidden="true" className="h-px flex-1 bg-gradient-to-r from-white/15 to-transparent" />
-          </div>
+        {/* ══════════ MÓDULOS PRINCIPALES ══════════ */}
+        <section aria-label="Módulos principales" className="mt-5">
+          <SectionHeading>Editor principal</SectionHeading>
 
-          <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-3 xl:grid-cols-3">
-            <ActionCard
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <ModuleCard
+              tone="cyan"
+              eyebrow="Módulo principal"
+              title="Pista 2D"
+              description="Diseña la coreografía y traza las trayectorias sobre la pista reglamentaria."
+              cta="Abrir Pista"
+              icon={<Compass className="h-5 w-5" />}
+              onClick={onOpenRink}
+            />
+            <ModuleCard
+              tone="mint"
+              eyebrow="Módulo principal"
+              title="Editor de Audio"
+              description="Corta, mezcla y sincroniza tu música y cues vocales con la rutina."
+              cta="Abrir Editor"
+              icon={<AudioLines className="h-5 w-5" />}
+              onClick={onOpenStudio}
+              badge={unplacedNodesCount}
+            />
+          </div>
+        </section>
+
+        {/* ══════════ MÁS HERRAMIENTAS ══════════ */}
+        <section aria-label="Más herramientas" className="mt-5">
+          <SectionHeading>Más herramientas</SectionHeading>
+
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+            <ToolItem
               tone="violet"
               icon={<FolderClock className="h-[18px] w-[18px]" />}
-              title="Proyectos Recientes"
+              title="Proyectos recientes"
               description="Retoma programas guardados y cambia de atleta."
               onClick={onOpenSkaters}
             />
-            <ActionCard
+            <ToolItem
               tone="cyan"
               icon={<Upload className="h-[18px] w-[18px]" />}
-              title="Cargar Música"
+              title="Cargar música"
               description="Importa MP3, WAV o M4A como pista oficial."
               onClick={onLoadAudio}
             />
-            <ActionCard
+            <ToolItem
               tone="mint"
               icon={<FolderOpen className="h-[18px] w-[18px]" />}
-              title="Importar Paquete .coreo"
+              title="Importar .coreo"
               description="Recupera una rutina con audio y nodos 2D."
               onClick={onImportCoreo}
             />
-            <ActionCard
+            <ToolItem
               tone="coral"
               icon={<Save className="h-[18px] w-[18px]" />}
-              title="Exportar Paquete .coreo"
+              title="Exportar .coreo"
               description="Comparte el bundle completo de la rutina."
               onClick={onExportCoreo}
             />
-            <ActionCard
+            <ToolItem
               tone="mint"
               icon={
                 isSavingOffline ? (
@@ -411,8 +426,17 @@ export const HomeView: React.FC<HomeViewProps> = ({
               disabled={!hasAudioLoaded || isSavingOffline}
               badge={offlineSaved ? 'Listo' : undefined}
             />
-            <ActionCard
-              tone="amber"
+            {onOpenPaperToDigital && (
+              <ToolItem
+                tone="amber"
+                icon={<ScanLine className="h-[18px] w-[18px]" />}
+                title="Digitalizar plantilla A4"
+                description="Escanea la hoja manuscrita y conviértela en nodos."
+                onClick={onOpenPaperToDigital}
+              />
+            )}
+            <ToolItem
+              tone="slate"
               icon={<Settings2 className="h-[18px] w-[18px]" />}
               title="Ajustes de Pista"
               description="Cuadrícula, guías World Skate, pre-inicio y mezcla."
