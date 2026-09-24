@@ -706,18 +706,16 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   },
 
   toggleMetronomeMute: () => {
+    // El estado se decide ANTES de actualizar; el efecto sobre el motor se
+    // ejecuta DESPUÉS del `set` (fuera del updater) para evitar cualquier
+    // problema de pureza/orden con el estado de React en móviles.
+    const newMuted = !get().globalControls.metronome.muted;
+    const newEnabled = !newMuted;
     set((state) => {
-      const newMuted = !state.globalControls.metronome.muted;
-      // `enabled` y `muted` se mantienen coherentes: un metrónomo silenciado
-      // queda "apagado" para cualquier control de la interfaz (una sola fuente).
-      const newEnabled = !newMuted;
       const updatedControls = {
         ...state.globalControls,
         metronome: { ...state.globalControls.metronome, muted: newMuted, enabled: newEnabled },
       };
-      // Una sola llamada coordina el habilitado lógico, el planificador y el
-      // GainNode absoluto del sub-bus (corta también lo ya programado).
-      audioEngine.setMetronomeAudible(newEnabled);
       return {
         globalControls: updatedControls,
         metronomeConfig: { ...state.metronomeConfig, enabled: newEnabled },
@@ -728,6 +726,9 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         mixManifest: buildManifest(state.tracks, state.additionalTracks, updatedControls, state.totalDurationSec),
       };
     });
+    // Una sola llamada coordina habilitado lógico, planificador y GainNode/desconexión
+    // del sub-bus (silencio absoluto de lo ya programado).
+    audioEngine.setMetronomeAudible(newEnabled);
   },
 
   setMetronomeVolume: (vol) => {
@@ -1535,7 +1536,6 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
             metronome: { ...state.globalControls.metronome, muted: newMuted, enabled: !newMuted },
           };
           updatedMetronomeConfig = { ...state.metronomeConfig, enabled: !newMuted };
-          audioEngine.setMetronomeAudible(!newMuted);
         } else if (resolvedKey === 'voice') {
           audioEngine.voiceCueEngine.setConfig({ enabled: !newMuted });
           audioEngine.setVoiceGuideMuted(newMuted);
@@ -1555,6 +1555,12 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         mixManifest: buildManifest(updatedTracks, updatedAdditional, state.globalControls, state.totalDurationSec),
       };
     });
+
+    // Efecto del MUTE del metrónomo FUERA del updater (una sola verdad, aplicada
+    // tras actualizar el estado). Evita inconsistencias en móviles.
+    if (resolvedKey === 'metronome') {
+      audioEngine.setMetronomeAudible(!get().globalControls.metronome.muted);
+    }
 
     // MUTE EN TIEMPO REAL: si la pista vive dentro de la mezcla consolidada
     // (pistas adicionales) y hay reproducción, se re-mezcla y se intercambia el

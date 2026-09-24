@@ -1156,11 +1156,11 @@ export class VoiceCueEngine {
 
       if (remaining > 0) {
         this.announceNumber(remaining);
-        this.playTickTone(600);
+        if (this.cueTicksEnabled) this.playTickTone(600);
         if (onStepSound) onStepSound(remaining);
       } else {
         this.announceGo();
-        this.playTickTone(1200);
+        if (this.cueTicksEnabled) this.playTickTone(1200);
         if (onStepSound) onStepSound(0);
         const completeCb = this.onPreRollComplete;
         this.cancelPreRoll();

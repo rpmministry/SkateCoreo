@@ -369,7 +369,7 @@ export class AudioEngine {
     }
 
     if (this.ctx.state === 'suspended') {
-      this.ctx.resume();
+      this.ctx.resume().then(() => this.applyBusMutes()).catch(() => {});
     }
   }
 
@@ -404,6 +404,11 @@ export class AudioEngine {
           if (this.ctx.state === 'suspended' && this.isPlaying) {
             this.ctx.resume().catch(() => {});
           }
+          // RE-ASSERTAR los silenciadores al volver del segundo plano: WebKit
+          // puede restaurar el grafo de audio al reanudar y el MUTE debe seguir
+          // siendo absoluto (se reaplica bus + estado).
+          this.applyBusMutes();
+          if (this.metronomeMuted) this.metronome.setMuted(true);
         }
       });
     }

@@ -380,7 +380,10 @@ export class Metronome {
     // Con el metrónomo apagado no se arranca el bucle: `isRunning` queda en
     // `true` para que un `setEnabled(true)` posterior lo rearme sin reiniciar
     // el transporte.
-    if (this.config.enabled) {
+    // Con el metrónomo apagado (o MUTE absoluto) no se arranca el bucle:
+    // `isRunning` queda en `true` para que un `setEnabled(true)`/`setMuted(false)`
+    // posterior lo rearme sin reiniciar el transporte.
+    if (this.config.enabled && !this.hardMuted) {
       this.runScheduler();
     }
   }
