@@ -1,28 +1,14 @@
 import React from 'react';
-import {
-  Sparkles,
-  AudioLines,
-  FolderClock,
-  Settings2,
-  Upload,
-  HardDrive,
-  FolderOpen,
-  Save,
-  Compass,
-  Users,
-  Music4,
-  Gauge,
-  CircleDot,
-  ChevronRight,
-  CheckCircle2,
-  Loader2,
-  ScanLine,
-  ArrowRight,
-} from 'lucide-react';
+import { Compass, AudioLines, FolderOpen, ScanLine, ArrowRight } from 'lucide-react';
 import { SkateCoreoBrand } from './brand/SkateCoreoBrand';
-import { useAuthStore } from '../store/useAuthStore';
 import { Button } from './ui/Button';
 
+/**
+ * HomeViewProps — se mantiene la interfaz completa (App sigue pasando los
+ * mismos callbacks/datos). El Home sólo presenta los accesos principales; el
+ * resto de datos del proyecto ya vive dentro de la Pista 2D y el Estudio de
+ * Audio, por lo que no se desestructuran aquí para no duplicar información.
+ */
 export interface HomeViewProps {
   skaterName?: string | null;
   skaterCategory?: string | null;
@@ -46,108 +32,137 @@ export interface HomeViewProps {
   onOpenPaperToDigital?: () => void;
 }
 
-type Tone = 'cyan' | 'mint' | 'coral' | 'amber' | 'violet' | 'slate';
+/* ── Glifos abstractos (decorativos, minimalistas) ──────────────── */
 
-const PILL_TONE: Record<Tone, string> = {
-  cyan: 'text-cyan border-cyan/25 bg-cyan/10',
-  mint: 'text-mint border-mint/25 bg-mint/10',
-  coral: 'text-coral border-coral/25 bg-coral/10',
-  amber: 'text-amber-400 border-amber-400/25 bg-amber-400/10',
-  violet: 'text-violet-300 border-violet-400/25 bg-violet-400/10',
-  slate: 'text-slate-300 border-white/10 bg-white/[0.04]',
-};
-
-const ICON_RING: Record<Tone, string> = {
-  cyan: 'bg-cyan/12 text-cyan ring-cyan/25',
-  mint: 'bg-mint/12 text-mint ring-mint/25',
-  coral: 'bg-coral/12 text-coral ring-coral/25',
-  amber: 'bg-amber-400/12 text-amber-400 ring-amber-400/25',
-  violet: 'bg-violet-400/12 text-violet-300 ring-violet-400/25',
-  slate: 'bg-white/[0.06] text-slate-300 ring-white/10',
-};
-
-/* ── Presentacionales ─────────────────────────────────────────── */
-
-const SectionHeading: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="mb-3 flex items-center gap-2">
-    <h2 className="font-display text-[11px] font-black uppercase tracking-[0.22em] text-slate-400">
-      {children}
-    </h2>
-    <span aria-hidden="true" className="h-px flex-1 bg-gradient-to-r from-white/15 to-transparent" />
-  </div>
+const RinkGlyph: React.FC = () => (
+  <svg viewBox="0 0 220 78" className="h-14 w-full" fill="none" aria-hidden="true">
+    <rect
+      x="5"
+      y="12"
+      width="210"
+      height="54"
+      rx="18"
+      stroke="rgba(0,210,255,0.30)"
+      strokeWidth="1.5"
+    />
+    <path
+      d="M24 54 C 62 18, 96 66, 134 28 S 186 50, 196 24"
+      stroke="#00D2FF"
+      strokeWidth="2"
+      strokeLinecap="round"
+      opacity="0.9"
+    />
+    <circle cx="24" cy="54" r="4" fill="#10F49C" />
+    <circle cx="134" cy="28" r="4" fill="#FFFFFF" />
+    <circle cx="196" cy="24" r="4" fill="#FF4C79" />
+  </svg>
 );
 
-const MetaPill: React.FC<{
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  tone?: Tone;
-}> = ({ icon, label, value, tone = 'slate' }) => (
-  <div className={`flex min-w-0 flex-col gap-0.5 rounded-xl border px-2.5 py-2 ${PILL_TONE[tone]}`}>
-    <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-slate-400">
-      <span className="shrink-0 opacity-90">{icon}</span>
-      {label}
-    </span>
-    <span className="truncate text-xs font-black text-white">{value}</span>
-  </div>
+const WAVE_BARS = [14, 30, 46, 22, 58, 34, 66, 40, 52, 26, 60, 38, 48, 20, 44, 30, 56, 24, 36, 18];
+
+const WaveGlyph: React.FC = () => (
+  <svg viewBox="0 0 220 78" className="h-14 w-full" fill="none" aria-hidden="true">
+    {WAVE_BARS.map((h, i) => (
+      <rect
+        key={i}
+        x={10 + i * 10.2}
+        y={39 - h / 2}
+        width="4"
+        height={h}
+        rx="2"
+        fill="#10F49C"
+        opacity={0.35 + (i % 4) * 0.16}
+      />
+    ))}
+    <line x1="6" y1="39" x2="214" y2="39" stroke="rgba(16,244,156,0.35)" strokeWidth="1" />
+  </svg>
 );
 
-interface ModuleCardProps {
+/* ── Módulo de acceso principal ─────────────────────────────────── */
+
+interface AccessModuleProps {
   tone: 'cyan' | 'mint';
+  icon: React.ReactNode;
+  tag?: string;
   eyebrow: string;
   title: string;
-  description: string;
+  lines: string[];
   cta: string;
-  icon: React.ReactNode;
+  glyph: React.ReactNode;
   onClick: () => void;
-  badge?: number;
 }
 
-const ModuleCard: React.FC<ModuleCardProps> = ({
+const AccessModule: React.FC<AccessModuleProps> = ({
   tone,
+  icon,
+  tag,
   eyebrow,
   title,
-  description,
+  lines,
   cta,
-  icon,
+  glyph,
   onClick,
-  badge,
 }) => {
-  const border = tone === 'cyan' ? 'border-cyan/25 hover:border-cyan/50' : 'border-mint/25 hover:border-mint/50';
-  const wash = tone === 'cyan' ? 'from-cyan/12' : 'from-mint/12';
-  const ctaColor = tone === 'cyan' ? 'text-cyan' : 'text-mint';
+  const isCyan = tone === 'cyan';
+  const ring = isCyan ? 'bg-cyan/12 text-cyan ring-cyan/25' : 'bg-mint/12 text-mint ring-mint/25';
+  const cardBorder = isCyan
+    ? 'border-cyan/25 hover:border-cyan/50'
+    : 'border-mint/25 hover:border-mint/50';
+  const cardWash = isCyan ? 'from-cyan/[0.13]' : 'from-mint/[0.13]';
+  const glow = isCyan ? 'bg-cyan/15' : 'bg-mint/15';
+  const accentText = isCyan ? 'text-cyan' : 'text-mint';
+  const dot = isCyan ? 'bg-cyan' : 'bg-mint';
+  const ctaClass = isCyan
+    ? 'bg-cyan text-neon-canvas shadow-glow-cyan'
+    : 'bg-mint text-neon-canvas shadow-glow-mint';
 
   return (
     <button
       type="button"
       onClick={onClick}
-      title={description}
-      className={`press group relative flex min-h-[150px] flex-col justify-between overflow-hidden rounded-3xl border bg-white/[0.03] bg-gradient-to-br ${wash} to-transparent p-4 text-left shadow-soft-elevation sm:p-5 ${border}`}
+      title={title}
+      aria-label={cta}
+      className={`press group relative flex min-h-[248px] flex-col justify-between overflow-hidden rounded-[28px] border bg-gradient-to-br ${cardWash} via-white/[0.02] to-transparent p-5 text-left shadow-soft-elevation transition-colors sm:min-h-[280px] sm:p-6 lg:min-h-[344px] lg:p-7 ${cardBorder}`}
     >
+      <span aria-hidden="true" className="pointer-events-none absolute inset-0 grid-veil opacity-30" />
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full bg-white/[0.05] blur-2xl"
+        className={`pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full blur-3xl ${glow}`}
       />
+
       <span className="relative flex items-start justify-between gap-3">
-        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ring-1 ${ICON_RING[tone]}`}>
+        <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ring-1 ${ring}`}>
           {icon}
         </span>
-        {typeof badge === 'number' && badge > 0 && (
-          <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-amber-400 px-1.5 text-[10px] font-black text-slate-950">
-            {badge > 9 ? '9+' : badge}
+        {tag && (
+          <span className="rounded-full border border-white/10 bg-black/30 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.2em] text-slate-300">
+            {tag}
           </span>
         )}
       </span>
 
-      <span className="relative mt-4 flex flex-col gap-0.5">
-        <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
+      <span className="relative mt-5 flex flex-col gap-1.5">
+        <span className={`text-[10px] font-black uppercase tracking-[0.24em] ${accentText}`}>
           {eyebrow}
         </span>
-        <span className="font-display text-base font-black leading-tight text-white">{title}</span>
-        <span className="text-[11px] leading-snug text-slate-400">{description}</span>
+        <span className="font-display text-2xl font-black leading-none tracking-tight text-white sm:text-[28px]">
+          {title}
+        </span>
+        <span className="mt-1.5 flex flex-col gap-1">
+          {lines.map((line) => (
+            <span key={line} className="flex items-center gap-2 text-[11px] text-slate-400 sm:text-xs">
+              <span aria-hidden="true" className={`h-1 w-1 shrink-0 rounded-full ${dot}`} />
+              {line}
+            </span>
+          ))}
+        </span>
       </span>
 
-      <span className={`relative mt-3 inline-flex items-center gap-1.5 text-xs font-black ${ctaColor}`}>
+      <span className="relative mt-5 block">{glyph}</span>
+
+      <span
+        className={`relative mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-black ${ctaClass}`}
+      >
         {cta}
         <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
       </span>
@@ -155,295 +170,96 @@ const ModuleCard: React.FC<ModuleCardProps> = ({
   );
 };
 
-interface ToolItemProps {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  onClick: () => void;
-  tone?: Tone;
-  disabled?: boolean;
-  badge?: string;
-}
-
-const ToolItem: React.FC<ToolItemProps> = ({
-  icon,
-  title,
-  description,
-  onClick,
-  tone = 'slate',
-  disabled,
-  badge,
-}) => (
-  <button
-    type="button"
-    onClick={onClick}
-    disabled={disabled}
-    title={description}
-    className="press group flex min-h-touch items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-2.5 text-left hover:border-white/20 hover:bg-white/[0.07] disabled:pointer-events-none disabled:opacity-40 sm:flex-col sm:items-start sm:gap-2 sm:p-4"
-  >
-    <span
-      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1 ${ICON_RING[tone]}`}
-    >
-      {icon}
-    </span>
-    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-      <span className="flex items-center gap-1.5">
-        <span className="wrap-anywhere text-[13px] font-bold leading-tight text-white">{title}</span>
-        {badge && (
-          <span className="rounded-full border border-mint/30 bg-mint/10 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-mint">
-            {badge}
-          </span>
-        )}
-      </span>
-      <span className="wrap-anywhere text-[11px] leading-snug text-slate-400">{description}</span>
-    </span>
-    <ChevronRight className="h-4 w-4 shrink-0 text-slate-500 sm:hidden" />
-  </button>
-);
-
 /* ── Vista principal ─────────────────────────────────────────── */
 
 export const HomeView: React.FC<HomeViewProps> = ({
-  skaterName,
-  skaterCategory,
-  programTitle,
-  pointsCount,
-  unplacedNodesCount,
-  audioFileName,
-  hasAudioLoaded,
-  bpm,
-  isSavingOffline,
-  offlineSaved,
   onOpenRink,
   onOpenStudio,
-  onOpenSkaters,
-  onOpenSettings,
-  onLoadAudio,
   onImportCoreo,
-  onExportCoreo,
-  onSaveOffline,
   onOpenPaperToDigital,
 }) => {
-  const trimmedAudio = audioFileName
-    ? audioFileName.replace(/\.[^/.]+$/, '').replace(/[_-]+/g, ' ')
-    : null;
-
-  // Indicador de promoción Beta Tester (30 días): el plan lo fija el backend.
-  const subscriptionPlan = useAuthStore((s) => s.subscription_plan);
-  const getDaysRemaining = useAuthStore((s) => s.getDaysRemaining);
-  const getFormattedExpiration = useAuthStore((s) => s.getFormattedExpiration);
-  const isBetaTester = subscriptionPlan === 'beta_tester';
-  const betaDays = isBetaTester ? getDaysRemaining() : 0;
-  const betaExpiry = isBetaTester ? getFormattedExpiration() : null;
-
   return (
     <section
       aria-label="Inicio"
-      className="flex-1 min-h-0 overflow-y-auto scroll-touch bg-neon-canvas"
+      className="relative flex-1 min-h-0 overflow-y-auto scroll-touch bg-neon-canvas"
     >
-      <div className="mx-auto w-full max-w-[1200px] px-3 pb-8 pt-3 sm:px-5 sm:pt-5 lg:px-8 lg:pt-8">
-        {/* ══════════ INDICADOR BETA TESTER (discreto) ══════════ */}
-        {isBetaTester && (
-          <div
-            role="status"
-            className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl border border-coral/30 bg-coral/10 px-3 py-2 text-[11px]"
-          >
-            <Sparkles className="h-3.5 w-3.5 shrink-0 text-coral" />
-            <span className="font-black uppercase tracking-wide text-coral">Beta Tester</span>
-            <span aria-hidden="true" className="text-slate-300">
-              ·
-            </span>
-            <span className="font-mono font-bold text-white">
-              {betaDays} {betaDays === 1 ? 'día restante' : 'días restantes'}
-            </span>
-            {betaExpiry && (
-              <>
-                <span aria-hidden="true" className="text-slate-300">
-                  ·
-                </span>
-                <span className="text-slate-400">vence {betaExpiry}</span>
-              </>
-            )}
-          </div>
-        )}
+      <div className="relative mx-auto flex min-h-full w-full max-w-5xl flex-col justify-center px-4 py-10 animate-fade-in sm:px-6 lg:px-8 lg:py-14">
+        {/* Ambiente sutil (estático, sin consumo de GPU en bucle) */}
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute -top-24 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-cyan/10 blur-[110px]"
+        />
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute bottom-0 right-6 h-64 w-64 rounded-full bg-mint/[0.07] blur-[110px]"
+        />
 
-        {/* ══════════ ENCABEZADO COMPACTO ══════════ */}
-        <header className="relative isolate overflow-hidden rounded-3xl glass-panel px-4 py-4 shadow-soft-elevation sm:px-6 sm:py-6">
-          <span aria-hidden="true" className="absolute inset-0 grid-veil opacity-60" />
-          <div className="relative z-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
-            <div className="min-w-0">
-              <SkateCoreoBrand size="lg" />
-              <p className="mt-2 max-w-[48ch] text-[13px] leading-relaxed text-slate-300 sm:text-sm">
-                Tu espacio de trabajo para diseñar, sincronizar y preparar coreografías.
-              </p>
-            </div>
-
-            <span
-              className={[
-                'inline-flex shrink-0 items-center gap-1.5 self-start rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-wider sm:self-auto',
-                hasAudioLoaded
-                  ? 'border-mint/30 bg-mint/10 text-mint'
-                  : 'border-white/10 bg-white/[0.04] text-slate-400',
-              ].join(' ')}
-            >
-              <span
-                className={`h-1.5 w-1.5 rounded-full ${hasAudioLoaded ? 'bg-mint animate-glow-pulse' : 'bg-slate-600'}`}
-              />
-              {hasAudioLoaded ? 'Audio listo' : 'Sin audio'}
-            </span>
+        {/* ── Marca + mensaje ── */}
+        <header className="relative flex flex-col items-center text-center">
+          <div className="flex justify-center">
+            <SkateCoreoBrand size="xl" />
           </div>
+
+          <h1 className="mt-5 max-w-[15ch] font-display text-[clamp(1.6rem,6vw,2.75rem)] font-extrabold leading-[1.05] tracking-[-0.03em] text-white sm:max-w-[24ch]">
+            Tecnología para crear <span className="text-gradient-brand">el movimiento perfecto</span>.
+          </h1>
+
+          <p className="mt-3 text-[11px] font-bold uppercase tracking-[0.34em] text-slate-400 sm:text-xs">
+            Diseña · Sincroniza · Visualiza
+          </p>
         </header>
 
-        {/* ══════════ PROYECTO ACTUAL ══════════ */}
-        <section aria-label="Proyecto actual" className="mt-4">
-          <SectionHeading>Proyecto actual</SectionHeading>
+        {/* ── Los dos accesos principales ── */}
+        <div className="relative mt-8 grid grid-cols-1 gap-4 sm:mt-10 md:grid-cols-2 lg:grid-cols-[1.35fr_1fr] lg:gap-5">
+          <AccessModule
+            tone="cyan"
+            tag="Editor principal"
+            icon={<Compass className="h-6 w-6" />}
+            eyebrow="Coreografía"
+            title="Pista 2D"
+            lines={['Diseño coreográfico', 'Trazado técnico y curvas', 'Visualización espacial']}
+            cta="Abrir Pista 2D"
+            glyph={<RinkGlyph />}
+            onClick={onOpenRink}
+          />
 
-          <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-4 sm:p-5">
-            <div className="flex min-w-0 items-center gap-3">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-cyan/12 text-cyan ring-1 ring-cyan/25">
-                <FolderClock className="h-5 w-5" />
-              </span>
-              <div className="min-w-0">
-                <p className="wrap-anywhere font-display text-base font-black leading-tight text-white sm:text-lg">
-                  {programTitle || 'Sin programa seleccionado'}
-                </p>
-                <p className="text-[11px] text-slate-400">
-                  {skaterName
-                    ? `${skaterName} · ${skaterCategory || 'Standard'}`
-                    : 'Selecciona un atleta para comenzar'}
-                </p>
-              </div>
-            </div>
+          <AccessModule
+            tone="mint"
+            tag="Segundo pilar"
+            icon={<AudioLines className="h-6 w-6" />}
+            eyebrow="Audio"
+            title="Estudio de Audio"
+            lines={['Música, ritmo y sincronía', 'Edición y mezcla multipista', 'Cues vocales y tempo']}
+            cta="Abrir Estudio de Audio"
+            glyph={<WaveGlyph />}
+            onClick={onOpenStudio}
+          />
+        </div>
 
-            <div className="mt-3.5 grid grid-cols-3 gap-2">
-              <MetaPill
-                icon={<CircleDot className="h-3.5 w-3.5" />}
-                label="Nodos"
-                value={`${pointsCount}`}
-                tone="coral"
-              />
-              <MetaPill
-                icon={<Gauge className="h-3.5 w-3.5" />}
-                label="Tempo"
-                value={`${bpm} BPM`}
-                tone="slate"
-              />
-              <MetaPill
-                icon={<Music4 className="h-3.5 w-3.5" />}
-                label="Pista"
-                value={trimmedAudio || 'Sin audio'}
-                tone="cyan"
-              />
-            </div>
-
-            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-              <Button variant="primary" block onClick={onOpenRink}>
-                Continuar en Pista 2D
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-              <Button variant="secondary" block onClick={onOpenSkaters}>
-                <Users className="h-4 w-4 text-cyan" />
-                Cambiar atleta o programa
-              </Button>
-            </div>
+        {/* ── Herramientas complementarias ── */}
+        <div className="relative mt-8 flex flex-col items-center gap-3 sm:mt-10">
+          <div className="flex items-center gap-3">
+            <span aria-hidden="true" className="h-px w-8 bg-white/10" />
+            <span className="text-[10px] font-black uppercase tracking-[0.28em] text-slate-500">
+              Herramientas complementarias
+            </span>
+            <span aria-hidden="true" className="h-px w-8 bg-white/10" />
           </div>
-        </section>
 
-        {/* ══════════ MÓDULOS PRINCIPALES ══════════ */}
-        <section aria-label="Módulos principales" className="mt-5">
-          <SectionHeading>Editor principal</SectionHeading>
+          <div className="flex w-full flex-col items-stretch gap-2.5 sm:w-auto sm:flex-row sm:items-center">
+            <Button variant="secondary" onClick={onImportCoreo}>
+              <FolderOpen className="h-4 w-4 text-cyan" />
+              Importar .coreo
+            </Button>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <ModuleCard
-              tone="cyan"
-              eyebrow="Módulo principal"
-              title="Pista 2D"
-              description="Diseña la coreografía y traza las trayectorias sobre la pista reglamentaria."
-              cta="Abrir Pista"
-              icon={<Compass className="h-5 w-5" />}
-              onClick={onOpenRink}
-            />
-            <ModuleCard
-              tone="mint"
-              eyebrow="Módulo principal"
-              title="Editor de Audio"
-              description="Corta, mezcla y sincroniza tu música y cues vocales con la rutina."
-              cta="Abrir Editor"
-              icon={<AudioLines className="h-5 w-5" />}
-              onClick={onOpenStudio}
-              badge={unplacedNodesCount}
-            />
-          </div>
-        </section>
-
-        {/* ══════════ MÁS HERRAMIENTAS ══════════ */}
-        <section aria-label="Más herramientas" className="mt-5">
-          <SectionHeading>Más herramientas</SectionHeading>
-
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-            <ToolItem
-              tone="violet"
-              icon={<FolderClock className="h-[18px] w-[18px]" />}
-              title="Proyectos recientes"
-              description="Retoma programas guardados y cambia de atleta."
-              onClick={onOpenSkaters}
-            />
-            <ToolItem
-              tone="cyan"
-              icon={<Upload className="h-[18px] w-[18px]" />}
-              title="Cargar música"
-              description="Importa MP3, WAV o M4A como pista oficial."
-              onClick={onLoadAudio}
-            />
-            <ToolItem
-              tone="mint"
-              icon={<FolderOpen className="h-[18px] w-[18px]" />}
-              title="Importar .coreo"
-              description="Recupera una rutina con audio y nodos 2D."
-              onClick={onImportCoreo}
-            />
-            <ToolItem
-              tone="coral"
-              icon={<Save className="h-[18px] w-[18px]" />}
-              title="Exportar .coreo"
-              description="Comparte el bundle completo de la rutina."
-              onClick={onExportCoreo}
-            />
-            <ToolItem
-              tone="mint"
-              icon={
-                isSavingOffline ? (
-                  <Loader2 className="h-[18px] w-[18px] animate-spin" />
-                ) : offlineSaved ? (
-                  <CheckCircle2 className="h-[18px] w-[18px]" />
-                ) : (
-                  <HardDrive className="h-[18px] w-[18px]" />
-                )
-              }
-              title={offlineSaved ? 'Sesión guardada' : 'Modo Offline'}
-              description="Guarda audio y nodos en el dispositivo para entrenar sin red."
-              onClick={onSaveOffline}
-              disabled={!hasAudioLoaded || isSavingOffline}
-              badge={offlineSaved ? 'Listo' : undefined}
-            />
             {onOpenPaperToDigital && (
-              <ToolItem
-                tone="amber"
-                icon={<ScanLine className="h-[18px] w-[18px]" />}
-                title="Digitalizar plantilla A4"
-                description="Escanea la hoja manuscrita y conviértela en nodos."
-                onClick={onOpenPaperToDigital}
-              />
+              <Button variant="secondary" onClick={onOpenPaperToDigital}>
+                <ScanLine className="h-4 w-4 text-mint" />
+                Digitalizar plantilla A4
+              </Button>
             )}
-            <ToolItem
-              tone="slate"
-              icon={<Settings2 className="h-[18px] w-[18px]" />}
-              title="Ajustes de Pista"
-              description="Cuadrícula, guías World Skate, pre-inicio y mezcla."
-              onClick={onOpenSettings}
-            />
           </div>
-        </section>
+        </div>
       </div>
     </section>
   );
