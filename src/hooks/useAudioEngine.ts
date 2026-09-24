@@ -38,10 +38,12 @@ export interface UseAudioEngineReturn {
     enabled: boolean;
     bpm: number;
     beatsPerMeasure: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+    subdivision: 1 | 2 | 4 | 8;
     volume: number;
     toggle: () => void;
     setBpm: (bpm: number) => void;
     setBeats: (beats: 1 | 2 | 3 | 4 | 5 | 6 | 7) => void;
+    setSubdivision: (subdivision: 1 | 2 | 4 | 8) => void;
     setVolume: (volume: number) => void;
   };
 
@@ -68,6 +70,7 @@ export function useAudioEngine(): UseAudioEngineReturn {
   const metronomeVolume = useAudioStudioStore((s) => s.globalControls.metronome.volume);
   const metronomeBpm = useAudioStudioStore((s) => s.globalControls.bpm);
   const metronomeBeats = useAudioStudioStore((s) => s.metronomeConfig.beatsPerMeasure);
+  const metronomeSubdivision = useAudioStudioStore((s) => s.metronomeConfig.subdivision);
   const storeToggleMetronomeEnabled = useAudioStudioStore((s) => s.toggleMetronomeEnabled);
   const storeSetGlobalBpm = useAudioStudioStore((s) => s.setGlobalBpm);
   const storeSetMetronomeVolume = useAudioStudioStore((s) => s.setMetronomeVolume);
@@ -146,6 +149,10 @@ export function useAudioEngine(): UseAudioEngineReturn {
     storeSetMetronomeConfig({ beatsPerMeasure: beats });
   }, [storeSetMetronomeConfig]);
 
+  const setMetronomeSubdivision = useCallback((subdivision: 1 | 2 | 4 | 8) => {
+    storeSetMetronomeConfig({ subdivision });
+  }, [storeSetMetronomeConfig]);
+
   const setMetronomeVolume = useCallback((vol: number) => {
     storeSetMetronomeVolume(vol);
   }, [storeSetMetronomeVolume]);
@@ -154,12 +161,14 @@ export function useAudioEngine(): UseAudioEngineReturn {
     enabled: metronomeEnabled && !metronomeMuted,
     bpm: metronomeBpm,
     beatsPerMeasure: metronomeBeats,
+    subdivision: metronomeSubdivision,
     volume: metronomeVolume,
     toggle: toggleMetronome,
     setBpm: setMetronomeBpm,
     setBeats: setMetronomeBeats,
+    setSubdivision: setMetronomeSubdivision,
     setVolume: setMetronomeVolume
-  }), [metronomeEnabled, metronomeMuted, metronomeBpm, metronomeBeats, metronomeVolume, toggleMetronome, setMetronomeBpm, setMetronomeBeats, setMetronomeVolume]);
+  }), [metronomeEnabled, metronomeMuted, metronomeBpm, metronomeBeats, metronomeSubdivision, metronomeVolume, toggleMetronome, setMetronomeBpm, setMetronomeBeats, setMetronomeSubdivision, setMetronomeVolume]);
 
   // Control de Voz TTS Global
   // La Voz Guía es siempre femenina latina: el selector de género se eliminó de

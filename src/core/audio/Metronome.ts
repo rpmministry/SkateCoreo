@@ -15,7 +15,7 @@
  * - El primer pulso de cada compás recibe acento (frecuencia y ganancia elevadas).
  */
 
-import { MetronomeConfig } from '../../types/audio';
+import { MetronomeConfig, MetronomeSubdivision } from '../../types/audio';
 
 export type TimeSignature = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 export type TimeSignatureDenominator = 4 | 8;
@@ -36,6 +36,28 @@ export const TIME_SIGNATURES: TimeSignatureDef[] = [
   { beats: 7, denominator: 8, label: '7/8' },
 ];
 
+/**
+ * Subdivisiones del metrónomo: nº de pulsos por beat.
+ *  1/1 → 1 pulso por beat · 1/2 → 2 · 1/4 → 4 · 1/8 → 8
+ * La etiqueta refleja exactamente el comportamiento real.
+ */
+export interface MetronomeSubdivisionDef {
+  value: MetronomeSubdivision;
+  label: string;
+}
+
+export const METRONOME_SUBDIVISIONS: MetronomeSubdivisionDef[] = [
+  { value: 1, label: '1/1' },
+  { value: 2, label: '1/2' },
+  { value: 4, label: '1/4' },
+  { value: 8, label: '1/8' },
+];
+
+/** Normaliza cualquier valor a una subdivisión válida (por defecto 1 = 1/1). */
+export function normalizeSubdivision(value: number | undefined | null): MetronomeSubdivision {
+  return value === 2 || value === 4 || value === 8 ? value : 1;
+}
+
 export class Metronome {
   private ctx: AudioContext | null = null;
   private outputNode: AudioNode | null = null;
@@ -45,6 +67,7 @@ export class Metronome {
     enabled: true,
     bpm: 140,
     beatsPerMeasure: 4,
+    subdivision: 1,
     volume: 0.8,
     accentFirstBeat: true,
     accentPitch: 1400,
@@ -118,8 +141,9 @@ export class Metronome {
   }
 
   /**
-   * Recalcula el próximo beat a partir del reloj de hardware SIN rebobinar.
-   * Invariante: `nextBeatIndex` nunca es menor que `lastScheduledBeatIndex + 1`.
+   * Recalcula el próximo PULSO a partir del reloj de hardware SIN rebobinar.
+   * Invariante: `nextBeatIndex` (índice de pulso) nunca es menor que
+   * `lastScheduledBeatIndex + 1`.
    */
   private applyResync(currentSongTimeSec?: number) {
     if (!this.ctx) return;
@@ -128,13 +152,13 @@ export class Metronome {
       ? currentSongTimeSec
       : Math.max(0, (this.ctx.currentTime - this.audioZeroCtxTime) * this.playbackRate);
 
-    const secondsPerBeat = 60.0 / this.config.bpm;
+    const secondsPerPulse = this.getPulseDurationSec();
     const effectiveSongTime = Math.max(0, songTime - this.phaseOffsetSec);
-    const beatFloat = effectiveSongTime / secondsPerBeat;
+    const pulseFloat = effectiveSongTime / secondsPerPulse;
 
-    const candidate = (effectiveSongTime < 0.025 || (beatFloat - Math.floor(beatFloat)) < 0.05)
-      ? Math.max(0, Math.floor(beatFloat + 0.05))
-      : Math.max(0, Math.ceil(beatFloat));
+    const candidate = (effectiveSongTime < 0.025 || (pulseFloat - Math.floor(pulseFloat)) < 0.05)
+      ? Math.max(0, Math.floor(pulseFloat + 0.05))
+      : Math.max(0, Math.ceil(pulseFloat));
 
     this.nextBeatIndex = Math.max(candidate, this.lastScheduledBeatIndex + 1);
   }
@@ -169,6 +193,15 @@ export class Metronome {
 
   public setVolume(volume: number) {
     this.config.volume = Math.max(0, Math.min(1, volume));
+  }
+
+  /**
+   * Subdivisión (pulsos por beat): 1/1 → 1, 1/2 → 2, 1/4 → 4, 1/8 → 8.
+   * Resincroniza sin rebobinar el transporte.
+   */
+  public setSubdivision(subdivision: number) {
+    this.config.subdivision = normalizeSubdivision(subdivision);
+    this.requestResync();
   }
 
   /**
@@ -355,29 +388,29 @@ export class Metronome {
         this.applyResync();
       }
 
-      const secondsPerBeat = 60.0 / this.config.bpm;
+      const secondsPerPulse = this.getPulseDurationSec();
       const horizonCtxTime = this.ctx.currentTime + this.scheduleAheadSec;
 
       let guard = 0;
       while (this.isRunning && guard++ < this.maxBeatsPerTick) {
-        // Guardián anti-duplicación: jamás se reencola un beat ya emitido.
+        // Guardián anti-duplicación: jamás se reencola un pulso ya emitido.
         if (this.nextBeatIndex <= this.lastScheduledBeatIndex) {
           this.nextBeatIndex = this.lastScheduledBeatIndex + 1;
         }
 
-        const songBeatTime = this.phaseOffsetSec + (this.nextBeatIndex * secondsPerBeat);
-        const ctxBeatTime = this.audioZeroCtxTime + (songBeatTime / this.playbackRate);
+        // Referencia ABSOLUTA (sin drift): pulso n = phaseOffset + n × duraciónDePulso.
+        // Nunca "pulso anterior + duración", que acumularía error con el tiempo.
+        const songPulseTime = this.phaseOffsetSec + (this.nextBeatIndex * secondsPerPulse);
+        const ctxPulseTime = this.audioZeroCtxTime + (songPulseTime / this.playbackRate);
 
-        if (ctxBeatTime > horizonCtxTime) {
+        if (ctxPulseTime > horizonCtxTime) {
           break; // Aún no corresponde planificar: se espera al próximo tick.
         }
 
-        if (ctxBeatTime >= this.ctx.currentTime - 0.02) {
-          const beats = this.config.beatsPerMeasure;
-          const beatInMeasure = ((this.nextBeatIndex % beats) + beats) % beats;
-          this.scheduleNote(beatInMeasure, Math.max(this.ctx.currentTime, ctxBeatTime));
+        if (ctxPulseTime >= this.ctx.currentTime - 0.02) {
+          this.scheduleNote(this.nextBeatIndex, Math.max(this.ctx.currentTime, ctxPulseTime));
         }
-        // Se marca SIEMPRE (también los beats ya vencidos) para no reintentarlos.
+        // Se marca SIEMPRE (también los pulsos ya vencidos) para no reintentarlos.
         this.lastScheduledBeatIndex = this.nextBeatIndex;
         this.nextBeatIndex++;
       }
@@ -442,14 +475,32 @@ export class Metronome {
     }
   }
 
-  /** Pulso del compás: acento en el primer tiempo si está configurado. */
-  private scheduleNote(beatNumber: number, time: number) {
-    const isAccent = beatNumber === 0 && this.config.accentFirstBeat;
-    this.emitClick(time, isAccent, 0.65);
+  /**
+   * Pulso del compás con jerarquía de acentos:
+   *   · Primer pulso del compás → acento (si `accentFirstBeat`).
+   *   · Inicio de beat → ganancia media.
+   *   · Subdivisión (1/2, 1/4, 1/8) → ganancia suave.
+   */
+  private scheduleNote(pulseIndex: number, time: number) {
+    const pulsesPerBeat = normalizeSubdivision(this.config.subdivision);
+    const pulsesPerMeasure = Math.max(1, this.config.beatsPerMeasure * pulsesPerBeat);
+    const pulseInMeasure = ((pulseIndex % pulsesPerMeasure) + pulsesPerMeasure) % pulsesPerMeasure;
+
+    const isDownbeat = pulseInMeasure === 0 && this.config.accentFirstBeat;
+    const isBeatStart = pulseInMeasure % pulsesPerBeat === 0;
+    const gain = isDownbeat ? 1.0 : isBeatStart ? 0.65 : 0.4;
+
+    this.emitClick(time, isDownbeat, gain);
   }
 
+  /** Duración de un BEAT (negra) a partir del BPM. */
   public getBeatDurationSec(): number {
     return 60.0 / this.config.bpm;
+  }
+
+  /** Duración de un PULSO = duración de beat / subdivisión. */
+  public getPulseDurationSec(): number {
+    return (60.0 / this.config.bpm) / normalizeSubdivision(this.config.subdivision);
   }
 
   /** Disparo puntual de click acentuado (cuenta regresiva o pruebas). */

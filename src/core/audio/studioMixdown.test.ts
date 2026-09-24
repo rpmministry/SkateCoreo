@@ -165,6 +165,7 @@ async function runMixdownTest() {
     enabled: false,
     bpm: 120,
     beatsPerMeasure: 4,
+    subdivision: 1,
     accentFirstBeat: true,
     volume: 0.5,
   });

@@ -61,6 +61,26 @@ async function runTests() {
   metronome.setBeatsPerMeasure(6);
   assert(metronome.getConfig().beatsPerMeasure === 6, 'Cambio a compás 6/8 (Ternario compuesto) funciona');
 
+  // 1.b Subdivisión del metrónomo: pulso = beat / subdivisión (matemática exacta).
+  const metroSub = new Metronome({ bpm: 120, beatsPerMeasure: 4, subdivision: 1 });
+  assert(Math.abs(metroSub.getPulseDurationSec() - 0.5) < 1e-9, '1/1: 120 BPM → 0,500 s por pulso');
+  metroSub.setSubdivision(2);
+  assert(Math.abs(metroSub.getPulseDurationSec() - 0.25) < 1e-9, '1/2: 120 BPM → 0,250 s por pulso');
+  metroSub.setSubdivision(4);
+  assert(Math.abs(metroSub.getPulseDurationSec() - 0.125) < 1e-9, '1/4: 120 BPM → 0,125 s por pulso');
+  metroSub.setSubdivision(8);
+  assert(Math.abs(metroSub.getPulseDurationSec() - 0.0625) < 1e-9, '1/8: 120 BPM → 0,0625 s por pulso');
+  metroSub.setSubdivision(3); // valor inválido → se normaliza a 1/1
+  assert(metroSub.getConfig().subdivision === 1, 'Una subdivisión inválida se normaliza a 1/1');
+  assert(Math.abs(metroSub.getBeatDurationSec() - 0.5) < 1e-9, 'La duración del BEAT no depende de la subdivisión');
+
+  // La referencia es ABSOLUTA: pulso n = phaseOffset + n × duraciónDePulso (sin drift).
+  const pulses = Array.from({ length: 5 }, (_, n) => n * metroSub.getPulseDurationSec());
+  assert(
+    pulses.every((t, n) => Math.abs(t - n * 0.5) < 1e-9),
+    'Los pulsos derivan de una referencia absoluta (n × duración), sin acumulación de error'
+  );
+
   // 2. Voice Cue Engine
   const voiceEngine = new VoiceCueEngine({
     enabled: true,

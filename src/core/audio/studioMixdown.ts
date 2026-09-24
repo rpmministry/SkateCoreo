@@ -12,6 +12,7 @@
  */
 
 import { AudioStudioTrack, AudioClip, StudioMetronomeConfig } from '../../types/audioStudio';
+import { normalizeSubdivision } from './Metronome';
 
 export interface StudioMixdownResult {
   buffer: AudioBuffer;
@@ -455,33 +456,37 @@ export async function renderStudioMixdown(
   if (metronomeConfig?.enabled && metronomeConfig.bpm > 0) {
     const bpm = metronomeConfig.bpm;
     const beatsPerMeasure = metronomeConfig.beatsPerMeasure || 4;
-    const secondsPerBeat = 60.0 / bpm;
-    let currentBeatTime = 0;
-    let beatIndex = 0;
+    const subdivision = normalizeSubdivision(metronomeConfig.subdivision);
+    const secondsPerPulse = (60.0 / bpm) / subdivision;
+    const pulsesPerMeasure = Math.max(1, beatsPerMeasure * subdivision);
+    let currentPulseTime = 0;
+    let pulseIndex = 0;
 
     const metroGain = offlineCtx.createGain();
     metroGain.gain.value = Math.max(0, Math.min(1, metronomeConfig.volume || 0.8));
     metroGain.connect(offlineCtx.destination);
 
-    while (currentBeatTime < durationSec) {
-      const isDownbeat = beatIndex % beatsPerMeasure === 0;
+    while (currentPulseTime < durationSec) {
+      const pulseInMeasure = pulseIndex % pulsesPerMeasure;
+      const isDownbeat = pulseInMeasure === 0;
+      const isBeatStart = pulseInMeasure % subdivision === 0;
       const osc = offlineCtx.createOscillator();
       const oscGain = offlineCtx.createGain();
 
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(isDownbeat ? 1760 : 880, currentBeatTime);
+      osc.frequency.setValueAtTime(isDownbeat ? 1760 : 880, currentPulseTime);
 
-      oscGain.gain.setValueAtTime(isDownbeat ? 0.9 : 0.6, currentBeatTime);
-      oscGain.gain.exponentialRampToValueAtTime(0.0001, currentBeatTime + 0.025);
+      oscGain.gain.setValueAtTime(isDownbeat ? 0.9 : isBeatStart ? 0.6 : 0.4, currentPulseTime);
+      oscGain.gain.exponentialRampToValueAtTime(0.0001, currentPulseTime + 0.025);
 
       osc.connect(oscGain);
       oscGain.connect(metroGain);
 
-      osc.start(currentBeatTime);
-      osc.stop(currentBeatTime + 0.03);
+      osc.start(currentPulseTime);
+      osc.stop(currentPulseTime + 0.03);
 
-      currentBeatTime += secondsPerBeat;
-      beatIndex++;
+      currentPulseTime += secondsPerPulse;
+      pulseIndex++;
     }
   }
 

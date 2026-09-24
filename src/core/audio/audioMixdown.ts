@@ -9,12 +9,15 @@
 
 import { ChoreographyPathPoint } from '../../types/choreography';
 import { collectNodeFigures } from './VoiceCueEngine';
+import { normalizeSubdivision } from './Metronome';
 import { ttsService } from '../../services/ttsService';
 
 export interface MixdownOptions {
   musicBuffer: AudioBuffer;
   bpm: number;
   beatsPerMeasure: number;
+  /** Subdivisión del metrónomo (pulsos por beat): 1/1=1, 1/2=2, 1/4=4, 1/8=8. */
+  subdivision?: number;
   metronomeEnabled: boolean;
   voiceCuesEnabled?: boolean;
   warningLeadTimeSec?: number;
@@ -80,12 +83,16 @@ export async function renderChoreographyMixdown(
 
   // 3. Superposición de pulsos de Metrónomo en marcas exactas sobre el Canal L
   if (metronomeEnabled && bpm > 0) {
-    const secondsPerBeat = (60.0 / bpm) / effectivePlaybackRate;
+    const subdivision = normalizeSubdivision(options.subdivision);
+    const secondsPerPulse = (60.0 / bpm) / subdivision / effectivePlaybackRate;
+    const pulsesPerMeasure = Math.max(1, beatsPerMeasure * subdivision);
     let currentBeatTime = Math.max(0, phaseOffsetSec / effectivePlaybackRate);
     let beatIndex = 0;
 
     while (currentBeatTime < durationSec) {
-      const isDownbeat = beatIndex % beatsPerMeasure === 0;
+      const pulseInMeasure = beatIndex % pulsesPerMeasure;
+      const isDownbeat = pulseInMeasure === 0;
+      const isBeatStart = pulseInMeasure % subdivision === 0;
       const freq = isDownbeat ? 1760 : 880; // A6 (primer compás acentuado) vs A5 (resto)
 
       const osc = offlineCtx.createOscillator();
@@ -95,7 +102,7 @@ export async function renderChoreographyMixdown(
       osc.frequency.setValueAtTime(freq, currentBeatTime);
 
       // Envolvente de volumen percusiva (30ms)
-      oscGain.gain.setValueAtTime(isDownbeat ? 1.0 : 0.75, currentBeatTime);
+      oscGain.gain.setValueAtTime(isDownbeat ? 1.0 : isBeatStart ? 0.75 : 0.5, currentBeatTime);
       oscGain.gain.exponentialRampToValueAtTime(0.0001, currentBeatTime + 0.030);
 
       osc.connect(oscGain);
@@ -104,7 +111,7 @@ export async function renderChoreographyMixdown(
       osc.start(currentBeatTime);
       osc.stop(currentBeatTime + 0.030);
 
-      currentBeatTime += secondsPerBeat;
+      currentBeatTime += secondsPerPulse;
       beatIndex++;
     }
   }

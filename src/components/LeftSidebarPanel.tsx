@@ -23,7 +23,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { audioEngine } from '../services/audioEngine';
-import { TIME_SIGNATURES } from '../core/audio/Metronome';
+import { TIME_SIGNATURES, METRONOME_SUBDIVISIONS } from '../core/audio/Metronome';
 import { useAudioEngine } from '../hooks/useAudioEngine';
 import { useChoreographyStore } from '../store/useChoreographyStore';
 import { useAuthStore } from '../store/useAuthStore';
@@ -381,6 +381,45 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
                           ].join(' ')}
                         >
                           {ts.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* ── Subdivisión (pulsos por beat): 1/1 · 1/2 · 1/4 · 1/8 ── */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <label className="text-slate-400 font-medium">Subdivisión</label>
+                    <span className="font-mono font-bold text-mint">
+                      {METRONOME_SUBDIVISIONS.find(
+                        (s) => s.value === audio.metronome.subdivision
+                      )?.label ?? '1/1'}
+                    </span>
+                  </div>
+                  <div
+                    role="group"
+                    aria-label="Subdivisión del metrónomo"
+                    className="grid grid-cols-4 gap-1"
+                  >
+                    {METRONOME_SUBDIVISIONS.map((sub) => {
+                      const isActive = audio.metronome.subdivision === sub.value;
+                      return (
+                        <button
+                          key={sub.label}
+                          type="button"
+                          onClick={() => audio.metronome.setSubdivision(sub.value)}
+                          aria-pressed={isActive}
+                          aria-label={`Subdivisión ${sub.label}`}
+                          title={`Subdivisión ${sub.label}`}
+                          className={[
+                            'min-h-[44px] w-full min-w-0 flex items-center justify-center rounded-lg px-1 text-[11px] font-bold tabular-nums interactive-tap transition-all',
+                            isActive
+                              ? 'bg-mint text-neon-canvas shadow-glow-mint font-black'
+                              : 'bg-neon-surface text-slate-400 hover:text-white hover:bg-neon-hover',
+                          ].join(' ')}
+                        >
+                          {sub.label}
                         </button>
                       );
                     })}

@@ -326,16 +326,18 @@ export class VoiceCueEngine {
   }
 
   /**
-   * Voz de respaldo del conteo: SIEMPRE el sintetizador del navegador, con una
-   * única voz, para que todos los números suenen igual aunque el banco natural
-   * no esté disponible.
+   * Voz del conteo cuando NO hay buffer del banco disponible.
+   *
+   * IDENTIDAD ÚNICA: con el motor natural se sintetiza el número con la MISMA
+   * voz femenina latina (nunca silencio ni voz del navegador). Solo en modo
+   * navegador (offline/dev) se usa la voz validada del navegador.
    */
   public speakCountdown(text: string) {
     if (!this.config.enabled || this.config.volume <= 0) return;
-    // IDENTIDAD ÚNICA: con el motor natural, el conteo SIEMPRE sale del banco TTS
-    // femenino latino. Si el banco no está listo, se prefiere el SILENCIO antes
-    // que cambiar a la voz del navegador (nunca una segunda identidad vocal).
-    if (this.config.ttsEngine === 'google-cloud') return;
+    if (this.config.ttsEngine === 'google-cloud') {
+      this.speakRaw(text);
+      return;
+    }
     this.speakBrowser(text);
   }
 

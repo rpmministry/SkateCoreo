@@ -25,13 +25,25 @@ import { STANDARD_FIGURES } from '../../constants/figures';
 
 /** Comandos que el motor puede pronunciar aunque no sean figuras. */
 const EXPLICIT_COMMANDS = new Set([
-  'tres',
-  'dos',
+  // Conteo hacia atrás (intro de 0/3/5/8 s): 1..8 + "¡Ya!".
   'uno',
+  'dos',
+  'tres',
+  'cuatro',
+  'cinco',
+  'seis',
+  'siete',
+  'ocho',
   'ya',
-  'three',
-  'two',
+  // Equivalentes en inglés.
   'one',
+  'two',
+  'three',
+  'four',
+  'five',
+  'six',
+  'seven',
+  'eight',
   'go',
   'cero',
   'zero',

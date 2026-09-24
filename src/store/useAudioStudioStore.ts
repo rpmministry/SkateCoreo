@@ -187,6 +187,7 @@ const DEFAULT_METRONOME_CONFIG: StudioMetronomeConfig = {
   enabled: true,
   bpm: 140,
   beatsPerMeasure: 4,
+  subdivision: 1,
   accentFirstBeat: true,
   volume: 0.8,
 };
@@ -199,6 +200,7 @@ const DEFAULT_GLOBAL_CONTROLS: GlobalAudioControls = {
     volume: 0.8,
     accentFirstBeat: true,
     muted: false,
+    subdivision: 1,
   },
   voiceGuide: {
     enabled: true,
@@ -1728,6 +1730,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
       const updated = { ...state.metronomeConfig, ...config };
       audioEngine.metronome.setBpm(updated.bpm);
       audioEngine.metronome.setBeatsPerMeasure(updated.beatsPerMeasure);
+      audioEngine.metronome.setSubdivision(updated.subdivision);
       audioEngine.metronome.setVolume(updated.volume);
       audioEngine.metronome.setConfig({ accentFirstBeat: updated.accentFirstBeat });
       audioEngine.setMetronomeAudible(updated.enabled && !state.tracks.metronome.muted);
@@ -1741,6 +1744,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
           enabled: updated.enabled,
           volume: updated.volume,
           accentFirstBeat: updated.accentFirstBeat,
+          subdivision: updated.subdivision,
         },
       };
 

@@ -57,6 +57,8 @@ export interface StudioMetronomeConfig {
   enabled: boolean;
   bpm: number;
   beatsPerMeasure: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+  /** Pulsos por beat: 1 = 1/1, 2 = 1/2, 4 = 1/4, 8 = 1/8. */
+  subdivision: 1 | 2 | 4 | 8;
   accentFirstBeat: boolean;
   volume: number;
 }
@@ -75,6 +77,7 @@ export interface GlobalAudioControls {
     volume: number;
     accentFirstBeat: boolean;
     muted: boolean;
+    subdivision: 1 | 2 | 4 | 8;
   };
   voiceGuide: GlobalVoiceGuideConfig;
 }

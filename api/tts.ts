@@ -35,13 +35,25 @@ const MAX_SPEECH_CHARS = 46;
 
 /* ── Voz Guía: comandos explícitos permitidos ────────────────── */
 const EXPLICIT_COMMANDS = new Set([
-  'tres',
-  'dos',
+  // Conteo hacia atrás (intro de 0/3/5/8 s): 1..8 + "¡Ya!".
   'uno',
+  'dos',
+  'tres',
+  'cuatro',
+  'cinco',
+  'seis',
+  'siete',
+  'ocho',
   'ya',
-  'three',
-  'two',
+  // Equivalentes en inglés.
   'one',
+  'two',
+  'three',
+  'four',
+  'five',
+  'six',
+  'seven',
+  'eight',
   'go',
   'cero',
   'zero',

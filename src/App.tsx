@@ -417,6 +417,7 @@ export function App() {
         musicBuffer: buffer,
         bpm: metroConfig.bpm,
         beatsPerMeasure: metroConfig.beatsPerMeasure,
+        subdivision: metroConfig.subdivision,
         metronomeEnabled: metroConfig.enabled,
         musicVolume: 1.0,
         metronomeVolume: metroConfig.volume,
@@ -455,7 +456,9 @@ export function App() {
         rawBlob,
         audioState.fileName,
         metroConfig.bpm,
-        metroConfig.beatsPerMeasure
+        metroConfig.beatsPerMeasure,
+        1.0,
+        metroConfig.subdivision
       );
 
       const url = URL.createObjectURL(coreoBlob);
@@ -485,6 +488,16 @@ export function App() {
       // Restaurar nodos en el Canvas
       loadProgramPoints(project.points);
       audioEngine.setNodes(project.points);
+      // Restaurar la subdivisión del metrónomo del proyecto (1/1, 1/2, 1/4, 1/8).
+      const importedSubdivision = project.manifest.audioMeta?.subdivision;
+      if (
+        importedSubdivision === 1 ||
+        importedSubdivision === 2 ||
+        importedSubdivision === 4 ||
+        importedSubdivision === 8
+      ) {
+        useAudioStudioStore.getState().setMetronomeConfig({ subdivision: importedSubdivision });
+      }
       alert(`¡Proyecto "${project.manifest.program.title}" importado con éxito!`);
     } catch (err: any) {
       alert('Error al importar archivo .coreo: ' + err?.message);

@@ -33,10 +33,15 @@ export interface AudioEngineState {
   preRollCountdown: number; // 3, 2, 1...
 }
 
+/** Subdivisión del metrónomo: pulsos por beat (1/1 = 1, 1/2 = 2, 1/4 = 4, 1/8 = 8). */
+export type MetronomeSubdivision = 1 | 2 | 4 | 8;
+
 export interface MetronomeConfig {
   enabled: boolean;
   bpm: number;
   beatsPerMeasure: 1 | 2 | 3 | 4 | 5 | 6 | 7; // Compás: 1/4, 2/4, 3/4, 4/4, 5/4, 6/8, 7/8
+  /** Pulsos por beat. `1` = un pulso por beat (1/1). */
+  subdivision: MetronomeSubdivision;
   volume: number; // 0.0 to 1.0
   accentFirstBeat: boolean;
   accentPitch: number; // Hz (default 1000)

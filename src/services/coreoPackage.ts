@@ -24,6 +24,8 @@ export interface CoreoManifest {
     fileName: string;
     bpm?: number;
     beatsPerMeasure?: number;
+    /** Subdivisión del metrónomo (pulsos por beat): 1/1=1, 1/2=2, 1/4=4, 1/8=8. */
+    subdivision?: number;
     playbackRate?: number;
   };
   ttsMeta?: {
@@ -52,7 +54,8 @@ export async function exportCoreoProject(
   audioFileName: string | null,
   bpm?: number,
   beatsPerMeasure?: number,
-  playbackRate: number = 1.0
+  playbackRate: number = 1.0,
+  subdivision: number = 1
 ): Promise<Blob> {
   const zip = new JSZip();
 
@@ -103,6 +106,7 @@ export async function exportCoreoProject(
       fileName: audioFileName || 'pista_audio.wav',
       bpm,
       beatsPerMeasure,
+      subdivision,
       playbackRate
     },
     ttsMeta: {

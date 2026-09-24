@@ -78,6 +78,26 @@ assert(useAudioStudioStore.getState().metronomeConfig.bpm === 136, 'Metrónomo s
 useAudioStudioStore.getState().setMetronomeVolume(0.75);
 assert(useAudioStudioStore.getState().globalControls.metronome.volume === 0.75, 'Volumen global del metrónomo ajustado a 75%');
 
+// 5b. Subdivisión del metrónomo (1/1, 1/2, 1/4, 1/8) con persistencia en el estado.
+assert(
+  useAudioStudioStore.getState().metronomeConfig.subdivision === 1,
+  'La subdivisión del metrónomo arranca en 1/1'
+);
+useAudioStudioStore.getState().setMetronomeConfig({ subdivision: 4 });
+assert(
+  useAudioStudioStore.getState().metronomeConfig.subdivision === 4,
+  'La subdivisión 1/4 queda guardada en el estado del proyecto'
+);
+assert(
+  useAudioStudioStore.getState().globalControls.metronome.subdivision === 4,
+  'La subdivisión se propaga a los controles globales (manifiesto/mezcla)'
+);
+assert(
+  audioEngine.metronome.getConfig().subdivision === 4,
+  'La subdivisión llega al motor de metrónomo (reloj de audio)'
+);
+useAudioStudioStore.getState().setMetronomeConfig({ subdivision: 1 });
+
 useAudioStudioStore.getState().toggleVoiceGuideMute();
 assert(useAudioStudioStore.getState().globalControls.voiceGuide.muted === true, 'Voces guía silenciadas globalmente (Mute)');
 
