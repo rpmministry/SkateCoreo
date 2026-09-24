@@ -247,6 +247,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
   const showReglamentaryGuides = useChoreographyStore((state) => state.showReglamentaryGuides);
   const showCompulsoryFigures = useChoreographyStore((state) => state.showCompulsoryFigures);
   const showSkaterDuringPlayback = useChoreographyStore((state) => state.showSkaterDuringPlayback);
+  const cameraResetNonce = useChoreographyStore((state) => state.cameraResetNonce);
   const paperTraceOverlay = useChoreographyStore((state) => state.paperTraceOverlay);
   const updatePaperTraceOpacity = useChoreographyStore((state) => state.updatePaperTraceOpacity);
   const togglePaperTraceVisibility = useChoreographyStore((state) => state.togglePaperTraceVisibility);
@@ -485,6 +486,20 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       if (playbackEngaged) setPlaybackEngaged(false);
     }
   }, [audio.isPlaying, audio.currentTimeMs, playbackEngaged]);
+
+  /**
+   * Recentrado de cámara solicitado desde FUERA del canvas (botón «Vista» de la
+   * barra de herramientas móvil). Mantiene la Pista 2D limpia: no crea overlays,
+   * solo recoloca/ajusta la vista al estado inicial.
+   */
+  const lastCameraResetNonceRef = useRef(0);
+  useEffect(() => {
+    if (cameraResetNonce === lastCameraResetNonceRef.current) return;
+    lastCameraResetNonceRef.current = cameraResetNonce;
+    if (cameraResetNonce > 0) {
+      resetCamera();
+    }
+  }, [cameraResetNonce, resetCamera]);
 
 
   // Viewport Metrics con cálculo adaptativo responsivo (Margen de seguridad para evitar colisión con controles)
@@ -1818,13 +1833,14 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
 
         {/* Pista limpia sin overlays — el zoom se controla con gestos pinch-to-zoom y los botones de la barra de herramientas */}
 
-        {/* Controles de cámara del editor (zoom + restablecer vista) —
-            área táctil ≥44px para uso con dedo/stylus. */}
-        <div className="absolute bottom-3 left-3 z-20 flex flex-col items-center gap-1 rounded-2xl border border-white/10 bg-slate-950/80 p-1 backdrop-blur-md">
+        {/* En MÓVIL el zoom se hace con el gesto de dos dedos (pinch) y el pan
+            con un dedo: la pista queda 100% despejada, sin porcentaje ni botones
+            flotantes. En ESCRITORIO se conservan los controles de cámara. */}
+        <div className="hidden lg:flex absolute bottom-3 left-3 z-20 flex-col items-center gap-1 rounded-2xl border border-white/10 bg-slate-950/80 p-1 backdrop-blur-md">
           <button
             type="button"
             onClick={() => zoomIn(canvasRef.current)}
-            title="Acercar (rueda del ratón / pinch)"
+            title="Acercar (rueda del ratón)"
             aria-label="Acercar"
             className="press flex h-11 w-11 items-center justify-center rounded-xl text-slate-300 hover:bg-white/10 hover:text-white"
           >
@@ -1835,20 +1851,14 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
             onClick={resetCamera}
             title="Restablecer vista"
             aria-label="Restablecer vista"
-            className="press flex h-11 w-11 items-center justify-center rounded-xl text-slate-300 hover:bg-white/10 hover:text-white"
+            className="press flex h-11 w-11 items-center justify-center rounded-xl font-mono text-[10px] font-bold text-slate-300 hover:bg-white/10 hover:text-white"
           >
-            {/* En móvil NO se muestra el porcentaje sobre la pista (indicador
-                fuera de la zona útil): solo el icono de recentrar. En escritorio
-                se conserva el % porque no compite con el área táctil. */}
-            <Maximize2 className="h-4 w-4 lg:hidden" />
-            <span className="hidden font-mono text-[10px] font-bold lg:inline">
-              {Math.round(camera.zoom * 100)}%
-            </span>
+            {Math.round(camera.zoom * 100)}%
           </button>
           <button
             type="button"
             onClick={() => zoomOut(canvasRef.current)}
-            title="Alejar"
+            title="Alejar (rueda del ratón)"
             aria-label="Alejar"
             className="press flex h-11 w-11 items-center justify-center rounded-xl text-slate-300 hover:bg-white/10 hover:text-white"
           >
@@ -2156,8 +2166,8 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
             </button>
           )}
 
-          {/* Floating Camera Control HUD (Safe Non-Obstructive Zone) */}
-          <div className="absolute bottom-2.5 right-2.5 z-30 flex items-center gap-1 bg-slate-950/70 backdrop-blur-md border border-white/10 px-1.5 py-1 rounded-xl shadow-soft-elevation select-none pointer-events-none">
+          {/* Floating Camera Control HUD (solo escritorio; en móvil el zoom es por pinza) */}
+          <div className="hidden lg:flex absolute bottom-2.5 right-2.5 z-30 items-center gap-1 bg-slate-950/70 backdrop-blur-md border border-white/10 px-1.5 py-1 rounded-xl shadow-soft-elevation select-none pointer-events-none">
             <button
               type="button"
               onClick={() => zoomOut(canvasRef.current)}

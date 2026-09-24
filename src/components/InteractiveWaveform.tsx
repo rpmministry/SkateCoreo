@@ -700,8 +700,9 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
           })}
         </div>
 
-        {/* Indicador de Ayuda Dinámico */}
-        <div className="absolute bottom-1 right-2 text-[9px] font-mono font-medium text-text-tertiary pointer-events-none group-hover:text-text-secondary transition-colors">
+        {/* Indicador de ayuda: SOLO en escritorio. En móvil la interacción es
+            gestual (pinza/arrastre) y no debe restar espacio a la onda. */}
+        <div className="hidden lg:block absolute bottom-1 right-2 text-[9px] font-mono font-medium text-text-tertiary pointer-events-none group-hover:text-text-secondary transition-colors">
           {zoom > 1.05
             ? `Zoom ${zoom.toFixed(1)}x · Paneo activo (Scroll horizontal o Arrastre)`
             : 'Ctrl + Rueda o Pellizco para Zoom · Arrastra marcadores para sincronizar'}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { PenTool, Route, Eraser, Trash2, Undo2, Tag } from 'lucide-react';
+import { PenTool, Route, Eraser, Trash2, Undo2, Tag, Maximize2 } from 'lucide-react';
 import { useChoreographyStore } from '../../store/useChoreographyStore';
 
 export type RinkToolsLayout = 'bar' | 'panel';
@@ -15,6 +15,8 @@ interface RinkContextToolsProps {
   /** Disponible cuando el Inspector se presenta como panel/bottom-sheet. */
   inspectorOpen?: boolean;
   onToggleInspector?: () => void;
+  /** Recentra la vista de la Pista 2D (sin overlays sobre la pista). */
+  onResetView?: () => void;
   className?: string;
 }
 
@@ -41,6 +43,7 @@ export const RinkContextTools: React.FC<RinkContextToolsProps> = ({
   showActions = true,
   inspectorOpen = false,
   onToggleInspector,
+  onResetView,
   className = '',
 }) => {
   const phase = useChoreographyStore((s) => s.phase);
@@ -146,6 +149,18 @@ export const RinkContextTools: React.FC<RinkContextToolsProps> = ({
               className={`h-4 w-4 stroke-[2] transition-transform ${inspectorOpen ? 'rotate-12' : ''}`}
             />
             Figuras
+          </button>
+        )}
+        {onResetView && (
+          <button
+            type="button"
+            onClick={onResetView}
+            title="Recentrar la vista de la pista"
+            aria-label="Recentrar la vista de la pista"
+            className="press flex h-[48px] min-w-[52px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl bg-white/[0.04] text-[9px] font-black uppercase tracking-wide text-slate-300 hover:bg-white/[0.09] hover:text-white"
+          >
+            <Maximize2 className="h-4 w-4 stroke-[2] text-cyan" />
+            Vista
           </button>
         )}
       </div>

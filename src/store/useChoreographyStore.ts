@@ -26,6 +26,12 @@ export interface ChoreographyStoreState {
    * Durante la edición el avatar siempre permanece oculto.
    */
   showSkaterDuringPlayback: boolean;
+  /**
+   * Contador para solicitar el recentrado de la cámara de la Pista 2D desde
+   * fuera del canvas (p. ej. el botón «Vista» de la barra móvil). RinkCanvas
+   * observa el valor y ejecuta el reset; nunca se pinta nada sobre la pista.
+   */
+  cameraResetNonce: number;
   paperTraceOverlay: { imageUrl: string; opacity: number; visible: boolean } | null;
   history: ChoreographyPoint[][];
 
@@ -39,6 +45,8 @@ export interface ChoreographyStoreState {
   // Acciones
   setPoints: (points: ChoreographyPoint[]) => void;
   setSelectedPointId: (id: string | null) => void;
+  /** Solicita recentrar la cámara de la Pista 2D (la pista queda limpia). */
+  requestCameraReset: () => void;
   setSkaterGender: (gender: SkaterGender) => void;
   setPhase: (phase: ChoreographyPhase) => void;
   setShowControlHandles: (show: boolean) => void;
@@ -211,6 +219,7 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
   showReglamentaryGuides: true,
   showCompulsoryFigures: false,
   showSkaterDuringPlayback: true,
+  cameraResetNonce: 0,
   paperTraceOverlay: null,
   history: [],
 
@@ -234,6 +243,8 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
   },
 
   setSelectedPointId: (id) => set({ selectedPointId: id }),
+
+  requestCameraReset: () => set((s) => ({ cameraResetNonce: s.cameraResetNonce + 1 })),
 
   setSkaterGender: (gender) => set({ skaterGender: gender }),
 

@@ -16,6 +16,11 @@ assert(state0.points.length === 0, 'Inicializa con pista limpia sin puntos resid
 assert(state0.skaterGender === 'female', 'Inicializa con género femenino por defecto');
 assert(state0.phase === 'plot', 'Inicializa en fase plot para dibujo libre');
 
+// 1.b Recentrado de cámara solicitado desde fuera del canvas (botón «Vista»).
+assert(state0.cameraResetNonce === 0, 'El nonce de recentrado arranca en 0');
+useChoreographyStore.getState().requestCameraReset();
+assert(useChoreographyStore.getState().cameraResetNonce === 1, 'requestCameraReset incrementa el nonce');
+
 // 2. Dinámica Audio-First: Generación de nodo desde la onda sonora
 const newPt = state0.addPointFromAudio(5500);
 const stateAfterAdd = useChoreographyStore.getState();

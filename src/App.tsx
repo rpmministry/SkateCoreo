@@ -1038,6 +1038,7 @@ export function App() {
           onClear={requestClearRink}
           inspectorOpen={sheetOpen}
           onToggleInspector={handleToggleInspector}
+          onResetView={() => useChoreographyStore.getState().requestCameraReset()}
         />
       )}
 
