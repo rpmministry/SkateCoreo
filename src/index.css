@@ -405,16 +405,18 @@ body {
 
 .workspace-canvas {
   flex: 1 1 auto;
-  min-height: 196px;
+  /* La Pista 2D conserva una altura mínima útil y sigue siendo la protagonista. */
+  min-height: 200px;
 }
 
 .audio-dock {
-  flex: 0 0 auto;
-  /* Altura ADAPTABLE al espacio vertical disponible: en teléfonos altos el
-     visor de audio crece hacia arriba (más waveform + nodos contenidos) sin que
-     la Pista 2D (que conserva su altura mínima) pierda protagonismo. */
-  max-height: clamp(120px, 26vh, 210px);
-  max-height: clamp(120px, 26dvh, 210px);
+  /* CRECE con el espacio vertical disponible: en teléfonos altos el visor de
+     audio gana altura (waveform + nodos contenidos) hasta un tope; en pantallas
+     bajas mantiene un mínimo que garantiza que los marcadores quepan. */
+  flex: 1 1 auto;
+  min-height: 168px;
+  max-height: clamp(200px, 30vh, 300px);
+  max-height: clamp(200px, 30dvh, 300px);
   overflow: hidden;
 }
 
@@ -426,8 +428,9 @@ body {
     min-height: 132px;
   }
   .audio-dock {
-    max-height: clamp(104px, 34vh, 150px);
-    max-height: clamp(104px, 34dvh, 150px);
+    min-height: 150px;
+    max-height: clamp(160px, 34vh, 210px);
+    max-height: clamp(160px, 34dvh, 210px);
   }
 }
 
@@ -435,14 +438,14 @@ body {
    aprovecha el espacio extra para que waveform y nodos respiren. */
 @media (min-height: 780px) {
   .audio-dock {
-    max-height: clamp(150px, 28vh, 230px);
-    max-height: clamp(150px, 28dvh, 230px);
+    max-height: clamp(220px, 30vh, 320px);
+    max-height: clamp(220px, 30dvh, 320px);
   }
 }
 @media (min-height: 860px) {
   .audio-dock {
-    max-height: clamp(170px, 26vh, 252px);
-    max-height: clamp(170px, 26dvh, 252px);
+    max-height: clamp(240px, 28vh, 340px);
+    max-height: clamp(240px, 28dvh, 340px);
   }
 }
 
