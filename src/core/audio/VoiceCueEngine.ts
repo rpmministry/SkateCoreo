@@ -925,6 +925,16 @@ export class VoiceCueEngine {
 
     if (!this.ctx || !this.config.enabled) return;
 
+    if (VOICE_GUIDE_DEBUG) {
+      console.debug(
+        '[VoiceGuide] Engine:', this.config.ttsEngine,
+        '· Voice name:', this.config.googleVoiceName,
+        '· Language:', this.config.language,
+        '· Gender: FEMALE',
+        '· Source:', this.config.ttsEngine === 'google-cloud' ? 'Google TTS' : 'Browser (offline/dev)'
+      );
+    }
+
     // Pre-renderizado en segundo plano: no bloquea el arranque de la música.
     void this.prefetchCues();
 

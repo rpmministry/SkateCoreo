@@ -163,8 +163,18 @@ async function runTests() {
     'Una voz fuera del catálogo (es-ES) se normaliza a la voz latina femenina premium'
   );
 
-  voiceEngine.setGoogleVoiceName('es-US-Journey-F');
-  assert(voiceEngine.getConfig().googleVoiceName === 'es-US-Journey-F', 'Voz Journey F seleccionada correctamente');
+  voiceEngine.setGoogleVoiceName('es-US-Wavenet-A');
+  assert(
+    voiceEngine.getConfig().googleVoiceName === 'es-US-Wavenet-A',
+    'Voz Wavenet A (femenina verificada) seleccionada correctamente'
+  );
+
+  // es-US-Neural2-C y es-US-Journey-F no son válidas (masculina/inexistente).
+  voiceEngine.setGoogleVoiceName('es-US-Neural2-C');
+  assert(
+    voiceEngine.getConfig().googleVoiceName === 'es-US-Neural2-A',
+    'es-US-Neural2-C (masculina) se normaliza a la A femenina'
+  );
 
   voiceEngine.setGoogleVoiceName('es-US-Neural2-B'); // voz masculina eliminada
   assert(

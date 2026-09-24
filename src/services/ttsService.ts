@@ -58,9 +58,19 @@ const GOOGLE_VOICES_CONFIG: Record<string, string> = {
   en: 'en-US-Neural2-F'
 };
 
-/** Respaldo Wavenet latino si Neural2 no está habilitada en el proyecto. */
+/**
+ * Versión de la caché de voz. Al corrigirse la identidad vocal (se eliminó la
+ * voz es-US-C masculina que se colaba), se invalida cualquier audio cacheado
+ * previamente que pudiera pertenecer a otra voz. Cambiar este valor descarta
+ * las entradas antiguas (memoria + IndexedDB) de forma limpia.
+ */
+const TTS_CACHE_VERSION = 'vg2-latin-female-a';
+
+/** Respaldo Wavenet latino si Neural2 no está habilitada en el proyecto.
+ *  ⚠️ Debe ser FEMENINA: `es-US-Wavenet-C` es MASCULINA (verificado en la
+ *  lista oficial de Google); el respaldo correcto es `es-US-Wavenet-A`. */
 const GOOGLE_VOICES_WAVENET_FALLBACK: Record<string, string> = {
-  es: 'es-US-Wavenet-C',
+  es: 'es-US-Wavenet-A',
   en: 'en-US-Wavenet-F'
 };
 
@@ -464,7 +474,7 @@ export class TTSService {
   ): Promise<ArrayBuffer | null> {
     const lang = this.language;
     const vName = voiceName || GOOGLE_VOICES_CONFIG[lang] || GOOGLE_VOICES_CONFIG['es'];
-    const cacheKey = `${vName}_${speed.toFixed(2)}_${text.toLowerCase().trim()}`;
+    const cacheKey = `${TTS_CACHE_VERSION}_${vName}_${speed.toFixed(2)}_${text.toLowerCase().trim()}`;
     return this.getFromIDB(cacheKey);
   }
 
@@ -642,7 +652,7 @@ export class TTSService {
     const languageCode = lang === 'es' ? 'es-US' : 'en-US';
     const wavenetFallback = GOOGLE_VOICES_WAVENET_FALLBACK[lang];
     const cleanKey = text.toLowerCase().trim();
-    const cacheKey = `${voiceName}_${speed.toFixed(2)}_${cleanKey}`;
+    const cacheKey = `${TTS_CACHE_VERSION}_${voiceName}_${speed.toFixed(2)}_${cleanKey}`;
 
     // 1. Revisar caché en memoria (0ms latencia)
     if (this.audioBufferCache.has(cacheKey)) {

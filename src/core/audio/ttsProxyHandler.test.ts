@@ -67,7 +67,7 @@ const happy = await handleTtsProxyRequest(
   {
     method: 'POST',
     headers: baseHeaders,
-    body: { text: 'Salchow', voiceName: 'es-US-Neural2-C', speed: 1.05 },
+    body: { text: 'Salchow', voiceName: 'es-US-Neural2-A', speed: 1.05 },
     clientIp: '10.0.0.1',
   },
   { apiKey: APP_KEY, fetchImpl: okFetch((p) => (sentPayload = p)) }
@@ -83,7 +83,7 @@ assert(
   'Devuelve los bytes MP3 completos'
 );
 assert(
-  sentPayload?.voice?.name === 'es-US-Neural2-C' && sentPayload?.input?.text === 'Salchow',
+  sentPayload?.voice?.name === 'es-US-Neural2-A' && sentPayload?.input?.text === 'Salchow',
   'Envía a Google la voz y el texto validados'
 );
 
@@ -111,7 +111,7 @@ const junk = await handleTtsProxyRequest(
   {
     method: 'POST',
     headers: baseHeaders,
-    body: { text: 'Nodo 3 (Papel)', voiceName: 'es-US-Neural2-C' },
+    body: { text: 'Nodo 3 (Papel)', voiceName: 'es-US-Neural2-A' },
     clientIp: '10.0.0.4',
   },
   { apiKey: APP_KEY, fetchImpl: okFetch() }
@@ -129,6 +129,23 @@ const badVoice = await handleTtsProxyRequest(
   { apiKey: APP_KEY, fetchImpl: okFetch() }
 );
 assert(badVoice.status === 422, `Rechaza voces fuera del catálogo (${badVoice.status})`);
+
+// ── 5b. Voces es-US masculinas (C) rechazadas por el catálogo ───
+for (const maleVoiceName of ['es-US-Neural2-C', 'es-US-Wavenet-C', 'es-US-Journey-F']) {
+  const maleVoice = await handleTtsProxyRequest(
+    {
+      method: 'POST',
+      headers: baseHeaders,
+      body: { text: 'Salchow', voiceName: maleVoiceName },
+      clientIp: '10.0.0.55',
+    },
+    { apiKey: APP_KEY, fetchImpl: okFetch() }
+  );
+  assert(
+    maleVoice.status === 422,
+    `Rechaza la voz no femenina/inexistente ${maleVoiceName} (${maleVoice.status})`
+  );
+}
 
 // ── 6. Método no permitido ──────────────────────────────────────
 const wrongMethod = await handleTtsProxyRequest(
@@ -155,7 +172,7 @@ const attempts: string[] = [];
 const fallbackFetch = (async (_url: string, init: any) => {
   const body = JSON.parse(init.body);
   attempts.push(body.voice.name);
-  if (body.voice.name === 'es-US-Neural2-C') {
+  if (body.voice.name === 'es-US-Neural2-A') {
     return { ok: false, status: 400, json: async () => ({}), text: async () => 'not enabled' };
   }
   return { ok: true, status: 200, json: async () => ({ audioContent: MP3_BASE64 }), text: async () => '' };
@@ -165,14 +182,14 @@ const fallbackResult = await handleTtsProxyRequest(
   {
     method: 'POST',
     headers: baseHeaders,
-    body: { text: 'Salchow', voiceName: 'es-US-Neural2-C' },
+    body: { text: 'Salchow', voiceName: 'es-US-Neural2-A' },
     clientIp: '10.0.0.8',
   },
   { apiKey: APP_KEY, fetchImpl: fallbackFetch }
 );
 assert(fallbackResult.status === 200, 'Reintenta con el respaldo Wavenet y responde 200');
 assert(
-  attempts.join(' → ') === 'es-US-Neural2-C → es-US-Wavenet-C',
+  attempts.join(' → ') === 'es-US-Neural2-A → es-US-Wavenet-A',
   `Orden de intentos correcto (${attempts.join(' → ')})`
 );
 
@@ -181,7 +198,7 @@ const upstreamDown = await handleTtsProxyRequest(
   {
     method: 'POST',
     headers: baseHeaders,
-    body: { text: 'Salchow', voiceName: 'es-US-Neural2-C' },
+    body: { text: 'Salchow', voiceName: 'es-US-Neural2-A' },
     clientIp: '10.0.0.9',
   },
   { apiKey: APP_KEY, fetchImpl: failingFetch(500) }
@@ -200,7 +217,7 @@ for (let i = 0; i < TTS_PROXY_RATE_LIMIT + 3; i++) {
     {
       method: 'POST',
       headers: baseHeaders,
-      body: { text: 'Salchow', voiceName: 'es-US-Neural2-C' },
+      body: { text: 'Salchow', voiceName: 'es-US-Neural2-A' },
       clientIp: '10.0.0.99',
     },
     { apiKey: APP_KEY, fetchImpl: okFetch() }

@@ -25,25 +25,36 @@ export interface GoogleTTSVoiceOption {
 /**
  * Catálogo OFICIAL — exclusivamente voces femeninas latinas (región es-US).
  *
- * Orden: premium primero. `Neural2-A` es la voz por defecto por su dicción
- * neutra latinoamericana; `Journey-F` ofrece la máxima expresividad.
+ * ⚠️ GÉNEROS VERIFICADOS contra la lista oficial de Google Cloud TTS
+ * (https://cloud.google.com/text-to-speech/docs/voices). La convención de
+ * letras NO es la misma en todos los idiomas:
+ *
+ *   es-US-Neural2-A  → FEMALE   ✅ (voz oficial por defecto)
+ *   es-US-Neural2-B  → MALE     ❌
+ *   es-US-Neural2-C  → MALE     ❌  (estaba mal catalogada como femenina)
+ *   es-US-Wavenet-A  → FEMALE   ✅
+ *   es-US-Wavenet-C  → MALE     ❌  (estaba mal catalogada como femenina)
+ *   es-US-Standard-A → FEMALE   ✅
+ *   es-US-Journey-*  → NO EXISTE para es-US (su solicitud provocaba que el
+ *                      servidor cayera a Wavenet-C, que es MASCULINA).
+ *
+ * Esta corrección es la causa raíz de la "voz masculina": el catálogo anterior
+ * ofrecía C/Journey-F como femeninas, y al fallar A Google resolvía a Wavenet-C
+ * (masculina). Solo se admiten ahora las voces A verificadas como femeninas.
+ *
+ * Orden: Neural2 (premium) → Wavenet → Standard (respaldo).
  */
 export const GOOGLE_TTS_VOICES: GoogleTTSVoiceOption[] = [
   { name: 'es-US-Neural2-A', lang: 'es-US', label: 'Latino · Neural2 A — Premium', gender: 'female' },
-  { name: 'es-US-Neural2-C', lang: 'es-US', label: 'Latino · Neural2 C — Natural', gender: 'female' },
-  { name: 'es-US-Journey-F', lang: 'es-US', label: 'Latino · Journey F — Ultra natural', gender: 'female' },
-  { name: 'es-US-Wavenet-C', lang: 'es-US', label: 'Latino · Wavenet C — Compatibilidad', gender: 'female' }
+  { name: 'es-US-Wavenet-A', lang: 'es-US', label: 'Latino · Wavenet A — Respaldo', gender: 'female' },
+  { name: 'es-US-Standard-A', lang: 'es-US', label: 'Latino · Standard A — Compatibilidad', gender: 'female' }
 ];
 
 /**
- * Voces de máxima naturalidad (Neural2 / Journey). La app prioriza estas y solo
- * cae a Wavenet si el proyecto de Google no tiene habilitadas las premium.
+ * Voces de máxima naturalidad. En es-US la única Neural2 femenina es la A; no
+ * existe Journey para este idioma. El respaldo es Wavenet-A (también femenina).
  */
-export const PREMIUM_LATIN_FEMALE_VOICES: string[] = [
-  'es-US-Neural2-A',
-  'es-US-Neural2-C',
-  'es-US-Journey-F'
-];
+export const PREMIUM_LATIN_FEMALE_VOICES: string[] = ['es-US-Neural2-A'];
 
 /** Voz femenina latina por defecto (premium). */
 export const DEFAULT_LATIN_FEMALE_VOICE = 'es-US-Neural2-A';

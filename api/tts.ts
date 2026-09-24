@@ -107,9 +107,11 @@ export const ALLOWED_FIGURES: string[] = [
 const ALLOWED_FIGURE_SET = new Set(ALLOWED_FIGURES);
 
 /* ── Catálogo de voces permitidas ──────────────────────────────
-   VOZ ÚNICA: solo voces FEMENINAS LATINAS (es-US) y su equivalente
-   inglesa femenina. Se eliminó la voz masculina de la interfaz y de la
-   lógica porque sonaba como una variación artificial de la femenina. */
+   VOZ ÚNICA: solo voces FEMENINAS LATINAS (es-US) verificadas como femeninas
+   en la lista oficial de Google, más su equivalente inglesa.
+   ⚠️ es-US-Neural2-C y es-US-Wavenet-C son MASCULINAS y es-US-Journey-* no
+   existe: incluirlas provocaba que, al fallar la principal, el respaldo fuera
+   una voz masculina. Solo se permiten las variantes A (femeninas). */
 interface VoiceOption {
   name: string;
   lang: string;
@@ -118,9 +120,8 @@ interface VoiceOption {
 
 const VOICES: VoiceOption[] = [
   { name: 'es-US-Neural2-A', lang: 'es-US', gender: 'female' },
-  { name: 'es-US-Neural2-C', lang: 'es-US', gender: 'female' },
-  { name: 'es-US-Journey-F', lang: 'es-US', gender: 'female' },
-  { name: 'es-US-Wavenet-C', lang: 'es-US', gender: 'female' },
+  { name: 'es-US-Wavenet-A', lang: 'es-US', gender: 'female' },
+  { name: 'es-US-Standard-A', lang: 'es-US', gender: 'female' },
   { name: 'en-US-Neural2-F', lang: 'en-US', gender: 'female' },
   { name: 'en-US-Journey-F', lang: 'en-US', gender: 'female' },
 ];

@@ -29,26 +29,51 @@ export function detectVoiceGender(voiceName: string): VoiceGender | null {
 }
 
 /**
+ * Tabla de género VERIFICADA por idioma. La convención de letras de Google NO es
+ * universal, por eso NO se usa paridad.
+ *
+ *   es-US → A=FEMALE · B/C/D = MALE            (B y C son MASCULINAS)
+ *   en-US → A/B/D = MALE · C/E/F = FEMALE      (A es MASCULINA)
+ *
+ * Fuente: lista oficial de Google Cloud TTS (Supported voices and languages).
+ */
+const GOOGLE_GENDER_BY_LANG: Record<string, Partial<Record<string, VoiceGender>>> = {
+  'es-us': { A: 'female', B: 'male', C: 'male', D: 'male', E: 'male' },
+  'en-us': { A: 'male', B: 'male', C: 'female', D: 'male', E: 'female', F: 'female' }
+};
+
+/**
  * Género codificado en el nombre de una voz Google Cloud.
  *
- * Google usa una convención estable de letras finales:
- *   es-US-Neural2-A (F) · -B (M) · -C (F) · -D (M) · -E (F) · -F (M)
- *   es-US-Wavenet-A (F) · -B (M) · -C (F) · -D (M)
- *   es-US-Journey-F (F) · -O (M)
+ * ⚠️ Aquí estaba el fallo que introducía la voz masculina: el código previo
+ * aplicaba la paridad A-B/C-D (impar femenina) a TODOS los idiomas, de modo que
+ * consideraba `es-US-Neural2-C` y `es-US-Wavenet-C` femeninas cuando en realidad
+ * son MASCULINAS. Ahora se usa la tabla verificada por idioma; ante cualquier
+ * letra/idioma no reconocido se devuelve `null` (desconocido), que nunca se
+ * acepta como femenina.
  */
 export function detectGoogleVoiceGender(voiceName: string): VoiceGender | null {
-  const match = voiceName.match(/-([A-FO])$/i);
-  if (match) {
-    const letter = match[1].toUpperCase();
-    if (letter === 'O') return 'male'; // Journey O = masculina
-    if (letter === 'F') return 'female'; // Journey F = femenina
-    // Neural2 / Wavenet / Standard: pares A-B, C-D, E-F → impar femenina, par masculina
-    const idx = letter.charCodeAt(0) - 65; // A=0
-    return idx % 2 === 0 ? 'female' : 'male';
-  }
+  if (!voiceName) return null;
 
-  const named = detectVoiceGender(voiceName);
-  return named;
+  const match = voiceName.match(/-([A-FO])$/i);
+  if (!match) return detectVoiceGender(voiceName);
+
+  const letter = match[1].toUpperCase();
+  if (letter === 'O') return 'male'; // Journey O = masculina
+
+  const lower = voiceName.toLowerCase();
+  const lang = lower.startsWith('es-us-')
+    ? 'es-us'
+    : lower.startsWith('en-us-')
+      ? 'en-us'
+      : null;
+
+  const fromTable = lang ? GOOGLE_GENDER_BY_LANG[lang][letter] : undefined;
+  if (fromTable) return fromTable;
+  if (letter === 'F') return 'female'; // Journey F = femenina (en-US)
+
+  // Sin certeza: se delega a los tokens del nombre; si no, desconocido (`null`).
+  return detectVoiceGender(voiceName);
 }
 
 /**
