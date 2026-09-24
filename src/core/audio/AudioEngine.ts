@@ -60,9 +60,114 @@ function readBlobAsArrayBuffer(
   return Promise.reject(new Error('Este navegador no puede leer archivos binarios.'));
 }
 
+/* ── Validación y sondeo previos (evitan OOM en iOS) ─────────────────────
+ *
+ * En Safari/iOS `decodeAudioData` decodifica TODO el audio a PCM Float32 en
+ * memoria (≈10–20× el tamaño del archivo comprimido) y, si la pestaña supera el
+ * límite de memoria de WebKit, el sistema la MATA (vuelve al inicio sin error
+ * JS). Por eso, antes de leer/decodificar se valida:
+ *   · formato permitido (extensión o MIME),
+ *   · tamaño del archivo fuente,
+ *   · duración real (sondeo por metadatos, sin decodificar).
+ * Nunca se limita "porque sí": el límite de duración es el que evita la
+ * amplificación de memoria (una pista de 15 min genera ~150 MB de PCM estéreo).
+ */
+const AUDIO_FILE_EXTENSION_RE = /\.(mp3|m4a|m4b|aac|wav|wave|ogg|oga|opus|aif|aiff|flac|caf|mp4|webm)$/i;
+const AUDIO_MIME_RE = /^(audio\/|video\/mp4)/i;
+
+/** Tamaño máximo del archivo fuente (no del audio decodificado). */
+export const MAX_AUDIO_FILE_BYTES = 100 * 1024 * 1024; // 100 MB
+/** Duración máxima: acota el PCM decodificado en memoria. */
+export const MAX_AUDIO_DURATION_SEC = 900; // 15 min
+
+/** Valida formato y tamaño ANTES de cualquier lectura pesada. */
+export function validateAudioFile(file: File | Blob): void {
+  const name = typeof File !== 'undefined' && file instanceof File ? file.name : '';
+  const type = (file.type || '').toLowerCase();
+  const size = file.size || 0;
+
+  if (size === 0) {
+    throw new Error('El archivo está vacío o no se pudo leer.');
+  }
+  // Se acepta si la extensión O el MIME son de audio conocidos (iOS a veces
+  // entrega MIME vacío para .m4a desde la app Archivos).
+  const extOk = name ? AUDIO_FILE_EXTENSION_RE.test(name) : false;
+  const mimeOk = AUDIO_MIME_RE.test(type);
+  if (!extOk && !mimeOk) {
+    throw new Error('Formato no compatible. Usa MP3, M4A/AAC, WAV, OGG o FLAC.');
+  }
+  if (size > MAX_AUDIO_FILE_BYTES) {
+    const mb = Math.round(size / (1024 * 1024));
+    throw new Error(
+      `El archivo es demasiado grande (${mb} MB). El máximo es ${Math.round(MAX_AUDIO_FILE_BYTES / (1024 * 1024))} MB.`
+    );
+  }
+}
+
+/**
+ * Sondea la duración leyendo SOLO los metadatos (`<audio preload="metadata">`),
+ * sin decodificar el audio completo. Devuelve `null` si no puede determinarse.
+ * Libera siempre el Object URL para no fugar memoria.
+ */
+export function probeAudioDurationSec(file: File | Blob): Promise<number | null> {
+  return new Promise((resolve) => {
+    if (
+      typeof window === 'undefined' ||
+      typeof document === 'undefined' ||
+      typeof URL === 'undefined' ||
+      typeof URL.createObjectURL !== 'function'
+    ) {
+      resolve(null);
+      return;
+    }
+
+    let url = '';
+    const audio = document.createElement('audio');
+    audio.preload = 'metadata';
+    audio.muted = true;
+    let settled = false;
+
+    const finish = (value: number | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      audio.removeAttribute('src');
+      try {
+        audio.load();
+      } catch {
+        /* Ignorar. */
+      }
+      if (url) {
+        try {
+          URL.revokeObjectURL(url);
+        } catch {
+          /* Ignorar. */
+        }
+      }
+      resolve(value);
+    };
+
+    const timer = setTimeout(() => finish(null), 4000);
+    audio.onloadedmetadata = () => {
+      const d = audio.duration;
+      finish(Number.isFinite(d) && d > 0 ? d : null);
+    };
+    audio.onerror = () => finish(null);
+
+    try {
+      url = URL.createObjectURL(file);
+      audio.src = url;
+    } catch {
+      finish(null);
+    }
+  });
+}
+
 export class AudioEngine {
   private ctx: AudioContext | null = null;
   private audioBuffer: AudioBuffer | null = null;
+  /** Guarda anti-solapamiento de importaciones (evita picos de memoria en iOS). */
+  private isImporting = false;
   private sourceNode: AudioBufferSourceNode | null = null;
 
   // Sub-busses & Volume Nodes
@@ -584,41 +689,104 @@ export class AudioEngine {
     file: File | Blob,
     onStage?: (percent: number, label: string) => void
   ): Promise<AudioBuffer> {
-    this.initAudioContext();
-    if (!this.ctx) throw new Error('No se pudo inicializar AudioContext');
-
-    if (this.ctx.state === 'suspended') {
-      await this.ctx.resume().catch(() => {});
+    // Guarda anti-solapamiento: decodificar dos archivos a la vez multiplica la
+    // memoria y es la vía más rápida al cierre de pestaña en iOS.
+    if (this.isImporting) {
+      throw new Error('Ya se está procesando un archivo de audio. Espera a que termine.');
     }
+    this.isImporting = true;
 
-    onStage?.(2, 'Leyendo archivo…');
+    try {
+      // 1. Validación barata ANTES de tocar memoria: formato y tamaño.
+      validateAudioFile(file);
 
-    // Lectura Safari-safe (FileReader) + copia defensiva: `decodeAudioData` de
-    // WebKit antiguo "consume" (detacha) el ArrayBuffer, así que se le entrega
-    // siempre un buffer propio que no rompa el blob original.
-    const arrayBuffer = await readBlobAsArrayBuffer(file, (fraction) => {
-      onStage?.(2 + fraction * 68, 'Leyendo archivo…');
-    });
-    const copy = arrayBuffer.slice(0);
+      this.initAudioContext();
+      if (!this.ctx) throw new Error('No se pudo inicializar AudioContext');
 
-    onStage?.(74, 'Decodificando audio…');
+      if (this.ctx.state === 'suspended') {
+        await this.ctx.resume().catch(() => {});
+      }
 
-    const decoded = await new Promise<AudioBuffer>((resolve, reject) => {
-      // Fallback dual promesa/callback para compatibilidad con Safari iOS y Android Chrome
-      const promise = this.ctx!.decodeAudioData(
-        copy,
-        (decodedBuffer) => resolve(decodedBuffer),
-        (err) => reject(err || new Error('Fallo al decodificar audio. Verifique que sea un archivo de audio compatible (.mp3, .wav, .m4a, .aac).'))
-      );
-      if (promise && typeof promise.then === 'function') {
-        promise.then(resolve).catch((err) => {
-          reject(new Error('Fallo al decodificar audio: ' + (err?.message || 'Formato no soportado')));
-        });
+      // 2. Duración real por metadatos (sin decodificar) → acota el PCM en memoria.
+      onStage?.(2, 'Analizando archivo…');
+      const durationSec = await probeAudioDurationSec(file);
+      if (durationSec !== null && durationSec > MAX_AUDIO_DURATION_SEC) {
+        const min = Math.round(durationSec / 60);
+        throw new Error(
+          `La pista dura ${min} min y supera el máximo de ${Math.round(MAX_AUDIO_DURATION_SEC / 60)} min.`
+        );
+      }
+
+      // 3. Lectura Safari-safe (FileReader).
+      onStage?.(5, 'Leyendo archivo…');
+      let arrayBuffer: ArrayBuffer | null = await readBlobAsArrayBuffer(file, (fraction) => {
+        onStage?.(5 + fraction * 63, 'Leyendo archivo…');
+      });
+
+      onStage?.(72, 'Decodificando audio…');
+
+      // 4. Decodificación SIN copia defensiva: se entrega el ArrayBuffer leído
+      //    directamente (una copia completa duplicaba el consumo en iOS). WebKit
+      //    puede "consumir" el buffer; como NO se reutiliza después, no importa.
+      let decoded: AudioBuffer;
+      try {
+        decoded = await this.decodeArrayBuffer(arrayBuffer);
+      } catch (firstErr) {
+        // Ruta de recuperación (rara): si WebKit detachó el buffer o falló la
+        // primera pasada, se relee el blob y se reintenta UNA vez.
+        onStage?.(74, 'Reintentando decodificación…');
+        const fresh = await readBlobAsArrayBuffer(file);
+        decoded = await this.decodeArrayBuffer(fresh);
+      } finally {
+        // Se libera la referencia al Archivo leído en cuanto termina la
+        // decodificación, para que el recolector recupere memoria en iOS.
+        arrayBuffer = null;
+      }
+
+      onStage?.(88, 'Preparando pista…');
+      return decoded;
+    } finally {
+      this.isImporting = false;
+    }
+  }
+
+  /** Decodifica un ArrayBuffer con soporte dual promesa/callback (Safari iOS). */
+  private decodeArrayBuffer(buffer: ArrayBuffer): Promise<AudioBuffer> {
+    const ctx = this.ctx;
+    if (!ctx) return Promise.reject(new Error('AudioContext no disponible'));
+
+    return new Promise<AudioBuffer>((resolve, reject) => {
+      let settled = false;
+      const ok = (buf: AudioBuffer) => {
+        if (settled) return;
+        settled = true;
+        resolve(buf);
+      };
+      const fail = (err?: unknown) => {
+        if (settled) return;
+        settled = true;
+        reject(
+          err instanceof Error
+            ? err
+            : new Error(
+                'No fue posible decodificar este archivo. Verifica que sea audio compatible (.mp3, .wav, .m4a, .aac).'
+              )
+        );
+      };
+
+      try {
+        const promise = ctx.decodeAudioData(
+          buffer,
+          (decodedBuffer) => ok(decodedBuffer),
+          (err) => fail(err)
+        );
+        if (promise && typeof promise.then === 'function') {
+          promise.then(ok).catch(fail);
+        }
+      } catch (err) {
+        fail(err);
       }
     });
-
-    onStage?.(88, 'Preparando pista…');
-    return decoded;
   }
 
   /**
@@ -632,9 +800,13 @@ export class AudioEngine {
         loadProgress.report(percent, label)
       );
       loadProgress.report(100, 'Listo');
-      return decoded;
-    } finally {
       loadProgress.done();
+      return decoded;
+    } catch (err) {
+      // Error controlado: se oculta el indicador y se propaga para que la UI
+      // muestre un mensaje. La aplicación NUNCA se cierra por un audio inválido.
+      loadProgress.reset();
+      throw err;
     }
   }
 
@@ -672,11 +844,16 @@ export class AudioEngine {
       this.mediaSession.updateMetadata(this.fileName);
       await this.checkBluetoothAndLatency();
       loadProgress.report(100, 'Listo');
+      loadProgress.done();
       this.emitStateChange();
       return this.audioBuffer;
+    } catch (err) {
+      // Cualquier fallo (formato, tamaño, duración o decodificación) se maneja
+      // aquí: se limpia el estado y se propaga un error legible. Sin crash.
+      loadProgress.reset();
+      throw err;
     } finally {
       void liberarPantallaActiva();
-      loadProgress.done();
     }
   }
 

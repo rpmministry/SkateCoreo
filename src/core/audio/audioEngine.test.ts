@@ -1,5 +1,6 @@
 import { Metronome } from './Metronome';
 import { VoiceCueEngine, isSpeakableFigure, cleanFigureNameForSpeech, collectNodeFigures } from './VoiceCueEngine';
+import { validateAudioFile, MAX_AUDIO_FILE_BYTES } from './AudioEngine';
 import { ElementLog, ChoreographyPathPoint } from '../../types/choreography';
 import { ttsService } from '../../services/ttsService';
 
@@ -80,6 +81,34 @@ async function runTests() {
     pulses.every((t, n) => Math.abs(t - n * 0.5) < 1e-9),
     'Los pulsos derivan de una referencia absoluta (n × duración), sin acumulación de error'
   );
+
+  // 1.c Validación previa de importación de audio (anti-OOM en iOS).
+  validateAudioFile({ name: 'tema.mp3', type: 'audio/mpeg', size: 1024 } as any);
+  assert(true, 'validateAudioFile acepta un audio pequeño con MIME de audio');
+
+  let rejectedNonAudio = false;
+  try {
+    validateAudioFile({ name: 'foto.png', type: 'image/png', size: 2048 } as any);
+  } catch {
+    rejectedNonAudio = true;
+  }
+  assert(rejectedNonAudio, 'validateAudioFile rechaza un archivo que no es de audio');
+
+  let rejectedEmpty = false;
+  try {
+    validateAudioFile({ name: 'vacio.mp3', type: 'audio/mpeg', size: 0 } as any);
+  } catch {
+    rejectedEmpty = true;
+  }
+  assert(rejectedEmpty, 'validateAudioFile rechaza un archivo vacío');
+
+  let rejectedTooBig = false;
+  try {
+    validateAudioFile({ name: 'enorme.mp3', type: 'audio/mpeg', size: MAX_AUDIO_FILE_BYTES + 1 } as any);
+  } catch {
+    rejectedTooBig = true;
+  }
+  assert(rejectedTooBig, 'validateAudioFile rechaza un archivo por encima del límite de tamaño');
 
   // 2. Voice Cue Engine
   const voiceEngine = new VoiceCueEngine({

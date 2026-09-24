@@ -17,13 +17,14 @@ export const LoadProgressBar: React.FC = () => {
   const active = useLoadProgressStore((s) => s.active);
   const percent = useLoadProgressStore((s) => s.percent);
   const label = useLoadProgressStore((s) => s.label);
+  const indeterminate = useLoadProgressStore((s) => s.indeterminate);
 
   return (
     <div
       role="progressbar"
       aria-valuemin={0}
       aria-valuemax={100}
-      aria-valuenow={Math.round(percent)}
+      aria-valuenow={indeterminate ? undefined : Math.round(percent)}
       aria-label={label || 'Progreso de carga'}
       aria-hidden={!active}
       className="pointer-events-none fixed inset-x-0 top-0 z-[120] select-none"
@@ -33,25 +34,32 @@ export const LoadProgressBar: React.FC = () => {
         paddingTop: 'env(safe-area-inset-top, 0px)',
       }}
     >
-      {/* Riel + relleno animado */}
+      {/* Riel + relleno. Mientras no hay medición real, se muestra una barra
+          INDETERMINADA en vez de un "0%" engañoso. */}
       <div className="h-[3px] w-full overflow-hidden bg-white/5">
         <div
-          className="h-full bg-gradient-to-r from-cyan via-teal-400 to-cyan shadow-[0_0_10px_rgba(0,210,255,0.7)]"
-          style={{
-            width: `${percent}%`,
-            transition: 'width 180ms ease-out',
-          }}
+          className={[
+            'h-full bg-gradient-to-r from-cyan via-teal-400 to-cyan shadow-[0_0_10px_rgba(0,210,255,0.7)]',
+            indeterminate ? 'w-full animate-pulse opacity-70' : '',
+          ].join(' ')}
+          style={
+            indeterminate
+              ? undefined
+              : { width: `${percent}%`, transition: 'width 180ms ease-out' }
+          }
         />
       </div>
 
-      {/* Píldora con fase y porcentaje */}
+      {/* Píldora con fase (y porcentaje solo cuando es real) */}
       {active && label && (
         <div className="mx-auto mt-1.5 flex w-fit max-w-[92vw] items-center gap-2 rounded-full border border-cyan/30 bg-zinc-950/85 px-3 py-1 shadow-lg backdrop-blur-md">
           <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-cyan" />
           <span className="truncate text-[10px] font-bold text-slate-200">{label}</span>
-          <span className="shrink-0 font-mono text-[10px] font-black text-cyan">
-            {Math.round(percent)}%
-          </span>
+          {!indeterminate && (
+            <span className="shrink-0 font-mono text-[10px] font-black text-cyan">
+              {Math.round(percent)}%
+            </span>
+          )}
         </div>
       )}
     </div>

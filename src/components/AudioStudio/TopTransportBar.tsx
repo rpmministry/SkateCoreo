@@ -232,11 +232,11 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
       {/* ── MODAL DE AJUSTES DE PROYECTO (BPM, METRÓNOMO, VOCES) ── */}
       {showSettingsModal && (
         <div 
-          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-in fade-in duration-150"
+          className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-md p-3 pb-safe animate-in fade-in duration-150"
           onClick={() => setShowSettingsModal(false)}
         >
           <div 
-            className="w-full max-w-sm bg-zinc-900 border border-white/15 rounded-2xl p-4 shadow-2xl flex flex-col gap-3 text-white"
+            className="w-full max-w-sm max-h-[85dvh] overflow-y-auto overscroll-contain bg-zinc-900 border border-white/15 rounded-2xl p-4 shadow-2xl flex flex-col gap-3 text-white"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-2 border-b border-white/10">
@@ -373,11 +373,11 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
       {/* ── MODAL DE NOTAS / LETRAS DE RUTINA (BandLab Feather Icon) ── */}
       {showNotesModal && (
         <div 
-          className="fixed inset-0 z-[90] flex items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-in fade-in duration-150"
+          className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-md p-3 pb-safe animate-in fade-in duration-150"
           onClick={() => setShowNotesModal(false)}
         >
           <div 
-            className="w-full max-w-sm bg-zinc-900 border border-white/15 rounded-2xl p-4 shadow-2xl flex flex-col gap-3 text-white"
+            className="w-full max-w-sm max-h-[85dvh] overflow-y-auto overscroll-contain bg-zinc-900 border border-white/15 rounded-2xl p-4 shadow-2xl flex flex-col gap-3 text-white"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-2 border-b border-white/10">

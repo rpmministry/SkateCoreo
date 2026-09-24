@@ -13,12 +13,18 @@ export interface LoadProgressState {
   percent: number;
   /** Etiqueta corta de la fase actual (p. ej. "Decodificando audio…"). */
   label: string;
+  /**
+   * `true` mientras aún NO se conoce un porcentaje medido. Evita mostrar un
+   * "0%" falso durante la validación/sondeo: la barra se muestra indeterminada.
+   */
+  indeterminate: boolean;
 }
 
 export const useLoadProgressStore = create<LoadProgressState>(() => ({
   active: false,
   percent: 0,
   label: '',
+  indeterminate: false,
 }));
 
 /**
@@ -44,6 +50,8 @@ export const loadProgress = {
       active: true,
       percent: current.active ? current.percent : 0,
       label,
+      // Al iniciar aún no hay medición → indeterminado (no "0%" falso).
+      indeterminate: current.active ? current.indeterminate : true,
     });
   },
 
@@ -54,6 +62,7 @@ export const loadProgress = {
     if (!current.active) return;
     useLoadProgressStore.setState({
       percent: Math.max(current.percent, clamped),
+      indeterminate: false,
       ...(label ? { label } : {}),
     });
   },
@@ -63,12 +72,12 @@ export const loadProgress = {
     activeLoads = Math.max(0, activeLoads - 1);
     if (activeLoads > 0) return;
 
-    useLoadProgressStore.setState({ percent: 100, label: 'Listo' });
+    useLoadProgressStore.setState({ percent: 100, label: 'Listo', indeterminate: false });
     if (hideTimer) clearTimeout(hideTimer);
     hideTimer = setTimeout(() => {
       hideTimer = null;
       if (activeLoads === 0) {
-        useLoadProgressStore.setState({ active: false, percent: 0, label: '' });
+        useLoadProgressStore.setState({ active: false, percent: 0, label: '', indeterminate: false });
       }
     }, HIDE_DELAY_MS);
   },
@@ -80,6 +89,6 @@ export const loadProgress = {
       clearTimeout(hideTimer);
       hideTimer = null;
     }
-    useLoadProgressStore.setState({ active: false, percent: 0, label: '' });
+    useLoadProgressStore.setState({ active: false, percent: 0, label: '', indeterminate: false });
   },
 };
