@@ -96,6 +96,44 @@ assert(
   'Modo app en escritorio'
 );
 
+// ── Estabilidad con el teclado virtual (BUG CRÍTICO de inputs) ──
+// El teclado reduce el viewport y el CSS puede reportar "landscape" aunque el
+// teléfono siga en vertical. Editar texto NUNCA debe mostrar la pantalla de giro.
+assert(
+  shouldShowRotateScreen({
+    width: 390,
+    height: 320,
+    coarsePointer: true,
+    landscape: true,
+    editableFocused: true,
+  }) === false,
+  'Con un campo de texto enfocado NO se bloquea (el teclado no es un giro)'
+);
+assert(
+  shouldShowRotateScreen({
+    width: 390,
+    height: 300,
+    coarsePointer: true,
+    landscape: false,
+    keyboardOpen: true,
+  }) === false,
+  'Con el teclado abierto NO se bloquea'
+);
+assert(
+  shouldShowRotateScreen({
+    width: 390,
+    height: 300,
+    coarsePointer: true,
+    landscape: true,
+    keyboardOpen: true,
+  }) === false,
+  'Teclado abierto + landscape reportado por CSS → NO se bloquea'
+);
+assert(
+  shouldShowRotateScreen({ width: 844, height: 390, coarsePointer: true, landscape: true }) === true,
+  'Landscape físico real (sin edición ni teclado) SÍ bloquea'
+);
+
 // Robustez ante dimensiones inválidas
 assert(
   shouldShowRotateScreen({ width: 0, height: 0, coarsePointer: true }) === false,

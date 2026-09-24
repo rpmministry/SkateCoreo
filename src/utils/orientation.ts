@@ -19,13 +19,22 @@ export interface OrientationSnapshot {
   /** true si el puntero principal es grueso (dedo/táctil). */
   coarsePointer: boolean;
   /**
-   * Orientación FÍSICA real reportada por el navegador
-   * (`matchMedia('(orientation: landscape)')`). No se deriva del aspecto
-   * `width`/`height` porque el teclado virtual puede encoger el alto del
-   * viewport (`interactive-widget=resizes-content`) y falsear el resultado.
-   * Si se omite, se cae al aspecto como aproximación (útil en tests).
+   * Orientación FÍSICA real. Se prefiere `screen.orientation.type` (fiable con
+   * el teclado abierto); `matchMedia('(orientation: landscape)')` queda como
+   * respaldo. Si se omite, se cae al aspecto (útil en tests).
    */
   landscape?: boolean;
+  /**
+   * true si hay un campo de texto enfocado (input/textarea/select/contenteditable).
+   * Con el teclado abierto NUNCA debe mostrarse la pantalla de rotación: el
+   * usuario está editando y perder el foco destruiría su trabajo.
+   */
+  editableFocused?: boolean;
+  /**
+   * true si se detecta el teclado virtual abierto (viewport reducido respecto a
+   * la altura estable). Evita interpretar el `resize` del teclado como un giro.
+   */
+  keyboardOpen?: boolean;
 }
 
 export type OrientationMode = 'app' | 'rotate' | 'portrait';
@@ -52,9 +61,16 @@ export function isPhoneOrTabletViewport(width: number, height: number): boolean 
  * horizontal alternativo.
  */
 export function shouldShowRotateScreen(snapshot: OrientationSnapshot): boolean {
-  const { width, height, coarsePointer, landscape } = snapshot;
+  const { width, height, coarsePointer, landscape, editableFocused, keyboardOpen } = snapshot;
   if (!coarsePointer) return false;
   if (width <= 0 || height <= 0) return false;
+
+  // REGLA DE ESTABILIDAD: mientras se edita texto o el teclado virtual está
+  // abierto, la app NUNCA se bloquea. El teclado reduce el viewport y el CSS
+  // `orientation` puede reportar "landscape" aunque el teléfono siga vertical;
+  // bloquear aquí perdería el foco, la selección y el texto escrito.
+  if (editableFocused || keyboardOpen) return false;
+
   const isLandscape = landscape ?? !isPortrait(width, height);
   return isPhoneOrTabletViewport(width, height) && isLandscape;
 }

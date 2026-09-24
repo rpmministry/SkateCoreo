@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { RotateCw } from 'lucide-react';
 import { shouldShowRotateScreen } from '../../utils/orientation';
 import type { OrientationSnapshot } from '../../utils/orientation';
@@ -16,15 +16,36 @@ import type { OrientationSnapshot } from '../../utils/orientation';
  * solo se oculta visualmente para no destruir el estado.
  */
 
+/** Orientación FÍSICA real: `screen.orientation.type` primero, matchMedia después. */
+function readPhysicalLandscape(): boolean {
+  try {
+    const so = (typeof screen !== 'undefined'
+      ? (screen as unknown as { orientation?: { type?: string } }).orientation
+      : null);
+    const type = so?.type || '';
+    if (type.startsWith('landscape')) return true;
+    if (type.startsWith('portrait')) return false;
+  } catch {
+    /* Ignorar. */
+  }
+  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+    return window.matchMedia('(orientation: landscape)').matches;
+  }
+  return false;
+}
+
+/** ¿Hay un campo editable enfocado? (teclado virtual probable) */
+function isEditableFocused(): boolean {
+  if (typeof document === 'undefined') return false;
+  const el = document.activeElement as HTMLElement | null;
+  if (!el) return false;
+  const tag = el.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable === true;
+}
+
 function readSnapshot(): OrientationSnapshot {
   const hasMatchMedia =
     typeof window !== 'undefined' && typeof window.matchMedia === 'function';
-  // La orientación se lee de `matchMedia` (física), NO del aspecto width/height:
-  // al abrir el teclado virtual el alto del viewport se encoge y el aspecto
-  // podría parecer horizontal aunque el dispositivo siga en vertical.
-  const landscape = hasMatchMedia
-    ? window.matchMedia('(orientation: landscape)').matches
-    : false;
   const coarsePointer = hasMatchMedia
     ? window.matchMedia('(pointer: coarse)').matches
     : false;
@@ -32,7 +53,10 @@ function readSnapshot(): OrientationSnapshot {
     width: typeof window !== 'undefined' ? window.innerWidth : 0,
     height: typeof window !== 'undefined' ? window.innerHeight : 0,
     coarsePointer,
-    landscape,
+    // NO se usa matchMedia como fuente principal: con el teclado abierto el
+    // layout viewport se encoge y la orientación CSS puede reportar "landscape".
+    landscape: readPhysicalLandscape(),
+    editableFocused: isEditableFocused(),
   };
 }
 
@@ -52,19 +76,38 @@ export function useOrientationGuard(): { blocked: boolean; requestPortraitLock: 
     typeof window === 'undefined' ? false : shouldShowRotateScreen(readSnapshot())
   );
 
+  // Altura estable (sin teclado). Sirve para distinguir el teclado virtual de un
+  // giro físico: el teclado reduce mucho la altura sin cambiar de orientación.
+  const stableHeightRef = useRef(typeof window !== 'undefined' ? window.innerHeight : 0);
+
   useEffect(() => {
-    const update = () => setBlocked(shouldShowRotateScreen(readSnapshot()));
+    const update = () => {
+      const snap = readSnapshot();
+      if (!snap.editableFocused && snap.height > stableHeightRef.current) {
+        stableHeightRef.current = snap.height;
+      }
+      const baseline = stableHeightRef.current || snap.height;
+      const keyboardOpen =
+        baseline > 0 && snap.height > 0 && snap.height < baseline * 0.72;
+      setBlocked(shouldShowRotateScreen({ ...snap, keyboardOpen }));
+    };
+
     update();
 
     window.addEventListener('resize', update);
     window.addEventListener('orientationchange', update);
     window.addEventListener('pageshow', update);
+    // El foco de un input/textarea no debe interpretarse como cambio de giro.
+    document.addEventListener('focusin', update);
+    document.addEventListener('focusout', update);
+
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    vv?.addEventListener?.('resize', update);
 
     const coarseQuery =
       typeof window.matchMedia === 'function' ? window.matchMedia('(pointer: coarse)') : null;
     coarseQuery?.addEventListener?.('change', update);
 
-    // Reacciona a la orientación física real (independiente del teclado virtual).
     const orientationQuery =
       typeof window.matchMedia === 'function'
         ? window.matchMedia('(orientation: landscape)')
@@ -78,6 +121,9 @@ export function useOrientationGuard(): { blocked: boolean; requestPortraitLock: 
       window.removeEventListener('resize', update);
       window.removeEventListener('orientationchange', update);
       window.removeEventListener('pageshow', update);
+      document.removeEventListener('focusin', update);
+      document.removeEventListener('focusout', update);
+      vv?.removeEventListener?.('resize', update);
       coarseQuery?.removeEventListener?.('change', update);
       orientationQuery?.removeEventListener?.('change', update);
     };

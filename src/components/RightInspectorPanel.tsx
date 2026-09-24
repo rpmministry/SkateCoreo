@@ -438,14 +438,33 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
 
             {/* Input de Nombre / Voz */}
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              <label
+                htmlFor="node-label-input"
+                className="text-[10px] font-bold text-slate-400 uppercase tracking-wider"
+              >
                 Etiqueta / Guía Vocal
               </label>
               <input
                 type="text"
+                id="node-label-input"
+                name="nodeLabel"
+                inputMode="text"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="words"
+                spellCheck={false}
+                enterKeyHint="done"
                 placeholder="Ej: Salchow, Axel..."
                 value={selectedPoint.label || ''}
                 onChange={(e) => handleUpdateLabel(selectedPoint.id, e.target.value)}
+                onKeyDown={(e) => {
+                  // «Listo» del teclado móvil: confirma y cierra el teclado sin
+                  // desmontar el panel (evita perder foco/estado en iOS).
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    (e.target as HTMLInputElement).blur();
+                  }
+                }}
                 className="w-full bg-neon-card rounded-xl px-3 py-2.5 text-xs text-slate-100 placeholder:text-slate-600 focus:bg-neon-hover outline-none font-mono shadow-soft-elevation"
               />
             </div>
