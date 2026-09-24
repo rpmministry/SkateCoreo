@@ -35,7 +35,7 @@ export interface HomeViewProps {
 /* ── Glifos abstractos (decorativos, minimalistas) ──────────────── */
 
 const RinkGlyph: React.FC = () => (
-  <svg viewBox="0 0 220 78" className="h-14 w-full" fill="none" aria-hidden="true">
+  <svg viewBox="0 0 220 78" className="h-full w-full" fill="none" aria-hidden="true">
     <rect
       x="5"
       y="12"
@@ -61,7 +61,7 @@ const RinkGlyph: React.FC = () => (
 const WAVE_BARS = [14, 30, 46, 22, 58, 34, 66, 40, 52, 26, 60, 38, 48, 20, 44, 30, 56, 24, 36, 18];
 
 const WaveGlyph: React.FC = () => (
-  <svg viewBox="0 0 220 78" className="h-14 w-full" fill="none" aria-hidden="true">
+  <svg viewBox="0 0 220 78" className="h-full w-full" fill="none" aria-hidden="true">
     {WAVE_BARS.map((h, i) => (
       <rect
         key={i}
@@ -122,7 +122,7 @@ const AccessModule: React.FC<AccessModuleProps> = ({
       onClick={onClick}
       title={title}
       aria-label={cta}
-      className={`press group relative flex min-h-[248px] flex-col justify-between overflow-hidden rounded-[28px] border bg-gradient-to-br ${cardWash} via-white/[0.02] to-transparent p-5 text-left shadow-soft-elevation transition-colors sm:min-h-[280px] sm:p-6 lg:min-h-[344px] lg:p-7 ${cardBorder}`}
+      className={`home-module press group relative flex flex-col justify-between overflow-hidden rounded-[28px] border bg-gradient-to-br ${cardWash} via-white/[0.02] to-transparent text-left shadow-soft-elevation transition-colors ${cardBorder}`}
     >
       <span aria-hidden="true" className="pointer-events-none absolute inset-0 grid-veil opacity-30" />
       <span
@@ -131,7 +131,7 @@ const AccessModule: React.FC<AccessModuleProps> = ({
       />
 
       <span className="relative flex items-start justify-between gap-3">
-        <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ring-1 ${ring}`}>
+        <span className={`home-module-icon flex shrink-0 items-center justify-center rounded-2xl ring-1 ${ring}`}>
           {icon}
         </span>
         {tag && (
@@ -141,14 +141,14 @@ const AccessModule: React.FC<AccessModuleProps> = ({
         )}
       </span>
 
-      <span className="relative mt-5 flex flex-col gap-1.5">
+      <span className="home-module-block relative flex flex-col gap-1.5">
         <span className={`text-[10px] font-black uppercase tracking-[0.24em] ${accentText}`}>
           {eyebrow}
         </span>
-        <span className="font-display text-2xl font-black leading-none tracking-tight text-white sm:text-[28px]">
+        <span className="home-module-title font-display font-black tracking-tight text-white">
           {title}
         </span>
-        <span className="mt-1.5 flex flex-col gap-1">
+        <span className="mt-1 flex flex-col gap-0.5">
           {lines.map((line) => (
             <span key={line} className="flex items-center gap-2 text-[11px] text-slate-400 sm:text-xs">
               <span aria-hidden="true" className={`h-1 w-1 shrink-0 rounded-full ${dot}`} />
@@ -158,10 +158,12 @@ const AccessModule: React.FC<AccessModuleProps> = ({
         </span>
       </span>
 
-      <span className="relative mt-5 block">{glyph}</span>
+      <span className="home-module-block relative block">
+        <span className="home-module-glyph block">{glyph}</span>
+      </span>
 
       <span
-        className={`relative mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-black ${ctaClass}`}
+        className={`home-module-block relative inline-flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-black ${ctaClass}`}
       >
         {cta}
         <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
@@ -183,7 +185,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
       aria-label="Inicio"
       className="relative flex-1 min-h-0 overflow-y-auto scroll-touch bg-neon-canvas"
     >
-      <div className="relative mx-auto flex min-h-full w-full max-w-5xl flex-col justify-center px-4 py-10 animate-fade-in sm:px-6 lg:px-8 lg:py-14">
+      <div className="home-shell relative mx-auto min-h-full w-full max-w-5xl px-4 animate-fade-in sm:px-6 lg:px-8">
         {/* Ambiente sutil (estático, sin consumo de GPU en bucle) */}
         <span
           aria-hidden="true"
@@ -197,20 +199,20 @@ export const HomeView: React.FC<HomeViewProps> = ({
         {/* ── Marca + mensaje ── */}
         <header className="relative flex flex-col items-center text-center">
           <div className="flex justify-center">
-            <SkateCoreoBrand size="xl" />
+            <SkateCoreoBrand size="lg" />
           </div>
 
-          <h1 className="mt-5 max-w-[15ch] font-display text-[clamp(1.6rem,6vw,2.75rem)] font-extrabold leading-[1.05] tracking-[-0.03em] text-white sm:max-w-[24ch]">
+          <h1 className="home-title mt-2 max-w-[16ch] font-display font-extrabold text-white sm:max-w-[24ch]">
             Tecnología para crear <span className="text-gradient-brand">el movimiento perfecto</span>.
           </h1>
 
-          <p className="mt-3 text-[11px] font-bold uppercase tracking-[0.34em] text-slate-400 sm:text-xs">
+          <p className="mt-1.5 text-[11px] font-bold uppercase tracking-[0.34em] text-slate-400 sm:text-xs">
             Diseña · Sincroniza · Visualiza
           </p>
         </header>
 
         {/* ── Los dos accesos principales ── */}
-        <div className="relative mt-8 grid grid-cols-1 gap-4 sm:mt-10 md:grid-cols-2 lg:grid-cols-[1.35fr_1fr] lg:gap-5">
+        <div className="relative grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-[1.35fr_1fr]">
           <AccessModule
             tone="cyan"
             tag="Editor principal"
@@ -237,7 +239,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
 
         {/* ── Herramientas complementarias ── */}
-        <div className="relative mt-8 flex flex-col items-center gap-3 sm:mt-10">
+        <div className="relative flex flex-col items-center gap-3">
           <div className="flex items-center gap-3">
             <span aria-hidden="true" className="h-px w-8 bg-white/10" />
             <span className="text-[10px] font-black uppercase tracking-[0.28em] text-slate-500">

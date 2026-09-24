@@ -495,6 +495,103 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   PANTALLA 2 (INICIO) — Composición compacta que cabe en el viewport
+
+   Todo el contenido esencial (título, Pista 2D, Estudio de Audio, Importar
+   y Digitalizar) debe verse SIN scroll vertical. El tamaño se deriva de la
+   ALTURA y el ANCHO reales del viewport (clamp + `vh`), no de breakpoints por
+   dispositivo, de modo que también funciona en monitores bajos (1280×720).
+   ═══════════════════════════════════════════════════════════════════ */
+
+.home-shell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(0.9rem, 2.6vh, 1.75rem);
+  padding-block: clamp(0.9rem, 3.6vh, 2.5rem);
+}
+
+.home-title {
+  font-size: clamp(1.35rem, 2.6vh + 1vw, 2.25rem);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+
+.home-module {
+  /* Se adapta a la altura: en pantallas bajas las tarjetas se compactan. */
+  min-height: clamp(150px, 25vh, 230px);
+  padding: clamp(0.9rem, 2.4vh, 1.6rem);
+}
+
+.home-module-icon {
+  width: clamp(2.35rem, 5.5vh, 3rem);
+  height: clamp(2.35rem, 5.5vh, 3rem);
+}
+
+.home-module-title {
+  font-size: clamp(1.15rem, 2.6vh, 1.75rem);
+  line-height: 1;
+}
+
+/* Contenedor del glifo decorativo: su alto se deriva de la altura disponible. */
+.home-module-glyph {
+  height: clamp(1.6rem, 5.5vh, 3.25rem);
+}
+
+/* Separación interna fluida entre bloques de la tarjeta. */
+.home-module-block {
+  margin-top: clamp(0.45rem, 1.5vh, 1.25rem);
+}
+
+/* Ventanas bajas (portátiles 1280×720 / 1366×768, móviles apaisados). */
+@media (max-height: 780px) {
+  .home-shell {
+    gap: clamp(0.7rem, 2vh, 1.1rem);
+    padding-block: clamp(0.7rem, 2.6vh, 1.35rem);
+  }
+  .home-title {
+    font-size: clamp(1.2rem, 2.2vh + 1vw, 1.7rem);
+  }
+  .home-module {
+    min-height: clamp(132px, 22vh, 180px);
+    padding: clamp(0.7rem, 2vh, 1.1rem);
+  }
+  .home-module-glyph {
+    height: clamp(1.25rem, 4.4vh, 2.35rem);
+  }
+}
+
+/* Ventanas muy bajas (móvil pequeño en vertical / desktop muy bajo). */
+@media (max-height: 640px) {
+  .home-shell {
+    gap: 0.55rem;
+    padding-block: 0.55rem;
+  }
+  .home-title {
+    font-size: clamp(1rem, 2vh + 0.7vw, 1.35rem);
+  }
+  .home-module {
+    min-height: 112px;
+    padding: 0.6rem 0.75rem;
+  }
+  .home-module-icon {
+    width: 2rem;
+    height: 2rem;
+  }
+  .home-module-title {
+    font-size: 1.02rem;
+  }
+  /* Glifo decorativo (no funcional): se oculta en ventanas muy bajas para que
+     las tarjetas y acciones quepan completas sin scroll. */
+  .home-module-glyph {
+    display: none;
+  }
+  .home-module-block {
+    margin-top: 0.4rem;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    PAYPAL SMART BUTTONS — Contención responsive
 
    El SDK inyecta un iframe con ancho intrínseco que puede desbordar tarjetas
