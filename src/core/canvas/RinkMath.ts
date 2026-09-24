@@ -330,14 +330,22 @@ export class RinkMath {
   }
 
   /**
-   * Calcula la posición e inclinación cinemática del patinador en un instante de tiempo
+   * Calcula la posición e inclinación cinemática del patinador en un instante de tiempo.
+   *
+   * Con `options.onlyTracedPaths = true` el patinador sólo recorre los tramos que
+   * el usuario dibujó explícitamente (huella `path` o curva esculpida). En los
+   * tramos sin trazo no inventa un recorrido: permanece en el nodo de origen.
+   * El comportamiento por defecto (sin opciones) mantiene la interpolación
+   * histórica línea-recta para no romper flujos/consumidores existentes.
    */
   public static interpolateSkaterPosition(
     points: ChoreographyPathPoint[],
-    currentTimeMs: number
+    currentTimeMs: number,
+    options?: { onlyTracedPaths?: boolean }
   ): SkaterAvatarState | null {
     if (!points || points.length === 0) return null;
 
+    const onlyTracedPaths = options?.onlyTracedPaths ?? false;
     const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
 
     if (sorted.length === 1 || currentTimeMs <= sorted[0].time_ms) {
@@ -371,10 +379,27 @@ export class RinkMath {
         const timeSpanMs = p1.time_ms - p0.time_ms;
         const t = timeSpanMs > 0 ? (currentTimeMs - p0.time_ms) / timeSpanMs : 0;
 
+        const hasSplinePath = Boolean(p0.path && p0.path.length >= 2);
+        const hasCustomCps =
+          p0.curveShaped === true && p0.cp1x !== undefined && p0.cp2x !== undefined;
+
+        // Sin trazo dibujado no se inventa un recorrido: el patinador espera en p0
+        // hasta que empiece un tramo realmente trazado por el usuario.
+        if (onlyTracedPaths && !hasSplinePath && !hasCustomCps) {
+          return {
+            x: p0.x,
+            y: p0.y,
+            angleRad: 0,
+            speedMps: 0,
+            activeElement: null,
+            activePointIndex: i
+          };
+        }
+
         // Si el segmento posee huella de alta fidelidad, la patinadora recorre única y exclusivamente ese trazo
-        if (p0.path && p0.path.length >= 2) {
-          const splinePt = this.evaluateSplinePath(p0.path, t);
-          const totalDist = this.getPathLength(p0.path);
+        if (hasSplinePath) {
+          const splinePt = this.evaluateSplinePath(p0.path!, t);
+          const totalDist = this.getPathLength(p0.path!);
           const speedMps = timeSpanMs > 0 ? (totalDist / (timeSpanMs / 1000)) : 0;
 
           return {
@@ -388,9 +413,9 @@ export class RinkMath {
         }
 
         // Si el segmento tiene tiradores de control manipulados explícitamente (Drag-to-Curve)
-        if (p0.cp1x !== undefined && p0.cp2x !== undefined) {
-          const cp1 = { x: p0.cp1x, y: p0.cp1y ?? p0.y };
-          const cp2 = { x: p0.cp2x, y: p0.cp2y ?? p1.y };
+        if (hasCustomCps) {
+          const cp1 = { x: p0.cp1x!, y: p0.cp1y ?? p0.y };
+          const cp2 = { x: p0.cp2x!, y: p0.cp2y ?? p1.y };
           const { x, y, angleRad } = this.evaluateCubicBezier(p0, cp1, cp2, p1, t);
 
           const distanceM = Math.hypot(p1.x - p0.x, p1.y - p0.y);

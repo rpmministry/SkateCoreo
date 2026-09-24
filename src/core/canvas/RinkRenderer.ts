@@ -275,8 +275,14 @@ export class RinkRenderer {
   }
 
   /**
-   * Dibuja las curvas de trayectoria Bézier continuas (Glow exterior + línea sólida)
-   * En Fase 1 (Ploteo Libre) NO se trazan líneas automáticas. Solo en Fase 2/3.
+   * Dibuja las curvas de trayectoria (Glow exterior + línea sólida).
+   *
+   * REGLA FUNDAMENTAL (separación Nodos / Trazar):
+   *   · Colocar o mover nodos NUNCA dibuja una línea entre ellos.
+   *   · Un segmento sólo se representa si el usuario lo CREÓ explícitamente con
+   *     la herramienta Trazar: huella de alta fidelidad (`path` = dibujo libre)
+   *     o curva esculpida (drag-to-curve). Sin trazo explícito no hay recorrido.
+   * Las guías reglamentarias de la pista se dibujan en otra capa y no se tocan.
    */
   public static drawTrajectories(
     ctx: CanvasRenderingContext2D,
@@ -324,11 +330,13 @@ export class RinkRenderer {
 
       const isSegmentSelected = options.selectedPointId === p0.id || options.selectedPointId === p1.id;
       const hasSplinePath = Boolean(p0.path && p0.path.length >= 2);
-      // Bézier SOLO si el usuario esculpió la curva (drag-to-curve). Los puntos de
-      // control automáticos de creación (x+2/x+3) NO deben inventar curvas: sin
-      // `curveShaped`, la unión se dibuja como línea recta.
+      // Bézier SOLO si el usuario esculpió la curva (drag-to-curve).
       const hasCustomCps =
         p0.curveShaped === true && p0.cp1x !== undefined && p0.cp2x !== undefined;
+
+      // Sin trazo explícito no hay recorrido: los nodos permanecen independientes
+      // (ninguna conexión automática por el simple hecho de existir 2+ nodos).
+      if (!hasSplinePath && !hasCustomCps) continue;
 
       ctx.save();
       ctx.lineCap = 'round';
@@ -338,19 +346,13 @@ export class RinkRenderer {
         ctx.beginPath();
         if (hasSplinePath) {
           RinkRenderer.traceSplinePath(ctx, p0.path!, metrics);
-        } else if (hasCustomCps) {
+        } else {
           const pt0 = RinkMath.metersToPixels(p0.x, p0.y, metrics);
           const pt1 = RinkMath.metersToPixels(p1.x, p1.y, metrics);
           const cp1 = RinkMath.metersToPixels(p0.cp1x!, p0.cp1y ?? p0.y, metrics);
           const cp2 = RinkMath.metersToPixels(p0.cp2x!, p0.cp2y ?? p1.y, metrics);
           ctx.moveTo(pt0.px, pt0.py);
           ctx.bezierCurveTo(cp1.px, cp1.py, cp2.px, cp2.py, pt1.px, pt1.py);
-        } else {
-          // Si y solo si un segmento es un tap simple (sin puntos intermedios), trazar una línea recta directa
-          const pt0 = RinkMath.metersToPixels(p0.x, p0.y, metrics);
-          const pt1 = RinkMath.metersToPixels(p1.x, p1.y, metrics);
-          ctx.moveTo(pt0.px, pt0.py);
-          ctx.lineTo(pt1.px, pt1.py);
         }
         ctx.stroke();
       };

@@ -246,6 +246,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
   const showRinkGrid = useChoreographyStore((state) => state.showRinkGrid);
   const showReglamentaryGuides = useChoreographyStore((state) => state.showReglamentaryGuides);
   const showCompulsoryFigures = useChoreographyStore((state) => state.showCompulsoryFigures);
+  const showSkaterDuringPlayback = useChoreographyStore((state) => state.showSkaterDuringPlayback);
   const paperTraceOverlay = useChoreographyStore((state) => state.paperTraceOverlay);
   const updatePaperTraceOpacity = useChoreographyStore((state) => state.updatePaperTraceOpacity);
   const togglePaperTraceVisibility = useChoreographyStore((state) => state.togglePaperTraceVisibility);
@@ -470,6 +471,21 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     }
   }, [points.length, phase, setPhase]);
 
+  /**
+   * Contexto de reproducción: se activa al pulsar PLAY y permanece mientras la
+   * reproducción esté pausada (avatar congelado). Se desactiva al DETENER
+   * (el motor reinicia el tiempo a 0) o cuando no hay audio. Así el avatar sólo
+   * existe en el flujo de reproducción, nunca en la edición.
+   */
+  const [playbackEngaged, setPlaybackEngaged] = useState(false);
+  useEffect(() => {
+    if (audio.isPlaying) {
+      if (!playbackEngaged) setPlaybackEngaged(true);
+    } else if (audio.currentTimeMs <= 0) {
+      if (playbackEngaged) setPlaybackEngaged(false);
+    }
+  }, [audio.isPlaying, audio.currentTimeMs, playbackEngaged]);
+
 
   // Viewport Metrics con cálculo adaptativo responsivo (Margen de seguridad para evitar colisión con controles)
   const getMetrics = useCallback((): CanvasViewportMetrics => {
@@ -485,7 +501,8 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     return RinkMath.calculateViewportMetrics(w, h, DEFAULT_RINK_DIMENSIONS, padding);
   }, [containerSize]);
 
-  // Estado cinemático del avatar patinador (activo automáticamente al haber 2 o más puntos)
+  // Estado cinemático para la telemetría del HUD (sólo lectura de velocidad en
+  // el modo stand-alone). La VISIBILIDAD del avatar se decide en `renderFrame`.
   const isPathGenerated = points.length >= 2;
   const skaterState = isPathGenerated ? RinkMath.interpolateSkaterPosition(points, audio.currentTimeMs) : null;
 
@@ -546,8 +563,20 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     const currentFullTrail = useChoreographyStore.getState().showFullTrailOverride;
 
     const currentPlayTime = audio.isPlaying ? audioEngine.getCurrentTimeMs() : audio.currentTimeMs;
-    const currentAvatar = currentPoints.length >= 2
-      ? RinkMath.interpolateSkaterPosition(currentPoints, currentPlayTime)
+
+    // ¿Existe algún tramo realmente trazado por el usuario? Sin trazo no hay
+    // recorrido: no se dibuja avatar (nunca se inventa una ruta entre nodos).
+    const hasTracedPath = currentPoints.some(
+      (p) =>
+        Boolean(p.path && p.path.length >= 2) ||
+        (p.curveShaped === true && p.cp1x !== undefined && p.cp2x !== undefined)
+    );
+
+    // El patinador sólo aparece durante la reproducción, si el usuario lo
+    // permite y hay un trazado que seguir. En edición (o sin trazo) queda oculto.
+    const showSkater = showSkaterDuringPlayback && playbackEngaged && hasTracedPath;
+    const currentAvatar = showSkater
+      ? RinkMath.interpolateSkaterPosition(currentPoints, currentPlayTime, { onlyTracedPaths: true })
       : null;
 
     // `try/finally` mantiene SIEMPRE equilibrada la pila de estados del contexto:
@@ -570,7 +599,9 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
           dragTargetRef.current?.type === 'point' ? dragTargetRef.current.targetId : null,
         isPathGenerated: currentPoints.length >= 2,
         phase,
-        isPlaying: audio.isPlaying,
+        // Durante reproducción con avatar oculto se dibuja el trazado estático
+        // completo (no la estela dinámica), para "sólo trazado".
+        isPlaying: audio.isPlaying && showSkater,
         showFullTrailOverride: currentFullTrail,
         currentTimeMs: currentPlayTime,
         avatar: currentAvatar,
@@ -651,7 +682,8 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       RinkRenderer.drawTechnicalElements(ctx, metrics, currentPoints, elements);
 
       // Capa 6: AVATAR CINEMÁTICO DEL PATINADOR/A (CAPA SUPERIOR)
-      if (currentPoints.length >= 2 && currentAvatar) {
+      // Se dibuja sólo si procede (reproducción + preferencia + trazado real).
+      if (currentAvatar) {
         RinkRenderer.drawSkaterAvatar(ctx, metrics, currentAvatar, skaterGender);
       }
 
@@ -713,7 +745,9 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     audio.isPlaying,
     audio.currentTimeMs,
     elements,
-    skaterGender
+    skaterGender,
+    playbackEngaged,
+    showSkaterDuringPlayback,
   ]);
 
   // Loop de Renderizado Fluido a 60fps con requestAnimationFrame durante reproducción
@@ -791,6 +825,14 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     pointerDownPosRef.current = { x: e.clientX, y: e.clientY };
     wasNodeSelectedRef.current = false;
     dragGrabOffsetRef.current = null;
+
+    // Cualquier interacción de edición sobre la pista saca del contexto de
+    // reproducción: el avatar (congelado tras PAUSE) desaparece para no estorbar
+    // mientras se colocan/mueven nodos o se dibuja el trazado. Se lee el estado
+    // real del motor para no depender de un closure obsoleto.
+    if (!audioEngine.getState().isPlaying) {
+      setPlaybackEngaged(false);
+    }
 
     // Si ya hay otro puntero activo, este es un gesto de 2 dedos (zoom/pan):
     // no se inicia ni arrastre de nodo ni trazado, la cámara toma el control.

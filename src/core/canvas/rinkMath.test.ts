@@ -130,6 +130,38 @@ function runRinkMathTests() {
   const avatarTapMid = RinkMath.interpolateSkaterPosition(tapPoints, 1000);
   assert(avatarTapMid !== null && avatarTapMid.x === 20 && avatarTapMid.y === 15, 'Tap simple avanza exactamente en el punto medio de la recta (20, 15)');
 
+  // 11. Separación Nodos / Trazar: el patinador NO inventa recorrido entre nodos
+  // sin trazo cuando se usa `onlyTracedPaths` (modo reproducción de la Pista 2D).
+  const untracedPoints: ChoreographyPathPoint[] = [
+    { id: 'u1', x: 10, y: 10, time_ms: 0 },
+    { id: 'u2', x: 40, y: 20, time_ms: 4000 }
+  ];
+  const holdMid = RinkMath.interpolateSkaterPosition(untracedPoints, 2000, { onlyTracedPaths: true });
+  assert(
+    holdMid !== null && holdMid.x === 10 && holdMid.y === 10,
+    'Sin trazo dibujado el patinador permanece en el nodo (colocar nodos no crea recorrido)'
+  );
+
+  const tracedPoints: ChoreographyPathPoint[] = [
+    {
+      id: 't1',
+      x: 10,
+      y: 10,
+      time_ms: 0,
+      path: [
+        { x: 10, y: 10 },
+        { x: 25, y: 30 },
+        { x: 40, y: 10 }
+      ]
+    },
+    { id: 't2', x: 40, y: 10, time_ms: 4000 }
+  ];
+  const tracedMid = RinkMath.interpolateSkaterPosition(tracedPoints, 2000, { onlyTracedPaths: true });
+  assert(
+    tracedMid !== null && Math.abs(tracedMid.x - 25) < 0.1 && Math.abs(tracedMid.y - 30) < 0.1,
+    'Con trazo dibujado el patinador recorre la trayectoria real (vértice intermedio)'
+  );
+
   console.log(`\nResultado Módulo 2: ${passed}/${total} pruebas pasadas con éxito.\n`);
 }
 

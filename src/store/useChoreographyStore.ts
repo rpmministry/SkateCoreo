@@ -20,6 +20,12 @@ export interface ChoreographyStoreState {
   showRinkGrid: boolean;
   showReglamentaryGuides: boolean;
   showCompulsoryFigures: boolean;
+  /**
+   * Preferencia del usuario: mostrar la patinadora/patinador durante la
+   * reproducción. `false` = reproducir sólo el trazado, sin avatar.
+   * Durante la edición el avatar siempre permanece oculto.
+   */
+  showSkaterDuringPlayback: boolean;
   paperTraceOverlay: { imageUrl: string; opacity: number; visible: boolean } | null;
   history: ChoreographyPoint[][];
 
@@ -39,6 +45,7 @@ export interface ChoreographyStoreState {
   setShowRinkGrid: (show: boolean) => void;
   setShowReglamentaryGuides: (show: boolean) => void;
   setShowCompulsoryFigures: (show: boolean) => void;
+  setShowSkaterDuringPlayback: (show: boolean) => void;
   setPaperTraceOverlay: (overlay: { imageUrl: string; opacity: number; visible: boolean } | null) => void;
   updatePaperTraceOpacity: (opacity: number) => void;
   togglePaperTraceVisibility: () => void;
@@ -203,6 +210,7 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
   showRinkGrid: true,
   showReglamentaryGuides: true,
   showCompulsoryFigures: false,
+  showSkaterDuringPlayback: true,
   paperTraceOverlay: null,
   history: [],
 
@@ -238,6 +246,8 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
   setShowReglamentaryGuides: (show) => set({ showReglamentaryGuides: show }),
 
   setShowCompulsoryFigures: (show) => set({ showCompulsoryFigures: show }),
+
+  setShowSkaterDuringPlayback: (show) => set({ showSkaterDuringPlayback: show }),
 
   setPaperTraceOverlay: (overlay) => set({ paperTraceOverlay: overlay }),
 

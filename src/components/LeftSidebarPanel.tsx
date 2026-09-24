@@ -18,6 +18,7 @@ import {
   Compass,
   CircleDot,
   Camera,
+  Footprints,
   FileDown,
   CheckCircle2,
 } from 'lucide-react';
@@ -87,6 +88,8 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
   const setShowReglamentaryGuides = useChoreographyStore((s) => s.setShowReglamentaryGuides);
   const showCompulsoryFigures = useChoreographyStore((s) => s.showCompulsoryFigures);
   const setShowCompulsoryFigures = useChoreographyStore((s) => s.setShowCompulsoryFigures);
+  const showSkaterDuringPlayback = useChoreographyStore((s) => s.showSkaterDuringPlayback);
+  const setShowSkaterDuringPlayback = useChoreographyStore((s) => s.setShowSkaterDuringPlayback);
   const paperTraceOverlay = useChoreographyStore((s) => s.paperTraceOverlay);
   const clearPaperTraceOverlay = useChoreographyStore((s) => s.clearPaperTraceOverlay);
   const history = useChoreographyStore((s) => s.history);
@@ -518,6 +521,15 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
               title="Círculos oficiales de Figuras Obligatorias (World Skate)"
             />
           </div>
+
+          {/* Reproducción: elegir entre patinador + trazado, o sólo trazado. */}
+          <ToggleButton
+            icon={<Footprints className="w-3 h-3" />}
+            label="Patinador en reproducción"
+            active={showSkaterDuringPlayback}
+            onClick={() => setShowSkaterDuringPlayback(!showSkaterDuringPlayback)}
+            title="Durante PLAY: mostrar al patinador siguiendo el trazado. Desactivado: se reproduce sólo el trazado, sin patinador."
+          />
         </section>
 
         {/* ═══ Paper-to-Digital Ecosystem ═══════════════════ */}
