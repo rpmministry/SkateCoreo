@@ -614,12 +614,10 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
             return (
               <div
                 key={point.id}
-                className="absolute top-0 bottom-0 pointer-events-auto flex flex-col items-center select-none group/pin cursor-grab active:cursor-grabbing"
+                className="absolute top-0 bottom-0 pointer-events-auto flex flex-col items-center select-none group/pin cursor-grab active:cursor-grabbing w-11 sm:w-9"
                 style={{
                   left: `${pinLeftPx}px`,
                   transform: 'translateX(-50%)',
-                  width: '36px',
-                  maxWidth: '36px',
                   flexShrink: 0,
                   zIndex: isDragged ? 40 : (isSelected ? 30 : 20),
                   touchAction: 'none',
@@ -634,7 +632,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
                 {/* Floating Timestamp Badge (Visible en Selección, Arrastre o Hover) */}
                 {(isSelected || isDragged || isHovered) && (
                   <div
-                    className="absolute top-[38px] px-2 py-0.5 rounded bg-slate-950/95 border text-white text-[10px] font-bold font-mono shadow-2xl whitespace-nowrap pointer-events-none flex items-center gap-1 z-50 animate-in fade-in zoom-in-95 duration-150"
+                    className="absolute top-[30px] sm:top-[38px] px-2 py-0.5 rounded bg-slate-950/95 border text-white text-[10px] font-bold font-mono shadow-2xl whitespace-nowrap pointer-events-none flex items-center gap-1 z-50 animate-in fade-in zoom-in-95 duration-150"
                     style={{
                       borderColor: theme.stroke,
                       boxShadow: `0 0 12px ${theme.glow}`,
@@ -651,10 +649,12 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
                   </div>
                 )}
 
-                {/* Cabeza del Marcador Táctil (Tamaño Fijo Estricto 36x36px: CERO Deformación Ovalada) */}
+                {/* Cabeza del Marcador: compacta y responsive (28px en móvil,
+                    36px en ≥sm) para NO desbordar el visor en pantallas bajas.
+                    La zona táctil real (w-11 = 44px) la aporta el contenedor. */}
                 <div
                   className={`
-                    w-[36px] h-[36px] max-w-[36px] max-h-[36px] rounded-full shrink-0
+                    w-7 h-7 sm:w-9 sm:h-9 rounded-full shrink-0
                     bg-slate-950 flex items-center justify-center
                     border-2 select-none transition-transform duration-100 ease-out
                     ${isDragged 
@@ -662,10 +662,6 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
                       : (isSelected ? 'scale-105 shadow-xl ring-1 ring-white/20' : 'shadow-lg')}
                   `}
                   style={{
-                    width: '36px',
-                    height: '36px',
-                    maxWidth: '36px',
-                    maxHeight: '36px',
                     flexShrink: 0,
                     borderColor: theme.stroke,
                     boxShadow: isDragged 
@@ -674,14 +670,14 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
                   }}
                   title={`Nodo #${nodeNum}: ${(point.timestamp / 1000).toFixed(1)}s. Arrastra para sincronizar con la música.`}
                 >
-                  <span className="text-xs font-black font-mono text-white leading-none tracking-tight">
+                  <span className="text-[10px] sm:text-xs font-black font-mono text-white leading-none tracking-tight">
                     {nodeNum}
                   </span>
                 </div>
 
                 {/* Tallo Scrubber Vertical que atraviesa la onda */}
                 <div
-                  className="w-0.5 flex-1 min-h-[10px] transition-opacity duration-150"
+                  className="w-0.5 flex-1 min-h-[6px] transition-opacity duration-150"
                   style={{
                     backgroundColor: theme.stroke,
                     opacity: isDragged ? 1 : (isSelected ? 0.9 : 0.4),

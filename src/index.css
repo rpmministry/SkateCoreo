@@ -410,8 +410,11 @@ body {
 
 .audio-dock {
   flex: 0 0 auto;
-  max-height: clamp(112px, 30vh, 188px);
-  max-height: clamp(112px, 30dvh, 188px);
+  /* Altura ADAPTABLE al espacio vertical disponible: en teléfonos altos el
+     visor de audio crece hacia arriba (más waveform + nodos contenidos) sin que
+     la Pista 2D (que conserva su altura mínima) pierda protagonismo. */
+  max-height: clamp(120px, 26vh, 210px);
+  max-height: clamp(120px, 26dvh, 210px);
   overflow: hidden;
 }
 
@@ -428,10 +431,18 @@ body {
   }
 }
 
-/* Alturas amplias (teléfonos Pro/Pro Max y tablet vertical): la pista crece. */
+/* Alturas amplias (teléfonos Pro/Pro Max y tablet vertical): el visor de audio
+   aprovecha el espacio extra para que waveform y nodos respiren. */
+@media (min-height: 780px) {
+  .audio-dock {
+    max-height: clamp(150px, 28vh, 230px);
+    max-height: clamp(150px, 28dvh, 230px);
+  }
+}
 @media (min-height: 860px) {
   .audio-dock {
-    max-height: clamp(132px, 24dvh, 188px);
+    max-height: clamp(170px, 26vh, 252px);
+    max-height: clamp(170px, 26dvh, 252px);
   }
 }
 
