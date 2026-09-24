@@ -1,42 +1,53 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { RotateCw } from 'lucide-react';
 import { shouldShowRotateScreen } from '../../utils/orientation';
+import type { OrientationSnapshot } from '../../utils/orientation';
 
 /**
  * OrientationGuard — única fuente de verdad de orientación de SkateCoreo.
  *
- * En teléfonos/tablets (táctil, viewport pequeño) en vertical NO se monta la app:
- * se muestra "Gira tu dispositivo". Así el lienzo, el audio y las herramientas no
- * llegan a inicializarse en una orientación no soportada.
+ * Estrategia portrait-first: en teléfonos/tablets (táctil, viewport pequeño) la
+ * app se usa EXCLUSIVAMENTE en vertical. Si el dispositivo gira a horizontal se
+ * superpone el aviso "Gira tu dispositivo" y se pide volver a vertical.
  *
  * En escritorio nunca bloquea. Si el navegador permite `screen.orientation.lock`,
- * se intenta fijar horizontal; si no, se ignora silenciosamente.
+ * se intenta fijar vertical; si no, se ignora silenciosamente (sin hacks
+ * frágiles). La app permanece SIEMPRE montada: en la orientación no soportada
+ * solo se oculta visualmente para no destruir el estado.
  */
 
-function readSnapshot(): { width: number; height: number; coarsePointer: boolean } {
-  const coarsePointer =
-    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
-      ? window.matchMedia('(pointer: coarse)').matches
-      : false;
+function readSnapshot(): OrientationSnapshot {
+  const hasMatchMedia =
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function';
+  // La orientación se lee de `matchMedia` (física), NO del aspecto width/height:
+  // al abrir el teclado virtual el alto del viewport se encoge y el aspecto
+  // podría parecer horizontal aunque el dispositivo siga en vertical.
+  const landscape = hasMatchMedia
+    ? window.matchMedia('(orientation: landscape)').matches
+    : false;
+  const coarsePointer = hasMatchMedia
+    ? window.matchMedia('(pointer: coarse)').matches
+    : false;
   return {
     width: typeof window !== 'undefined' ? window.innerWidth : 0,
     height: typeof window !== 'undefined' ? window.innerHeight : 0,
     coarsePointer,
+    landscape,
   };
 }
 
-/** Intenta bloquear la orientación en horizontal (mejor esfuerzo, nunca lanza). */
-function tryLockLandscape(): void {
+/** Intenta bloquear la orientación en vertical (mejor esfuerzo, nunca lanza). */
+function tryLockPortrait(): void {
   const orientation = (screen as unknown as { orientation?: { lock?: (o: string) => Promise<void> } })
     .orientation;
   if (orientation && typeof orientation.lock === 'function') {
-    orientation.lock('landscape').catch(() => {
+    orientation.lock('portrait').catch(() => {
       /* El navegador puede exigir pantalla completa o gesto: se ignora. */
     });
   }
 }
 
-export function useOrientationGuard(): { blocked: boolean; requestLandscapeLock: () => void } {
+export function useOrientationGuard(): { blocked: boolean; requestPortraitLock: () => void } {
   const [blocked, setBlocked] = useState(() =>
     typeof window === 'undefined' ? false : shouldShowRotateScreen(readSnapshot())
   );
@@ -53,22 +64,30 @@ export function useOrientationGuard(): { blocked: boolean; requestLandscapeLock:
       typeof window.matchMedia === 'function' ? window.matchMedia('(pointer: coarse)') : null;
     coarseQuery?.addEventListener?.('change', update);
 
+    // Reacciona a la orientación física real (independiente del teclado virtual).
+    const orientationQuery =
+      typeof window.matchMedia === 'function'
+        ? window.matchMedia('(orientation: landscape)')
+        : null;
+    orientationQuery?.addEventListener?.('change', update);
+
     // Intento de bloqueo inicial (mejor esfuerzo).
-    tryLockLandscape();
+    tryLockPortrait();
 
     return () => {
       window.removeEventListener('resize', update);
       window.removeEventListener('orientationchange', update);
       window.removeEventListener('pageshow', update);
       coarseQuery?.removeEventListener?.('change', update);
+      orientationQuery?.removeEventListener?.('change', update);
     };
   }, []);
 
-  const requestLandscapeLock = useCallback(() => {
-    tryLockLandscape();
+  const requestPortraitLock = useCallback(() => {
+    tryLockPortrait();
   }, []);
 
-  return { blocked, requestLandscapeLock };
+  return { blocked, requestPortraitLock };
 }
 
 interface OrientationGateProps {
@@ -76,12 +95,11 @@ interface OrientationGateProps {
 }
 
 export const OrientationGate: React.FC<OrientationGateProps> = ({ children }) => {
-  const { blocked, requestLandscapeLock } = useOrientationGuard();
+  const { blocked, requestPortraitLock } = useOrientationGuard();
 
-  // IMPORTANTE: la app SIEMPRE permanece montada. En vertical solo se oculta
-  // visualmente (visibility:hidden) y se superpone el aviso. Antes se desmontaba
-  // <App/>, lo que destruía el estado (activeView volvía a 'home') al abrir la
-  // cámara del móvil y volver. Mantenerla montada conserva el estado.
+  // IMPORTANTE: la app SIEMPRE permanece montada. En la orientación no soportada
+  // (horizontal en móvil) solo se oculta visualmente (visibility:hidden) y se
+  // superpone el aviso. Mantenerla montada conserva el estado (activeView, etc.).
   return (
     <>
       <div
@@ -107,16 +125,17 @@ export const OrientationGate: React.FC<OrientationGateProps> = ({ children }) =>
           <div className="max-w-sm space-y-2 px-6">
             <h1 className="text-xl font-black tracking-wide text-white">Gira tu dispositivo</h1>
             <p className="text-sm leading-relaxed text-slate-400">
-              SkateCoreo está diseñado para trabajar con la pista en orientación horizontal.
+              SkateCoreo está diseñado para trabajar en vertical. Vuelve a colocar el
+              dispositivo en posición vertical para continuar.
             </p>
           </div>
 
           <button
             type="button"
-            onClick={requestLandscapeLock}
+            onClick={requestPortraitLock}
             className="interactive-tap rounded-2xl border border-cyan/40 bg-cyan/15 px-5 py-2.5 text-xs font-black uppercase tracking-wide text-cyan transition-colors hover:bg-cyan/25"
           >
-            Fijar horizontal
+            Fijar vertical
           </button>
         </div>
       )}

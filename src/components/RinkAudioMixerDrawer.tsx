@@ -21,8 +21,9 @@ interface RinkAudioMixerDrawerProps {
 /**
  * RinkAudioMixerDrawer — Menú de Mezcla Responsivo para la Pista 2D
  * 
- * - Mobile Portrait: Bottom Sheet ergonómico deslizable desde la parte inferior con safe-area insets.
- * - Mobile Landscape / Desktop: Sidebar Drawer lateral deslizable desde el borde derecho.
+ * - Mobile / Tablet (< lg, incluido portrait): Bottom Sheet ergonómico deslizable
+ *   desde la parte inferior con safe-area insets.
+ * - Desktop (lg+): Sidebar Drawer lateral deslizable desde el borde derecho.
  * - Estricto cumplimiento de accesibilidad: Hitboxes de 44x44px en todos los controles interactivos.
  * - Canales independientes: Música Master, Voces Guía (Cues) y Metrónomo.
  */
@@ -77,7 +78,7 @@ export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex flex-col justify-end sm:flex-row sm:justify-end bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex flex-col justify-end lg:flex-row lg:justify-end bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -89,12 +90,12 @@ export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
         - Landscape / Desktop: Sidebar Drawer (sm:h-full sm:w-96 sm:rounded-l-3xl sm:rounded-tr-none)
       */}
       <div
-        className="w-full sm:w-96 max-h-[85vh] sm:max-h-full sm:h-full bg-zinc-950/95 border-t sm:border-t-0 sm:border-l border-white/15 rounded-t-3xl sm:rounded-t-none sm:rounded-l-3xl shadow-2xl flex flex-col p-5 pb-8 sm:p-6 backdrop-blur-xl animate-in slide-in-from-bottom sm:slide-in-from-right duration-250 select-none overflow-y-auto"
+        className="w-full lg:w-96 max-h-[85vh] lg:max-h-full lg:h-full bg-zinc-950/95 border-t lg:border-t-0 lg:border-l border-white/15 rounded-t-3xl lg:rounded-t-none lg:rounded-l-3xl shadow-2xl flex flex-col p-5 pb-8 lg:p-6 backdrop-blur-xl animate-in slide-in-from-bottom lg:slide-in-from-right duration-250 select-none overflow-y-auto"
         style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom, 2rem))' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Tirador visual de arrastre exclusivo de móvil portrait */}
-        <div className="w-12 h-1.5 bg-white/25 rounded-full mx-auto mb-4 sm:hidden shrink-0" />
+        {/* Tirador visual de arrastre exclusivo del bottom sheet móvil/tablet */}
+        <div className="w-12 h-1.5 bg-white/25 rounded-full mx-auto mb-4 lg:hidden shrink-0" />
 
         {/* Cabecera del Mezclador */}
         <div className="flex items-center justify-between pb-4 border-b border-white/10 shrink-0">

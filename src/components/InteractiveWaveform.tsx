@@ -474,14 +474,14 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
   return (
     <div
       ref={containerRef}
-      className="w-full h-full bg-surface-canvas text-text-primary px-3 sm:px-4 py-1 landscape:py-0.5 flex flex-col justify-between select-none relative overflow-hidden timeline-safe-zone"
+      className="w-full h-full bg-surface-canvas text-text-primary px-3 sm:px-4 py-1 flex flex-col justify-between select-none relative overflow-hidden timeline-safe-zone"
     >
       {/* ── Cabecera del Waveform: identidad de pista + zoom + mezcla ──
           El tiempo y la duración viven en el transporte único (RinkAudioPlayer)
           para eliminar telemetría duplicada en pantalla.
           Todas las áreas táctiles respetan el mínimo de 48x48px. */}
-      <div className="flex shrink-0 items-center justify-between gap-2 text-xs landscape:h-6 landscape:justify-end">
-        <div className="flex min-w-0 items-center gap-2 landscape:hidden">
+      <div className="flex shrink-0 items-center justify-between gap-2 text-xs">
+        <div className="flex min-w-0 items-center gap-2">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-subtle border border-border-subtle bg-surface-hover text-text-secondary">
             <Music className="h-3.5 w-3.5" />
           </div>
@@ -500,7 +500,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
           <button
             type="button"
             onClick={() => setIsMiniMixerOpen((prev) => !prev)}
-            className={`min-h-touch min-w-touch landscape:h-9 landscape:min-h-0 landscape:min-w-0 rounded-subtle flex items-center justify-center gap-1.5 border px-2.5 landscape:px-2 font-sans text-[11px] font-bold press lg:px-3 ${
+            className={`min-h-touch min-w-touch rounded-subtle flex items-center justify-center gap-1.5 border px-2.5 font-sans text-[11px] font-bold press lg:px-3 ${
               isMiniMixerOpen
                 ? 'border-cyan/40 bg-cyan/20 text-cyan shadow-sm shadow-cyan/20'
                 : 'border-border-subtle bg-surface-hover/80 text-text-secondary hover:bg-surface-active hover:text-text-primary'
@@ -521,7 +521,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
               type="button"
               onClick={() => zoomOut()}
               disabled={zoom <= 1.01}
-              className="flex min-h-touch min-w-touch landscape:h-9 landscape:w-9 landscape:min-h-0 landscape:min-w-0 items-center justify-center rounded text-text-secondary press hover:bg-surface-active hover:text-text-primary disabled:pointer-events-none disabled:opacity-25"
+              className="flex min-h-touch min-w-touch items-center justify-center rounded text-text-secondary press hover:bg-surface-active hover:text-text-primary disabled:pointer-events-none disabled:opacity-25"
               title="Alejar (Ctrl + Rueda abajo)"
               aria-label="Alejar"
             >
@@ -539,7 +539,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
               type="button"
               onClick={() => zoomIn()}
               disabled={zoom >= 34.9}
-              className="flex min-h-touch min-w-touch landscape:h-9 landscape:w-9 landscape:min-h-0 landscape:min-w-0 items-center justify-center rounded text-text-secondary press hover:bg-surface-active hover:text-text-primary disabled:pointer-events-none disabled:opacity-25"
+              className="flex min-h-touch min-w-touch items-center justify-center rounded text-text-secondary press hover:bg-surface-active hover:text-text-primary disabled:pointer-events-none disabled:opacity-25"
               title="Acercar (Ctrl + Rueda arriba o Pellizco)"
               aria-label="Acercar"
             >
@@ -550,7 +550,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
               <button
                 type="button"
                 onClick={resetZoom}
-                className="flex min-h-touch min-w-touch landscape:h-9 landscape:min-h-0 landscape:min-w-0 items-center justify-center gap-0.5 rounded bg-accent/15 px-1 text-[9px] font-bold text-accent press hover:bg-accent/25"
+                className="flex min-h-touch min-w-touch items-center justify-center gap-0.5 rounded bg-accent/15 px-1 text-[9px] font-bold text-accent press hover:bg-accent/25"
                 title="Restablecer a vista completa (1x)"
                 aria-label="Restablecer zoom"
               >
@@ -565,7 +565,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
       {/* ── Contenedor del Track Desplazable (Scroll & Paneo Nativo Horizontal) ── */}
       <div
         ref={trackRef}
-        className="relative w-full flex-1 min-h-0 overflow-x-auto overflow-y-hidden rounded-subtle border border-border-subtle bg-surface-card group mt-1 landscape:mt-0.5"
+        className="relative w-full flex-1 min-h-0 overflow-x-auto overflow-y-hidden rounded-subtle border border-border-subtle bg-surface-card group mt-1"
         style={{
           overflowX: 'auto',
           overflowY: 'hidden',

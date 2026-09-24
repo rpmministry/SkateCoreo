@@ -311,9 +311,9 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
         dinámico (dvh) con áreas seguras, header y footer fijos y SOLO el cuerpo
         con scroll interno. Nada se sale de la pantalla ni tapa el escaneo.
       */}
-      <div className="flex h-full max-h-full w-full max-w-5xl flex-col overflow-hidden border-0 border-cyan/30 bg-[#0D1322] text-slate-100 shadow-2xl pt-safe pb-safe sm:h-[90dvh] sm:max-h-[90dvh] sm:rounded-3xl sm:border landscape:h-full landscape:max-h-full landscape:rounded-none landscape:border-0">
+      <div className="flex h-full max-h-full w-full max-w-5xl flex-col overflow-hidden border-0 border-cyan/30 bg-[#0D1322] text-slate-100 shadow-2xl pt-safe pb-safe sm:h-[90dvh] sm:max-h-[90dvh] sm:rounded-3xl sm:border">
         {/* ── Modal Header ── */}
-        <div className="flex h-14 shrink-0 items-center justify-between border-b border-white/10 bg-slate-950/70 px-4 sm:px-5 landscape:h-11 landscape:px-3">
+        <div className="flex h-14 shrink-0 items-center justify-between border-b border-white/10 bg-slate-950/70 px-4 sm:px-5">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-cyan/15 text-cyan flex items-center justify-center border border-cyan/30">
               <Camera className="w-4 h-4" />
@@ -341,7 +341,7 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
         </div>
 
         {/* ── Modal Body ── */}
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 sm:p-4 lg:overflow-hidden landscape:p-2">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 sm:p-4 lg:overflow-hidden">
           {prepareOpen && imageSrc && corners ? (
             <ImagePrepareStage
               imageSrc={imageSrc}
@@ -350,10 +350,10 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
               onConfirm={handleConfirmDigitalization}
             />
           ) : (
-            <div className="grid min-h-0 grid-cols-1 gap-3 sm:gap-4 lg:h-full lg:grid-cols-[minmax(0,1fr)_300px] landscape:h-full landscape:min-h-0 landscape:grid-cols-[minmax(0,1fr)_minmax(200px,42%)]">
+            <div className="grid min-h-0 grid-cols-1 gap-3 sm:gap-4 lg:h-full lg:grid-cols-[minmax(0,1fr)_300px]">
 
               {/* ░░ COLUMNA 1: ÁREA DE LA HOJA A4 (sin textos superpuestos) ░░ */}
-              <div className="flex min-h-[42dvh] flex-col sm:min-h-[48dvh] lg:min-h-0 landscape:min-h-0">
+              <div className="flex min-h-[42dvh] flex-col sm:min-h-[48dvh] lg:min-h-0">
                 {!imageSrc ? (
                   /* Pantalla inicial de selección de imagen */
                   <div className="flex flex-1 min-h-[350px] flex-col items-center justify-center gap-4 rounded-3xl border-2 border-dashed border-white/15 bg-slate-950/40 p-6 text-center">
@@ -402,7 +402,7 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
                   </div>
                 ) : (
                   /* Visualizador y Calibrador de Esquinas (imagen aislada) */
-                  <div className="relative flex min-h-[30dvh] flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950 lg:min-h-0 landscape:h-full landscape:min-h-0 landscape:max-h-full">
+                  <div className="relative flex min-h-[30dvh] flex-1 flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950 lg:min-h-0">
                     {corners && (
                       <ErrorBoundary
                         inline
@@ -424,7 +424,7 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
               </div>
 
               {/* ░░ COLUMNA 2: PANEL LATERAL (instrucciones, controles y estado) ░░ */}
-              <aside className="flex shrink-0 flex-col gap-3 rounded-2xl border border-white/10 bg-slate-950/95 p-4 lg:min-h-0 lg:overflow-y-auto landscape:min-h-0 landscape:shrink landscape:overflow-y-auto">
+              <aside className="flex shrink-0 flex-col gap-3 rounded-2xl border border-white/10 bg-slate-950/95 p-4 lg:min-h-0 lg:overflow-y-auto">
                 <h3 className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-cyan">
                   <CheckCircle2 className="h-4 w-4" />
                   Alineación de la hoja
@@ -504,7 +504,7 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
 
         {/* ── Modal Footer: Botones de Acción (solo en la fase de alineación) ── */}
         {!prepareOpen && (imageSrc || paperTraceOverlay) && (
-          <div className="p-4 border-t border-white/10 bg-slate-950/80 flex flex-wrap items-center justify-between gap-3 shrink-0 landscape:p-2 landscape:gap-2">
+          <div className="p-4 border-t border-white/10 bg-slate-950/80 flex flex-wrap items-center justify-between gap-3 shrink-0">
             <div className="flex items-center gap-2">
               <button
                 type="button"

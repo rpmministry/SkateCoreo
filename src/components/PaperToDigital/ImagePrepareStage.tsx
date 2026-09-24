@@ -318,9 +318,9 @@ export const ImagePrepareStage: React.FC<ImagePrepareStageProps> = ({
         : previewUrl;
 
   return (
-    <div className="grid min-h-0 grid-cols-1 gap-3 sm:gap-4 lg:h-full lg:grid-cols-[minmax(0,1fr)_320px] landscape:h-full landscape:min-h-0 landscape:grid-cols-[minmax(0,1fr)_minmax(220px,44%)]">
+    <div className="grid min-h-0 grid-cols-1 gap-3 sm:gap-4 lg:h-full lg:grid-cols-[minmax(0,1fr)_320px]">
       {/* ░░ COLUMNA 1: VISUALIZADOR ░░ */}
-      <div className="flex min-h-[40dvh] flex-col gap-2 lg:min-h-0 landscape:min-h-0">
+      <div className="flex min-h-[40dvh] flex-col gap-2 lg:min-h-0">
         {/* Selector de vista */}
         <div className="flex flex-wrap items-center gap-1.5">
           {([
@@ -359,7 +359,7 @@ export const ImagePrepareStage: React.FC<ImagePrepareStageProps> = ({
         </div>
 
         {/* Lienzo */}
-        <div className="relative flex min-h-[30dvh] flex-1 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-slate-950 lg:min-h-0 landscape:min-h-0">
+        <div className="relative flex min-h-[30dvh] flex-1 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-slate-950 lg:min-h-0">
           {debugError ? (
             <p className="p-6 text-center text-xs text-red-300">{debugError}</p>
           ) : !displayUrl ? (
@@ -444,7 +444,7 @@ export const ImagePrepareStage: React.FC<ImagePrepareStageProps> = ({
       </div>
 
       {/* ░░ COLUMNA 2: CONTROLES ░░ */}
-      <aside className="flex shrink-0 flex-col gap-3 rounded-2xl border border-white/10 bg-slate-950/95 p-4 lg:min-h-0 lg:overflow-y-auto landscape:min-h-0 landscape:shrink landscape:overflow-y-auto">
+      <aside className="flex shrink-0 flex-col gap-3 rounded-2xl border border-white/10 bg-slate-950/95 p-4 lg:min-h-0 lg:overflow-y-auto">
         <h3 className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-cyan">
           <SlidersHorizontal className="h-4 w-4" />
           Preparar imagen para escaneo

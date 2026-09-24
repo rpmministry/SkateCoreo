@@ -78,7 +78,7 @@ interface NavProps {
 export const BottomNav: React.FC<NavProps> = ({ active, onSelect, badges }) => (
   <nav
     aria-label="Navegación principal"
-    className="lg:hidden landscape:hidden shrink-0 z-40 grid grid-cols-5 items-stretch glass-hud border-t border-white/10 nav-safe-bottom pl-safe pr-safe touch-manipulation overscroll-contain"
+    className="lg:hidden shrink-0 z-40 grid grid-cols-5 items-stretch glass-hud border-t border-white/10 nav-safe-bottom pl-safe pr-safe touch-manipulation overscroll-contain"
   >
     {APP_TABS.map((tab) => {
       const Icon = tab.icon;
@@ -118,64 +118,6 @@ export const BottomNav: React.FC<NavProps> = ({ active, onSelect, badges }) => (
         </button>
       );
     })}
-  </nav>
-);
-
-/* ────────────────────────────────────────────────────────────────
-   SIDEBAR COMPACTA — móvil/tablet en horizontal (landscape < lg)
-   Colapsa marca + navegación a la izquierda liberando el ancho central.
-   ──────────────────────────────────────────────────────────────── */
-interface LandscapeRailProps extends NavProps {
-  /** Herramientas contextuales de la vista activa (ej. modo de trazado). */
-  children?: React.ReactNode;
-}
-
-export const LandscapeNavRail: React.FC<LandscapeRailProps> = ({
-  active,
-  onSelect,
-  badges,
-  children,
-}) => (
-  <nav
-    aria-label="Navegación lateral compacta"
-    className="rail-landscape-only min-w-[72px] shrink-0 flex-col items-center gap-1.5 glass-panel border-r border-white/10 py-2 pl-safe pr-1 scroll-touch overflow-y-auto touch-manipulation overscroll-contain"
-  >
-    {APP_TABS.map((tab) => {
-      const Icon = tab.icon;
-      const isActive = active === tab.id;
-      const badge = badges?.[tab.id] ?? 0;
-      return (
-        <button
-          key={tab.id}
-          type="button"
-          onClick={() => onSelect(tab.id)}
-          aria-current={isActive ? 'page' : undefined}
-          aria-label={tab.hint}
-          title={tab.hint}
-          className={[
-            'press relative flex h-12 w-12 shrink-0 flex-col items-center justify-center gap-1 rounded-xl',
-            isActive
-              ? 'bg-cyan/15 text-cyan shadow-glow-cyan ring-1 ring-cyan/40'
-              : 'bg-white/[0.03] text-slate-400 hover:bg-white/[0.07] hover:text-white',
-          ].join(' ')}
-        >
-          <Icon className={`h-[18px] w-[18px] ${isActive ? 'stroke-[2.4]' : 'stroke-[1.9]'}`} />
-          <span className="max-w-[58px] truncate text-[9px] font-bold leading-none">{tab.short}</span>
-          {badge > 0 && (
-            <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-400 px-1 text-[9px] font-black text-slate-950">
-              {badge > 9 ? '9+' : badge}
-            </span>
-          )}
-        </button>
-      );
-    })}
-
-    {children && (
-      <>
-        <span aria-hidden="true" className="my-1 h-px w-8 shrink-0 bg-white/10" />
-        {children}
-      </>
-    )}
   </nav>
 );
 

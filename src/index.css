@@ -130,10 +130,15 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* El contenedor de React hereda la altura segura del documento. */
+/* El contenedor de React hereda la altura segura del documento.
+   Portrait-first: en móvil nunca debe existir scroll horizontal global. Los
+   únicos desplazamientos horizontales permitidos viven dentro de componentes
+   que lo necesitan deliberadamente (p. ej. la timeline/waveform). */
 #root {
   height: 100%;
   width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -390,30 +395,16 @@ body {
 /* ═══════════════════════════════════════════════════════════════════
    AUDIO DOCK — Transporte + Waveform
 
-   Portrait / Desktop: columna (transporte arriba, waveform debajo).
-   Landscape móvil/tablet (< 1024px): FILA horizontal (transporte a la
-   izquierda, waveform a la derecha). Así el dock ocupa poca altura y el
-   lienzo de la Pista 2D —protagonista de la app— conserva el máximo
-   espacio vertical disponible.
+   Portrait-first: SIEMPRE en columna (transporte arriba, waveform debajo),
+   tanto en móvil/tablet como en escritorio. No existe una variante horizontal
+   alternativa: la experiencia vertical es la única soportada en pantallas
+   pequeñas. El dock ocupa poca altura y el lienzo de la Pista 2D —protagonista
+   de la app— conserva el máximo espacio vertical disponible.
    ═══════════════════════════════════════════════════════════════════ */
 
 .landscape-audio-dock {
-  /* Por defecto (portrait / lg): columna con altura proporcional */
   display: flex;
   flex-direction: column;
-}
-
-@media (orientation: landscape) and (max-width: 1023px) {
-  .landscape-audio-dock {
-    flex-direction: row !important;
-    /* Altura adaptable: mínimo 88px (controles + tiempo + waveform + playhead
-       legibles) y máximo 132px (la Pista 2D manda). Se reduce sobre todo por
-       compactación, no aplastando la waveform. */
-    height: clamp(96px, 22dvh, 140px) !important;
-    min-height: 96px !important;
-    max-height: 140px !important;
-    flex: 0 0 auto !important;
-  }
 }
 
 /* Timeline safe zones: portrait mobile only (avoid edge swipe zones) */
@@ -425,33 +416,9 @@ body {
   }
 }
 
-/* Sidebar rail: only visible in landscape mobile/tablet, lo más estrecho posible */
-.rail-landscape-only {
-  display: none;
-}
-@media (orientation: landscape) and (max-width: 1023px) {
-  .rail-landscape-only {
-    display: flex;
-    width: 60px;
-    flex: 0 0 60px;
-  }
-}
-
-/* Compact header: only in landscape mobile/tablet (< 1024px).
-   Desktop is always landscape but needs full 60px header height.
-   Se usa `min-height` (no `height` fijo) para que el padding de área segura
-   superior crezca sin recortar los botones/pestañas de la cabecera. */
-.header-compact {
-}
-@media (orientation: landscape) and (max-width: 1023px) {
-  .header-compact {
-    min-height: 36px !important;
-  }
-  .header-compact-inner {
-    min-height: 36px !important;
-    height: auto !important;
-  }
-}
+/* El antiguo rail lateral (solo landscape móvil) se eliminó: la navegación
+   principal en pantallas pequeñas es la barra inferior (BottomNav), disponible
+   en cualquier orientación. */
 
 /* ═══════════════════════════════════════════════════════════════════
    ACCESSIBILITY — Reduced motion

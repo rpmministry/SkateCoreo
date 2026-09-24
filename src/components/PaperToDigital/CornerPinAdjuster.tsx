@@ -307,7 +307,7 @@ export const CornerPinAdjuster: React.FC<CornerPinAdjusterProps> = ({
         <img
           src={imageSrc}
           alt="Hoja de Coreografía"
-          className="block max-w-full object-contain pointer-events-none rounded-xl max-h-[38dvh] sm:max-h-[48dvh] landscape:max-h-[40dvh] lg:max-h-[68dvh]"
+          className="block max-w-full object-contain pointer-events-none rounded-xl max-h-[38dvh] sm:max-h-[48dvh] lg:max-h-[68dvh]"
         />
 
         {/* Canvas de líneas y pines */}

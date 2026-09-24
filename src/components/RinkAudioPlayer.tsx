@@ -88,8 +88,8 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
       disabled={!hasAudioLoaded}
       aria-pressed={isPlaying}
       className={[
-        size === 'lg' ? 'h-[52px] w-[52px]' : 'h-12 w-12 landscape:h-10 landscape:w-10',
-        'min-w-touch min-h-touch landscape:min-h-0 landscape:min-w-0 shrink-0 rounded-xl flex items-center justify-center press shadow-md disabled:opacity-30 disabled:pointer-events-none',
+        size === 'lg' ? 'h-[52px] w-[52px]' : 'h-12 w-12',
+        'min-w-touch min-h-touch shrink-0 rounded-xl flex items-center justify-center press shadow-md disabled:opacity-30 disabled:pointer-events-none',
         isPlaying
           ? 'bg-amber-400 text-black shadow-amber-400/25'
           : 'bg-cyan text-black shadow-cyan/25 hover:bg-cyan-300',
@@ -111,8 +111,8 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
       {...press(handleStop, { enabled: hasAudioLoaded })}
       disabled={!hasAudioLoaded}
       className={[
-        size === 'lg' ? 'h-[52px] w-[52px]' : 'h-12 w-12 landscape:h-10 landscape:w-10',
-        'min-w-touch min-h-touch landscape:min-h-0 landscape:min-w-0 shrink-0 rounded-xl flex items-center justify-center press text-slate-400 hover:bg-white/10 hover:text-white disabled:opacity-25 disabled:pointer-events-none',
+        size === 'lg' ? 'h-[52px] w-[52px]' : 'h-12 w-12',
+        'min-w-touch min-h-touch shrink-0 rounded-xl flex items-center justify-center press text-slate-400 hover:bg-white/10 hover:text-white disabled:opacity-25 disabled:pointer-events-none',
       ].join(' ')}
       aria-label="Detener y volver a 0:00"
       title="Detener y volver a 0:00"
@@ -128,8 +128,8 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
       {...press(handleRewind, { enabled: hasAudioLoaded })}
       disabled={!hasAudioLoaded}
       className={[
-        size === 'lg' ? 'h-[52px] w-[52px]' : 'h-12 w-12 landscape:h-10 landscape:w-10',
-        'min-w-touch min-h-touch landscape:min-h-0 landscape:min-w-0 shrink-0 rounded-xl flex items-center justify-center press text-slate-400 hover:bg-white/10 hover:text-white disabled:opacity-25 disabled:pointer-events-none',
+        size === 'lg' ? 'h-[52px] w-[52px]' : 'h-12 w-12',
+        'min-w-touch min-h-touch shrink-0 rounded-xl flex items-center justify-center press text-slate-400 hover:bg-white/10 hover:text-white disabled:opacity-25 disabled:pointer-events-none',
       ].join(' ')}
       aria-label="Retroceder al inicio"
       title="Retroceder al inicio"

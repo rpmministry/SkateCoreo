@@ -33,7 +33,6 @@ import { ensureDataOwnership, releaseWorkingSession } from './services/workingSe
 import {
   BottomNav,
   DesktopHeaderNav,
-  LandscapeNavRail,
 } from './components/navigation/AppNav';
 import type { AppTab } from './components/navigation/AppNav';
 
@@ -609,8 +608,8 @@ export function App() {
           Sin `flex-wrap`: una sola fila garantiza cero apiñamiento/superposición.
           ═══════════════════════════════════════════════ */}
       {activeView !== 'studio' && (
-        <header className="relative z-30 shrink-0 glass-hud border-b border-white/10 pt-safe px-safe header-compact">
-          <div className="flex min-h-[54px] header-compact-inner items-center justify-between gap-2 px-2 py-1 sm:px-3 lg:min-h-[60px] lg:px-4">
+        <header className="relative z-30 shrink-0 glass-hud border-b border-white/10 pt-safe px-safe">
+          <div className="flex min-h-[54px] items-center justify-between gap-2 px-2 py-1 sm:px-3 lg:min-h-[60px] lg:px-4">
 
         {/* ── IZQUIERDA: Marca (navega a Inicio) + contexto del atleta ── */}
         <div className="flex min-w-0 items-center gap-2">
@@ -702,11 +701,12 @@ export function App() {
             <span className="hidden md:inline">Cargar Audio</span>
           </button>
 
-          {/* Botón de Salir / Cerrar Sesión (siempre visible en header) */}
+          {/* Botón de Salir / Cerrar Sesión (header en ≥ sm; en móvil vive en el
+              menú de desbordamiento y en el panel de Preparación) */}
           <button
             type="button"
                   onClick={() => { void handleLogout(); }}
-            className="press flex h-12 w-12 min-h-touch min-w-touch items-center justify-center rounded-xl border border-coral/20 bg-coral/[0.06] text-slate-300 hover:bg-coral/15 hover:text-coral"
+            className="press hidden h-12 w-12 min-h-touch min-w-touch items-center justify-center rounded-xl border border-coral/20 bg-coral/[0.06] text-slate-300 hover:bg-coral/15 hover:text-coral sm:flex"
             title="Cerrar sesión y salir de la aplicación"
             aria-label="Cerrar sesión"
           >
@@ -812,25 +812,12 @@ export function App() {
       )}
 
       {/* ═══════════════════════════════════════════════
-          SHELL — Sidebar de navegación + vista activa
+          SHELL — navegación + vista activa
           Inicio (Hero + Acciones) · Estudio DAW · Pista 2D
+          Portrait-first: en móvil/tablet (< lg) la vista es una sola columna;
+          en escritorio (lg+) se mantiene el layout de tres columnas.
           ═══════════════════════════════════════════════ */}
-      <div className="flex-1 min-h-0 flex flex-col landscape:flex-row lg:flex-row overflow-hidden relative">
-
-        {/* ── SIDEBAR COMPACTA: navegación + herramientas (landscape < lg) ── */}
-        {activeView !== 'studio' && (
-          <LandscapeNavRail active={activeTab} onSelect={handleNav} badges={navBadges}>
-            {activeView === 'rink' && (
-              <RinkContextTools
-                layout="rail"
-                onClear={requestClearRink}
-                inspectorOpen={sheetOpen}
-                onToggleInspector={handleToggleInspector}
-                onOpenPaperToDigital={() => setPaperOpen(true)}
-              />
-            )}
-          </LandscapeNavRail>
-        )}
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden relative">
 
         {activeView === 'home' ? (
           <HomeView
@@ -864,7 +851,7 @@ export function App() {
             />
           </div>
         ) : (
-          <div className="flex-1 min-w-0 min-h-0 flex flex-col landscape:flex-row lg:flex-row overflow-hidden relative">
+          <div className="flex-1 min-w-0 min-h-0 flex flex-col lg:flex-row overflow-hidden relative">
             {/* ── DESKTOP LEFT ASIDE (Preparación y Mezcla) ── */}
             <aside className="hidden lg:flex lg:w-[272px] xl:w-[288px] shrink-0 flex-col bg-neon-surface border-r border-white/5 overflow-hidden shadow-soft-elevation">
               <LeftSidebarPanel
@@ -898,14 +885,14 @@ export function App() {
           </div>
 
           {/* ── AUDIO DOCK: Transporte + Waveform ──
-              Portrait / Desktop → columna (transporte arriba, waveform debajo).
-              Landscape móvil/tablet → fila horizontal (transporte a la izquierda,
-              waveform a la derecha). El dock ocupa poca altura y el lienzo de la
-              Pista 2D —protagonista de la app— conserva el máximo espacio vertical. */}
+              Portrait-first: siempre en columna (transporte arriba, waveform
+              debajo), también en móvil/tablet. No hay variante horizontal. El
+              dock ocupa poca altura y el lienzo de la Pista 2D —protagonista de
+              la app— conserva el máximo espacio vertical. */}
           <div className="landscape-audio-dock shrink-0 h-[26%] max-h-[170px] min-h-[104px] border-t border-white/5 pb-safe bg-neon-surface/30">
 
             {/* Transporte compacto (en desktop lo reemplaza el del header) */}
-            <div className="shrink-0 flex items-center border-b border-white/5 bg-neon-surface/60 px-2 py-1.5 pl-safe pr-safe landscape:w-[clamp(128px,22vw,200px)] landscape:border-b-0 landscape:border-r landscape:py-0.5 landscape:px-1.5 lg:hidden">
+            <div className="shrink-0 flex items-center border-b border-white/5 bg-neon-surface/60 px-2 py-1.5 pl-safe pr-safe lg:hidden">
               <RinkAudioPlayer
                 variant="compact"
                 currentTimeMs={currentTimeMs}
@@ -931,44 +918,6 @@ export function App() {
           </div>
         </main>
 
-        {/* ── LANDSCAPE SMALL (<lg): INSPECTOR EN FLUJO (reserva espacio físico) ──
-            No es un overlay: es una columna del layout, de modo que la Pista 2D
-            se reajusta y el inspector nunca tapa nodos ni trayectorias. */}
-        {sheetOpen && (
-          <aside
-            role="dialog"
-            aria-label="Inspector de nodo"
-            className="hidden landscape:flex lg:hidden shrink-0 flex-col w-[clamp(240px,28vw,320px)] max-w-[42vw] bg-neon-surface border-l border-white/5 overflow-hidden shadow-soft-elevation"
-          >
-            <div className="shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-white/5">
-              <span className="text-xs font-black uppercase tracking-widest text-mint truncate-safe">
-                Inspector de Nodo
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setSheetOpen(false);
-                  useChoreographyStore.getState().setSelectedPointId(null);
-                }}
-                className="min-w-touch min-h-touch flex items-center justify-center rounded-2xl text-slate-400 hover:text-white interactive-tap"
-                aria-label="Cerrar inspector"
-              >
-                <X className="w-5 h-5 stroke-[2]" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto overscroll-contain pb-6">
-              <RightInspectorPanel
-                showHeader={false}
-                isMobileModal={true}
-                onClose={() => {
-                  setSheetOpen(false);
-                  useChoreographyStore.getState().setSelectedPointId(null);
-                }}
-              />
-            </div>
-          </aside>
-        )}
-
         {/* ── DESKTOP RIGHT ASIDE (Inspector de Nodo) ── */}
         <aside className="hidden lg:flex lg:w-[272px] xl:w-[288px] shrink-0 flex-col bg-neon-surface border-l border-white/5 overflow-hidden shadow-soft-elevation">
           <RightInspectorPanel onClose={() => useChoreographyStore.getState().setSelectedPointId(null)} />
@@ -976,15 +925,17 @@ export function App() {
 
 
 
-        {/* ── MOBILE INSPECTOR · PORTRAIT (Bottom Sheet) ──
-            En landscape NO se usa: el inspector es una columna en flujo que
-            reserva espacio físico y nunca tapa la Pista 2D (ver más abajo). */}
+        {/* ── MOBILE INSPECTOR · PORTRAIT-FIRST (Bottom Sheet) ──
+            Única presentación del inspector en móvil/tablet (< lg): un sheet
+            deslizable desde abajo que deja la Pista 2D como protagonista y
+            permite cerrarlo para recuperar TODO el espacio. Se abre al
+            seleccionar un nodo o con el botón «Figuras» de la barra de pista. */}
         <div
           role="dialog"
           aria-modal="true"
           aria-label="Inspector de nodo"
           className={[
-            'lg:hidden landscape:hidden fixed z-50 flex flex-col bg-neon-surface shadow-2xl shadow-black/80',
+            'lg:hidden fixed z-50 flex flex-col bg-neon-surface shadow-2xl shadow-black/80',
             'bottom-0 left-0 right-0 rounded-t-3xl border-t border-white/10',
             'transition-transform duration-ui ease-spring',
             sheetOpen ? 'translate-y-0' : 'translate-y-full',
@@ -1004,9 +955,9 @@ export function App() {
           onPointerMove={(e) => e.stopPropagation()}
           onPointerUp={(e) => e.stopPropagation()}
         >
-          {/* Pull Grip Affordance (Portrait Only) */}
+          {/* Pull Grip Affordance */}
           <div
-            className="portrait:flex landscape:hidden shrink-0 justify-center pt-3 pb-1 cursor-pointer"
+            className="flex shrink-0 justify-center pt-3 pb-1 cursor-pointer"
             onClick={() => {
               setSheetOpen(false);
               useChoreographyStore.getState().setSelectedPointId(null);
@@ -1029,8 +980,7 @@ export function App() {
               className="min-w-touch min-h-touch flex items-center justify-center rounded-2xl text-slate-400 hover:text-white interactive-tap"
               aria-label="Cerrar inspector"
             >
-              <ChevronDown className="w-5 h-5 stroke-[2] portrait:block landscape:hidden" />
-              <X className="w-5 h-5 stroke-[2] portrait:hidden landscape:block" />
+              <ChevronDown className="w-5 h-5 stroke-[2]" />
             </button>
           </div>
 
@@ -1067,14 +1017,13 @@ export function App() {
         )}
       </div>
 
-      {/* ── RAIL DE HERRAMIENTAS DE PISTA (portrait móvil/tablet) ── */}
+      {/* ── BARRA DE HERRAMIENTAS DE PISTA (portrait móvil/tablet, < lg) ── */}
       {activeView === 'rink' && (
         <RinkContextTools
           layout="bar"
           onClear={requestClearRink}
           inspectorOpen={sheetOpen}
           onToggleInspector={handleToggleInspector}
-          onOpenPaperToDigital={() => setPaperOpen(true)}
         />
       )}
 
