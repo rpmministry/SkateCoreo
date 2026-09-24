@@ -1565,6 +1565,48 @@ export class AudioEngine {
     }
   }
 
+  public getIsPlaying(): boolean {
+    return this.isPlaying;
+  }
+
+  /**
+   * Sustituye el buffer de reproducción SIN detener el transporte.
+   *
+   * Conserva la posición actual y el estado play/pause, de modo que aplicar un
+   * cambio de mezcla (mute/volumen de una pista del Estudio) es instantáneo y no
+   * reinicia la reproducción, el playhead, el metrónomo ni la Voz Guía.
+   * Un único `sourceNode` re-agendado en el mismo instante del reloj de audio.
+   */
+  public swapAudioBuffer(
+    buffer: AudioBuffer,
+    fileName?: string | null,
+    sourceKind: 'file' | 'studio-mix' = 'studio-mix'
+  ) {
+    const wasPlaying = this.isPlaying;
+    const positionMs = this.getCurrentTimeMs();
+
+    // Corta SOLO la fuente actual (no resetea isPlaying ni cancela pre-roll).
+    this.stopSource();
+
+    this.audioBuffer = buffer;
+    this.durationMs = Math.round(buffer.duration * 1000);
+    this.sourceKind = sourceKind;
+    if (fileName !== undefined) {
+      this.fileName = fileName;
+    }
+    if (this.loop) this.loop = normalizeLoop(this.loop, buffer.duration);
+    this.mediaSession.updateMetadata(this.fileName || 'Pista de Audio');
+
+    const targetMs = Math.max(0, Math.min(positionMs, this.durationMs));
+    if (wasPlaying) {
+      this.executePlay(targetMs);
+    } else {
+      this.pausedAtTime = targetMs;
+      this.emitTimeUpdate(targetMs);
+      this.emitStateChange();
+    }
+  }
+
   public getPlaybackDomain(): AudioPlaybackDomain {
     return this.playbackDomain;
   }
@@ -1638,8 +1680,7 @@ export class AudioEngine {
   public getCurrentTimeMs(): number {
     if (!this.isPlaying || !this.ctx) {
       return this.pausedAtTime;
-    }
-    const elapsedSec = (this.ctx.currentTime - this.startTime) * this.playbackRate;
+    }    const elapsedSec = (this.ctx.currentTime - this.startTime) * this.playbackRate;
     // Con bucle activo, la posición visible vuelve al rango del bucle (el audio ya
     // lo hace de forma nativa; esto mantiene coherentes playhead y evaluación de cues).
     const positionSec = wrapLoopPositionSec(elapsedSec, this.loop);

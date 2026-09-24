@@ -1494,6 +1494,14 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
       audioEngine.metronome.setVolume(clamped);
     } else if (resolvedKey === 'voice') {
       audioEngine.voiceCueEngine.setVolume(clamped);
+    } else if (audioEngine.getIsPlaying()) {
+      // Pista adicional horneada en la mezcla consolidada: se re-mezcla y se
+      // intercambia el buffer SIN detener el transporte (volumen en vivo).
+      const s = get();
+      const buffer = bounceStudioClipsToBuffer(arrangementOf(s), s.totalDurationSec);
+      if (buffer) {
+        audioEngine.swapAudioBuffer(buffer, 'Mezcla_Estudio_Consolidada.wav', 'studio-mix');
+      }
     }
   },
 
@@ -1547,6 +1555,22 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         mixManifest: buildManifest(updatedTracks, updatedAdditional, state.globalControls, state.totalDurationSec),
       };
     });
+
+    // MUTE EN TIEMPO REAL: si la pista vive dentro de la mezcla consolidada
+    // (pistas adicionales) y hay reproducción, se re-mezcla y se intercambia el
+    // buffer conservando la posición exacta: ni STOP, ni reinicio, ni desfase.
+    if (
+      resolvedKey !== 'music' &&
+      resolvedKey !== 'metronome' &&
+      resolvedKey !== 'voice' &&
+      audioEngine.getIsPlaying()
+    ) {
+      const s = get();
+      const buffer = bounceStudioClipsToBuffer(arrangementOf(s), s.totalDurationSec);
+      if (buffer) {
+        audioEngine.swapAudioBuffer(buffer, 'Mezcla_Estudio_Consolidada.wav', 'studio-mix');
+      }
+    }
   },
 
   toggleTrackSolo: (trackKey) => {

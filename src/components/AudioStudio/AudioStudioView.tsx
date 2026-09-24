@@ -632,10 +632,10 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     setIsPlaying(true);
   };
 
-  // Stop y Reset a 0:00
+  // Stop: detiene TODO (fuente, pre-roll, metrónomo y voces) y reinicia a 0:00.
+  // Se usa `stop()` (no `pause()`) para no dejar ningún residuo agendado.
   const handleStop = () => {
-    audioEngine.pause();
-    audioEngine.seek(0);
+    audioEngine.stop();
     setIsPlaying(false);
     setCurrentTimeSec(0);
     flushPendingConsolidation();
@@ -646,6 +646,27 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     audioEngine.seek(0);
     setCurrentTimeSec(0);
   };
+
+  // Regresar / Ir a Inicio: salir del Estudio detiene SIEMPRE la reproducción
+  // (cero audio fantasma) y conserva el proyecto y los buffers intactos.
+  const handleExitStudio = useCallback(
+    (navigate?: () => void) => {
+      audioEngine.stop();
+      setIsPlaying(false);
+      setCurrentTimeSec(0);
+      navigate?.();
+    },
+    []
+  );
+
+  // Red de seguridad: si el Estudio se desmonta por cualquier vía (navegación
+  // inferior, cambio de cuenta…), se detiene el transporte para no dejar música,
+  // metrónomo ni voz sonando en segundo plano.
+  useEffect(() => {
+    return () => {
+      audioEngine.stop();
+    };
+  }, []);
 
   // Loop de la mezcla completa (bucle nativo del motor, sin clics).
   const toggleLoop = () => {
@@ -731,8 +752,8 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     >
       {/* ── 1. CABECERA BANDLAB (TopTransportBar) ── */}
       <TopTransportBar
-        onBackToRink={onBackToRink}
-        onGoHome={onGoHome}
+        onBackToRink={() => handleExitStudio(onBackToRink)}
+        onGoHome={() => handleExitStudio(onGoHome)}
         onExportToRink={handleExportMix}
         onImportGlobalAudio={handleImportGlobal}
         isExporting={isExporting}
