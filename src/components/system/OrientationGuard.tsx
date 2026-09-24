@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { RotateCw } from 'lucide-react';
 import { shouldShowRotateScreen } from '../../utils/orientation';
 import type { OrientationSnapshot } from '../../utils/orientation';
@@ -76,21 +76,8 @@ export function useOrientationGuard(): { blocked: boolean; requestPortraitLock: 
     typeof window === 'undefined' ? false : shouldShowRotateScreen(readSnapshot())
   );
 
-  // Altura estable (sin teclado). Sirve para distinguir el teclado virtual de un
-  // giro físico: el teclado reduce mucho la altura sin cambiar de orientación.
-  const stableHeightRef = useRef(typeof window !== 'undefined' ? window.innerHeight : 0);
-
   useEffect(() => {
-    const update = () => {
-      const snap = readSnapshot();
-      if (!snap.editableFocused && snap.height > stableHeightRef.current) {
-        stableHeightRef.current = snap.height;
-      }
-      const baseline = stableHeightRef.current || snap.height;
-      const keyboardOpen =
-        baseline > 0 && snap.height > 0 && snap.height < baseline * 0.72;
-      setBlocked(shouldShowRotateScreen({ ...snap, keyboardOpen }));
-    };
+    const update = () => setBlocked(shouldShowRotateScreen(readSnapshot()));
 
     update();
 

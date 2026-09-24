@@ -39,8 +39,8 @@ assert(
   'iPhone horizontal táctil → pantalla girar'
 );
 assert(
-  shouldShowRotateScreen({ width: 1180, height: 820, coarsePointer: true }) === true,
-  'iPad horizontal táctil → pantalla girar'
+  shouldShowRotateScreen({ width: 1180, height: 820, coarsePointer: true }) === false,
+  'iPad/tablet horizontal (lado corto ≥768) NO se bloquea'
 );
 assert(
   shouldShowRotateScreen({ width: 800, height: 360, coarsePointer: true }) === true,
@@ -126,8 +126,8 @@ assert(
     coarsePointer: true,
     landscape: true,
     keyboardOpen: true,
-  }) === false,
-  'Teclado abierto + landscape reportado por CSS → NO se bloquea'
+  }) === true,
+  'Un giro REAL a landscape se bloquea aunque el teclado esté abierto'
 );
 assert(
   shouldShowRotateScreen({ width: 844, height: 390, coarsePointer: true, landscape: true }) === true,

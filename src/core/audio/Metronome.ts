@@ -61,6 +61,11 @@ export function normalizeSubdivision(value: number | undefined | null): Metronom
 export class Metronome {
   private ctx: AudioContext | null = null;
   private outputNode: AudioNode | null = null;
+  /**
+   * Silenciador ABSOLUTO por encima del estado lógico. Cuando está activo, el
+   * motor ni siquiera crea osciladores (silencio real, no ganancia pequeña).
+   */
+  private hardMuted = false;
   private timerId: number | null = null;
 
   private config: MetronomeConfig = {
@@ -193,6 +198,30 @@ export class Metronome {
 
   public setVolume(volume: number) {
     this.config.volume = Math.max(0, Math.min(1, volume));
+  }
+
+  /**
+   * Silenciador ABSOLUTO del metrónomo (mute real, no "volumen bajo").
+   *
+   * Al activarlo corta el planificador y DESTRUYE los pulsos ya programados por
+   * el lookahead (`haltScheduler` → `stopAllNodes`), y además bloquea cualquier
+   * creación futura de osciladores en `emitClick`. Triple garantía: sin nodos
+   * vivos, sin planificador y sin nuevas señales → silencio total inmediato.
+   * Al desactivarlo se rearma desde el reloj actual sin reiniciar el transporte.
+   */
+  public setMuted(muted: boolean) {
+    this.hardMuted = muted;
+    if (muted) {
+      this.haltScheduler();
+    } else if (this.isRunning && this.config.enabled) {
+      this.pendingResync = false;
+      this.applyResync();
+      this.runScheduler();
+    }
+  }
+
+  public isHardMuted(): boolean {
+    return this.hardMuted;
   }
 
   /**
@@ -431,7 +460,8 @@ export class Metronome {
    */
   private emitClick(time: number, isAccent: boolean, normalGain: number) {
     if (!this.ctx || !this.outputNode) return;
-    if (!this.config.enabled || this.config.volume <= 0) return;
+    // Mute absoluto: NO se crea ningún oscilador (silencio real, no volumen bajo).
+    if (this.hardMuted || !this.config.enabled || this.config.volume <= 0) return;
 
     try {
       const osc = this.ctx.createOscillator();

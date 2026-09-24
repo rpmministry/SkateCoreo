@@ -532,6 +532,23 @@ async function runTests() {
     `La reactivación no reproduce la ráfaga de beats perdidos (${muteOscCount - afterMuteResume})`
   );
 
+  // Mute ABSOLUTO del metrónomo: `setMuted(true)` no crea NINGÚN oscilador.
+  metroMute.setMuted(true);
+  const beforeHardMute = muteOscCount;
+  muteCtx.currentTime = 3.0;
+  await new Promise<void>((resolve) => setTimeout(resolve, 60));
+  assert(
+    muteOscCount === beforeHardMute,
+    `setMuted(true) = silencio absoluto: 0 clicks nuevos (${muteOscCount - beforeHardMute})`
+  );
+  assert(metroMute.isHardMuted() === true, 'El metrónomo reporta hardMuted=true');
+  metroMute.setMuted(false);
+  await new Promise<void>((resolve) => setTimeout(resolve, 60));
+  assert(
+    muteOscCount > beforeHardMute,
+    'setMuted(false) rearma el planificador desde el tiempo actual (sin reinicio)'
+  );
+
   metroMute.stop();
 
   // 14. PRE-ROLL determinista: selector OFF/3/5/8 y banco de voz único

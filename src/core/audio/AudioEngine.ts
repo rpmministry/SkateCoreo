@@ -503,9 +503,19 @@ export class AudioEngine {
     if (!this.ctx) return;
     const now = this.ctx.currentTime;
 
-    this.musicGainNode?.gain.setValueAtTime(this.musicMuted ? 0 : 1, now);
-    this.metronomeGainNode?.gain.setValueAtTime(this.metronomeMuted ? 0 : 1, now);
-    this.voiceCueGainNode?.gain.setValueAtTime(this.voiceGuideMuted ? 0 : 1, now);
+    const setBus = (node: GainNode | null, gainValue: number) => {
+      if (!node) return;
+      try {
+        node.gain.cancelScheduledValues(now);
+      } catch {
+        /* Ignorar. */
+      }
+      node.gain.setValueAtTime(gainValue, now);
+    };
+
+    setBus(this.musicGainNode, this.musicMuted ? 0 : 1);
+    setBus(this.metronomeGainNode, this.metronomeMuted ? 0 : 1);
+    setBus(this.voiceCueGainNode, this.voiceGuideMuted ? 0 : 1);
   }
 
   public setMusicMuted(muted: boolean) {
@@ -524,6 +534,10 @@ export class AudioEngine {
   public setMetronomeAudible(audible: boolean) {
     this.metronomeMuted = !audible;
     this.metronome.setEnabled(audible);
+    // Mute ABSOLUTO: además del estado lógico, se destruyen los pulsos ya
+    // programados y se bloquea toda creación futura de osciladores (silencio
+    // real, nunca "volumen muy bajo").
+    this.metronome.setMuted(!audible);
     if (!audible) {
       this.metronome.suspend();
     }
@@ -564,6 +578,8 @@ export class AudioEngine {
     if (flags.music !== undefined) this.musicMuted = flags.music;
     if (flags.metronome !== undefined) {
       this.metronomeMuted = flags.metronome;
+      // Mute real: destruye lo programado y bloquea nuevos clicks.
+      this.metronome.setMuted(flags.metronome);
       if (flags.metronome) this.metronome.suspend();
       else this.metronome.resume();
     }

@@ -13,6 +13,13 @@
 
 export const SMALL_VIEWPORT_MAX = 1024;
 
+/**
+ * Umbral de bloqueo de landscape. Se aplica SOLO a teléfonos y tablets
+ * pequeñas (lado corto < 768). Tablets con lado corto ≥ 768 y escritorio no se
+ * bloquean, porque su diseño sí admite ambas orientaciones.
+ */
+export const PHONE_LANDSCAPE_LOCK_MAX = 768;
+
 export interface OrientationSnapshot {
   width: number;
   height: number;
@@ -61,18 +68,19 @@ export function isPhoneOrTabletViewport(width: number, height: number): boolean 
  * horizontal alternativo.
  */
 export function shouldShowRotateScreen(snapshot: OrientationSnapshot): boolean {
-  const { width, height, coarsePointer, landscape, editableFocused, keyboardOpen } = snapshot;
+  const { width, height, coarsePointer, landscape, editableFocused } = snapshot;
   if (!coarsePointer) return false;
   if (width <= 0 || height <= 0) return false;
 
-  // REGLA DE ESTABILIDAD: mientras se edita texto o el teclado virtual está
-  // abierto, la app NUNCA se bloquea. El teclado reduce el viewport y el CSS
-  // `orientation` puede reportar "landscape" aunque el teléfono siga vertical;
-  // bloquear aquí perdería el foco, la selección y el texto escrito.
-  if (editableFocused || keyboardOpen) return false;
+  // ESTABILIDAD CON TECLADO: mientras se edita texto (input/textarea/select)
+  // la app NUNCA se bloquea; el teclado virtual reduce el viewport y no debe
+  // interpretarse como un giro. (El estado del teclado NO se usa para permitir
+  // landscape: eso impedía bloquear el giro real, porque al rotar el alto cae.)
+  if (editableFocused) return false;
 
   const isLandscape = landscape ?? !isPortrait(width, height);
-  return isPhoneOrTabletViewport(width, height) && isLandscape;
+  const isPhoneOrSmallTablet = Math.min(width, height) < PHONE_LANDSCAPE_LOCK_MAX;
+  return isPhoneOrSmallTablet && isLandscape;
 }
 
 /** Modo de orientación resultante (útil para tests y para el gate). */
