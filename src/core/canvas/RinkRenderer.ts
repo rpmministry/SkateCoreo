@@ -598,11 +598,19 @@ export class RinkRenderer {
 
       ctx.save();
 
+      // Escala visual ADAPTATIVA: en lienzos pequeños (móvil vertical) el nodo se
+      // dibuja más compacto para no desbordar el área útil, SIN tocar la posición
+      // lógica ni el hit area táctil (que se calcula aparte, ~44px en pantalla).
+      const rinkShortSide = Math.max(1, Math.min(metrics.renderedW, metrics.renderedH));
+      const visualScale = Math.max(0.68, Math.min(1, rinkShortSide / 420));
+      const baseRadius = isDraggingNode ? 12 : isSelected ? 11 : 9;
+      const nodeRadius = baseRadius * visualScale;
+
       // 1. Halo luminoso exterior si está seleccionado (Neón Menta #10F49C)
       if (isSelected) {
         ctx.fillStyle = 'rgba(16, 244, 156, 0.25)';
         ctx.beginPath();
-        ctx.arc(px, py, 16, 0, Math.PI * 2);
+        ctx.arc(px, py, 16 * visualScale, 0, Math.PI * 2);
         ctx.fill();
 
         ctx.strokeStyle = 'rgba(16, 244, 156, 0.75)';
@@ -620,16 +628,14 @@ export class RinkRenderer {
         ctx.shadowColor = 'rgba(0, 210, 255, 0.9)';
         ctx.shadowBlur = 14;
         ctx.beginPath();
-        ctx.arc(px, py, 20, 0, Math.PI * 2);
+        ctx.arc(px, py, 20 * visualScale, 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
       }
 
-      // 2. Círculo del ancla de alto contraste. Visual reducido en móvil, pero el
-      //    área táctil se mantiene amplia (44px) y desacoplada del tamaño visual.
-      // Inactivo: Radio 9px · Seleccionado: Radio 11px · Arrastrando: Radio 12px
+      // 2. Círculo del ancla de alto contraste (radio adaptativo).
       ctx.beginPath();
-      ctx.arc(px, py, isDraggingNode ? 12 : isSelected ? 11 : 9, 0, Math.PI * 2);
+      ctx.arc(px, py, nodeRadius, 0, Math.PI * 2);
       ctx.fillStyle = isPending ? '#7C2D12' : isSelected ? '#10F49C' : '#0F172A';
       ctx.fill();
 
@@ -643,23 +649,32 @@ export class RinkRenderer {
       // 3. Número de orden del nodo centrado en el interior (legible).
       //    Los nodos pendientes muestran "?" en naranja hasta editarse a mano.
       ctx.fillStyle = isPending ? '#FDBA74' : isSelected ? '#000000' : '#FFFFFF';
-      ctx.font = `900 ${isSelected ? '11px' : '10px'} JetBrains Mono, system-ui, monospace`;
+      ctx.font = `900 ${Math.max(9, Math.round((isSelected ? 11 : 10) * visualScale))}px JetBrains Mono, system-ui, monospace`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(isPending ? '?' : `${p.nodeNumber ?? visibleIndex}`, px, py);
 
-      // 4. Etiqueta / Nombre de la figura debajo del nodo
+      // 4. Etiqueta / Nombre de la figura debajo del nodo.
+      //    RESPONSIVE: se trunca a un ancho máximo y se LIMITA a los bordes del
+      //    rink renderizado, de modo que nunca se corta ni invade otras zonas.
       if (p.label) {
         ctx.font = isSelected ? 'bold 10px Inter, sans-serif' : '500 9px Inter, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
 
-        const labelText = p.label;
+        const maxBadgeW = Math.max(48, Math.min(metrics.renderedW * 0.42, 170));
+        const labelText = RinkRenderer.truncateTextToWidth(ctx, p.label, maxBadgeW - 10);
         const textMetrics = ctx.measureText(labelText);
-        const badgeW = textMetrics.width + 10;
+        const badgeW = Math.min(maxBadgeW, textMetrics.width + 10);
         const badgeH = 15;
-        const badgeX = px - badgeW / 2;
-        const badgeY = py + (isSelected ? 18 : 15);
+
+        // Clamp dentro de los límites del rink renderizado.
+        const minX = metrics.offsetX + 2;
+        const maxX = metrics.offsetX + metrics.renderedW - badgeW - 2;
+        const badgeX = Math.max(minX, Math.min(maxX, px - badgeW / 2));
+        const minY = metrics.offsetY + 2;
+        const maxY = metrics.offsetY + metrics.renderedH - badgeH - 2;
+        const badgeY = Math.max(minY, Math.min(maxY, py + (isSelected ? 18 : 15)));
 
         ctx.fillStyle = isSelected ? 'rgba(16, 244, 156, 0.2)' : 'rgba(18, 24, 38, 0.85)';
         ctx.beginPath();
@@ -671,11 +686,29 @@ export class RinkRenderer {
         ctx.stroke();
 
         ctx.fillStyle = isSelected ? '#10F49C' : '#94A3B8';
-        ctx.fillText(labelText, px, badgeY + 2.5);
+        ctx.fillText(labelText, badgeX + badgeW / 2, badgeY + 2.5);
       }
 
       ctx.restore();
     });
+  }
+
+  /** Trunca un texto con «…» para que quepa en `maxWidth` px (etiquetas responsive). */
+  private static truncateTextToWidth(
+    ctx: CanvasRenderingContext2D,
+    text: string,
+    maxWidth: number
+  ): string {
+    if (maxWidth <= 0 || !text) return '';
+    if (ctx.measureText(text).width <= maxWidth) return text;
+    let lo = 0;
+    let hi = text.length;
+    while (lo < hi) {
+      const mid = Math.ceil((lo + hi) / 2);
+      if (ctx.measureText(text.slice(0, mid) + '…').width <= maxWidth) lo = mid;
+      else hi = mid - 1;
+    }
+    return lo > 0 ? text.slice(0, lo) + '…' : '…';
   }
 
   /**

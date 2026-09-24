@@ -755,6 +755,10 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           className="relative min-h-full flex flex-col"
           style={{ width: `${headerWidth + contentWidth + overscrollPx}px` }}
         >
+          {/* ── ÁREA TEMPORAL (regla + carriles de pistas) ──
+              El playhead vive SOLO aquí: nunca atraviesa la cabecera ni el botón
+              «Añadir pista» (que queda FUERA de este contenedor). */}
+          <div className="relative flex flex-col">
           {/* Regla de tiempo superior */}
           <div className="sticky top-0 z-30 flex items-stretch bg-zinc-950/95 border-b border-white/10 backdrop-blur-md">
             <div
@@ -791,7 +795,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           </div>
 
           {/* Carriles de Pistas (Arrangement Track Rows con Overscroll y Drop Zone) */}
-          <div className="flex-1 flex flex-col">
+          <div className="flex flex-col">
             {arrangementTracks.map((track, index) => (
               <MultitrackTrackRow
                 key={track.id}
@@ -813,39 +817,9 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
               />
             ))}
 
-            {/* ── BOTÓN + AÑADIR PISTA (Estilo BandLab 2_Arrangement-View-1.webp) ── */}
-            {arrangementTracks.length < 5 && (
-              <div 
-                className="p-3 border-b border-white/5 flex items-center gap-3"
-                style={{ width: `${headerWidth + contentWidth + overscrollPx}px` }}
-              >
-                <label 
-                  htmlFor="add-track-input"
-                  className="cursor-pointer h-11 px-5 rounded-2xl border border-dashed border-white/20 hover:border-cyan/60 bg-zinc-950 hover:bg-zinc-900 flex items-center gap-2 text-xs font-bold text-slate-300 hover:text-white transition-all shadow-md active:scale-98"
-                >
-                  <Plus className="w-4 h-4 text-cyan" />
-                  <span>Añadir Pista ({arrangementTracks.length}/5)</span>
-                </label>
-                <input
-                  id="add-track-input"
-                  ref={addTrackFileInputRef}
-                  type="file"
-                  accept={ACCEPTED_AUDIO_FORMATS}
-                  className="sr-only"
-                  onChange={handleAddTrackFileSelected}
-                />
-                <button
-                  type="button"
-                  onClick={() => addAudioTrack()}
-                  className="h-11 px-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors"
-                >
-                  + Pista Vacía
-                </button>
-              </div>
-            )}
           </div>
 
-          {/* Guía Visual Vertical de Snapping Magnético */}
+          {/* Guía Visual Vertical de Snapping Magnético (dentro del área temporal) */}
           {draggingGhost?.snapLineSec !== null && draggingGhost?.snapLineSec !== undefined && (
             <div
               className="absolute top-0 bottom-0 pointer-events-none z-35 flex flex-col items-center select-none"
@@ -861,7 +835,9 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             </div>
           )}
 
-          {/* Aguja de Reproducción Global Única (Playhead con Hitbox Táctil Ensanchado de 32px) */}
+          {/* Aguja de Reproducción (playhead): limitada SOLO a la regla + pistas.
+              Su `bottom-0` es el final de la última pista, nunca el botón «Añadir
+              pista», que queda FUERA de este contenedor temporal. */}
           <div
             ref={playheadLineRef}
             onPointerDown={handlePlayheadPointerDown}
@@ -877,6 +853,40 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
               <div className="w-3.5 h-3.5 bg-white group-hover:bg-cyan group-active:bg-cyan rotate-45 -translate-y-1 rounded-xs shadow-md shrink-0 transition-colors" />
             </div>
           </div>
+          </div>
+
+          {/* ── BOTÓN + AÑADIR PISTA (Estilo BandLab 2_Arrangement-View-1.webp) ──
+              Fuera del área temporal: el playhead nunca lo atraviesa y queda
+              totalmente libre para el toque. */}
+          {arrangementTracks.length < 5 && (
+            <div 
+              className="p-3 border-b border-white/5 flex items-center gap-3"
+              style={{ width: `${headerWidth + contentWidth + overscrollPx}px` }}
+            >
+              <label 
+                htmlFor="add-track-input"
+                className="cursor-pointer h-11 px-5 rounded-2xl border border-dashed border-white/20 hover:border-cyan/60 bg-zinc-950 hover:bg-zinc-900 flex items-center gap-2 text-xs font-bold text-slate-300 hover:text-white transition-all shadow-md active:scale-98"
+              >
+                <Plus className="w-4 h-4 text-cyan" />
+                <span>Añadir Pista ({arrangementTracks.length}/5)</span>
+              </label>
+              <input
+                id="add-track-input"
+                ref={addTrackFileInputRef}
+                type="file"
+                accept={ACCEPTED_AUDIO_FORMATS}
+                className="sr-only"
+                onChange={handleAddTrackFileSelected}
+              />
+              <button
+                type="button"
+                onClick={() => addAudioTrack()}
+                className="h-11 px-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors"
+              >
+                + Pista Vacía
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

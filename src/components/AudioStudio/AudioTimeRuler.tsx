@@ -107,40 +107,34 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
     }
   };
 
-  // Graduación dinámica inteligente según el factor de zoom (LOD / Pixels per second)
+  // Graduación temporal: MARCAS cada 5 s (requisito) y ETIQUETAS adaptativas
+  // para que nunca se superpongan. Nunca se altera la escala temporal real.
   const pxPerSec = effectiveWidth / duration;
-  let majorStepSec = 10;
-  let subStepSec = 5;
 
-  if (pxPerSec > 250) {
-    majorStepSec = 0.5;
-    subStepSec = 0.1;
-  } else if (pxPerSec > 120) {
-    majorStepSec = 1;
-    subStepSec = 0.25;
-  } else if (pxPerSec > 50) {
-    majorStepSec = 2;
-    subStepSec = 0.5;
-  } else if (pxPerSec > 20) {
-    majorStepSec = 5;
-    subStepSec = 1;
-  } else if (pxPerSec > 8) {
-    majorStepSec = 10;
-    subStepSec = 2;
-  } else if (pxPerSec > 3) {
-    majorStepSec = 30;
-    subStepSec = 5;
-  } else {
-    majorStepSec = 60;
-    subStepSec = 15;
+  const MIN_TICK_PX = 12;
+  const MIN_LABEL_PX = 54;
+
+  // Marcas: 5 s si caben; si no, un múltiplo de 5 s (mantiene la base de 5 s).
+  let tickStepSec = 5;
+  if (pxPerSec * 5 < MIN_TICK_PX) {
+    tickStepSec = 5 * Math.max(1, Math.ceil(MIN_TICK_PX / Math.max(0.0001, pxPerSec * 5)));
+  }
+
+  // Etiquetas: múltiplos del paso de marca con separación mínima legible.
+  let labelStepSec = tickStepSec;
+  while (labelStepSec * pxPerSec < MIN_LABEL_PX) {
+    labelStepSec += tickStepSec;
   }
 
   const extendedDuration = duration + (overscrollPx > 0 ? (overscrollPx / pxPerSec) : 0);
-  const majorTickCount = Math.floor(extendedDuration / majorStepSec);
-  const majorTicks = Array.from({ length: majorTickCount + 1 }, (_, i) => Math.round(i * majorStepSec * 1000) / 1000);
 
-  const subTickCount = Math.floor(extendedDuration / subStepSec);
-  const subTicks = Array.from({ length: subTickCount + 1 }, (_, i) => Math.round(i * subStepSec * 1000) / 1000);
+  const tickCount = Math.floor(extendedDuration / tickStepSec);
+  const ticks = Array.from({ length: tickCount + 1 }, (_, i) => Math.round(i * tickStepSec * 1000) / 1000);
+
+  const isLabelTick = (tSec: number) => {
+    const ratio = tSec / labelStepSec;
+    return Math.abs(ratio - Math.round(ratio)) < 0.001;
+  };
 
   /**
    * Aguja movida por `transform: translateX()` (propiedad de composición, no de
@@ -181,27 +175,23 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
         style={{ width: `${totalRulerWidth}px` }}
         className="relative h-12 cursor-pointer bg-[#060911] overflow-hidden select-none"
       >
-        {/* Sub-ticks sutiles */}
-        {subTicks.map((tSec) => {
+        {/* Marcas de tiempo (base 5 s) con etiquetas adaptativas. */}
+        {ticks.map((tSec) => {
           const leftPx = (tSec / duration) * effectiveWidth;
-          return (
-            <div
-              key={`sub-${tSec}`}
-              className="absolute top-0 pointer-events-none w-[1px] h-2 bg-slate-700/40"
-              style={{ left: `${leftPx}px` }}
-            />
-          );
-        })}
-
-        {/* Ticks Mayores y Marcas de Tiempo */}
-        {majorTicks.map((tSec) => {
-          const leftPx = (tSec / duration) * effectiveWidth;
+          const showLabel = isLabelTick(tSec);
           const mins = Math.floor(tSec / 60);
-          const secs = tSec % 60;
-          const isFractional = majorStepSec < 1;
-          const timeLabel = isFractional
-            ? `${mins}:${secs < 10 ? '0' : ''}${secs.toFixed(1)}`
-            : `${mins}:${Math.floor(secs).toString().padStart(2, '0')}`;
+          const secs = Math.round(tSec % 60);
+          const timeLabel = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+
+          if (!showLabel) {
+            return (
+              <div
+                key={`sub-${tSec}`}
+                className="absolute top-0 pointer-events-none w-[1px] h-2 bg-slate-700/40"
+                style={{ left: `${leftPx}px` }}
+              />
+            );
+          }
 
           return (
             <div
@@ -210,7 +200,7 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
               style={{ left: `${leftPx}px` }}
             >
               <div className="w-[1px] h-3.5 bg-slate-500/80" />
-              <span className="text-[9px] font-mono font-medium text-slate-400 mt-0.5 -translate-x-1/2">
+              <span className="text-[9px] font-mono font-medium text-slate-400 mt-0.5 -translate-x-1/2 whitespace-nowrap">
                 {timeLabel}
               </span>
               <div className="flex-1 w-[1px] bg-white/[0.04]" />
