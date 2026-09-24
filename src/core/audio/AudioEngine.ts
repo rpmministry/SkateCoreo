@@ -1387,7 +1387,10 @@ export class AudioEngine {
         this.playbackRate
       );
     } else {
-      this.metronome.stop();
+      // AUDIO STUDIO: el metrónomo SÍ funciona en su propio dominio (botón de la
+      // campana operativo), pero las VOCES GUÍA de nodos son exclusivas de la
+      // Pista 2D: así los metrónomos/voces de cada vista no se mezclan.
+      this.metronome.start(clampedOffsetSec, this.playbackRate, whenCtxTime);
       this.voiceCueEngine.stop();
     }
 

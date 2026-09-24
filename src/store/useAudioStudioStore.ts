@@ -1597,6 +1597,16 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         mixManifest: buildManifest(updatedTracks, updatedAdditional, state.globalControls, state.totalDurationSec),
       };
     });
+
+    // SOLO EN TIEMPO REAL: como el mute, si hay reproducción se re-mezcla y se
+    // intercambia el buffer conservando la posición (sin STOP ni reinicio).
+    if (audioEngine.getIsPlaying()) {
+      const s = get();
+      const buffer = bounceStudioClipsToBuffer(arrangementOf(s), s.totalDurationSec);
+      if (buffer) {
+        audioEngine.swapAudioBuffer(buffer, 'Mezcla_Estudio_Consolidada.wav', 'studio-mix');
+      }
+    }
   },
 
   setTrackTrim: (trackKey, trimStartSec, trimEndSec) => {
