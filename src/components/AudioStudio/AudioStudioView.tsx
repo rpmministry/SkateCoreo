@@ -708,6 +708,20 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     flushPendingConsolidation();
   };
 
+  /**
+   * «Nodos»: crea un MARCADOR TEMPORAL (Studio Time Marker) en la mezcla principal,
+   * exactamente en el tiempo REAL del cabezal (reloj de hardware, no estado React
+   * retrasado). Funciona igual en reproducción y en pausa, y da feedback inmediato.
+   */
+  const handleAddTimeNode = () => {
+    const atSec = audioEngine.getCurrentTimeMs() / 1000;
+    const node = addTimeNode(atSec);
+    const mm = Math.floor(atSec / 60);
+    const ss = (atSec % 60).toFixed(2).padStart(5, '0');
+    setExportNotice(`● Nodo ${node.numeroSecuencial} · ${mm}:${ss}`);
+    setTimeout(() => setExportNotice(null), 1600);
+  };
+
   // Regresar / Ir a Inicio: salir del Estudio detiene SIEMPRE la reproducción
   // (cero audio fantasma) y conserva el proyecto y los buffers intactos.
   const handleExitStudio = useCallback(
@@ -1043,8 +1057,9 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
               hace ambas cosas, así que no se duplica con un "volver al inicio". */}
           <button
             type="button"
-            {...press(handleStop)}
-            className={`press w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 active:bg-white/15 ${hasTransportAudio ? '' : 'opacity-40'}`}
+            {...press(handleStop, { enabled: hasTransportAudio })}
+            disabled={!hasTransportAudio}
+            className={`press w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 active:bg-white/15 disabled:pointer-events-none disabled:opacity-40`}
             title="Detener todo y volver al inicio (0:00)"
             aria-label="Detener y volver al inicio"
           >
@@ -1056,8 +1071,9 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
               está bajo el cabezal; si no hay ninguno, muestra un aviso. */}
           <button
             type="button"
-            {...press(handleSplitAtPlayhead)}
-            className={`press w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 active:bg-white/15 ${hasTransportAudio ? '' : 'opacity-40'}`}
+            {...press(handleSplitAtPlayhead, { enabled: hasTransportAudio })}
+            disabled={!hasTransportAudio}
+            className={`press w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 active:bg-white/15 disabled:pointer-events-none disabled:opacity-40`}
             title="Dividir clip en el cabezal (corte milimétrico)"
             aria-label="Dividir clip en el cabezal"
           >
@@ -1198,7 +1214,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           {/* + Marcador temporal */}
           <button
             type="button"
-            onClick={() => addTimeNode(audioEngine.getCurrentTimeMs() / 1000)}
+            onClick={handleAddTimeNode}
             className="press flex h-11 sm:h-12 shrink-0 items-center gap-1.5 rounded-full border border-cyan/30 bg-cyan/15 px-2.5 text-xs font-bold text-cyan hover:bg-cyan/25 sm:px-3"
             title="Añadir marcador temporal"
             aria-label="Añadir marcador temporal"

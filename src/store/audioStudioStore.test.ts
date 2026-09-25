@@ -70,6 +70,30 @@ assert(placed3 !== null, 'Nodo 3 ubicado con éxito en la pista');
 assert(useChoreographyStore.getState().unplacedNodes.length === 0, 'Una vez ubicados todos los nodos, la bandeja se vacía automáticamente');
 assert(useChoreographyStore.getState().phase === 'curve', 'Con todos los nodos posicionados, la fase pasa automáticamente a curve');
 
+// REPUBLICACIÓN (reconciliación): publicar de nuevo los MISMOS marcadores NO debe
+// re-ofrecer en la bandeja los ya colocados (evita duplicar el nodo), y sus
+// posiciones espaciales se conservan intactas.
+useChoreographyStore.getState().setUnplacedNodes(currentStudioNodes);
+assert(
+  useChoreographyStore.getState().unplacedNodes.length === 0,
+  'Republicar no re-ofrece nodos ya colocados (sin duplicados)'
+);
+const placed1After = useChoreographyStore.getState().points.find((p) => p.id === node1Id);
+assert(
+  placed1After?.x === 10 && placed1After?.y === 12,
+  'Republicar conserva la posición espacial del nodo colocado (no se sobrescribe)'
+);
+// Un marcador NUEVO creado después sí entra a la bandeja.
+useChoreographyStore.getState().setUnplacedNodes([
+  ...currentStudioNodes,
+  { id: 'studio-marker-new', numeroSecuencial: 4, timestampSec: 9.5 },
+]);
+assert(
+  useChoreographyStore.getState().unplacedNodes.length === 1 &&
+    useChoreographyStore.getState().unplacedNodes[0].id === 'studio-marker-new',
+  'Un marcador nuevo tras republicar sí entra a la bandeja'
+);
+
 // 5. Controles Globales (Metrónomo, Voces Guía, BPM)
 useAudioStudioStore.getState().setGlobalBpm(136);
 assert(useAudioStudioStore.getState().globalControls.bpm === 136, 'BPM global actualizado a 136');

@@ -711,9 +711,21 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
   activeTrayNodeIndex: 0,
 
   setUnplacedNodes: (nodes: AudioTimeNode[]) => {
-    const sorted = [...nodes].sort((a, b) => a.timestampSec - b.timestampSec);
+    const { points } = get();
+    // RECONCILIACIÓN (publicación = snapshot, no «fusor» de estados):
+    //  - Un marcador cuyo ID ya existe como punto colocado NO vuelve a la bandeja:
+    //    evita Nodo 4 / duplicados al republicar (el ID es la identidad estable).
+    //  - Se preserva la POSICIÓN ESPACIAL y el timestamp del nodo ya colocado: una
+    //    nueva publicación del Studio no sobrescribe silenciosamente el trabajo del
+    //    usuario en la Pista 2D (política conservadora).
+    //  - Solo entran a la bandeja los marcadores realmente nuevos / sin ubicar, con
+    //    su timestamp ACTUALIZADO.
+    const placedIds = new Set(points.map((p) => p.id));
+    const reconciled = nodes
+      .filter((n) => !placedIds.has(n.id))
+      .sort((a, b) => a.timestampSec - b.timestampSec);
     set({
-      unplacedNodes: sorted,
+      unplacedNodes: reconciled,
       activeTrayNodeIndex: 0,
     });
   },
