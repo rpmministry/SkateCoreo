@@ -57,23 +57,29 @@ export const NodePlacementTray: React.FC<NodePlacementTrayProps> = ({
 
   return (
     // PANEL RESERVADO (no overlay): ocupa espacio real en el layout, así nunca
-    // tapa la Pista 2D. En desktop/tablet-landscape es una columna a la derecha
-    // (compacta, 224–256px); en portrait es una franja superior con scroll interno.
-    <div className="z-30 flex max-h-[36dvh] shrink-0 flex-col overflow-hidden border-b border-cyan/40 bg-[#0C1220] lg:max-h-none lg:h-full lg:w-56 lg:border-b-0 lg:border-l xl:w-64">
-      {/* ── Cabecera de la Bandeja ── */}
-      <div className="flex h-11 shrink-0 items-center justify-between border-b border-white/10 bg-gradient-to-r from-cyan/20 to-transparent px-3.5">
-        <div className="flex min-w-0 items-center gap-2">
+    // tapa la Pista 2D. En desktop/tablet-landscape es una COLUMNA LATERAL
+    // (izquierda del canvas, 240–256px); en portrait es una franja superior
+    // compacta con scroll interno. Sin `z-index` propio: la barra superior global
+    // (z-30) siempre queda por encima. `min-h-0` permite encogerse y `overflow`
+    // interno evita que empuje el layout.
+    <div className="flex min-h-0 max-h-[30dvh] shrink-0 flex-col overflow-hidden border-b border-cyan/40 bg-[#0C1220] lg:max-h-none lg:h-full lg:w-60 lg:border-b-0 lg:border-r xl:w-64">
+      {/* ── Cabecera de la Bandeja ──
+          `flex-wrap` + `min-h` automático: si la columna es estrecha, los botones
+          bajan a una segunda línea y el TÍTULO NUNCA se recorta. */}
+      <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-white/10 bg-gradient-to-r from-cyan/20 to-transparent px-3 py-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-cyan shadow-glow-cyan animate-pulse" />
-          <span className="whitespace-nowrap text-sm font-black uppercase tracking-wide text-white">
-            Nodos
-          </span>
-          <span className="truncate text-[10px] font-bold uppercase tracking-wider text-cyan/80">
-            por colocar
+          {/* Título SIEMPRE completo (puede envolver entre palabras, nunca se trunca). */}
+          <span className="min-w-0 text-[13px] font-black uppercase leading-tight tracking-wide text-white">
+            Nodos por colocar
           </span>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <span className="rounded-full border border-cyan/30 bg-cyan/15 px-2 py-0.5 font-mono text-[10px] font-bold text-cyan">
-            {currentStep}/{totalCount}
+          <span
+            className="rounded-full border border-cyan/30 bg-cyan/15 px-2 py-0.5 font-mono text-[10px] font-bold text-cyan"
+            title={`${currentStep} de ${totalCount} pendientes`}
+          >
+            {totalCount}
           </span>
           <button
             type="button"
@@ -145,7 +151,7 @@ export const NodePlacementTray: React.FC<NodePlacementTrayProps> = ({
               No es una línea horizontal infinita: envuelve automáticamente.
               El nodo activo (orden estricto) se resalta; los ya colocados muestran ✓;
               los bloqueados quedan atenuados. Fichas de 44px (área táctil mínima). */}
-          <div className="max-h-[32dvh] overflow-y-auto overscroll-contain p-2 lg:max-h-56">
+          <div className="max-h-[20dvh] shrink-0 overflow-y-auto overscroll-contain p-2 lg:max-h-56">
             <div className="grid grid-cols-6 gap-1.5 sm:grid-cols-8 lg:grid-cols-6">
               {unplacedNodes.map((node, index) => {
                 const isPlaced = index < activeTrayNodeIndex;
