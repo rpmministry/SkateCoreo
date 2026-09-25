@@ -132,13 +132,16 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
       >
-        {/* ── CABECERA DE PISTA (Estilo BandLab: Icono circular + Nombre + Fx tag + Indicador Activa) ── */}
+        {/* ── CABECERA DE PISTA: panel de identidad FIJO a la izquierda ──
+            z-40 lo mantiene por encima de los clips (z-10) y del clip EN ARRASTRE
+            (z-30): el contenido temporal nunca puede invadir el nombre. Fondo
+            OPACO + overflow-hidden como contención. La regla (z-50) queda encima. */}
         <div 
           onClick={() => {
             setActiveTrackId(track.id);
             setShowTrackMenu(true);
           }}
-          className={`sticky left-0 z-20 shrink-0 border-r border-white/10 flex flex-col justify-center gap-1 px-2 py-1.5 cursor-pointer select-none transition-colors group ${
+          className={`sticky left-0 z-40 shrink-0 border-r border-white/10 flex flex-col justify-center gap-1 px-2 py-1.5 cursor-pointer select-none transition-colors group overflow-hidden ${
             isActive ? 'bg-zinc-900' : 'bg-zinc-950 hover:bg-zinc-900'
           }`}
           style={{ width: `${headerWidth}px`, borderLeft: `3.5px solid ${track.color}` }}

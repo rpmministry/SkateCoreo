@@ -857,7 +857,9 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
               «Añadir pista» (que queda FUERA de este contenedor). */}
           <div className="relative flex flex-col">
           {/* Regla de tiempo superior */}
-          <div className="sticky top-0 z-30 flex items-stretch bg-zinc-950/95 border-b border-white/10 backdrop-blur-md">
+          {/* z-50: la regla queda SIEMPRE por encima de los headers de fila al
+              hacer scroll vertical (y estos por encima de los clips). */}
+          <div className="sticky top-0 z-50 flex items-stretch bg-zinc-950/95 border-b border-white/10 backdrop-blur-md">
             <div
               className="sticky left-0 z-10 shrink-0 border-r border-white/10 flex flex-col items-center justify-center gap-0.5 bg-zinc-900 text-[9px] font-mono font-black text-slate-400 leading-none"
               style={{ width: `${headerWidth}px` }}
