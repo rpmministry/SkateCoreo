@@ -22,6 +22,7 @@ import { dbService, OfflineSessionRecord } from './services/db';
 import { audioEngine } from './services/audioEngine';
 import { useChoreographyStore } from './store/useChoreographyStore';
 import { useAudioStudioStore } from './store/useAudioStudioStore';
+import { useRinkAudioStore } from './store/useRinkAudioStore';
 import { useAuthStore } from './store/useAuthStore';
 import { ACCEPTED_AUDIO_FORMATS, ACCEPTED_PROJECT_FORMATS } from './constants/mediaFormats';
 import { ProtectedLayout } from './components/ProtectedLayout';
@@ -238,6 +239,8 @@ export function App() {
       const offlineRecord = await dbService.getOfflineSession();
       if (offlineRecord && !audioEngine.getState().hasAudioLoaded) {
         await audioEngine.loadAudioFile(offlineRecord.audioBlob, offlineRecord.audioFileName);
+        // Importación DIRECTA a la Pista 2D → publica como 'direct-file' del Rink.
+        useRinkAudioStore.getState().syncFromEngine();
         if (offlineRecord.points && offlineRecord.points.length > 0) {
           loadProgramPoints(offlineRecord.points);
         }
@@ -393,6 +396,9 @@ export function App() {
   const processMusicFile = useCallback(async (file: File) => {
     try {
       await audioEngine.loadAudioFile(file, file.name);
+      // CAMINO A: audio directo en la Pista 2D. Se publica como audio activo del
+      // Rink ('direct-file'). El Audio Studio NO recibe este audio automáticamente.
+      useRinkAudioStore.getState().syncFromEngine();
     } catch (err: any) {
       alert('Error al cargar audio: ' + (err?.message || 'Archivo no compatible'));
     }
@@ -484,6 +490,7 @@ export function App() {
       // Cargar audio si viene dentro del paquete
       if (project.audioBlob) {
         await audioEngine.loadAudioFile(project.audioBlob, project.manifest.audioMeta.fileName);
+        useRinkAudioStore.getState().syncFromEngine();
       }
       // Restaurar nodos en el Canvas
       loadProgramPoints(project.points);

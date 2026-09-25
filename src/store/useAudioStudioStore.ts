@@ -17,6 +17,7 @@ import {
 import { BpmDetector } from '../core/audio/BpmDetector';
 import { snapToZeroCrossing } from '../core/audio/zeroCrossing';
 import { audioEngine } from '../core/audio/AudioEngine';
+import { useRinkAudioStore } from './useRinkAudioStore';
 import { ttsService } from '../services/ttsService';
 import { useChoreographyStore } from './useChoreographyStore';
 import { renderStudioMixdown, bounceStudioClipsToBuffer } from '../core/audio/studioMixdown';
@@ -191,6 +192,12 @@ export interface AudioStudioStoreState {
 
   // Función Puente (Audio-to-Canvas Bridge) & Mixdown
   sendMixToChoreo: () => { nodes: AudioTimeNode[]; success: boolean };
+  /**
+   * "Editar en Estudio": crea un BORRADOR del Studio a partir del audio PUBLICADO
+   * de la Pista 2D (snapshot), sin mover ni alterar ese audio publicado. Es el
+   * único puente Rink → Studio y solo se ejecuta de forma explícita.
+   */
+  loadPublishedIntoStudio: () => boolean;
   renderAndExportMixdown: () => Promise<{ success: boolean; durationSec: number }>;
   /** Devuelve el Estudio a su estado inicial (cambio de cuenta / logout). */
   resetStudio: () => void;
@@ -1344,12 +1351,15 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   // ── Historial de edición (undo/redo, Fase 5.3) ──
   studioHistory: [],
   studioFuture: [],
-  pushStudioEdit: () =>
+  pushStudioEdit: () => {
     set((s) => ({
       studioHistory: [...s.studioHistory.slice(-49), captureEdit(s)],
       studioFuture: [],
-    })),
-  undoStudio: () =>
+    }));
+    // Cualquier edición del borrador deja "cambios sin enviar" al Rink.
+    useRinkAudioStore.getState().markStudioDirty(true);
+  },
+  undoStudio: () => {
     set((s) => {
       if (s.studioHistory.length === 0) return s;
       const previous = s.studioHistory[s.studioHistory.length - 1];
@@ -1361,8 +1371,10 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         audioNodes: previous.audioNodes,
         totalDurationSec: previous.totalDurationSec,
       };
-    }),
-  redoStudio: () =>
+    });
+    useRinkAudioStore.getState().markStudioDirty(true);
+  },
+  redoStudio: () => {
     set((s) => {
       if (s.studioFuture.length === 0) return s;
       const next = s.studioFuture[0];
@@ -1374,8 +1386,9 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         audioNodes: next.audioNodes,
         totalDurationSec: next.totalDurationSec,
       };
-    }),
-
+    });
+    useRinkAudioStore.getState().markStudioDirty(true);
+  },
 
   setTrackBuffer: (trackKey, buffer, fileName) => {
     const duration = buffer.duration;
@@ -1405,10 +1418,11 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
           fileName: fileName || state.tracks[resolvedKey].fileName,
         };
 
-        // Si es la pista principal, sincronizar con AudioEngine de la Pista 2D
-        if (resolvedKey === 'music') {
-          audioEngine.setAudioBuffer(buffer, fileName || 'musica_master.wav');
-        }
+        // DRAFT → PUBLISH: cargar audio en el Studio NO publica NADA en la Pista 2D.
+        // El Studio escribe exclusivamente su propia sesión (slot 'studio' del
+        // motor, activo porque el dominio es 'studio'). La Pista 2D solo cambia con
+        // "Enviar al visor" (publishRinkAudio). Antes esta línea PUBLICABA el audio
+        // del Master en el motor global y rompía la separación Rink/Studio.
       } else {
         updatedAdditional = updatedAdditional.map((t) => {
           if (t.id === resolvedKey) {
@@ -1439,6 +1453,9 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         mixManifest: buildManifest(updatedTracks, updatedAdditional, state.globalControls, newTotalDuration),
       };
     });
+
+    // Cargar material en el borrador implica "cambios sin enviar".
+    useRinkAudioStore.getState().markStudioDirty(true);
   },
 
   setTrackVolume: (trackKey, volume) => {
@@ -1956,6 +1973,18 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
     set({ isRecording: false, recordingElapsedSec: 0, recordingCountdown: 0 });
   },
 
+  // ── PUENTE Rink → Studio: "Editar en Estudio" (snapshot del audio publicado) ──
+  loadPublishedIntoStudio: () => {
+    const published = audioEngine.getPublishedAudio();
+    if (!published.buffer) return false;
+
+    // Se comparte la REFERENCIA del buffer publicado (eficiencia): todas las
+    // operaciones del Studio son no destructivas (crean buffers nuevos) y nunca
+    // mutan el buffer publicado, así que el Rink queda intacto.
+    get().setTrackBuffer('music', published.buffer, published.name || 'Audio publicado');
+    return true;
+  },
+
   // ── PUENTE DE DATOS: Exportar a Pista 2D (sendMixToChoreo) ──
   sendMixToChoreo: () => {
     const state = get();
@@ -1966,19 +1995,21 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
     //    `musicTrack.buffer` reproducía el archivo completo ignorando los clips.
     const arrangementTracks = arrangementOf(state);
     const mixed = bounceStudioClipsToBuffer(arrangementTracks, state.totalDurationSec);
-    if (mixed) {
-      audioEngine.setAudioBuffer(mixed, 'mezcla_estudio.wav', false, 'studio-mix');
-    } else if (state.tracks.music.buffer) {
-      // Fallback: pista master cargada sin clips (estado heredado).
-      audioEngine.setAudioBuffer(
-        state.tracks.music.buffer,
-        state.tracks.music.fileName || 'mezcla_estudio.wav',
-        false,
-        'studio-mix'
-      );
+    const buffer = mixed ?? state.tracks.music.buffer ?? null;
+
+    // PUBLICACIÓN (Studio Draft → Rink Published): ÚNICO punto que reemplaza el
+    // audio publicado del Rink. Si no hay material válido, no se publica nada.
+    if (buffer && buffer.length > 0) {
+      const name = mixed
+        ? 'mezcla_estudio.wav'
+        : state.tracks.music.fileName || 'mezcla_estudio.wav';
+      audioEngine.publishRinkAudio(buffer, name, 'studio-mix');
+      useRinkAudioStore.getState().syncFromEngine();
+      useRinkAudioStore.getState().markStudioDirty(false);
     }
 
-    // 2. Enviar nodos a la bandeja lateral de la Pista 2D
+    // 2. Los NODOS son anotaciones temporales: viajan a la bandeja de la Pista 2D
+    //    con independencia de la publicación del audio.
     useChoreographyStore.getState().setUnplacedNodes(nodes);
 
     return {
@@ -2003,13 +2034,17 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         { ...state.metronomeConfig, enabled: false }
       );
 
-      // Inyectar el AudioBuffer combinado en el motor (Pista 2D). Esta es la ÚNICA
-      // transferencia permitida Studio → Rink: REEMPLAZA la música activa del Rink.
-      audioEngine.setAudioBuffer(result.buffer, 'Mezcla final (Audio Studio).wav', false, 'studio-mix');
+      // VALIDACIÓN previa a la publicación: nunca reemplazar el audio del Rink
+      // con un render vacío o inválido.
+      if (!result || !result.buffer || result.buffer.length === 0) {
+        throw new Error('El render de la mezcla resultó vacío o inválido');
+      }
 
-      // IMPORTANTE: NO se toca el proyecto del Audio Studio. El Master conserva
-      // sus clips, edición, automatización y configuración (el Rink recibe una
-      // copia renderizada, no el estado vivo del Studio).
+      // PUBLICACIÓN ATÓMICA: render → validate → publish. Es el ÚNICO punto que
+      // reemplaza el audio publicado del Rink; el borrador del Studio queda intacto.
+      audioEngine.publishRinkAudio(result.buffer, 'Mezcla final (Audio Studio).wav', 'studio-mix');
+      useRinkAudioStore.getState().syncFromEngine();
+      useRinkAudioStore.getState().markStudioDirty(false);
 
       // Enviar nodos temporales a la bandeja lateral de la Pista 2D
       useChoreographyStore.getState().setUnplacedNodes(state.audioNodes);
@@ -2020,8 +2055,8 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
       };
     } catch (err) {
       console.error('[AudioStudioStore] Error rendering mixdown with OfflineAudioContext:', err);
-      // Fallback seguro
-      state.sendMixToChoreo();
+      // FALLO DE PUBLICACIÓN: no se toca el audio publicado anterior ni el borrador;
+      // el Rink conserva íntegra su versión previa.
       return {
         success: false,
         durationSec: state.totalDurationSec,

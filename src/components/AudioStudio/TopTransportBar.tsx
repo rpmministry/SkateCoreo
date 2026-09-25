@@ -10,9 +10,12 @@ import {
   Bell, 
   Sparkles, 
   Magnet,
+  FileEdit,
+  Music,
   X
 } from 'lucide-react';
 import { useAudioStudioStore } from '../../store/useAudioStudioStore';
+import { useRinkAudioStore } from '../../store/useRinkAudioStore';
 import { ACCEPTED_AUDIO_FORMATS } from '../../constants/mediaFormats';
 import { usePressAction } from '../../hooks/usePressAction';
 import { useIosFileCapture } from '../../hooks/useIosFileCapture';
@@ -59,6 +62,10 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showNotesModal, setShowNotesModal] = useState(false);
   const [notesText, setNotesText] = useState('');
+  const loadPublishedIntoStudio = useAudioStudioStore((s) => s.loadPublishedIntoStudio);
+  // Estado DRAFT → PUBLISH: el Studio es un borrador hasta "Enviar a Pista 2D".
+  const studioDirty = useRinkAudioStore((s) => s.studioDirty);
+  const hasPublishedAudio = useRinkAudioStore((s) => !!s.publishedAudio);
   const snapEnabled = useAudioStudioStore((s) => s.snapEnabled);
   const setSnapEnabled = useAudioStudioStore((s) => s.setSnapEnabled);
 
@@ -202,6 +209,33 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
             className="hidden"
             onChange={handleFileChange}
           />
+
+          {/* Estado DRAFT → PUBLISH (indicador mínimo, lenguaje visual actual) */}
+          <div className="hidden md:flex items-center gap-1.5 mr-1">
+            <span
+              className={[
+                'h-7 px-2 rounded-full flex items-center gap-1 text-[10px] font-bold border whitespace-nowrap',
+                studioDirty
+                  ? 'bg-amber-500/15 text-amber-300 border-amber-400/40'
+                  : 'bg-white/5 text-slate-400 border-white/15',
+              ].join(' ')}
+              title="El Audio Studio es un borrador: la música activa de la Pista 2D no cambia hasta enviarlo"
+            >
+              <FileEdit className="w-3 h-3" />
+              Borrador{studioDirty ? ' · sin enviar' : ''}
+            </span>
+            {hasPublishedAudio && (
+              <button
+                type="button"
+                onClick={() => loadPublishedIntoStudio()}
+                className="h-7 px-2 rounded-full flex items-center gap-1 text-[10px] font-bold bg-white/5 hover:bg-white/10 text-slate-300 border border-white/15 transition-colors whitespace-nowrap"
+                title="Traer al Estudio una copia del audio activo de la Pista 2D para editarlo (no lo modifica)"
+              >
+                <Music className="w-3 h-3" />
+                Editar audio activo
+              </button>
+            )}
+          </div>
 
           {/* Botón Acción Principal: Enviar Mezcla a la Pista 2D */}
           {onExportToRink && (

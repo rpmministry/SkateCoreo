@@ -169,7 +169,53 @@ export function probeAudioDurationSec(file: File | Blob): Promise<number | null>
 
 export class AudioEngine {
   private ctx: AudioContext | null = null;
-  private audioBuffer: AudioBuffer | null = null;
+  // ── Sesiones de audio separadas (UN solo AudioContext) ──
+  //   'rink'   → audio PUBLICADO de la Pista 2D (archivo directo o mezcla publicada).
+  //   'studio' → BORRADOR editable que reproduce el Audio Studio.
+  // Editar/cargar en el Studio escribe SIEMPRE en el slot 'studio': el audio
+  // publicado del Rink no puede cambiar salvo publicación explícita
+  // (`publishRinkAudio`). Es el principio DRAFT → PUBLISH.
+  private buffers: Record<AudioPlaybackDomain, AudioBuffer | null> = { rink: null, studio: null };
+  private durations: Record<AudioPlaybackDomain, number> = { rink: 0, studio: 0 };
+  private fileNames: Record<AudioPlaybackDomain, string | null> = { rink: null, studio: null };
+  private sourceKinds: Record<AudioPlaybackDomain, 'file' | 'studio-mix'> = {
+    rink: 'file',
+    studio: 'studio-mix',
+  };
+  /** Identidad de revisión del audio PUBLICADO del Rink (incrementa al publicar). */
+  private rinkRevision = 0;
+  private rinkAudioId = 'rink-audio-0';
+
+  /**
+   * Buffer del DOMINIO ACTIVO. Toda la maquinaria existente (trim, fades, seek,
+   * waveform, metrónomo, loop…) sigue leyendo `this.audioBuffer` y, por tanto,
+   * opera sobre la sesión activa sin cambios. Cargar/editar en el Studio ya no
+   * puede tocar el buffer del Rink: cada dominio tiene su propio slot.
+   */
+  private get audioBuffer(): AudioBuffer | null {
+    return this.buffers[this.playbackDomain];
+  }
+  private set audioBuffer(buffer: AudioBuffer | null) {
+    this.buffers[this.playbackDomain] = buffer;
+  }
+  private get durationMs(): number {
+    return this.durations[this.playbackDomain];
+  }
+  private set durationMs(value: number) {
+    this.durations[this.playbackDomain] = value;
+  }
+  private get fileName(): string | null {
+    return this.fileNames[this.playbackDomain];
+  }
+  private set fileName(value: string | null) {
+    this.fileNames[this.playbackDomain] = value;
+  }
+  private get sourceKind(): 'file' | 'studio-mix' {
+    return this.sourceKinds[this.playbackDomain];
+  }
+  private set sourceKind(value: 'file' | 'studio-mix') {
+    this.sourceKinds[this.playbackDomain] = value;
+  }
   /** Guarda anti-solapamiento de importaciones (evita picos de memoria en iOS). */
   private isImporting = false;
   private sourceNode: AudioBufferSourceNode | null = null;
@@ -209,10 +255,7 @@ export class AudioEngine {
   private channelMode: ChannelRoutingMode = 'stereo'; // Default to stereo so both ears receive music and voice cleanly
   private musicVolume = 1.0;
   private coachVolume = 1.0;
-  private durationMs = 0;
-  private fileName: string | null = null;
-  /** Origen del buffer maestro: archivo importado o mezcla final del Audio Studio. */
-  private sourceKind: 'file' | 'studio-mix' = 'file';
+  /** Blob original del archivo importado (solo para empaquetar/exportar .coreo). */
   private rawBlob: Blob | null = null;
   private animationFrameId: number | null = null;
 
@@ -741,11 +784,17 @@ export class AudioEngine {
    */
   public clearAudioBuffer() {
     this.stop();
-    this.audioBuffer = null;
+    // Se vacían AMBAS sesiones: una cuenta nueva no debe heredar ni el audio
+    // publicado del Rink ni el borrador del Studio del usuario anterior.
+    this.buffers.rink = null;
+    this.buffers.studio = null;
+    this.durations.rink = 0;
+    this.durations.studio = 0;
+    this.fileNames.rink = null;
+    this.fileNames.studio = null;
+    this.sourceKinds.rink = 'file';
+    this.sourceKinds.studio = 'studio-mix';
     this.rawBlob = null;
-    this.fileName = null;
-    this.sourceKind = 'file';
-    this.durationMs = 0;
     this.pausedAtTime = 0;
     this.mediaSession.updateMetadata('Sin pista');
     this.emitTimeUpdate(0);
@@ -1590,18 +1639,26 @@ export class AudioEngine {
    */
   public setPlaybackDomain(domain: AudioPlaybackDomain): void {
     if (this.playbackDomain === domain) return;
-    this.playbackDomain = domain;
 
-    if (domain !== 'rink') {
-      this.metronome.stop();
-      this.voiceCueEngine.stop();
-      return;
+    // Cambiar de sesión detiene TODO lo de la sesión anterior (fuente, metrónomo,
+    // voces y pre-roll) y arranca la nueva en 0:00. Así una preview del Studio no
+    // puede seguir sonando dentro del Rink ni viceversa.
+    this.cancelPreRoll(true);
+    this.stopSource();
+    this.metronome.stop();
+    this.voiceCueEngine.stop();
+    this.isPlaying = false;
+    this.stopTracking();
+    this.lastTimeEmitMs = -1;
+
+    this.playbackDomain = domain;
+    this.pausedAtTime = 0;
+    if (domain === 'rink' && this.loop) {
+      this.loop = normalizeLoop(this.loop, this.buffers.rink?.duration ?? 0);
     }
-    if (this.isPlaying && this.ctx) {
-      const posSec = this.getCurrentTimeMs() / 1000;
-      this.metronome.sync(posSec, this.playbackRate);
-      this.voiceCueEngine.startSync(this.startTime, this.playbackRate);
-    }
+
+    this.emitTimeUpdate(0);
+    this.emitStateChange();
   }
 
   public getIsPlaying(): boolean {
@@ -1648,6 +1705,71 @@ export class AudioEngine {
 
   public getPlaybackDomain(): AudioPlaybackDomain {
     return this.playbackDomain;
+  }
+
+  /**
+   * PUBLICA una mezcla como audio oficial de la Pista 2D. Es la ÚNICA operación
+   * que reemplaza el audio publicado del Rink. Escribe explícitamente el slot
+   * 'rink' (no el del dominio activo), así que puede invocarse desde el Studio
+   * sin tocar su borrador. Devuelve la nueva revisión.
+   *
+   * El llamador DEBE haber renderizado y validado el buffer antes; esta función
+   * es el commit de la operación atómica render → validate → publish.
+   */
+  public publishRinkAudio(
+    buffer: AudioBuffer,
+    fileName: string,
+    sourceKind: 'file' | 'studio-mix' = 'studio-mix'
+  ): number {
+    // Si el Rink está reproduciéndose, se detiene antes de sustituir su fuente.
+    if (this.playbackDomain === 'rink') {
+      this.stop();
+    }
+
+    this.buffers.rink = buffer;
+    this.durations.rink = Math.round(buffer.duration * 1000);
+    this.fileNames.rink = fileName;
+    this.sourceKinds.rink = sourceKind;
+    this.rinkRevision += 1;
+    this.rinkAudioId = `rink-audio-${this.rinkRevision}`;
+
+    if (this.playbackDomain === 'rink') {
+      this.loop = this.loop ? normalizeLoop(this.loop, buffer.duration) : null;
+      this.pausedAtTime = 0;
+      this.mediaSession.updateMetadata(fileName);
+      this.emitTimeUpdate(0);
+      this.emitStateChange();
+    }
+    return this.rinkRevision;
+  }
+
+  /** Estado del audio PUBLICADO (siempre el del Rink, no el del dominio activo). */
+  public getPublishedAudio(): {
+    id: string;
+    revision: number;
+    kind: 'direct-file' | 'studio-mix';
+    name: string | null;
+    durationSec: number;
+    buffer: AudioBuffer | null;
+  } {
+    return {
+      id: this.rinkAudioId,
+      revision: this.rinkRevision,
+      kind: this.sourceKinds.rink === 'studio-mix' ? 'studio-mix' : 'direct-file',
+      name: this.fileNames.rink,
+      durationSec: this.durations.rink / 1000,
+      buffer: this.buffers.rink,
+    };
+  }
+
+  /**
+   * Snapshot para "Editar en Estudio": devuelve el audio PUBLICADO para sembrar
+   * el borrador del Studio. Compartir la referencia del `AudioBuffer` es seguro
+   * porque TODAS las operaciones del Studio son no destructivas (crean buffers
+   * nuevos) y nunca mutan el buffer publicado.
+   */
+  public snapshotPublishedToStudio(): AudioBuffer | null {
+    return this.buffers.rink;
   }
 
   /**
@@ -1794,17 +1916,22 @@ export class AudioEngine {
   }
 
   /**
-   * Picos normalizados de la onda maestra para la Pista 2D.
+   * Picos normalizados de una sesión de audio. Por defecto la del RINK (audio
+   * PUBLICADO), de modo que el visor de la Pista 2D nunca dibuja el borrador del
+   * Studio. Pasa `'studio'` solo para diagnósticos del propio editor.
    *
-   * Ya NO recorre el PCM: deriva los buckets de la caché de picos (`WeakMap` con
-   * paso fijo de 128 muestras). Así, cambiar el zoom (que cambia `numBuckets`) o
-   * volver a la vista no vuelve a barrer millones de muestras; es O(buckets).
+   * No recorre el PCM: deriva los buckets de la caché de picos (`WeakMap`, paso
+   * 128). Cambiar el zoom (numBuckets) no vuelve a barrer millones de muestras.
    */
-  public getWaveformData(numBuckets: number = 300): number[] {
-    if (!this.audioBuffer) return [];
+  public getWaveformData(
+    numBuckets: number = 300,
+    domain: AudioPlaybackDomain = 'rink'
+  ): number[] {
+    const source = this.buffers[domain];
+    if (!source) return [];
 
     const buckets = Math.max(1, Math.floor(numBuckets));
-    const raw = readWaveformPeaks(this.audioBuffer, buckets);
+    const raw = readWaveformPeaks(source, buckets);
 
     let globalMax = 0.001;
     for (let i = 0; i < raw.length; i++) {

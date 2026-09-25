@@ -1,6 +1,7 @@
 import React, { useCallback, useRef, useEffect, useMemo, useState } from 'react';
 import { useChoreographyStore } from '../store/useChoreographyStore';
 import { useAudioStudioStore } from '../store/useAudioStudioStore';
+import { useRinkAudioStore } from '../store/useRinkAudioStore';
 import { audioEngine } from '../core/audio/AudioEngine';
 import { roundRectPath } from '../core/canvas/roundRectPath';
 import { ChoreographyPoint, isMainNode } from '../types/choreography';
@@ -145,26 +146,20 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
   // si no, la onda quedaría estirada/recortada hasta la siguiente interacción.
   const viewerViewport = useViewportSize(containerRef);
 
-  // Integración reactiva con el Manifiesto de Mezcla Ligero del Estudio de Audio
-  const mixManifest = useAudioStudioStore((state) => state.mixManifest);
+  // AUDIO PUBLICADO (Draft → Publish): el visor de la Pista 2D muestra SIEMPRE la
+  // versión publicada del Rink, NUNCA el borrador editable del Audio Studio. Al
+  // publicar una mezcla, `revision` cambia y la onda se recalcula. Ya no se lee el
+  // `mixManifest` del Studio ni se modula la onda con su mixer: eso acoplaba el
+  // visor a una mezcla todavía en edición.
+  const publishedRevision = useRinkAudioStore((s) => s.publishedAudio?.revision ?? 0);
 
-  // Actualizar datos de onda sonora al cambiar de pista, duración, zoom o mezcla en el estudio
   useEffect(() => {
     const updatePeaks = () => {
-      // Al hacer zoom, solicitamos una mayor resolución de buckets al AudioBuffer para detalle milimétrico
+      // Al hacer zoom pedimos más resolución (buckets) del buffer PUBLICADO.
       const numBuckets = Math.max(300, Math.min(3000, Math.floor(contentWidth / 3.2)));
-      const basePeaks = audioEngine.getWaveformData(numBuckets);
-      if (basePeaks && basePeaks.length > 0) {
-        // Modular reactivamente la onda según los volúmenes y estados Mute del manifiesto del estudio
-        const masterVol = mixManifest.masterTrack.muted ? 0 : mixManifest.masterTrack.volume;
-        const modulated = basePeaks.map((p) => Math.min(1.0, p * masterVol));
-        setWavePeaks(modulated);
-      } else {
-        // Sin audio real NO se dibuja ninguna onda falsa: el visor queda plano
-        // hasta que el usuario importe su música. Antes se generaba una onda
-        // "demo" que simulaba una pista inexistente.
-        setWavePeaks([]);
-      }
+      const basePeaks = audioEngine.getWaveformData(numBuckets, 'rink');
+      // Sin audio publicado el visor queda plano (nunca una onda inventada).
+      setWavePeaks(basePeaks && basePeaks.length > 0 ? basePeaks : []);
     };
 
     updatePeaks();
@@ -174,7 +169,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     });
 
     return () => unsubState();
-  }, [durationMs, fileName, contentWidth, mixManifest]);
+  }, [durationMs, fileName, contentWidth, publishedRevision]);
 
   // NOTA: aquí se auto-cargaba una pista de demostración. Se eliminó para que la
   // aplicación arranque en "lienzo en blanco": sin audio de ejemplo, el usuario
