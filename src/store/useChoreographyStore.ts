@@ -744,10 +744,11 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
           studioTimeConflict: false,
         };
       }
-      // Editado a mano → conservar; solo señalar el conflicto la primera vez.
-      if (p.studioTimeConflict) return p;
+      // Editado a mano → conservar; señalar el conflicto y guardar el valor que el
+      // Studio propone para que el usuario pueda ADOPTARLO desde el inspector.
+      if (p.studioTimeConflict && p.pendingStudioTimestampMs === newMs) return p;
       pointsChanged = true;
-      return { ...p, studioTimeConflict: true };
+      return { ...p, studioTimeConflict: true, pendingStudioTimestampMs: newMs };
     });
 
     const placedIds = new Set(points.map((p) => p.id));

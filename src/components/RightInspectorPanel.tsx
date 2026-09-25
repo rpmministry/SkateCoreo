@@ -122,6 +122,45 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
     setPoints(updated);
   };
 
+  /** Conflicto de tiempo Studio↔Rink: adopta el valor publicado por el Studio. */
+  const handleAdoptStudioTime = () => {
+    if (!selectedPoint || selectedPoint.pendingStudioTimestampMs == null) return;
+    const ms = selectedPoint.pendingStudioTimestampMs;
+    pushHistory();
+    const updated = points
+      .map((p) =>
+        p.id === selectedPoint.id
+          ? {
+              ...p,
+              time_ms: ms,
+              timestamp: ms,
+              studioPublishedTimestampMs: ms,
+              studioTimeConflict: false,
+              pendingStudioTimestampMs: undefined,
+            }
+          : p
+      )
+      .sort((a, b) => a.time_ms - b.time_ms);
+    setPoints(updated);
+  };
+
+  /** Conflicto de tiempo: conserva el ajuste manual del usuario (limpia el aviso). */
+  const handleKeepMyTime = () => {
+    if (!selectedPoint) return;
+    pushHistory();
+    const updated = points.map((p) =>
+      p.id === selectedPoint.id
+        ? {
+            ...p,
+            studioPublishedTimestampMs: p.time_ms,
+            studioTimeConflict: false,
+            pendingStudioTimestampMs: undefined,
+          }
+        : p
+    );
+    setPoints(updated);
+  };
+
   const handleDeleteSelected = () => {
     if (!selectedPointId) return;
     const idToDelete = selectedPointId;
@@ -369,9 +408,30 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
             {/* Procedencia Studio: nunca se sobrescribe en silencio el tiempo que el
                 usuario ajustó aquí, aunque el Studio publique otro valor. */}
             {selectedPoint.studioTimeConflict && (
-              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 text-[10px] leading-snug text-amber-200">
-                <strong className="font-bold">Tiempo editado en la Pista 2D.</strong> El Studio
-                publicó otro valor para este marcador; se conserva tu ajuste.
+              <div className="space-y-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 text-[10px] leading-snug text-amber-200">
+                <p>
+                  <strong className="font-bold">Tiempo editado en la Pista 2D.</strong> El Studio
+                  publicó otro valor para este marcador. Se conserva tu ajuste salvo que decidas
+                  adoptar el del Studio.
+                </p>
+                {selectedPoint.pendingStudioTimestampMs != null && (
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={handleKeepMyTime}
+                      className="min-h-[40px] rounded-lg border border-white/15 bg-white/5 px-2 text-[11px] font-bold text-slate-100 hover:bg-white/10 interactive-tap"
+                    >
+                      Mantener el mío
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAdoptStudioTime}
+                      className="min-h-[40px] rounded-lg border border-amber-400/40 bg-amber-400/20 px-2 text-[11px] font-bold text-amber-100 hover:bg-amber-400/30 interactive-tap"
+                    >
+                      Usar Studio ({formatTime(selectedPoint.pendingStudioTimestampMs)})
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 

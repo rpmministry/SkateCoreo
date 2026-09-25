@@ -111,6 +111,8 @@ export interface ChoreographyPoint extends ChoreographyPathPoint {
   studioPublishedTimestampMs?: number;
   /** true si el usuario editó el tiempo y el Studio publicó un valor distinto. */
   studioTimeConflict?: boolean;
+  /** Tiempo (ms) que el Studio propuso en la última publicación (para adoptarlo). */
+  pendingStudioTimestampMs?: number;
 }
 
 /**
