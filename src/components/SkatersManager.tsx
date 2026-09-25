@@ -136,11 +136,10 @@ export const SkatersManager: React.FC<SkatersManagerProps> = ({
       title: newProgTitle.trim(),
       duration_ms: durMs,
       half_time_ms: Math.round(durMs / 2),
-      choreography_path: [
-        { id: 'pt-1', x: 5, y: 12.5, time_ms: 0, label: '', isMainNode: true },
-        { id: 'pt-2', x: 25, y: 12.5, time_ms: Math.round(durMs / 2), label: '', isMainNode: true },
-        { id: 'pt-3', x: 45, y: 12.5, time_ms: durMs, label: '', isMainNode: true }
-      ],
+      // Lienzo en blanco: un programa nuevo NO siembra nodos. Los nodos solo
+      // existen si el usuario los crea explícitamente o provienen de una
+      // publicación/importación válida (antes aparecía un "Nodo 1" fantasma).
+      choreography_path: [],
       created_at: Date.now()
     };
 

@@ -64,8 +64,11 @@ export const NodePlacementTray: React.FC<NodePlacementTrayProps> = ({
       <div className="flex h-11 shrink-0 items-center justify-between border-b border-white/10 bg-gradient-to-r from-cyan/20 to-transparent px-3.5">
         <div className="flex min-w-0 items-center gap-2">
           <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-cyan shadow-glow-cyan animate-pulse" />
-          <span className="truncate text-xs font-black uppercase tracking-wider text-white">
-            Bandeja de Nodos
+          <span className="whitespace-nowrap text-sm font-black uppercase tracking-wide text-white">
+            Nodos
+          </span>
+          <span className="truncate text-[10px] font-bold uppercase tracking-wider text-cyan/80">
+            por colocar
           </span>
         </div>
         <div className="flex shrink-0 items-center gap-1">

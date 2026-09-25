@@ -36,7 +36,9 @@ const stateAfterMove = useChoreographyStore.getState();
 const movedPt = stateAfterMove.points.find(p => p.id === newPt.id);
 assert(movedPt?.x === 28.5, 'Coordenada X actualizada a 28.5m tras arrastre');
 assert(movedPt?.y === 14.2, 'Coordenada Y actualizada a 14.2m tras arrastre');
-assert(movedPt?.controlPoint1 !== undefined, 'Tirador CP1 se mantiene consistente');
+// NUEVA REGLA: mover un nodo invalida el trazado (no lo traslada). Los tiradores
+// Bézier se vuelven a crear dibujando, no acompañan al nodo.
+assert(movedPt?.controlPoint1 === undefined, 'Mover un nodo INVALIDA su trazado (no traslada el tirador)');
 
 // 4. Edición de Tiradores Bézier CP1 y CP2
 stateAfterMove.updateControlPoint1(newPt.id, 30.0, 16.0);
@@ -183,6 +185,69 @@ assert(
   useChoreographyStore.getState().retrocederBuildStep() === false &&
     useChoreographyStore.getState().points.length === 1,
   'Retroceder: en el límite (primer paso) no corrompe datos; el botón queda deshabilitado'
+);
+
+// 12. Trazado invalidado al cambiar la configuración espacial
+// (Mover nodo ≠ mover trazado · Eliminar nodo ≠ conservar trazado).
+useChoreographyStore.getState().clearAllPoints();
+const tA = useChoreographyStore.getState().addPointAtCanvas(10, 5, 1000);
+const tB = useChoreographyStore.getState().addPointAtCanvas(20, 10, 2000);
+
+// Simular un trazado dibujado (trazo libre + curva Bézier) sobre el nodo A.
+useChoreographyStore.setState((s) => ({
+  points: s.points.map((p) =>
+    p.id === tA.id
+      ? {
+          ...p,
+          path: [
+            { x: 10, y: 5 },
+            { x: 15, y: 8 },
+            { x: 20, y: 10 },
+          ],
+          curveShaped: true,
+          cp1x: 12,
+          cp1y: 7,
+          cp2x: 18,
+          cp2y: 9,
+          controlPoint1: { x: 12, y: 7 },
+          controlPoint2: { x: 18, y: 9 },
+        }
+      : p
+  ),
+}));
+
+useChoreographyStore.getState().updatePointPosition(tB.id, 30, 15);
+const aAfterMove = useChoreographyStore.getState().points.find((p) => p.id === tA.id)!;
+assert(aAfterMove.path === undefined, 'Mover un nodo INVALIDA el trazado de su vecino (no se traslada)');
+assert(
+  aAfterMove.controlPoint1 === undefined && aAfterMove.curveShaped === false,
+  'La curva Bézier también se invalida con el movimiento'
+);
+assert(useChoreographyStore.getState().points.length === 2, 'Los nodos se conservan tras invalidar el trazado');
+
+// Eliminar el nodo intermedio no deja geometría huérfana en sus vecinos.
+const tC = useChoreographyStore.getState().addPointAtCanvas(40, 20, 3000);
+useChoreographyStore.setState((s) => ({
+  points: s.points.map((p) =>
+    p.id === tB.id
+      ? {
+          ...p,
+          path: [
+            { x: 20, y: 10 },
+            { x: 40, y: 20 },
+          ],
+          curveShaped: true,
+        }
+      : p
+  ),
+}));
+useChoreographyStore.getState().deletePoint(tB.id);
+const survivors = useChoreographyStore.getState().points;
+assert(!survivors.some((p) => p.id === tB.id), 'El nodo eliminado desaparece');
+assert(survivors.length === 2 && survivors.some((p) => p.id === tC.id), 'Los demás nodos permanecen');
+assert(
+  survivors.every((p) => p.curveShaped !== true && p.path === undefined),
+  'Eliminar un nodo no deja curvas ni trazos huérfanos'
 );
 
 console.log('\nResultado: todas las pruebas del Store Audio-First pasaron con éxito.\n');

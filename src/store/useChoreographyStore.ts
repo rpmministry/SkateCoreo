@@ -219,6 +219,28 @@ export function applySmartNodeNumber(
   );
 }
 
+/**
+ * INVALIDACIÓN DE TRAZADO — regla nodal.
+ *
+ * Mover o eliminar un nodo cambia la CONFIGURACIÓN ESPACIAL, así que la geometría
+ * dibujada (trazo libre `path`, curva Bézier `controlPoint*`/`cp*`) deja de ser
+ * válida. Se LIMPIA para que el usuario vuelva a dibujarla. NUNCA se traslada ni se
+ * deforma automáticamente junto al nodo (`Mover nodo ≠ mover trazado`).
+ */
+function invalidatePointTrajectory<T extends ChoreographyPoint>(p: T): T {
+  return {
+    ...p,
+    path: undefined,
+    curveShaped: false,
+    controlPoint1: undefined,
+    controlPoint2: undefined,
+    cp1x: undefined,
+    cp1y: undefined,
+    cp2x: undefined,
+    cp2y: undefined,
+  };
+}
+
 export const useChoreographyStore = create<ChoreographyStoreState>((set, get) => ({
   points: [],
   selectedPointId: null,
@@ -444,43 +466,20 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
     const clampedX = Math.round(Math.max(0.8, Math.min(49.2, x)) * 10) / 10;
     const clampedY = Math.round(Math.max(0.8, Math.min(24.2, y)) * 10) / 10;
 
+    // Configuración espacial: se invalida el trazado del nodo movido y el de sus
+    // vecinos temporales (los tramos que entran/salen de él). NO se traslada la
+    // geometría: el usuario vuelve a dibujar (Mover nodo ≠ mover trazado).
+    const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
+    const sortedIndex = sorted.findIndex((p) => p.id === id);
+    if (sortedIndex < 0) return;
+
+    const affected = new Set<string>([id]);
+    if (sortedIndex > 0) affected.add(sorted[sortedIndex - 1].id);
+    if (sortedIndex < sorted.length - 1) affected.add(sorted[sortedIndex + 1].id);
+
     const updated = points.map(p => {
-      if (p.id !== id) return p;
-      const dx = clampedX - p.x;
-      const dy = clampedY - p.y;
-
-      // Desplazar tiradores garantizando que NUNCA desborden los topes perimetrales de la pista
-      const rawCp1X = p.controlPoint1 ? p.controlPoint1.x + dx : clampedX;
-      const rawCp1Y = p.controlPoint1 ? p.controlPoint1.y + dy : clampedY;
-      const cp1: ControlPoint = {
-        x: Math.round(Math.max(0.4, Math.min(49.6, rawCp1X)) * 10) / 10,
-        y: Math.round(Math.max(0.4, Math.min(24.6, rawCp1Y)) * 10) / 10
-      };
-
-      const rawCp2X = p.controlPoint2 ? p.controlPoint2.x + dx : clampedX;
-      const rawCp2Y = p.controlPoint2 ? p.controlPoint2.y + dy : clampedY;
-      const cp2: ControlPoint = {
-        x: Math.round(Math.max(0.4, Math.min(49.6, rawCp2X)) * 10) / 10,
-        y: Math.round(Math.max(0.4, Math.min(24.6, rawCp2Y)) * 10) / 10
-      };
-
-      const updatedPath = p.path ? p.path.map(pt => ({
-        x: Math.round(Math.max(0.2, Math.min(49.8, pt.x + dx)) * 100) / 100,
-        y: Math.round(Math.max(0.2, Math.min(24.8, pt.y + dy)) * 100) / 100,
-      })) : undefined;
-
-      return {
-        ...p,
-        x: clampedX,
-        y: clampedY,
-        controlPoint1: cp1,
-        controlPoint2: cp2,
-        cp1x: cp1.x,
-        cp1y: cp1.y,
-        cp2x: cp2.x,
-        cp2y: cp2.y,
-        path: updatedPath,
-      };
+      const withPosition = p.id === id ? { ...p, x: clampedX, y: clampedY } : p;
+      return affected.has(p.id) ? invalidatePointTrajectory(withPosition) : withPosition;
     });
 
     set({ points: updated });
@@ -608,7 +607,20 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
     const idx = points.findIndex(p => p.id === id);
     if (idx < 0) return;
 
-    const updated = points.filter(p => p.id !== id);
+    // ELIMINAR NODO → INVALIDAR TRAZADO: se limpia la geometría de los vecinos
+    // temporales para que no queden líneas/curvas/círculos huérfanos. El usuario
+    // vuelve a dibujar la trayectoria.
+    const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
+    const sortedIndex = sorted.findIndex(p => p.id === id);
+    const affected = new Set<string>();
+    if (sortedIndex > 0) affected.add(sorted[sortedIndex - 1].id);
+    if (sortedIndex >= 0 && sortedIndex < sorted.length - 1) {
+      affected.add(sorted[sortedIndex + 1].id);
+    }
+
+    const updated = points
+      .filter(p => p.id !== id)
+      .map(p => (affected.has(p.id) ? invalidatePointTrajectory(p) : p));
 
     set({
       points: updated,

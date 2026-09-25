@@ -1869,40 +1869,9 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
           </div>
         )}
 
-        {/* Pista limpia sin overlays — el zoom se controla con gestos pinch-to-zoom y los botones de la barra de herramientas */}
-
-        {/* En MÓVIL el zoom se hace con el gesto de dos dedos (pinch) y el pan
-            con un dedo: la pista queda 100% despejada, sin porcentaje ni botones
-            flotantes. En ESCRITORIO se conservan los controles de cámara. */}
-        <div className="hidden lg:flex absolute bottom-3 left-3 z-20 flex-col items-center gap-1 rounded-2xl border border-white/10 bg-slate-950/80 p-1 backdrop-blur-md">
-          <button
-            type="button"
-            onClick={() => zoomIn(canvasRef.current)}
-            title="Acercar (rueda del ratón)"
-            aria-label="Acercar"
-            className="press flex h-11 w-11 items-center justify-center rounded-xl text-slate-300 hover:bg-white/10 hover:text-white"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={resetCamera}
-            title="Restablecer vista"
-            aria-label="Restablecer vista"
-            className="press flex h-11 w-11 items-center justify-center rounded-xl font-mono text-[10px] font-bold text-slate-300 hover:bg-white/10 hover:text-white"
-          >
-            {Math.round(camera.zoom * 100)}%
-          </button>
-          <button
-            type="button"
-            onClick={() => zoomOut(canvasRef.current)}
-            title="Alejar (rueda del ratón)"
-            aria-label="Alejar"
-            className="press flex h-11 w-11 items-center justify-center rounded-xl text-slate-300 hover:bg-white/10 hover:text-white"
-          >
-            <Minus className="h-4 w-4" />
-          </button>
-        </div>
+        {/* Pista despejada: el % de zoom ya NO es un overlay en la esquina del
+            canvas. Se consolidó (única ubicación) dentro de la barra de herramientas
+            superior, así no ocupa superficie de dibujo. En móvil el zoom es por pinza. */}
 
         <canvas
           ref={canvasRef}
@@ -2204,35 +2173,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
             </button>
           )}
 
-          {/* Floating Camera Control HUD (solo escritorio; en móvil el zoom es por pinza) */}
-          <div className="hidden lg:flex absolute bottom-2.5 right-2.5 z-30 items-center gap-1 bg-slate-950/70 backdrop-blur-md border border-white/10 px-1.5 py-1 rounded-xl shadow-soft-elevation select-none pointer-events-none">
-            <button
-              type="button"
-              onClick={() => zoomOut(canvasRef.current)}
-              className="w-6 h-6 flex items-center justify-center rounded-lg bg-slate-900/90 hover:bg-slate-800 text-slate-200 active:scale-95 text-sm font-bold transition-all border border-white/5 pointer-events-auto"
-              title="Alejar (Zoom Out -10%)"
-            >
-              −
-            </button>
-            <button
-              type="button"
-              onClick={resetCamera}
-              className="px-1.5 h-6 flex items-center justify-center rounded-lg bg-slate-900/90 hover:bg-slate-800 text-cyan active:scale-95 text-[10px] font-mono font-bold transition-all border border-white/5 pointer-events-auto"
-              title="Restablecer Vista (100% y centrar)"
-            >
-              {Math.round(camera.zoom * 100)}%
-            </button>
-            <button
-              type="button"
-              onClick={() => zoomIn(canvasRef.current)}
-              className="w-6 h-6 flex items-center justify-center rounded-lg bg-slate-900/90 hover:bg-slate-800 text-slate-200 active:scale-95 text-sm font-bold transition-all border border-white/5 pointer-events-auto"
-              title="Acercar (Zoom In +10%)"
-            >
-              +
-            </button>
-          </div>
-
-          {/* Mode Toggles: Colocar Nodos / Trazar Líneas / Borrador */}
+          {/* Mode Toggles: Colocar Nodos / Trazar Líneas / Borrador (+ zoom) */}
           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center bg-zinc-950/90 backdrop-blur-md p-1 rounded-2xl border border-white/10 shadow-2xl gap-1 select-none">
             <button
               type="button"
@@ -2290,6 +2231,39 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
               <Eraser className="w-3.5 h-3.5 stroke-[2.5]" />
               <span>Borrador</span>
             </button>
+
+            {/* Zoom de cámara consolidado en ESTA barra (única ubicación): el % ya no
+                es un overlay en las esquinas del canvas. Solo escritorio; en móvil el
+                zoom es por pinza. */}
+            <div className="hidden lg:flex items-center gap-1 pl-1.5 ml-1 border-l border-white/10">
+              <button
+                type="button"
+                onClick={() => zoomOut(canvasRef.current)}
+                title="Alejar (Zoom Out)"
+                aria-label="Alejar"
+                className="press flex h-7 w-7 items-center justify-center rounded-lg text-slate-300 hover:bg-zinc-800 hover:text-white"
+              >
+                <Minus className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={resetCamera}
+                title="Restablecer vista (100% y centrar)"
+                aria-label={`Zoom actual ${Math.round(camera.zoom * 100)} por ciento. Restablecer`}
+                className="press h-7 px-1.5 rounded-lg font-mono text-[10px] font-bold text-cyan hover:bg-zinc-800"
+              >
+                {Math.round(camera.zoom * 100)}%
+              </button>
+              <button
+                type="button"
+                onClick={() => zoomIn(canvasRef.current)}
+                title="Acercar (Zoom In)"
+                aria-label="Acercar"
+                className="press flex h-7 w-7 items-center justify-center rounded-lg text-slate-300 hover:bg-zinc-800 hover:text-white"
+              >
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
 
           {/* Floating Paper Trace Overlay Control Panel */}
