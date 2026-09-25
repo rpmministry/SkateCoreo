@@ -45,9 +45,15 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
   const globalControls = useAudioStudioStore((s) => s.globalControls);
 
   const masterTrack = tracks.music;
+  // Música: el store es la ÚNICA fuente que sincroniza el GainNode real del motor
+  // (`setTrackVolume('music')` → `audioEngine.setMusicVolume`), así que este % es fiel.
   const musicVolume = masterTrack?.volume ?? 1.0;
   const musicMuted = masterTrack?.muted ?? false;
+  // Metrónomo y Voces Guía distinguen DOS estados: `enabled` (existe) y `muted`
+  // (silenciado). No son lo mismo: apagado ≠ silenciado.
+  const metronomeEnabled = globalControls.metronome.enabled;
   const metronomeMuted = globalControls.metronome.muted;
+  const voiceEnabled = globalControls.voiceGuide.enabled;
   const voiceMuted = globalControls.voiceGuide.muted;
 
   // Activación táctil única (evita el doble disparo pointerdown + click que
@@ -80,6 +86,9 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
 
   const effectiveDuration = durationMs > 0 ? durationMs : 120000;
   const progressRatio = Math.max(0, Math.min(1, currentTimeMs / effectiveDuration));
+  // Sin audio no se muestra "00:00 / 00:00" (ambigua): la duración se marca como
+  // desconocida hasta que exista audio real cargado/publicado.
+  const durationLabel = hasAudioLoaded && durationMs > 0 ? fmtTime(durationMs) : '--:--';
 
   const playButton = (size: 'md' | 'lg') => (
     <button
@@ -163,7 +172,7 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
             <span className="shrink-0 text-slate-400">
               {fmtTime(currentTimeMs)}
               <span className="text-slate-600"> / </span>
-              {fmtTime(durationMs)}
+              {durationLabel}
             </span>
           </div>
           <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
@@ -197,7 +206,7 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
         <div className="flex items-center gap-1 font-mono text-xs font-black leading-none">
           <span className="text-cyan">{fmtTime(currentTimeMs)}</span>
           <span className="text-slate-600">/</span>
-          <span className="font-medium text-slate-400">{fmtTime(durationMs)}</span>
+          <span className="font-medium text-slate-400">{durationLabel}</span>
         </div>
         <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-white/10">
           <div
@@ -207,29 +216,38 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
         </div>
       </div>
 
-      <div className="hidden items-center gap-1.5 border-l border-white/10 pl-2 font-mono text-[10px] text-slate-400 xl:flex">
+      {/* ── Grupo AUDIO: indicadores del estado REAL de la sesión del Rink.
+          · Música  → % del gain real (se sincroniza con el motor).
+          · Voz     → Voces Guía (cues).
+          · Campana → Metrónomo.
+          Distingue ENABLED (existe) de MUTED (silenciado): OFF ≠ MUTE ≠ ON.
+          Visible desde `lg` (tablet grande / laptop), no solo en `xl`. */}
+      <div className="hidden items-center gap-2 border-l border-white/10 pl-2.5 font-mono text-[11px] text-slate-400 lg:flex">
         <span
-          className={`flex items-center gap-0.5 ${musicMuted ? 'text-rose-400 line-through' : 'font-semibold text-cyan'}`}
-          title="Volumen de la pista master"
+          className={`flex items-center gap-1 ${musicMuted ? 'text-rose-400' : 'font-semibold text-cyan'}`}
+          title={`Volumen de la música (Pista 2D): ${musicMuted ? 'silenciada' : `${Math.round(musicVolume * 100)}%`} · ajústalo en «Mezcla»`}
+          aria-label={`Volumen de la música: ${musicMuted ? 'silenciada' : `${Math.round(musicVolume * 100)} por ciento`}`}
         >
-          <Music className="h-2.5 w-2.5" />
-          {musicMuted ? 'M' : `${Math.round(musicVolume * 100)}%`}
+          <Music className="h-3.5 w-3.5" />
+          {musicMuted ? 'MUTE' : `${Math.round(musicVolume * 100)}%`}
         </span>
         <span className="text-white/10">·</span>
         <span
-          className={`flex items-center gap-0.5 ${voiceMuted ? 'text-rose-400 line-through' : 'font-semibold text-fuchsia-400'}`}
-          title="Volumen de las voces guía"
+          className={`flex items-center gap-1 ${!voiceEnabled ? 'text-slate-500' : voiceMuted ? 'text-rose-400' : 'font-semibold text-fuchsia-400'}`}
+          title={`Voces guía: ${!voiceEnabled ? 'desactivadas' : voiceMuted ? 'silenciadas' : 'activas'}`}
+          aria-label={`Voces guía: ${!voiceEnabled ? 'desactivadas' : voiceMuted ? 'silenciadas' : 'activas'}`}
         >
-          <Mic className="h-2.5 w-2.5" />
-          {voiceMuted ? 'M' : 'ON'}
+          <Mic className="h-3.5 w-3.5" />
+          {!voiceEnabled ? 'OFF' : voiceMuted ? 'MUTE' : 'ON'}
         </span>
         <span className="text-white/10">·</span>
         <span
-          className={`flex items-center gap-0.5 ${metronomeMuted ? 'text-rose-400 line-through' : 'font-semibold text-amber-400'}`}
-          title="Volumen del metrónomo"
+          className={`flex items-center gap-1 ${!metronomeEnabled ? 'text-slate-500' : metronomeMuted ? 'text-rose-400' : 'font-semibold text-amber-400'}`}
+          title={`Metrónomo: ${!metronomeEnabled ? 'desactivado' : metronomeMuted ? 'silenciado' : 'activo'}`}
+          aria-label={`Metrónomo: ${!metronomeEnabled ? 'desactivado' : metronomeMuted ? 'silenciado' : 'activo'}`}
         >
-          <Bell className="h-2.5 w-2.5" />
-          {metronomeMuted ? 'M' : 'ON'}
+          <Bell className="h-3.5 w-3.5" />
+          {!metronomeEnabled ? 'OFF' : metronomeMuted ? 'MUTE' : 'ON'}
         </span>
       </div>
     </div>
