@@ -24,7 +24,10 @@ import { usePressAction } from '../../hooks/usePressAction';
 import { usePlayheadSync } from '../../hooks/usePlayheadSync';
 import { useIosFileCapture } from '../../hooks/useIosFileCapture';
 import { createTimelineGeometry } from '../../core/audio/timeline/AudioTimelineGeometry';
-import { computeTrackLaneHeight } from '../../core/audio/timeline/TrackLaneLayout';
+import {
+  computeTrackLaneHeight,
+  computeTrackHeaderWidth,
+} from '../../core/audio/timeline/TrackLaneLayout';
 import { useViewportSize } from '../../hooks/useViewportSize';
 import { AudioStudioTrack } from '../../types/audioStudio';
 import { ACCEPTED_AUDIO_FORMATS } from '../../constants/mediaFormats';
@@ -117,17 +120,27 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
    * frente a `sm:w-28` (112px) en la fila, lo que desplazaba 22px los clips y el
    * playhead respecto de la regla en desktop. Se sigue el breakpoint `sm` (640px).
    */
-  const [isWideHeader, setIsWideHeader] = useState<boolean>(() =>
-    typeof window !== 'undefined' && window.matchMedia('(min-width: 640px)').matches
+  /**
+   * Ancho de cabecera de pista: UNA SOLA fuente de verdad para la regla, la
+   * geometría, el playhead y las cabeceras. Se deriva del ANCHO REAL disponible
+   * (el Studio es full-screen, así que el viewport equivale al contenedor) con
+   * tramos compact/medium/wide, y reacciona a resize/orientación. Ya no hay un
+   * valor fijo que obligue a truncar el nombre de la pista.
+   */
+  const [headerWidth, setHeaderWidth] = useState<number>(() =>
+    computeTrackHeaderWidth(typeof window !== 'undefined' ? window.innerWidth : 1280)
   );
   useEffect(() => {
-    const mq = window.matchMedia('(min-width: 640px)');
-    const onChange = () => setIsWideHeader(mq.matches);
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
+    const update = () => setHeaderWidth(computeTrackHeaderWidth(window.innerWidth));
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('orientationchange', update);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('orientationchange', update);
+    };
   }, []);
 
-  const headerWidth = isWideHeader ? 112 : 90;
   // Espacio Vacío Continuo de Ensamblaje (450px) tras el final del audio.
   const OVERSCROLL_PX = 450;
 

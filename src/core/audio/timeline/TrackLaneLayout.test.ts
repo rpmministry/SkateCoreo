@@ -8,8 +8,10 @@
 
 import {
   computeTrackLaneHeight,
+  computeTrackHeaderWidth,
   fallbackTrackLaneHeight,
   TRACK_LANE_BOUNDS,
+  TRACK_HEADER_WIDTHS,
 } from './TrackLaneLayout';
 
 let total = 0;
@@ -51,7 +53,7 @@ console.log('\n--- PRUEBAS DE ALTURA DE CARRIL ADAPTATIVA (FASE 5) ---');
     `Móvil 5 pistas y poco alto → se eleva al mínimo táctil (${TRACK_LANE_BOUNDS.mobile.min}px), no filas diminutas`
   );
   // Con algo más de espacio el reparto proporcional queda por encima del mínimo.
-  const proportional = computeTrackLaneHeight(360, 5, mobile);
+  const proportional = computeTrackLaneHeight(420, 5, mobile);
   assert(
     proportional > TRACK_LANE_BOUNDS.mobile.min && proportional < TRACK_LANE_BOUNDS.mobile.max,
     `Móvil 5 pistas con espacio medio → valor proporcional (${proportional}px)`
@@ -107,6 +109,23 @@ console.log('\n--- PRUEBAS DE ALTURA DE CARRIL ADAPTATIVA (FASE 5) ---');
     }
   }
   assert(ok, 'Todas las combinaciones producen alturas finitas y razonables');
+}
+
+// ── 6. Ancho de cabecera de pista: el nombre SIEMPRE tiene espacio real ──
+{
+  const phone = computeTrackHeaderWidth(390);
+  const tablet = computeTrackHeaderWidth(768);
+  const desktop = computeTrackHeaderWidth(1440);
+  assert(phone === TRACK_HEADER_WIDTHS.compact, 'Móvil recibe cabecera compacta');
+  assert(tablet === TRACK_HEADER_WIDTHS.medium, 'Tablet recibe cabecera media');
+  assert(desktop === TRACK_HEADER_WIDTHS.wide, 'Desktop recibe cabecera ancha');
+  assert(phone < tablet && tablet < desktop, 'La cabecera crece con el espacio disponible');
+  assert(
+    computeTrackHeaderWidth(0) === TRACK_HEADER_WIDTHS.compact &&
+      computeTrackHeaderWidth(Number.NaN) === TRACK_HEADER_WIDTHS.compact,
+    'Sin medida fiable la cabecera usa el tramo compacto'
+  );
+  assert(phone >= 120, `Ni en el móvil más pequeño la cabecera baja de 120px (${phone}px)`);
 }
 
 console.log(`\nTODAS LAS PRUEBAS DE ALTURA DE CARRIL PASARON: ${total}/${total}`);

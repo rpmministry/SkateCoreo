@@ -270,7 +270,9 @@ const isMasterId = (id: string) => id === 'music' || id === 'track-music' || id 
 const initialTracks = {
   music: {
     id: 'track-music',
-    name: 'Master',
+    // Nombre legible por personas (antes 'Master'): el header de pista lo muestra
+    // completo y la etiqueta MASTER pasa a ser el estado, no el nombre.
+    name: 'Música Principal',
     color: CARBON_TRACK_COLORS[0], // Cyan Eléctrico
     type: 'music' as const,
     buffer: null,

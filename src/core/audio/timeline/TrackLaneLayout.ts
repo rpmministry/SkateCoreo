@@ -26,11 +26,40 @@ export interface TrackLaneHeightOptions {
   reservedPx?: number;
 }
 
-/** Mínimo táctil / máximo para que las filas no crezcan sin sentido. */
+/**
+ * Mínimo táctil / máximo para que las filas no crezcan sin sentido.
+ * El mínimo sube respecto a versiones previas porque la cabecera ahora apila
+ * NOMBRE (hasta 2 líneas) + fila de controles: identidad de pista siempre legible.
+ */
 export const TRACK_LANE_BOUNDS = {
-  mobile: { min: 60, max: 104 },
-  desktop: { min: 52, max: 96 },
+  mobile: { min: 64, max: 112 },
+  desktop: { min: 56, max: 100 },
 } as const;
+
+/**
+ * Anchos de cabecera de pista (px), centralizados para no dispersar "números
+ * mágicos". Principio de AudioMass: la zona de identidad de pista es una REGIÓN
+ * REAL con espacio para el nombre completo y sus controles, no un icono flotante.
+ */
+export const TRACK_HEADER_WIDTHS = {
+  compact: 132, // móvil
+  medium: 172, // tablet / ventana media
+  wide: 208, // escritorio
+} as const;
+
+/**
+ * Ancho de cabecera según el ANCHO REAL DISPONIBLE de la pista (no del viewport
+ * del navegador): así la cabecera se adapta también si el Studio vive dentro de
+ * otro layout. Nunca devuelve un ancho que impida leer el nombre.
+ */
+export function computeTrackHeaderWidth(availableWidthPx: number): number {
+  if (!Number.isFinite(availableWidthPx) || availableWidthPx <= 0) {
+    return TRACK_HEADER_WIDTHS.compact;
+  }
+  if (availableWidthPx < 560) return TRACK_HEADER_WIDTHS.compact;
+  if (availableWidthPx < 900) return TRACK_HEADER_WIDTHS.medium;
+  return TRACK_HEADER_WIDTHS.wide;
+}
 
 /** Altura clásica por número de pistas, usada mientras no hay medida de viewport. */
 export function fallbackTrackLaneHeight(trackCount: number): number {

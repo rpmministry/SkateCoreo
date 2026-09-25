@@ -57,6 +57,8 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
 
   const activeTrackId = useAudioStudioStore((s) => s.activeTrackId);
   const setActiveTrackId = useAudioStudioStore((s) => s.setActiveTrackId);
+  const toggleTrackMute = useAudioStudioStore((s) => s.toggleTrackMute);
+  const toggleTrackSolo = useAudioStudioStore((s) => s.toggleTrackSolo);
   const pasteClip = useAudioStudioStore((s) => s.pasteClip);
   const audioClipboard = useAudioStudioStore((s) => s.audioClipboard);
   const draggingGhost = useAudioStudioStore((s) => s.draggingGhost);
@@ -73,7 +75,9 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
   const isActive = activeTrackId === track.id || (isMasterTrack && (activeTrackId === 'music' || activeTrackId === 'track-music' || activeTrackId === 'master'));
   const isDropTarget = draggingGhost?.targetTrackIndex === trackIndex;
   const isMasterDropTarget = isMasterTrack && isDropTarget;
-  const displayName = isMasterTrack ? 'Master' : track.name;
+  // Nombre REAL de la pista (el master se llama "Música Principal"): el header
+  // siempre lo muestra; la etiqueta MASTER va como estado, no como nombre.
+  const displayName = track.name;
 
   // Icono dinámico según la pista estilo BandLab
   const getTrackIcon = () => {
@@ -134,49 +138,75 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
             setActiveTrackId(track.id);
             setShowTrackMenu(true);
           }}
-          className={`sticky left-0 z-20 shrink-0 border-r border-white/10 flex items-center justify-between px-1.5 sm:px-2 py-1 cursor-pointer select-none transition-colors group ${
+          className={`sticky left-0 z-20 shrink-0 border-r border-white/10 flex flex-col justify-center gap-1 px-2 py-1.5 cursor-pointer select-none transition-colors group ${
             isActive ? 'bg-zinc-900' : 'bg-zinc-950 hover:bg-zinc-900'
           }`}
           style={{ width: `${headerWidth}px`, borderLeft: `3.5px solid ${track.color}` }}
           title={displayName}
         >
-          <div className="flex items-center gap-1 sm:gap-2 min-w-0">
-            {/* Círculo de Icono con color de pista */}
-            <div 
-              className="w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center shrink-0 shadow-sm relative"
+          {/* ── Fila 1: IDENTIDAD ── icono + NOMBRE COMPLETO (hasta 2 líneas).
+              El nombre es la pieza dominante y NUNCA se oculta ni se reduce a icono. */}
+          <div className="flex items-start gap-1.5 min-w-0">
+            <div
+              className="mt-0.5 w-6 h-6 rounded-full flex items-center justify-center shrink-0 shadow-sm relative"
               style={{ backgroundColor: `${track.color}25`, color: track.color }}
             >
-              <IconComponent className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+              <IconComponent className="w-3.5 h-3.5" />
               {isActive && (
                 <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-cyan ring-1 ring-black animate-pulse" />
               )}
             </div>
-
-            {/* Nombre y Tag — tipografía adaptativa: se reduce en pantallas pequeñas sin perder legibilidad */}
-            <div className="flex flex-col min-w-0 leading-tight">
-              <span className="font-bold text-[10px] sm:text-xs text-white truncate max-w-[42px] sm:max-w-[60px]"
-                title={displayName}>
-                {displayName}
-              </span>
-              <span className="text-[8px] sm:text-[9px] text-slate-400 font-mono truncate">
-                {isActive ? 'Activa' : (isMasterTrack ? 'Master' : 'Fx')}
-              </span>
-            </div>
+            <span
+              className="min-w-0 flex-1 font-bold text-[12px] sm:text-[13px] leading-[1.15] text-white break-words line-clamp-2"
+              title={displayName}
+            >
+              {displayName}
+            </span>
           </div>
 
-          {/* Indicador de Mute o Solo activo */}
-          <div className="flex flex-col items-end gap-0.5 shrink-0">
-            {track.muted && (
-              <span className="px-1 py-0.2 rounded text-[8px] font-black bg-rose-500 text-white">
+          {/* ── Fila 2: ESTADO + CONTROLES reales de la pista (Mute / Solo) + menú.
+              En pantallas estrechas se apila aquí en vez de robarle sitio al nombre. */}
+          <div className="flex items-center gap-1 min-w-0">
+            <span className="text-[8px] sm:text-[9px] font-mono uppercase tracking-wide text-slate-400 truncate shrink">
+              {isActive ? 'Activa' : isMasterTrack ? 'MASTER' : 'PISTA'}
+            </span>
+            <div className="ml-auto flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleTrackMute(track.id);
+                }}
+                aria-pressed={track.muted}
+                aria-label={track.muted ? `Quitar silencio a ${displayName}` : `Silenciar ${displayName}`}
+                title="Silenciar pista (Mute)"
+                className={`flex h-7 w-7 items-center justify-center rounded text-[10px] font-black transition-colors ${
+                  track.muted
+                    ? 'bg-rose-500 text-white shadow-sm'
+                    : 'bg-white/10 text-slate-400 hover:bg-white/20 hover:text-white'
+                }`}
+              >
                 M
-              </span>
-            )}
-            {track.solo && (
-              <span className="px-1 py-0.2 rounded text-[8px] font-black bg-amber-400 text-black">
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleTrackSolo(track.id);
+                }}
+                aria-pressed={track.solo}
+                aria-label={track.solo ? `Quitar solo a ${displayName}` : `Escuchar solo ${displayName}`}
+                title="Escuchar solo esta pista (Solo)"
+                className={`flex h-7 w-7 items-center justify-center rounded text-[10px] font-black transition-colors ${
+                  track.solo
+                    ? 'bg-amber-400 text-black shadow-sm'
+                    : 'bg-white/10 text-slate-400 hover:bg-white/20 hover:text-white'
+                }`}
+              >
                 S
-              </span>
-            )}
-            <MoreVertical className="w-3.5 h-3.5 text-slate-500 group-hover:text-white transition-colors" />
+              </button>
+              <MoreVertical className="w-3.5 h-3.5 shrink-0 text-slate-500 transition-colors group-hover:text-white" />
+            </div>
           </div>
         </div>
 
