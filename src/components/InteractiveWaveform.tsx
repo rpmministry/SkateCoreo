@@ -12,6 +12,8 @@ import {
   ZoomOut, 
   RotateCcw,
   Sliders,
+  Undo2,
+  SkipBack,
 } from 'lucide-react';
 import { useAudioZoomPan } from '../hooks/useAudioZoomPan';
 import { usePlayheadSync } from '../hooks/usePlayheadSync';
@@ -32,6 +34,8 @@ interface InteractiveWaveformProps {
   onSeek: (timeMs: number) => void;
   fileName?: string | null;
   onOpenStudio?: () => void;
+  /** Deshacer la coreografía (misma acción que tenía la columna izquierda). */
+  onUndo?: () => void;
 }
 
 export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
@@ -41,9 +45,18 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
   onSeek,
   fileName,
   onOpenStudio,
+  onUndo,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+
+  // Utilidades de edición temporal movidas aquí desde la columna izquierda.
+  const canUndo = useChoreographyStore((state) => state.history.length > 0);
+  const handleRewindToStart = () => {
+    // Mismo comportamiento que tenía la columna izquierda: parar y volver a 00:00.
+    audioEngine.pause();
+    onSeek(0);
+  };
 
   const points = useChoreographyStore((state) => state.points);
   const selectedPointId = useChoreographyStore((state) => state.selectedPointId);
@@ -515,7 +528,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
           El tiempo y la duración viven en el transporte único (RinkAudioPlayer)
           para eliminar telemetría duplicada en pantalla.
           Todas las áreas táctiles respetan el mínimo de 48x48px. */}
-      <div className="flex shrink-0 items-center justify-between gap-2 text-xs">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 text-xs">
         <div className="flex min-w-0 items-center gap-2">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-subtle border border-cyan/30 bg-cyan/10 text-cyan">
             <Waves className="h-4 w-4" />
@@ -546,9 +559,36 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-1.5">
-          {/* Acceso DIRECTO y con label al editor de audio. No se esconde en un
-              drawer ni depende de un icono ambiguo: dice qué hace. */}
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+          {/* ── Utilidades de edición temporal (movidas desde la columna izquierda;
+              ahora viven junto al timeline, que es su contexto natural). ── */}
+          {onUndo && (
+            <button
+              type="button"
+              onClick={onUndo}
+              disabled={!canUndo}
+              className="flex min-h-touch items-center justify-center gap-1.5 rounded-subtle border border-border-subtle bg-surface-hover/80 px-2.5 font-sans text-[11px] font-bold text-text-secondary press hover:bg-surface-active hover:text-text-primary disabled:pointer-events-none disabled:opacity-30 sm:px-3"
+              title="Deshacer el último cambio de la coreografía"
+              aria-label="Deshacer"
+            >
+              <Undo2 className="h-3.5 w-3.5 shrink-0 text-coral" />
+              <span className="hidden sm:inline">Deshacer</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleRewindToStart}
+            className="flex min-h-touch items-center justify-center gap-1.5 rounded-subtle border border-border-subtle bg-surface-hover/80 px-2.5 font-sans text-[11px] font-bold text-text-secondary press hover:bg-surface-active hover:text-text-primary sm:px-3"
+            title="Parar y volver al inicio del audio (00:00)"
+            aria-label="Volver al inicio"
+          >
+            <SkipBack className="h-3.5 w-3.5 shrink-0" />
+            <span className="hidden sm:inline">Volver al inicio</span>
+          </button>
+          <span className="hidden h-5 w-px bg-white/10 sm:block" aria-hidden="true" />
+
+          {/* ── Acción de herramienta especializada: abrir el Audio Studio.
+              Acceso DIRECTO y con label; no se esconde ni depende de un icono. ── */}
           {onOpenStudio && (
             <button
               type="button"

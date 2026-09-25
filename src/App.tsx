@@ -908,9 +908,7 @@ export function App() {
               <LeftSidebarPanel
                 preRollSec={preRollSec}
                 onPreRollSecChange={handlePreRollSecChange}
-                onUndo={handleUndo}
-                                onClearRink={requestClearRink}
-                onOpenAudioStudio={() => setActiveView('studio')}
+                onClearRink={requestClearRink}
                 onLogout={handleLogout}
               />
             </aside>
@@ -966,6 +964,7 @@ export function App() {
                 onSeek={(ms) => audioEngine.seek(ms)}
                 fileName={audioState.fileName}
                 onOpenStudio={() => setActiveView('studio')}
+                onUndo={handleUndo}
               />
             </div>
           </div>
@@ -1167,9 +1166,7 @@ export function App() {
           <LeftSidebarPanel
             preRollSec={preRollSec}
             onPreRollSecChange={handlePreRollSecChange}
-            onUndo={handleUndo}
-                        onClearRink={requestClearRink}
-            onOpenAudioStudio={() => { setDrawerOpen(false); setActiveView('studio'); }}
+            onClearRink={requestClearRink}
             onLogout={handleLogout}
             showHeader={false}
             isMobileModal={true}

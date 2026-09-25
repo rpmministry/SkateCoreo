@@ -7,9 +7,9 @@ import {
   Timer,
   Layers,
   Eye,
-  SkipBack,
+
   Sparkles,
-  Undo2,
+
   Trash2,
   BookOpen,
   LogOut,
@@ -53,11 +53,9 @@ const DeviceSecurityModal = (props: React.ComponentProps<typeof DeviceSecurityMo
 interface LeftSidebarPanelProps {
   preRollSec: number;
   onPreRollSecChange: (sec: number) => void;
-  onUndo: () => void;
   onClearRink?: () => void;
   // NOTA: se eliminó `onResetDemo`. La app arranca sin datos de prueba
   // (lienzo en blanco) y ya no existe coreografía ni música de demostración.
-  onOpenAudioStudio?: () => void;
   /** Cierre de sesión unificado (misma limpieza que el resto de la app). */
   onLogout?: () => void;
   showHeader?: boolean;
@@ -72,8 +70,6 @@ interface LeftSidebarPanelProps {
 export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
   preRollSec,
   onPreRollSecChange,
-  onUndo,
-  onOpenAudioStudio,
   onLogout,
   showHeader = true,
   isMobileModal = false,
@@ -92,7 +88,6 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
   const setShowSkaterDuringPlayback = useChoreographyStore((s) => s.setShowSkaterDuringPlayback);
   const paperTraceOverlay = useChoreographyStore((s) => s.paperTraceOverlay);
   const clearPaperTraceOverlay = useChoreographyStore((s) => s.clearPaperTraceOverlay);
-  const history = useChoreographyStore((s) => s.history);
 
   // Reglamento 2026
   const edad = useChoreographyStore((s) => s.edad);
@@ -244,15 +239,8 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
             <span className="text-[10px] text-slate-500 font-mono">3 canales</span>
           </div>
 
-          {onOpenAudioStudio && (
-            <button
-              type="button"
-              onClick={onOpenAudioStudio}
-              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/30 text-xs font-bold transition-all interactive-tap shadow-soft-elevation"
-            >
-              <span>🎛️ Editar mezcla en Estudio</span>
-            </button>
-          )}
+          {/* «Editar mezcla en Estudio» vive ahora en la barra del VISOR DE AUDIO
+              (única entrada principal). Aquí se evita duplicar la acción. */}
 
           {/* Channel routing */}
           <div className="space-y-1.5">
@@ -624,35 +612,9 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
           )}
         </section>
 
-        {/* ═══ 5. Secondary actions ═════════════════════════ */}
-        <section className="px-4 py-3.5 space-y-2">
-          <h3 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-            Herramientas
-          </h3>
-          <div className="flex gap-1.5">
-            <button
-              type="button"
-              onClick={onUndo}
-              disabled={history.length === 0}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold bg-neon-card hover:bg-neon-hover text-slate-300 hover:text-white shadow-soft-elevation interactive-tap disabled:opacity-30 disabled:pointer-events-none"
-            >
-              <Undo2 className="w-3.5 h-3.5 text-coral" />
-              Deshacer
-            </button>
-          </div>
-          <button
-            type="button"
-            onClick={() => { audio.pause(); audio.seek(0); }}
-            className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-neon-card py-2.5 text-xs font-bold text-slate-300 shadow-soft-elevation hover:bg-neon-hover hover:text-white interactive-tap"
-          >
-            <SkipBack className="w-3.5 h-3.5 text-slate-400" />
-            Volver al Inicio (00:00)
-          </button>
-
-          {/* «Limpiar Pista 2D» se movió a la barra principal (desktop) y al rail
-              de herramientas (móvil/tablet), con confirmación previa. Aquí se
-              evita duplicar la acción. */}
-        </section>
+        {/* «Deshacer» y «Volver al Inicio» se movieron a la barra del VISOR DE
+            AUDIO (su contexto temporal natural). La columna izquierda queda para
+            herramientas estructurales de la coreografía. */}
 
         {/* ═══ SaaS / Sesión AlsizTech ═══════════════════════ */}
         <section className="px-4 py-3 bg-white/[0.02] border-t border-white/5 space-y-2">
