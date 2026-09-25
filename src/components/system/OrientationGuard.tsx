@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { RotateCw } from 'lucide-react';
 import { shouldShowRotateScreen } from '../../utils/orientation';
 import type { OrientationSnapshot } from '../../utils/orientation';
+import { classifyFormFactor, readDeviceCapabilities } from '../../utils/deviceFormFactor';
 
 /**
  * OrientationGuard — única fuente de verdad de orientación de SkateCoreo.
@@ -53,6 +54,9 @@ function readSnapshot(): OrientationSnapshot {
     width: typeof window !== 'undefined' ? window.innerWidth : 0,
     height: typeof window !== 'undefined' ? window.innerHeight : 0,
     coarsePointer,
+    // Misma clasificación de capacidades que decide la composición visual: así
+    // el bloqueo de rotación nunca contradice el layout mostrado.
+    formFactor: classifyFormFactor(readDeviceCapabilities()),
     // NO se usa matchMedia como fuente principal: con el teclado abierto el
     // layout viewport se encoge y la orientación CSS puede reportar "landscape".
     landscape: readPhysicalLandscape(),
@@ -60,7 +64,10 @@ function readSnapshot(): OrientationSnapshot {
   };
 }
 
-/** Intenta bloquear la orientación en vertical (mejor esfuerzo, nunca lanza). */
+/**
+ * Intenta bloquear la orientación en vertical (mejor esfuerzo, nunca lanza).
+ * SOLO se usa en teléfonos: las tablets ≥7" deben poder girar libremente.
+ */
 function tryLockPortrait(): void {
   const orientation = (screen as unknown as { orientation?: { lock?: (o: string) => Promise<void> } })
     .orientation;
@@ -69,6 +76,12 @@ function tryLockPortrait(): void {
       /* El navegador puede exigir pantalla completa o gesto: se ignora. */
     });
   }
+}
+
+/** ¿El dispositivo actual es un teléfono (no una tablet)? */
+function isPhoneDevice(): boolean {
+  if (typeof window === 'undefined') return false;
+  return classifyFormFactor(readDeviceCapabilities()) === 'phone';
 }
 
 export function useOrientationGuard(): { blocked: boolean; requestPortraitLock: () => void } {
@@ -101,8 +114,9 @@ export function useOrientationGuard(): { blocked: boolean; requestPortraitLock: 
         : null;
     orientationQuery?.addEventListener?.('change', update);
 
-    // Intento de bloqueo inicial (mejor esfuerzo).
-    tryLockPortrait();
+    // Intento de bloqueo inicial (mejor esfuerzo). SOLO en teléfonos: una
+    // tablet ≥7" debe poder rotar a horizontal (composición de escritorio).
+    if (isPhoneDevice()) tryLockPortrait();
 
     return () => {
       window.removeEventListener('resize', update);

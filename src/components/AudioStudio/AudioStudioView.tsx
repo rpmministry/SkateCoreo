@@ -963,7 +963,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex flex-col bg-black text-slate-100 overflow-hidden select-none font-sans"
+      className="audio-studio-shell fixed inset-0 z-50 flex flex-col bg-black text-slate-100 overflow-hidden select-none font-sans"
       style={STUDIO_TOUCH_ACTION}
     >
       {/* ── 1. CABECERA BANDLAB (TopTransportBar) ── */}

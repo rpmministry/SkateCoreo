@@ -649,3 +649,123 @@ body {
 .paypal-safe iframe {
   width: 100% !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   FACTOR DE FORMA — TABLET ≥7" USA COMPOSICIÓN DE ESCRITORIO
+
+   La clasificación se decide en JS (`utils/deviceFormFactor`) y se publica
+   como `data-form-factor` en <html>. Así no dependemos únicamente de
+   `pointer: coarse` / `hover: none`: un iPad con teclado/trackpad puede
+   reportar puntero fino y, aun así, DEBE usar la interfaz de escritorio.
+
+   Estas utilidades NO crean una app paralela: solo promueven la MISMA
+   estructura de escritorio (cabecera con navegación, paneles laterales,
+   columnas) cuando el dispositivo es una tablet real y hay ≥768 px.
+   Los teléfonos (<768 px) y el escritorio no se ven afectados.
+   ═══════════════════════════════════════════════════════════════════ */
+
+@media (min-width: 768px) {
+  /* Elementos que pertenecen a la presentación de teléfono
+     (navegación inferior, hojas inferiores, cajones, barra contextual). */
+  [data-form-factor='tablet'] .fm-mobile-only {
+    display: none !important;
+  }
+
+  /* Paneles / navegación de escritorio que deben existir también en tablet. */
+  [data-form-factor='tablet'] .fm-desktop-flex {
+    display: flex !important;
+    justify-self: center;
+  }
+
+  /* Contenedores que pasan de columna a fila en cualquier orientación. */
+  [data-form-factor='tablet'] .fm-tablet-cols {
+    flex-direction: row !important;
+  }
+
+  /* Cabecera de escritorio: rejilla de 3 carriles (marca · navegación · acciones). */
+  [data-form-factor='tablet'] .fm-header-grid {
+    display: grid !important;
+    min-height: 60px;
+    align-items: center;
+    grid-template-columns: minmax(0, auto) minmax(0, 1fr) minmax(0, auto);
+    column-gap: 0.5rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
+/* Tablet en HORIZONTAL (orientación prioritaria): paneles laterales y la
+   bandeja de nodos como columna, igual que en escritorio. */
+@media (min-width: 768px) and (orientation: landscape) {
+  [data-form-factor='tablet'] .fm-tablet-row {
+    flex-direction: row !important;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  /* Paneles laterales compactos: siguen siendo paneles reales (no hojas
+     inferiores ni cajones), con más ancho para el lienzo de la Pista 2D. */
+  [data-form-factor='tablet'] .fm-tablet-w-left {
+    width: 13.75rem; /* 220px */
+  }
+  [data-form-factor='tablet'] .fm-tablet-w-right {
+    width: 13rem; /* 208px */
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023.98px) and (orientation: landscape) {
+  /* «Nodos por colocar» como columna lateral de la Pista 2D en tablet
+     horizontal, sin robar el ancho completo al lienzo. */
+  [data-form-factor='tablet'] .fm-tablet-tray {
+    max-height: none;
+    height: 100%;
+    width: 15rem; /* 240px */
+    border-bottom-width: 0;
+    border-right-width: 1px;
+  }
+}
+
+/* En tablet VERTICAL la bandeja conserva la franja superior compacta para que
+   la Pista 2D mantenga todo el ancho útil. `.fm-tablet-row` no aplica. */
+
+/* ═══════════════════════════════════════════════════════════════════
+   CONTAINER QUERIES — el CONTENEDOR decide, no el viewport
+
+   Componentes complejos se reorganizan según el ancho REAL del espacio que
+   ocupan. Si la pista/estudio vive embebido en otro layout, sigue siendo
+   correcto porque no depende del ancho de la ventana.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Bandeja «Nodos por colocar»: la rejilla interna se adapta a su propio ancho
+   (columna estrecha vs franja ancha). */
+.node-tray {
+  container-type: inline-size;
+}
+
+@container (min-width: 420px) {
+  .node-tray-grid {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 560px) {
+  .node-tray-grid {
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+  }
+}
+
+/* Audio Studio: la etiqueta de identidad solo aparece cuando la mesa de
+   edición tiene ancho suficiente (independiente del viewport). */
+.audio-studio-shell {
+  container-type: inline-size;
+}
+
+.studio-brand-label {
+  display: none;
+}
+
+@container (min-width: 640px) {
+  .studio-brand-label {
+    display: inline;
+  }
+}

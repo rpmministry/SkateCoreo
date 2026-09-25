@@ -29,6 +29,7 @@ import { ProtectedLayout } from './components/ProtectedLayout';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { HomeView } from './components/HomeView';
 import { useIosFileCapture } from './hooks/useIosFileCapture';
+import { useDeviceFormFactor } from './hooks/useDeviceFormFactor';
 import { LoadProgressBar } from './components/LoadProgressBar';
 import { ensureDataOwnership, releaseWorkingSession } from './services/workingSession';
 import {
@@ -181,6 +182,13 @@ export function App() {
   // ── Mobile overlay state ───────────────────────────────
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [sheetOpen, setSheetOpen]   = useState(false);
+
+  // ── Clasificación de dispositivo ───────────────────────
+  // Publica `data-form-factor` en <html> (tablet ≥7" → composición de
+  // escritorio). `hasDockedInspector` refleja EXACTAMENTE cuándo el CSS muestra
+  // el panel lateral derecho; la hoja inferior solo se usa cuando ese panel no
+  // está acoplado (teléfono, tablet muy estrecha o ventana pequeña).
+  const { hasDockedInspector } = useDeviceFormFactor();
 
   // ── UI Dropdowns & Indicators ───────────────────────────
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -378,10 +386,9 @@ export function App() {
   }, [points.length, unplacedNodes.length, hasPaperTraceOverlay, clearAllPoints, clearUnplacedNodes, clearPaperTraceOverlay, selectedProgram, handleProgramUpdated]);
 
   const handleNodeSelect = useCallback((id: string | null) => {
-    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-      setSheetOpen(!!id);
-    }
-  }, []);
+    // Solo se abre la hoja inferior cuando el inspector NO está acoplado.
+    if (!hasDockedInspector) setSheetOpen(!!id);
+  }, [hasDockedInspector]);
 
   const handleDragChange = useCallback((isDragging: boolean) => {
     if (isDragging) {
@@ -390,12 +397,12 @@ export function App() {
     }
   }, []);
 
-  // Cleanup de selección cuando se cierra el bottom sheet en móvil
+  // Cleanup de selección cuando se cierra la hoja inferior (inspector no acoplado)
   useEffect(() => {
-    if (!sheetOpen && typeof window !== 'undefined' && window.innerWidth < 1024) {
+    if (!sheetOpen && !hasDockedInspector) {
       useChoreographyStore.getState().setSelectedPointId(null);
     }
-  }, [sheetOpen]);
+  }, [sheetOpen, hasDockedInspector]);
 
   // ── 1. Cargar Música desde archivo del dispositivo ─────
   // La lectura real del archivo se delega a `useIosFileCapture`, que en iOS
@@ -646,7 +653,7 @@ export function App() {
           ═══════════════════════════════════════════════ */}
       {activeView !== 'studio' && (
         <header className="relative z-30 shrink-0 glass-hud border-b border-white/10 pt-safe px-safe">
-          <div className="flex min-h-[54px] items-center justify-between gap-2 px-2 py-1 sm:px-3 lg:grid lg:min-h-[60px] lg:grid-cols-[minmax(0,auto)_minmax(0,1fr)_minmax(0,auto)] lg:items-center lg:px-4">
+          <div className="fm-header-grid flex min-h-[54px] items-center justify-between gap-2 px-2 py-1 sm:px-3 lg:grid lg:min-h-[60px] lg:grid-cols-[minmax(0,auto)_minmax(0,1fr)_minmax(0,auto)] lg:items-center lg:px-4">
 
         {/* ── IZQUIERDA: Marca (navega a Inicio) + contexto del atleta ── */}
         <div className="flex min-w-0 items-center gap-2">
@@ -908,9 +915,10 @@ export function App() {
             />
           </div>
         ) : (
-          <div className="flex-1 min-w-0 min-h-0 flex flex-col lg:flex-row overflow-hidden relative">
-            {/* ── DESKTOP LEFT ASIDE (Preparación y Mezcla) ── */}
-            <aside className="hidden lg:flex lg:w-[272px] xl:w-[288px] shrink-0 flex-col bg-neon-surface border-r border-white/5 overflow-hidden shadow-soft-elevation">
+          <div className="fm-tablet-cols flex-1 min-w-0 min-h-0 flex flex-col lg:flex-row overflow-hidden relative">
+            {/* ── DESKTOP LEFT ASIDE (Preparación y Mezcla) ──
+                En tablet ≥7" también se muestra (panel real, no cajón). */}
+            <aside className="fm-desktop-flex fm-tablet-w-left hidden lg:flex lg:w-[272px] xl:w-[288px] shrink-0 flex-col bg-neon-surface border-r border-white/5 overflow-hidden shadow-soft-elevation">
               <LeftSidebarPanel
                 preRollSec={preRollSec}
                 onPreRollSecChange={handlePreRollSecChange}
@@ -926,7 +934,7 @@ export function App() {
               En desktop/tablet-landscape el panel va a la DERECHA; en portrait va
               ARRIBA como franja compacta. La Pista 2D conserva SIEMPRE su área útil
               (nunca queda cubierta por la bandeja). */}
-          <div className="flex flex-1 min-h-0 flex-col lg:flex-row">
+          <div className="fm-tablet-row flex flex-1 min-h-0 flex-col lg:flex-row">
             <NodePlacementTray />
 
             {/* 2D Canvas Rink Engine — Zero Distortion. Zona protegida: conserva
@@ -980,7 +988,7 @@ export function App() {
         </main>
 
         {/* ── DESKTOP RIGHT ASIDE (Inspector de Nodo) ── */}
-        <aside className="hidden lg:flex lg:w-[272px] xl:w-[288px] shrink-0 flex-col bg-neon-surface border-l border-white/5 overflow-hidden shadow-soft-elevation">
+        <aside className="fm-desktop-flex fm-tablet-w-right hidden lg:flex lg:w-[272px] xl:w-[288px] shrink-0 flex-col bg-neon-surface border-l border-white/5 overflow-hidden shadow-soft-elevation">
           <RightInspectorPanel onClose={() => useChoreographyStore.getState().setSelectedPointId(null)} />
         </aside>
 
@@ -996,7 +1004,7 @@ export function App() {
           aria-modal="true"
           aria-label="Inspector de nodo"
           className={[
-            'lg:hidden fixed z-50 flex flex-col bg-neon-surface shadow-2xl shadow-black/80',
+            'fm-mobile-only lg:hidden fixed z-50 flex flex-col bg-neon-surface shadow-2xl shadow-black/80',
             'bottom-0 left-0 right-0 rounded-t-3xl border-t border-white/10',
             'transition-transform duration-ui ease-spring',
             sheetOpen ? 'translate-y-0' : 'translate-y-full',
@@ -1099,7 +1107,7 @@ export function App() {
       {/* Backdrop for Mobile Drawers/Sheets (EXCLUSIVAMENTE MÓVIL: lg:hidden) */}
       {(drawerOpen || sheetOpen) && (
         <div
-          className="lg:hidden fixed inset-0 z-40 bg-black/75 backdrop-blur-md transition-opacity"
+          className="fm-mobile-only lg:hidden fixed inset-0 z-40 bg-black/75 backdrop-blur-md transition-opacity"
           onClick={() => {
             setDrawerOpen(false);
             setSheetOpen(false);
@@ -1120,7 +1128,7 @@ export function App() {
         aria-modal="true"
         aria-label="Panel de configuración"
         className={[
-          'lg:hidden fixed inset-y-0 left-0 z-50',
+          'fm-mobile-only lg:hidden fixed inset-y-0 left-0 z-50',
           'w-[85vw] max-w-[320px] flex flex-col',
           'bg-neon-surface shadow-2xl shadow-black/80',
           'transition-transform duration-ui ease-spring',

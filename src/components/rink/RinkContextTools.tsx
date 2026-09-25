@@ -34,7 +34,8 @@ const IDLE_STYLES =
  * (modo de trazado + limpiar + deshacer + inspector).
  *
  * Se instancia una sola vez por breakpoint:
- *  - `bar`   → barra horizontal sobre la Bottom Nav (portrait móvil/tablet)
+ *  - `bar`   → barra horizontal sobre la Bottom Nav (SOLO TELÉFONO: la oculta
+ *              `.fm-mobile-only`; las tablets usan el inspector acoplado)
  *  - `panel` → sección dentro del panel de preparación (desktop lg+)
  */
 export const RinkContextTools: React.FC<RinkContextToolsProps> = ({
@@ -68,7 +69,7 @@ export const RinkContextTools: React.FC<RinkContextToolsProps> = ({
       <div
         role="toolbar"
         aria-label="Herramientas de edición de pista"
-        className={`lg:hidden flex items-center gap-1.5 overflow-x-auto no-scrollbar glass-hud border-t border-white/10 px-2 py-1.5 pl-safe pr-safe ${className}`}
+        className={`fm-mobile-only lg:hidden flex items-center gap-1.5 overflow-x-auto no-scrollbar glass-hud border-t border-white/10 px-2 py-1.5 pl-safe pr-safe ${className}`}
       >
         <button
           type="button"

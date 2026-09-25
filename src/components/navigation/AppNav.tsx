@@ -72,13 +72,14 @@ interface NavProps {
 }
 
 /* ────────────────────────────────────────────────────────────────
-   BOTTOM NAVIGATION BAR — Portrait móvil y tablet (< lg)
-   Ergonómica para el pulgar + Safe Area inferior.
+   BOTTOM NAVIGATION BAR — SOLO TELÉFONO
+   (`.fm-mobile-only` la oculta en tablets ≥7", que usan la navegación
+   superior de escritorio). Ergonómica para el pulgar + Safe Area inferior.
    ──────────────────────────────────────────────────────────────── */
 export const BottomNav: React.FC<NavProps> = ({ active, onSelect, badges }) => (
   <nav
     aria-label="Navegación principal"
-    className="lg:hidden shrink-0 z-40 grid grid-cols-5 items-stretch glass-hud border-t border-white/10 nav-safe-bottom pl-safe pr-safe touch-manipulation overscroll-contain"
+    className="fm-mobile-only lg:hidden shrink-0 z-40 grid grid-cols-5 items-stretch glass-hud border-t border-white/10 nav-safe-bottom pl-safe pr-safe touch-manipulation overscroll-contain"
   >
     {APP_TABS.map((tab) => {
       const Icon = tab.icon;
@@ -122,12 +123,13 @@ export const BottomNav: React.FC<NavProps> = ({ active, onSelect, badges }) => (
 );
 
 /* ────────────────────────────────────────────────────────────────
-   BARRA DE NAVEGACIÓN SUPERIOR — Desktop exclusivo (lg+)
+   BARRA DE NAVEGACIÓN SUPERIOR — Escritorio y tablet ≥7"
+   (`.fm-desktop-flex` la habilita en tablets táctiles desde 768 px).
    ──────────────────────────────────────────────────────────────── */
 export const DesktopHeaderNav: React.FC<NavProps> = ({ active, onSelect, badges }) => (
   <nav
     aria-label="Navegación principal"
-    className="hidden lg:flex lg:justify-self-center items-center gap-1 rounded-xl border border-white/10 bg-white/[0.04] p-1 shadow-soft-elevation shrink-0 touch-manipulation"
+    className="fm-desktop-flex hidden lg:flex lg:justify-self-center items-center gap-1 rounded-xl border border-white/10 bg-white/[0.04] p-1 shadow-soft-elevation shrink-0 touch-manipulation"
   >
     {DESKTOP_TABS.map((tab) => {
       const Icon = tab.icon;

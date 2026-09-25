@@ -8,6 +8,8 @@
  * Total máximo permitido: 3 dispositivos por cuenta.
  */
 
+import { classifyFormFactor, readDeviceCapabilities } from './deviceFormFactor';
+
 export type DeviceType = 'mobile' | 'tablet' | 'desktop';
 
 const DEVICE_ID_KEY = 'skatecoreo_device_id';
@@ -34,51 +36,44 @@ export function getDeviceId(): string {
 
 /**
  * Detecta si el entorno actual es Mobile, Tablet o Desktop de forma precisa.
- * Combina User-Agent, capacidades táctiles (maxTouchPoints) y dimensiones de pantalla.
+ *
+ * Usa la MISMA clasificación de capacidades que el layout (`deviceFormFactor`):
+ * táctil + tipo de puntero + espacio real + orientación, con el UA solo como
+ * desempate. Así una tablet de 7" en horizontal (1024×600) se registra como
+ * 'tablet' y NUNCA como 'mobile', coherente con la interfaz que ve el usuario.
  */
+/**
+ * Caché de la clasificación. `getDeviceType()` se invoca en rutas de render
+ * (p. ej. `AuthModal`), por lo que se evita re-medir el DOM y llamar a
+ * `matchMedia` en cada render. La clave usa lecturas baratas (geometría, touch,
+ * UA) y se recalcula cuando cambia el tamaño, el hardware táctil o el UA.
+ */
+let cachedDeviceType: { key: string; type: DeviceType } | null = null;
+
 export function getDeviceType(): DeviceType {
   if (typeof window === 'undefined') return 'desktop';
 
-  const ua = (navigator.userAgent || navigator.vendor || (window as any).opera || '').toLowerCase();
-  const width = window.innerWidth || document.documentElement.clientWidth || screen.width;
-  const height = window.innerHeight || document.documentElement.clientHeight || screen.height;
-  const maxTouchPoints = navigator.maxTouchPoints || 0;
-  const minDim = Math.min(width, height);
-  const maxDim = Math.max(width, height);
+  const nav = navigator as Navigator & { platform?: string };
+  const ua = (nav.userAgent || '').toLowerCase();
+  const width =
+    window.innerWidth ||
+    document.documentElement.clientWidth ||
+    (typeof screen !== 'undefined' ? screen.width : 0) ||
+    0;
+  const height =
+    window.innerHeight ||
+    document.documentElement.clientHeight ||
+    (typeof screen !== 'undefined' ? screen.height : 0) ||
+    0;
 
-  // 1. Detección específica de iPads (incluyendo iPad Pro con iPadOS identificándose como MacIntel con touch)
-  const isIPad = /ipad/.test(ua) || (navigator.platform === 'MacIntel' && maxTouchPoints > 1);
+  const key = `${width}x${height}|${nav.maxTouchPoints || 0}|${nav.platform || ''}|${ua}`;
+  if (cachedDeviceType && cachedDeviceType.key === key) return cachedDeviceType.type;
 
-  // 2. Detección de Tablets Android (Android sin la palabra "mobile" o con "tablet")
-  const isAndroidTablet = /android/.test(ua) && (!/mobile/.test(ua) || /tablet/.test(ua));
-
-  // 3. Otras tablets genéricas
-  const isGenericTablet = /kindle|silk|playbook|nexus (7|9|10)|sm-t|tab/.test(ua);
-
-  if (isIPad || isAndroidTablet || isGenericTablet) {
-    return 'tablet';
-  }
-
-  // 4. Si tiene pantalla táctil y resolución típica de tablet (ancho entre 768px y 1024px o minDim >= 600px en móvil)
-  if (maxTouchPoints > 0) {
-    if (minDim >= 600 && maxDim <= 1366 && width >= 768 && width <= 1024) {
-      return 'tablet';
-    }
-    if (width < 768 || /iphone|ipod|android.*mobile|windows phone|blackberry/.test(ua)) {
-      return 'mobile';
-    }
-  }
-
-  // 5. Umbrales basados en ancho de pantalla
-  if (width < 768) {
-    return 'mobile';
-  }
-
-  if (width >= 768 && width <= 1024) {
-    return 'tablet';
-  }
-
-  return 'desktop';
+  const formFactor = classifyFormFactor(readDeviceCapabilities());
+  const type: DeviceType =
+    formFactor === 'tablet' ? 'tablet' : formFactor === 'phone' ? 'mobile' : 'desktop';
+  cachedDeviceType = { key, type };
+  return type;
 }
 
 /**

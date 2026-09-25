@@ -125,7 +125,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
             </button>
           )}
           {/* Identidad de pantalla: deja claro que esto es la mesa de edición/mezcla */}
-          <span className="hidden md:inline text-[10px] font-black uppercase tracking-widest text-cyan/80 shrink-0">
+          <span className="studio-brand-label text-[10px] font-black uppercase tracking-widest text-cyan/80 shrink-0">
             Audio Studio
           </span>
 
