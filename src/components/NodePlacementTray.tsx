@@ -62,7 +62,7 @@ export const NodePlacementTray: React.FC<NodePlacementTrayProps> = ({
     // compacta con scroll interno. Sin `z-index` propio: la barra superior global
     // (z-30) siempre queda por encima. `min-h-0` permite encogerse y `overflow`
     // interno evita que empuje el layout.
-    <div className="flex min-h-0 max-h-[30dvh] shrink-0 flex-col overflow-hidden border-b border-cyan/40 bg-[#0C1220] lg:max-h-none lg:h-full lg:w-60 lg:border-b-0 lg:border-r xl:w-64">
+    <div className="flex min-h-0 max-h-[42%] shrink-0 flex-col overflow-hidden border-b border-cyan/40 bg-[#0C1220] lg:max-h-none lg:h-full lg:w-60 lg:border-b-0 lg:border-r xl:w-64">
       {/* ── Cabecera de la Bandeja ──
           `flex-wrap` + `min-h` automático: si la columna es estrecha, los botones
           bajan a una segunda línea y el TÍTULO NUNCA se recorta. */}
@@ -151,7 +151,7 @@ export const NodePlacementTray: React.FC<NodePlacementTrayProps> = ({
               No es una línea horizontal infinita: envuelve automáticamente.
               El nodo activo (orden estricto) se resalta; los ya colocados muestran ✓;
               los bloqueados quedan atenuados. Fichas de 44px (área táctil mínima). */}
-          <div className="max-h-[20dvh] shrink-0 overflow-y-auto overscroll-contain p-2 lg:max-h-56">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2">
             <div className="grid grid-cols-6 gap-1.5 sm:grid-cols-8 lg:grid-cols-6">
               {unplacedNodes.map((node, index) => {
                 const isPlaced = index < activeTrayNodeIndex;

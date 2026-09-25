@@ -636,6 +636,15 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   }, []);
 
   /**
+   * El motor debe conocer la DURACIÓN del arreglo del Studio para poder hacer SEEK
+   * con el audio pausado (sin esperar a Play/consolidación). No crea buffer ni
+   * publica nada: solo habilita `seek()` (que se recortaba a 0 tras importar).
+   */
+  useEffect(() => {
+    audioEngine.setActiveDurationSec(totalDurationSec);
+  }, [totalDurationSec]);
+
+  /**
    * Auto-cancelación del modo basurero: si el usuario activa la pulsación larga
    * pero no arrastra, tras 8s se cierra solo para no dejar la UI en un estado
    * modal "pegado" (frecuente en táctil cuando se levanta el dedo sin soltar

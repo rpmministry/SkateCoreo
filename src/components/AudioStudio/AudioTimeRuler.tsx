@@ -69,48 +69,41 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
   };
 
   const handleRulerPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isScrubbingRulerRef.current || !rulerRef.current) return;
-    const rect = rulerRef.current.getBoundingClientRect();
-    const px = e.clientX - rect.left;
+    if (!rulerRef.current) return;
+    const px = e.clientX - rulerRef.current.getBoundingClientRect().left;
+
+    // ARRASTRE DE MARKER: modifica SOLO su `timestampSec`. NUNCA hace seek, así el
+    // playhead permanece INDEPENDIENTE del marker. La captura vive en la REGLA
+    // (elemento estable), de modo que sobrevive al reordenado/renumerado del store
+    // y no puede quedar un puntero capturado en un chip desmontado (bloqueo).
+    if (draggingNodeId) {
+      const newSec = Math.max(0, Math.round(geometry.pxToTime(px) * 1000) / 1000);
+      updateTimeNode(draggingNodeId, newSec);
+      return;
+    }
+
+    if (!isScrubbingRulerRef.current) return;
     const newSec = Math.max(0, Math.round(geometry.pxToTime(px) * 1000) / 1000);
     onSeek(newSec);
   };
 
   const handleRulerPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (isScrubbingRulerRef.current) {
-      isScrubbingRulerRef.current = false;
-      try {
-        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-      } catch (err) {}
-    }
+    if (isScrubbingRulerRef.current) isScrubbingRulerRef.current = false;
+    if (draggingNodeId) setDraggingNodeId(null);
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch (err) {}
   };
 
-  // Arrastre horizontal de un marcador existente
+  // Arrastre horizontal de un marcador: la captura se hace en la REGLA (estable),
+  // no en el chip (que puede reordenarse/desmontarse durante el drag).
   const handleNodePointerDown = (id: string, e: React.PointerEvent) => {
     e.stopPropagation();
     try {
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      rulerRef.current?.setPointerCapture(e.pointerId);
     } catch (err) {}
     setDraggingNodeId(id);
     setSelectedNodeId(id);
-  };
-
-  const handleNodePointerMove = (id: string, e: React.PointerEvent) => {
-    if (draggingNodeId !== id || !rulerRef.current) return;
-    const rect = rulerRef.current.getBoundingClientRect();
-    const px = e.clientX - rect.left;
-    const newSec = Math.max(0, Math.round(geometry.pxToTime(px) * 1000) / 1000);
-    updateTimeNode(id, newSec);
-    onSeek(newSec);
-  };
-
-  const handleNodePointerUp = (id: string, e: React.PointerEvent) => {
-    if (draggingNodeId === id) {
-      try {
-        (e.target as HTMLElement).releasePointerCapture(e.pointerId);
-      } catch (err) {}
-      setDraggingNodeId(null);
-    }
   };
 
   // Graduación temporal: MARCAS cada 5 s (requisito) y ETIQUETAS adaptativas
@@ -245,8 +238,6 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
               key={node.id}
               data-marker="true"
               onPointerDown={(e) => handleNodePointerDown(node.id, e)}
-              onPointerMove={(e) => handleNodePointerMove(node.id, e)}
-              onPointerUp={(e) => handleNodePointerUp(node.id, e)}
               className={[
                 'absolute top-4 -translate-x-1/2 z-20 group cursor-grab active:cursor-grabbing',
                 'flex max-w-[72px] items-center gap-0.5 px-1 py-0.5 rounded-full border shadow-lg transition-transform shrink-0',

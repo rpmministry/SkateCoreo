@@ -1708,6 +1708,19 @@ export class AudioEngine {
   }
 
   /**
+   * Fija la DURACIÓN de la sesión ACTIVA sin crear buffer ni reproducir nada.
+   * Permite hacer SEEK y conocer el tiempo ANTES de que exista audio consolidado
+   * (p. ej. tras importar un archivo en el Studio). Sin esto, `seek()` se recortaba
+   * a una duración 0 y el playhead no se movía hasta pulsar Play.
+   */
+  public setActiveDurationSec(sec: number): void {
+    const ms = Number.isFinite(sec) && sec > 0 ? Math.round(sec * 1000) : 0;
+    if (this.durations[this.playbackDomain] === ms) return;
+    this.durations[this.playbackDomain] = ms;
+    this.emitStateChange();
+  }
+
+  /**
    * PUBLICA una mezcla como audio oficial de la Pista 2D. Es la ÚNICA operación
    * que reemplaza el audio publicado del Rink. Escribe explícitamente el slot
    * 'rink' (no el del dominio activo), así que puede invocarse desde el Studio
