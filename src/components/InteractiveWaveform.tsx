@@ -168,6 +168,13 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
   const publishedAudio = useRinkAudioStore((s) => s.publishedAudio);
   const publishedRevision = publishedAudio?.revision ?? 0;
 
+  // Disponibilidad AUTORITATIVA del audio publicado. El motor es la fuente de
+  // verdad; el espejo reactivo (`publishedAudio`) puede ir por detrás (p. ej. en
+  // móvil tras cargar/restaurar). Gatear la única entrada al Estudio solo por el
+  // espejo dejaba el botón `disabled` (pointer-events:none) y el toque "no hacía
+  // nada". Se combinan ambos para no depender de un único origen.
+  const canOpenStudio = !!publishedAudio || !!audioEngine.getPublishedAudio().buffer;
+
   useEffect(() => {
     const updatePeaks = () => {
       // Al hacer zoom pedimos más resolución (buckets) del buffer PUBLICADO.
@@ -180,6 +187,10 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     updatePeaks();
 
     const unsubState = audioEngine.onStateChange(() => {
+      // Mantiene el espejo del audio publicado al día con el motor. Es
+      // idempotente: no notifica si la publicación no cambió, así que no genera
+      // re-render en bucle.
+      useRinkAudioStore.getState().syncFromEngine();
       updatePeaks();
     });
 
@@ -598,10 +609,10 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
             <button
               type="button"
               onClick={onOpenStudio}
-              disabled={!publishedAudio}
+              disabled={!canOpenStudio}
               className="press flex min-h-touch items-center justify-center gap-1.5 rounded-subtle border border-cyan/30 bg-cyan/10 px-2.5 font-sans text-[11px] font-bold text-cyan hover:bg-cyan/20 disabled:pointer-events-none disabled:opacity-40 sm:px-3"
               title={
-                publishedAudio
+                canOpenStudio
                   ? 'Abrir el Audio Studio para cortar, mezclar y preparar la música'
                   : 'Sube o publica una pista para editar la mezcla en el Estudio'
               }

@@ -11,7 +11,8 @@
  */
 
 import { audioEngine } from './AudioEngine';
-import { useRinkAudioStore } from '../../store/useRinkAudioStore';
+import { useRinkAudioStore, getPublishedRinkBuffer } from '../../store/useRinkAudioStore';
+import { useAudioStudioStore } from '../../store/useAudioStudioStore';
 
 let total = 0;
 function assert(condition: boolean, msg: string) {
@@ -105,6 +106,42 @@ useRinkAudioStore.getState().syncFromEngine();
 assert(
   useRinkAudioStore.getState().publishedAudio?.kind === 'direct-file',
   'El audio cargado directamente en el Rink se publica como direct-file'
+);
+
+// ── REGRESIÓN "Enviar al Estudio" (una sola operación, fuente autoritativa) ──
+// La disponibilidad del audio publicado debe poder leerse del MOTOR incluso si
+// el espejo reactivo va por detrás: antes, gatear el botón solo por el espejo lo
+// dejaba deshabilitado en móvil y el toque "no hacía nada".
+audioEngine.setPlaybackDomain('rink');
+const enginePublished = audioEngine.publishRinkAudio(fakeBuffer(0.6), 'entrada_estudio.wav', 'studio-mix');
+assert(
+  getPublishedRinkBuffer() === audioEngine.getPublishedAudio().buffer,
+  'getPublishedRinkBuffer() refleja el audio publicado del motor (fuente autoritativa)'
+);
+
+// `syncFromEngine` es idempotente: no crea estado nuevo si la publicación no cambió.
+useRinkAudioStore.getState().syncFromEngine();
+const afterFirstSync = useRinkAudioStore.getState();
+useRinkAudioStore.getState().syncFromEngine();
+assert(
+  useRinkAudioStore.getState() === afterFirstSync,
+  'syncFromEngine no notifica si la publicación no cambió (sin re-render en bucle)'
+);
+assert(
+  useRinkAudioStore.getState().publishedAudio?.name === 'entrada_estudio.wav',
+  'El espejo reactivo refleja la publicación del motor'
+);
+assert(enginePublished === useRinkAudioStore.getState().publishedAudio?.revision, 'La revisión publicada coincide');
+
+// El puente ÚNICO Rink → Studio siembra el borrador con el audio publicado.
+useAudioStudioStore.setState((s) => ({
+  tracks: { ...s.tracks, music: { ...s.tracks.music, buffer: null, clips: [], fileName: null } },
+}));
+const didSeed = useAudioStudioStore.getState().syncRinkSnapshotIntoStudio();
+assert(didSeed === true, 'syncRinkSnapshotIntoStudio siembra el Estudio desde el audio publicado');
+assert(
+  useAudioStudioStore.getState().tracks.music.buffer === audioEngine.getPublishedAudio().buffer,
+  'El Estudio recibe EXACTAMENTE el buffer publicado (misma referencia, sin duplicar PCM)'
 );
 
 console.log(`\nTODAS LAS PRUEBAS DE SEPARACIÓN PASARON: ${total}/${total}`);

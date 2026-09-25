@@ -55,10 +55,29 @@ function readFromEngine(): PublishedRinkAudio | null {
   };
 }
 
+function samePublished(a: PublishedRinkAudio | null, b: PublishedRinkAudio | null): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.id === b.id &&
+    a.revision === b.revision &&
+    a.kind === b.kind &&
+    a.name === b.name &&
+    a.durationSec === b.durationSec
+  );
+}
+
 export const useRinkAudioStore = create<RinkAudioState>((set) => ({
   publishedAudio: readFromEngine(),
   studioDirty: false,
-  syncFromEngine: () => set({ publishedAudio: readFromEngine() }),
+  // IDEMPOTENTE: si el motor no cambió la publicación, no se crea un objeto
+  // nuevo. Así puede invocarse en cada cambio de estado del motor (p. ej. desde
+  // el visor) para mantener el espejo fresco sin provocar re-render en bucle.
+  syncFromEngine: () =>
+    set((s) => {
+      const next = readFromEngine();
+      return samePublished(s.publishedAudio, next) ? s : { publishedAudio: next };
+    }),
   markStudioDirty: (dirty) => set({ studioDirty: dirty }),
   clear: () => set({ publishedAudio: null, studioDirty: false }),
 }));

@@ -190,6 +190,21 @@ export function App() {
   // está acoplado (teléfono, tablet muy estrecha o ventana pequeña).
   const { hasDockedInspector } = useDeviceFormFactor();
 
+  /**
+   * ÚNICA operación Rink → Studio, compartida por TODOS los puntos de entrada:
+   * botón del visor, tarjeta de Inicio, navegación inferior/superior y gesto de
+   * borde. Refresca el espejo del audio publicado desde la fuente autoritativa
+   * (el motor) y ejecuta el puente único de snapshot (audio + markers, idempotente).
+   * No depende del dispositivo ni de la orientación: la UI cambia, el contrato no.
+   */
+  const prepareStudioSnapshot = useCallback(() => {
+    // 1. Espejo reactivo ← motor (fuente de verdad del audio publicado).
+    useRinkAudioStore.getState().syncFromEngine();
+    // 2. Puente único Rink → Studio: siembra el borrador con el audio publicado
+    //    y reconcilia los nodos por `sourceStudioMarkerId` (sin duplicados).
+    useAudioStudioStore.getState().syncRinkSnapshotIntoStudio();
+  }, []);
+
   // ── UI Dropdowns & Indicators ───────────────────────────
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [isExportingMix, setIsExportingMix] = useState(false);
@@ -306,6 +321,8 @@ export function App() {
 
       if (isSwipeLeft || isSwipeUp) {
         if ('vibrate' in navigator) navigator.vibrate(15);
+        // Misma operación central que el botón: snapshot antes de abrir el Estudio.
+        prepareStudioSnapshot();
         setActiveView('studio');
       }
       isEdgeSwipe = false;
@@ -317,7 +334,7 @@ export function App() {
       window.removeEventListener('touchstart', handleTouchStart);
       window.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [activeView]);
+  }, [activeView, prepareStudioSnapshot]);
 
   // ── Handlers ──────────────────────────────────────────
   const handleSelectSkater = async (skater: Skater) => {
@@ -595,10 +612,13 @@ export function App() {
     setDrawerOpen(false);
     setSheetOpen(false);
     useChoreographyStore.getState().setSelectedPointId(null);
+    // Al abrir el Estudio, SIEMPRE se prepara el snapshot publicado (misma
+    // operación central para móvil, tablet y escritorio) antes de navegar.
+    if (tab === 'studio') prepareStudioSnapshot();
     // Cambio de vista como transición: el montaje del lienzo pesado no bloquea
     // la respuesta táctil del sistema en WebKit.
     startTransition(() => setActiveView(tab));
-  }, []);
+  }, [prepareStudioSnapshot]);
 
   // El digitalizador solicita volver a la Pista 2D al terminar (sin diálogos
   // bloqueantes). Este listener garantiza la navegación inmediata.
