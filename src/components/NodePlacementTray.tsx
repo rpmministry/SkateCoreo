@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { 
   MapPin, 
-  Lock, 
-  CheckCircle2, 
   Trash2, 
   Sparkles,
   Clock,
@@ -137,72 +135,51 @@ export const NodePlacementTray: React.FC<NodePlacementTrayProps> = ({
             </div>
           </div>
 
-          {/* ── Lista de Nodos con Bloqueo Secuencial ── */}
-          <div className="max-h-[30dvh] space-y-1 divide-y divide-white/5 overflow-y-auto overscroll-contain p-2 lg:max-h-56">
-            {unplacedNodes.map((node, index) => {
-              const isPlaced = index < activeTrayNodeIndex;
-              const isCurrent = index === activeTrayNodeIndex;
+          {/* ── Rejilla de Nodos (FILAS/COLUMNAS, número muy visible) ──
+              No es una línea horizontal infinita: envuelve automáticamente.
+              El nodo activo (orden estricto) se resalta; los ya colocados muestran ✓;
+              los bloqueados quedan atenuados. Fichas de 44px (área táctil mínima). */}
+          <div className="max-h-[32dvh] overflow-y-auto overscroll-contain p-2 lg:max-h-56">
+            <div className="grid grid-cols-6 gap-1.5 sm:grid-cols-8 lg:grid-cols-6">
+              {unplacedNodes.map((node, index) => {
+                const isPlaced = index < activeTrayNodeIndex;
+                const isCurrent = index === activeTrayNodeIndex;
+                return (
+                  <button
+                    key={node.id}
+                    type="button"
+                    onClick={() => {
+                      // Solo el nodo activo es colocable (orden estricto). El resto
+                      // son indicadores de estado.
+                      if (isCurrent) handlePlaceAtCenter();
+                    }}
+                    disabled={!isCurrent}
+                    title={`Nodo ${node.numeroSecuencial} · ${fmtTimeWithMs(node.timestampSec)}s${
+                      isPlaced ? ' · colocado' : isCurrent ? ' · siguiente' : ' · bloqueado'
+                    }`}
+                    aria-label={`Nodo ${node.numeroSecuencial}${isPlaced ? ' (colocado)' : isCurrent ? ' (siguiente)' : ''}`}
+                    className={[
+                      'flex h-11 min-h-[44px] items-center justify-center rounded-xl text-sm font-black transition-all',
+                      isCurrent
+                        ? 'bg-cyan text-slate-950 ring-2 ring-cyan-300 shadow-glow-cyan interactive-tap'
+                        : isPlaced
+                        ? 'bg-mint/20 text-mint'
+                        : 'bg-white/5 text-slate-500 enabled:hover:bg-white/10',
+                    ].join(' ')}
+                  >
+                    {isPlaced ? '✓' : node.numeroSecuencial}
+                  </button>
+                );
+              })}
+            </div>
 
-              return (
-                <div
-                  key={node.id}
-                  className={[
-                    'flex items-center justify-between p-2 rounded-xl transition-all',
-                    isCurrent
-                      ? 'bg-cyan/20 border border-cyan/50 shadow-glow-cyan text-white'
-                      : isPlaced
-                      ? 'bg-white/[0.02] text-slate-400 border border-transparent opacity-60'
-                      : 'bg-white/[0.01] text-slate-500 border border-transparent opacity-40',
-                  ].join(' ')}
-                >
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span
-                      className={[
-                        'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-black',
-                        isCurrent
-                          ? 'bg-cyan text-slate-950 font-black'
-                          : isPlaced
-                          ? 'bg-mint/20 text-mint'
-                          : 'bg-slate-800 text-slate-500',
-                      ].join(' ')}
-                    >
-                      {isPlaced ? '✓' : node.numeroSecuencial}
-                    </span>
-
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="truncate text-xs font-bold">
-                          {node.label || `Nodo ${node.numeroSecuencial}`}
-                        </span>
-                        {isCurrent && (
-                          <span className="rounded bg-cyan px-1.5 py-0 text-[9px] font-bold uppercase text-slate-950">
-                            Siguiente
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1 font-mono text-[10px] text-slate-400">
-                        <Clock className="h-2.5 w-2.5" />
-                        <span>{fmtTimeWithMs(node.timestampSec)}s</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Estado / Candado */}
-                  <div className="shrink-0 pl-2">
-                    {isPlaced ? (
-                      <CheckCircle2 className="h-4 w-4 text-mint" />
-                    ) : isCurrent ? (
-                      <MapPin className="h-4 w-4 animate-pulse text-cyan" />
-                    ) : (
-                      <div className="flex items-center gap-1 font-mono text-[10px] text-slate-500">
-                        <Lock className="h-3.5 w-3.5" />
-                        <span className="hidden sm:inline">Bloqueado</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+            {/* Guía del paso actual (una sola línea: no ocupa espacio de más) */}
+            {currentNode && (
+              <p className="mt-2 flex items-center gap-1.5 font-mono text-[11px] text-slate-300">
+                <Clock className="h-3 w-3 shrink-0 text-cyan" />
+                Nodo {currentNode.numeroSecuencial} · {fmtTimeWithMs(currentNode.timestampSec)}s
+              </p>
+            )}
           </div>
         </>
       )}
