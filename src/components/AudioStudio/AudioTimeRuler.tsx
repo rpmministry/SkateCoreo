@@ -194,18 +194,27 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
             );
           }
 
+          // Marca mayor: la línea de 1px, la guía vertical y la etiqueta caen
+          // EXACTAMENTE en `leftPx`. Antes, el contenedor `items-center` de ancho
+          // variable (el de la etiqueta) desplazaba la línea media anchura de
+          // etiqueta a la derecha, desalineando la regla respecto a clips/playhead.
           return (
-            <div
-              key={`maj-${tSec}`}
-              className="absolute top-0 bottom-0 pointer-events-none flex flex-col items-center"
-              style={{ left: `${leftPx}px` }}
-            >
-              <div className="w-[1px] h-3.5 bg-slate-500/80" />
-              <span className="text-[9px] font-mono font-medium text-slate-400 mt-0.5 -translate-x-1/2 whitespace-nowrap">
+            <React.Fragment key={`maj-${tSec}`}>
+              <div
+                className="absolute top-0 bottom-0 w-[1px] bg-white/[0.04] pointer-events-none"
+                style={{ left: `${leftPx}px` }}
+              />
+              <div
+                className="absolute top-0 w-[1px] h-3.5 bg-slate-500/80 pointer-events-none"
+                style={{ left: `${leftPx}px` }}
+              />
+              <span
+                className="absolute top-4 -translate-x-1/2 text-[9px] font-mono font-medium text-slate-400 whitespace-nowrap pointer-events-none"
+                style={{ left: `${leftPx}px` }}
+              >
                 {timeLabel}
               </span>
-              <div className="flex-1 w-[1px] bg-white/[0.04]" />
-            </div>
+            </React.Fragment>
           );
         })}
 
