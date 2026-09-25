@@ -682,7 +682,8 @@ body {
     flex-direction: row !important;
   }
 
-  /* Cabecera de escritorio: rejilla de 3 carriles (marca · navegación · acciones). */
+  /* Cabecera de tablet grande/escritorio: rejilla de 3 carriles
+     (marca · navegación · acciones), igual que en desktop. */
   [data-form-factor='tablet'] .fm-header-grid {
     display: grid !important;
     min-height: 60px;
@@ -691,6 +692,84 @@ body {
     column-gap: 0.5rem;
     padding-left: 1rem;
     padding-right: 1rem;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   CABECERA DE TABLET (768–1279 px) — DOS FILAS DETERMINISTAS
+
+   En una tablet de 7"–10" la fila única NO tiene ancho para marca + cápsula de
+   transporte + acciones + navegación: el carril central (1fr) se colapsaba, la
+   navegación `shrink-0` desbordaba su celda y quedaba DETRÁS de la barra.
+
+   Reorganización real (sin z-index, sin posiciones absolutas):
+     FILA 1 → marca (izquierda) + acciones (derecha), ambas encogibles.
+     FILA 2 → navegación (Inicio · Pista · Estudio · Atletas) a todo el ancho.
+
+   A ≥1280 px (tablet grande y escritorio) se conserva la rejilla de 3 carriles.
+   ═══════════════════════════════════════════════════════════════════ */
+
+@media (min-width: 768px) and (max-width: 1279.98px) {
+  [data-form-factor='tablet'] .fm-header-grid {
+    display: flex !important;
+    flex-wrap: wrap;
+    align-items: center;
+    min-height: 0;
+    column-gap: 0.5rem;
+    row-gap: 0.25rem;
+    padding-left: max(0.75rem, var(--safe-left));
+    padding-right: max(0.75rem, var(--safe-right));
+  }
+
+  /* Marca: absorbe el espacio libre y puede encogerse sin desbordar. */
+  [data-form-factor='tablet'] .fm-header-grid > :first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  /* Acciones: a la derecha; si no caben, envuelven dentro de su zona (nunca se
+     superponen a la navegación ni generan scroll horizontal global). */
+  [data-form-factor='tablet'] .fm-header-grid > :last-child {
+    flex: 0 1 auto;
+    min-width: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    row-gap: 0.25rem;
+  }
+
+  /* Navegación: SEGUNDA fila propia, a todo el ancho, centrada y compacta.
+     `overflow-x` es una red de seguridad interna; con su carril completo no
+     se activa y la app nunca gana scroll horizontal global. */
+  [data-form-factor='tablet'] .fm-header-grid > nav {
+    order: 3;
+    flex: 1 0 100%;
+    justify-content: center;
+    /* Si en un ancho mínimo no cupiera, `safe` evita recortar el primer ítem
+       (cae a inicio y se puede desplazar); si no se soporta, queda `center`. */
+    justify-content: safe center;
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  [data-form-factor='tablet'] .fm-header-grid > nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* En su fila propia hay ancho de sobra: las etiquetas de navegación se
+     muestran (icono + texto) para dar jerarquía, sin recortar. */
+  [data-form-factor='tablet'] .fm-nav-label {
+    display: inline;
+  }
+
+  /* Compactado SOLO en tablet media: libera ancho en la fila superior sin
+     perder funciones (los controles conservan icono, `title` y aria-label). */
+  [data-form-factor='tablet'] .fm-compact-label {
+    display: none !important;
+  }
+  [data-form-factor='tablet'] .fm-header-audio-meters {
+    display: none !important;
   }
 }
 

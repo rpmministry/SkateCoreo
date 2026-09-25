@@ -660,15 +660,17 @@ export function App() {
           HEADER — Consola superior
           IZQUIERDA (marca + atleta) · CENTRO (navegación desktop) · DERECHA (acciones)
 
-          En escritorio (lg+) la fila es una REJILLA de 3 carriles:
-          `[izquierda auto | centro 1fr | derecha auto]`. Cada zona ocupa su
-          propio carril, así el menú nunca compite por el mismo espacio ni se
-          solapa con la marca o las acciones: el carril central absorbe el
-          espacio libre y el menú se centra dentro de él. Al liberar el ancho de
-          la categoría, el carril central empieza más a la derecha y el menú se
-          desplaza hacia la derecha de forma natural. Los carriles son disjuntos:
-          no hay solapamiento posible entre menú, marca y acciones.
-          En móvil/tablet (< lg) se conserva el flex de dos columnas.
+          ESTRUCTURA DEL HEADER (una sola, sin duplicar navegación):
+          · Escritorio y tablet grande (≥1280 px): REJILLA de 3 carriles
+            `[marca auto | navegación 1fr | acciones auto]`. Cada zona tiene su
+            carril, así el menú nunca compite por el espacio ni se solapa.
+          · TABLET media (768–1279 px): la MISMA cabecera se reorganiza en DOS
+            filas deterministas (`.fm-header-grid`):
+              fila 1 → marca (izq.) + acciones (der.), ambas encogibles;
+              fila 2 → navegación Inicio·Pista·Estudio·Atletas a todo el ancho.
+            Esto evita que la navegación `shrink-0` desborde su carril y quede
+            DETRÁS de la barra superior (causa del bug en tablet horizontal).
+          · Teléfono (<768 px): layout móvil (se conserva tal cual).
           La categoría del atleta NO se repite aquí: ya vive en «Reglamento 2026».
           ═══════════════════════════════════════════════ */}
       {activeView !== 'studio' && (
@@ -761,7 +763,7 @@ export function App() {
             aria-label="Subir pista al visor"
           >
             <Upload className="h-4 w-4 shrink-0 stroke-[2]" />
-            <span className="lg:inline">Subir pista al visor</span>
+            <span className="lg:inline fm-compact-label">Subir pista al visor</span>
           </button>
 
           {/* Botón de Salir / Cerrar Sesión (header en ≥ sm; en móvil vive en el

@@ -222,7 +222,7 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
           · Campana → Metrónomo.
           Distingue ENABLED (existe) de MUTED (silenciado): OFF ≠ MUTE ≠ ON.
           Visible desde `lg` (tablet grande / laptop), no solo en `xl`. */}
-      <div className="hidden items-center gap-2 border-l border-white/10 pl-2.5 font-mono text-[11px] text-slate-400 lg:flex">
+      <div className="fm-header-audio-meters hidden items-center gap-2 border-l border-white/10 pl-2.5 font-mono text-[11px] text-slate-400 lg:flex">
         <span
           className={`flex items-center gap-1 ${musicMuted ? 'text-rose-400' : 'font-semibold text-cyan'}`}
           title={`Volumen de la música (Pista 2D): ${musicMuted ? 'silenciada' : `${Math.round(musicVolume * 100)}%`} · ajústalo en «Mezcla»`}

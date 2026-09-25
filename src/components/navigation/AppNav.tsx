@@ -150,7 +150,7 @@ export const DesktopHeaderNav: React.FC<NavProps> = ({ active, onSelect, badges 
           ].join(' ')}
         >
           <Icon className="h-4 w-4 shrink-0 stroke-[2]" />
-          <span className="hidden xl:inline whitespace-nowrap">{tab.short}</span>
+          <span className="fm-nav-label hidden xl:inline whitespace-nowrap">{tab.short}</span>
           {badge > 0 && (
             <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-400 px-1 text-[9px] font-black text-slate-950">
               {badge > 9 ? '9+' : badge}
