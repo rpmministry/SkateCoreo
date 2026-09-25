@@ -570,6 +570,14 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
 
   calculateSnapOffset: (targetTrackId, clipId, rawOffsetSec, clipDurationSec, pixelsPerSecond) => {
     const state = get();
+
+    // El snap es OPCIONAL e INDEPENDIENTE de la regla visual: con el interruptor
+    // apagado, arrastrar/pegar devuelve la posición temporal libre del puntero.
+    if (!state.snapEnabled) {
+      const raw = Number.isFinite(rawOffsetSec) ? Math.max(0, rawOffsetSec) : 0;
+      return { snappedSec: raw, snapLineSec: null };
+    }
+
     const targetCoreKey = resolveCoreKey(state.tracks, targetTrackId);
     const targetTrack = targetCoreKey
       ? state.tracks[targetCoreKey]
@@ -914,7 +922,9 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
 
   moveClip: (trackId, clipId, newStartOffsetSec) => {
     get().pushStudioEdit();
-    const clampedOffset = Math.max(0, Math.round(newStartOffsetSec * 100) / 100);
+    const clampedOffset = Number.isFinite(newStartOffsetSec)
+      ? Math.max(0, newStartOffsetSec)
+      : 0;
     set((state) => {
       let clipEnd = 0;
       const updateClips = (track: AudioStudioTrack): AudioStudioTrack => ({
@@ -952,7 +962,9 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
 
   moveClipToTrack: (fromTrackId, toTrackId, clipId, newStartOffsetSec) => {
     get().pushStudioEdit();
-    const clampedOffset = Math.max(0, Math.round(newStartOffsetSec * 100) / 100);
+    const clampedOffset = Number.isFinite(newStartOffsetSec)
+      ? Math.max(0, newStartOffsetSec)
+      : 0;
     set((state) => {
       // La pista de grabación de voz es EXCLUSIVA: rechaza clips de otras pistas.
       if (isRecordingTarget(state.tracks, state.additionalTracks, toTrackId)) {
@@ -1015,7 +1027,9 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   duplicateClipToTrack: (fromTrackId, toTrackId, clipId, newStartOffsetSec) => {
     get().pushStudioEdit();
     const state = get();
-    const clampedOffset = Math.max(0, Math.round(newStartOffsetSec * 100) / 100);
+    const clampedOffset = Number.isFinite(newStartOffsetSec)
+      ? Math.max(0, newStartOffsetSec)
+      : 0;
 
     // Buscar clip original
     const fromKey = resolveCoreKey(state.tracks, fromTrackId);
@@ -1676,13 +1690,14 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   addTimeNode: (timestampSec, label) => {
     get().pushStudioEdit();
     const state = get();
-    const clampedTime = Math.max(0, Math.min(state.totalDurationSec, timestampSec));
+    const safeTime = Number.isFinite(timestampSec) ? timestampSec : 0;
+    const clampedTime = Math.max(0, Math.min(state.totalDurationSec, safeTime));
     const newId = `node-audio-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 
     const currentNodes = [...state.audioNodes, {
       id: newId,
       numeroSecuencial: 0,
-      timestampSec: Math.round(clampedTime * 100) / 100,
+      timestampSec: clampedTime,
       label: label || '',
     }];
 
@@ -1706,9 +1721,10 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
     set((state) => {
       const updated = state.audioNodes.map((node) => {
         if (node.id === id) {
+          const safeTime = Number.isFinite(timestampSec) ? timestampSec : node.timestampSec;
           return {
             ...node,
-            timestampSec: Math.max(0, Math.min(state.totalDurationSec, Math.round(timestampSec * 100) / 100)),
+            timestampSec: Math.max(0, Math.min(state.totalDurationSec, safeTime)),
             label: label !== undefined ? label : node.label,
           };
         }

@@ -3,6 +3,12 @@
  * Verifies mathematical focal anchoring, coordinate transformations, and zero-distortion geometry.
  */
 
+import {
+  computeRulerStep,
+  decimalsForStep,
+  RULER_MIN_MAJOR_PX,
+} from '../core/audio/timeline/AudioTimelineGeometry';
+
 function assert(condition: boolean, msg: string) {
   if (!condition) {
     console.error(`❌ FAILED: ${msg}`);
@@ -79,27 +85,48 @@ assert(
   `Focal point math ancla milimétricamente el cursor en ${timeUnderCursorOld}s tras cambiar zoom (obtenido: ${timeUnderCursorNew}s)`
 );
 
-// Prueba 5: Graduación Dinámica LOD para Regla de Tiempo
-function getRulerLODStep(pxPerSec: number): { major: number; sub: number } {
-  if (pxPerSec > 250) return { major: 0.5, sub: 0.1 };
-  if (pxPerSec > 120) return { major: 1, sub: 0.25 };
-  if (pxPerSec > 50) return { major: 2, sub: 0.5 };
-  if (pxPerSec > 20) return { major: 5, sub: 1 };
-  if (pxPerSec > 8) return { major: 10, sub: 2 };
-  if (pxPerSec > 3) return { major: 30, sub: 5 };
-  return { major: 60, sub: 15 };
+// Prueba 5: Graduación Dinámica LOD para Regla de Tiempo.
+// Se prueba la implementación REAL (AudioTimelineGeometry.computeRulerStep), no
+// una copia local: así el test protege el algoritmo que usa la app.
+const lod1x = computeRulerStep(width1x / duration); // 8.33 px/s -> 10s
+assert(lod1x.majorStepSec === 10, `LOD en 1x selecciona marcas cada 10s`);
+
+const lod5x = computeRulerStep((width1x * 5) / duration); // 41.6 px/s -> 2s
+assert(lod5x.majorStepSec === 2, `LOD en 5x selecciona marcas cada 2s`);
+
+const lod20x = computeRulerStep((width1x * 20) / duration); // 166 px/s -> 0.5s
+assert(lod20x.majorStepSec === 0.5, `LOD en 20x selecciona marcas cada 0.5s`);
+
+const lod35x = computeRulerStep((width1x * 35) / duration); // 291 px/s -> 0.5s
+assert(lod35x.majorStepSec === 0.5, `LOD en 35x mantiene 0.5s (decisécimas)`);
+
+// La resolución temporal NUNCA empeora al aumentar el zoom.
+assert(
+  lod1x.majorStepSec >= lod5x.majorStepSec &&
+    lod5x.majorStepSec >= lod20x.majorStepSec &&
+    lod20x.majorStepSec >= lod35x.majorStepSec,
+  'La resolución de la regla aumenta (o se mantiene) con el zoom'
+);
+
+// La separación visual resultante se mantiene en un rango profesional.
+for (const pps of [8.33, 41.6, 166, 291, 1000, 10000]) {
+  const step = computeRulerStep(pps);
+  const gapPx = step.majorStepSec * pps;
+  assert(
+    gapPx >= RULER_MIN_MAJOR_PX && gapPx <= 160,
+    `Separación visual profesional a ${pps} px/s (${gapPx.toFixed(1)} px)`
+  );
 }
 
-const lod1x = getRulerLODStep(width1x / duration); // 8.33 px/s -> 10s
-assert(lod1x.major === 10, `LOD en 1x selecciona marcas cada 10s`);
+// Un archivo muy corto con zoom extremo llega a escalas de milisegundos.
+const microStep = computeRulerStep(80000); // 1s en 80.000px
+assert(
+  microStep.majorStepSec <= 0.002,
+  `Zoom extremo alcanza milisegundos (paso ${microStep.majorStepSec * 1000}ms)`
+);
+assert(
+  decimalsForStep(microStep.majorStepSec) >= 3,
+  'El paso en milisegundos usa 3 decimales en la etiqueta'
+);
 
-const lod5x = getRulerLODStep((width1x * 5) / duration); // 41.6 px/s -> 5s
-assert(lod5x.major === 5, `LOD en 5x selecciona marcas cada 5s`);
-
-const lod20x = getRulerLODStep((width1x * 20) / duration); // 166 px/s -> 1s
-assert(lod20x.major === 1, `LOD en 20x selecciona marcas cada 1s`);
-
-const lod35x = getRulerLODStep((width1x * 35) / duration); // 291 px/s -> 0.5s
-assert(lod35x.major === 0.5, `LOD en 35x selecciona marcas cada 0.5s (milisegundos)`);
-
-console.log('Resultado useAudioZoomPan: 9/9 pruebas pasadas con éxito.\n');
+console.log('Resultado useAudioZoomPan: pruebas del motor de zoom y LOD adaptativo OK.\n');

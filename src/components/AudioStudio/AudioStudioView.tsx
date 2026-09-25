@@ -785,8 +785,8 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     longPressTimerRef.current = window.setTimeout(() => {
       const rect = container.getBoundingClientRect();
       const absoluteX = clientX - rect.left + container.scrollLeft;
-      const targetTimeSec =
-        Math.round(timelineGeometry.pxToTime(absoluteX, true) * 1000) / 1000;
+      // Tiempo EXACTO bajo el puntero: sin redondeo a milisegundos.
+      const targetTimeSec = Math.max(0, timelineGeometry.pixelToTime(absoluteX, true));
 
       setCurrentTimeSec(targetTimeSec);
       audioEngine.seek(targetTimeSec * 1000);
@@ -879,6 +879,8 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
                 currentTimeSec={currentTimeSec}
                 contentWidth={contentWidth}
                 overscrollPx={overscrollPx}
+                scrollContainerRef={timelineContainerRef}
+                viewportWidth={Math.max(0, timelineViewport.width - headerWidth)}
                 onSeek={(sec) => {
                   setCurrentTimeSec(sec);
                   audioEngine.seek(sec * 1000);

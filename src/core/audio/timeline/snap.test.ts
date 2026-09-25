@@ -155,7 +155,10 @@ console.log('\n--- PRUEBAS DE SNAPPING EN PÍXELES (FASE 6) ---');
   );
   assert(r.kind === null, 'Sin referencia en rango no hay snap');
   assert(r.snapLineSec === null, 'Sin snap no se dibuja guía');
-  assert(r.snappedSec === 3.111, 'El valor crudo se redondea a milisegundos');
+  assert(
+    r.snappedSec === 3.11111,
+    'El valor crudo conserva la precisión completa (sin redondeo a milisegundos)'
+  );
 }
 
 // ── 8. Robustez: tiempo negativo y tolerancias degeneradas ──

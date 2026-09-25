@@ -7,7 +7,14 @@
  * migración no puede desalinear la onda respecto a los nodos.
  */
 
-import { createTimelineGeometry } from './AudioTimelineGeometry';
+import {
+  computeRulerStep,
+  computeRulerTicks,
+  createTimelineGeometry,
+  decimalsForStep,
+  formatTimelineTime,
+  RULER_MIN_MAJOR_PX,
+} from './AudioTimelineGeometry';
 
 let total = 0;
 function assert(condition: boolean, msg: string) {
@@ -165,6 +172,106 @@ console.log('\n--- PRUEBAS DE GEOMETRÍA TEMPORAL COMPARTIDA (FASE 2) ---');
     nanTime.timeToPx(Number.NaN) === 0,
     'Tiempo NaN devuelve el origen (evita translateX(NaN))'
   );
+}
+
+// ── 7. Regla adaptativa: la resolución nace de pixelsPerSecond ──
+{
+  const at1x = createTimelineGeometry({ contentWidth: 1000, durationSec: 120 }); // 8.33 px/s
+  const at20x = createTimelineGeometry({ contentWidth: 20000, durationSec: 120 }); // 166 px/s
+  const atExtreme = createTimelineGeometry({ contentWidth: 80000, durationSec: 1 }); // 80.000 px/s
+
+  assert(at1x.rulerStep().majorStepSec === 10, 'A 1x la regla marca cada 10 s (audio de 2 min)');
+  assert(at20x.rulerStep().majorStepSec === 0.5, 'A 20x la regla baja a 0.5 s');
+  assert(
+    atExtreme.rulerStep().majorStepSec <= 0.001,
+    'A zoom extremo sobre 1 s la regla alcanza 1 ms'
+  );
+  assert(
+    atExtreme.rulerStep().labelDecimals === 3,
+    'El paso de 1 ms etiqueta con 3 decimales'
+  );
+  assert(
+    at1x.rulerStep().majorStepSec > at20x.rulerStep().majorStepSec,
+    'Más zoom ⇒ menor intervalo temporal (resolución creciente)'
+  );
+
+  for (const pps of [8.33, 41.6, 166, 291, 1000, 10000]) {
+    const step = computeRulerStep(pps);
+    const gapPx = step.majorStepSec * pps;
+    assert(
+      gapPx >= RULER_MIN_MAJOR_PX && gapPx <= 160,
+      `Separación visual entre marcas en rango profesional (${pps} px/s ⇒ ${gapPx.toFixed(1)} px)`
+    );
+  }
+}
+
+// ── 8. Ticks mayores y menores cubren el rango visible ──
+{
+  const g = createTimelineGeometry({ contentWidth: 1000, durationSec: 120 });
+  const step = g.rulerStep();
+  const ticks = computeRulerTicks(0, 60, step);
+  const majors = ticks.filter((t) => t.isMajor);
+  const minors = ticks.filter((t) => !t.isMajor);
+
+  assert(majors.length >= 6, 'Se generan marcas mayores en el rango visible');
+  assert(minors.length > 0, 'La regla incluye subdivisiones menores');
+  assert(
+    ticks.every((t, i) => i === 0 || ticks[i - 1].timeSec <= t.timeSec),
+    'Las marcas están ordenadas temporalmente'
+  );
+  assert(
+    majors.every((t) => Math.abs(t.timeSec / step.majorStepSec - Math.round(t.timeSec / step.majorStepSec)) < 1e-6),
+    'Las marcas mayores caen exactamente en múltiplos del paso'
+  );
+}
+
+// ── 9. Formato adaptativo: solo presentación, nunca cálculo ──
+{
+  assert(formatTimelineTime(60, decimalsForStep(60)) === '01:00', 'Paso de 60 s ⇒ "01:00"');
+  assert(formatTimelineTime(1.5, decimalsForStep(0.5)) === '00:01.5', 'Paso de 0.5 s ⇒ "00:01.5"');
+  assert(formatTimelineTime(1.12, decimalsForStep(0.01)) === '00:01.12', 'Paso de 10 ms ⇒ "00:01.12"');
+  assert(formatTimelineTime(1.12, decimalsForStep(0.001)) === '00:01.120', 'Paso de 1 ms ⇒ "00:01.120"');
+  assert(
+    formatTimelineTime(59.9997, 3) === '01:00.000',
+    'El acarreo de segundos no produce "00:60.000" (redondea a 01:00.000)'
+  );
+  assert(formatTimelineTime(119.6, 0) === '02:00', 'Acarreo de 59.6s sin decimales ⇒ "02:00"');
+}
+
+// ── 10. visibleRange y aliases canónicos ──
+{
+  const g = createTimelineGeometry({ contentWidth: 1000, durationSec: 100 });
+  const range = g.visibleRange(250, 500);
+  assert(Math.abs(range.startSec - 25) < 1e-9 && Math.abs(range.endSec - 75) < 1e-9,
+    'visibleRange devuelve el tramo [25s, 75s] para scroll 250px y viewport 500px');
+  assert(
+    g.timeToPixel(30) === g.timeToPx(30) && g.pixelToTime(300) === g.pxToTime(300),
+    'timeToPixel/pixelToTime son la MISMA implementación que timeToPx/pxToTime'
+  );
+  assert(Math.abs(g.snapToleranceSec(9) - 0.9) < 1e-9, 'snapToleranceSec(9px) = 0.9 s con esta escala (10 px/s)');
+}
+
+// ── 11. Precisión continua: el píxel no se limita a milisegundos ──
+{
+  const g = createTimelineGeometry({ contentWidth: 997, durationSec: 13 });
+  const t = g.pixelToTime(1);
+  assert(
+    Math.abs(t - Math.round(t * 1000) / 1000) > 1e-9,
+    'El tiempo devuelto NO está forzado a milisegundos enteros'
+  );
+  assert(
+    Math.abs(g.pixelToTime(g.timeToPixel(t)) - t) < 1e-9,
+    'Roundtrip tiempo ⇒ px ⇒ tiempo conserva el valor exacto'
+  );
+  assert(Number.isFinite(t) && Number.isFinite(g.rulerStep().majorStepSec), 'Sin NaN/Infinity en la geometría');
+}
+
+// ── 12. duration = 0 se protege; timestamp = 0 es válido ──
+{
+  const g = createTimelineGeometry({ contentWidth: 0, durationSec: 0 });
+  assert(Number.isFinite(g.pixelToTime(0)) && g.pixelToTime(0) === 0, 'pxToTime(0) = 0 con duración 0');
+  assert(Number.isFinite(g.rulerStep().majorStepSec) && g.rulerStep().majorStepSec > 0, 'La regla sigue siendo finita con duración 0');
+  assert(g.timeToPixel(0) === 0 && Number.isFinite(g.timeToPixel(0)), 'timestamp 0 es un tiempo válido (0 px)');
 }
 
 console.log(`\nTODAS LAS PRUEBAS DE GEOMETRÍA PASARON: ${total}/${total}`);

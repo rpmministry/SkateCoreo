@@ -1,8 +1,12 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAudioStudioStore } from '../../store/useAudioStudioStore';
 import { Trash2 } from 'lucide-react';
 import { usePlayheadSync } from '../../hooks/usePlayheadSync';
-import { createTimelineGeometry } from '../../core/audio/timeline/AudioTimelineGeometry';
+import {
+  computeRulerTicks,
+  createTimelineGeometry,
+  formatTimelineTime,
+} from '../../core/audio/timeline/AudioTimelineGeometry';
 
 interface AudioTimeRulerProps {
   totalDurationSec: number;
@@ -13,8 +17,27 @@ interface AudioTimeRulerProps {
   hidePlayhead?: boolean;
   /** Habilita el bucle de frames del reloj de hardware para la aguja. */
   isPlaying?: boolean;
+  /**
+   * Contenedor con scroll horizontal del timeline. La regla se suscribe ella
+   * misma: así el scroll solo re-renderiza la regla (ventana visible) y no todo
+   * el Audio Studio.
+   */
+  scrollContainerRef?: React.RefObject<HTMLElement | null>;
+  /** Ancho visible del área temporal (a la derecha de la cabecera de pista). */
+  viewportWidth?: number;
 }
 
+/**
+ * AudioTimeRuler — regla temporal ADAPTATIVA del Audio Studio.
+ *
+ * La resolución no está fijada en segundos: se deriva de `pixelsPerSecond`
+ * (AudioTimelineGeometry.rulerStep). Al hacer zoom, el paso baja por la escalera
+ * natural 1-2-5 (… 5s → 2s → 1s → 0.5s → 0.2s → 0.1s → 50ms → 20ms → 10ms …)
+ * y aparecen marcas menores, manteniendo la separación visual entre 60 y 160 px.
+ *
+ * La regla SOLO orienta: el seek y los marcadores usan `pixelToTime()` sobre la
+ * posición exacta del puntero, sin redondear a milisegundos ni forzar snap.
+ */
 export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
   totalDurationSec,
   currentTimeSec,
@@ -23,6 +46,8 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
   overscrollPx = 0,
   hidePlayhead = false,
   isPlaying = false,
+  scrollContainerRef,
+  viewportWidth = 0,
 }) => {
   const rulerRef = useRef<HTMLDivElement | null>(null);
   const playheadRef = useRef<HTMLDivElement | null>(null);
@@ -36,6 +61,33 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
   const isScrubbingRulerRef = useRef(false);
 
+  // Scroll horizontal observado localmente por la REGLA. Mantenerlo aquí (y no en
+  // AudioStudioView) evita re-renderizar todo el Estudio en cada frame de scroll:
+  // solo se vuelve a montar la ventana de marcas de la regla.
+  const [scrollLeftPx, setScrollLeftPx] = useState(0);
+  const scrollRafRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const el = scrollContainerRef?.current;
+    if (!el) return;
+    const handleScroll = () => {
+      if (scrollRafRef.current !== null) return;
+      scrollRafRef.current = requestAnimationFrame(() => {
+        scrollRafRef.current = null;
+        setScrollLeftPx(el.scrollLeft);
+      });
+    };
+    handleScroll();
+    el.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      el.removeEventListener('scroll', handleScroll);
+      if (scrollRafRef.current !== null) {
+        cancelAnimationFrame(scrollRafRef.current);
+        scrollRafRef.current = null;
+      }
+    };
+  }, [scrollContainerRef]);
+
   const duration = Math.max(10, totalDurationSec);
   const effectiveWidth = contentWidth || 1000;
   const totalRulerWidth = effectiveWidth + overscrollPx;
@@ -46,6 +98,26 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
     [effectiveWidth, duration]
   );
 
+  // Escala temporal adaptativa: el paso nace de los píxeles por segundo reales.
+  const rulerStep = useMemo(() => geometry.rulerStep(), [geometry]);
+  const pxPerSec = geometry.pixelsPerSecond;
+
+  // Ventana visible para no montar miles de marcas con zoom alto. El scroll del
+  // contenedor coincide con la coordenada local de la regla.
+  const hasWindow = viewportWidth > 0;
+  const windowStartPx = hasWindow ? Math.max(0, scrollLeftPx - viewportWidth * 0.5) : 0;
+  const windowEndPx = hasWindow
+    ? Math.min(totalRulerWidth, scrollLeftPx + viewportWidth * 1.5)
+    : totalRulerWidth;
+
+  const ticks = useMemo(() => {
+    const visible = geometry.visibleRange(
+      windowStartPx,
+      Math.max(0, windowEndPx - windowStartPx)
+    );
+    return computeRulerTicks(visible.startSec, visible.endSec, rulerStep);
+  }, [geometry, windowStartPx, windowEndPx, rulerStep]);
+
   // Scrubbing continuo con arrastre del ratón sobre la regla de tiempo
   const handleRulerPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest('[data-marker]')) return;
@@ -53,9 +125,10 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
 
     const rect = rulerRef.current.getBoundingClientRect();
     const px = e.clientX - rect.left;
-    const clickedSec = Math.max(0, Math.round(geometry.pxToTime(px) * 1000) / 1000);
+    // Tiempo EXACTO bajo el puntero: sin snap y sin redondeo a milisegundos.
+    const clickedSec = Math.max(0, geometry.pixelToTime(px));
 
-    // Doble clic o Shift + clic crea marcador de nodo
+    // Doble clic o Shift + clic crea marcador de nodo.
     if (e.shiftKey || e.detail >= 2) {
       addTimeNode(clickedSec);
       return;
@@ -77,14 +150,12 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
     // (elemento estable), de modo que sobrevive al reordenado/renumerado del store
     // y no puede quedar un puntero capturado en un chip desmontado (bloqueo).
     if (draggingNodeId) {
-      const newSec = Math.max(0, Math.round(geometry.pxToTime(px) * 1000) / 1000);
-      updateTimeNode(draggingNodeId, newSec);
+      updateTimeNode(draggingNodeId, Math.max(0, geometry.pixelToTime(px)));
       return;
     }
 
     if (!isScrubbingRulerRef.current) return;
-    const newSec = Math.max(0, Math.round(geometry.pxToTime(px) * 1000) / 1000);
-    onSeek(newSec);
+    onSeek(Math.max(0, geometry.pixelToTime(px)));
   };
 
   const handleRulerPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -106,34 +177,7 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
     setSelectedNodeId(id);
   };
 
-  // Graduación temporal: MARCAS cada 5 s (requisito) y ETIQUETAS adaptativas
-  // para que nunca se superpongan. Nunca se altera la escala temporal real.
-  const pxPerSec = geometry.pixelsPerSecond;
-
-  const MIN_TICK_PX = 12;
-  const MIN_LABEL_PX = 54;
-
-  // Marcas: 5 s si caben; si no, un múltiplo de 5 s (mantiene la base de 5 s).
-  let tickStepSec = 5;
-  if (pxPerSec * 5 < MIN_TICK_PX) {
-    tickStepSec = 5 * Math.max(1, Math.ceil(MIN_TICK_PX / Math.max(0.0001, pxPerSec * 5)));
-  }
-
-  // Etiquetas: múltiplos del paso de marca con separación mínima legible.
-  let labelStepSec = tickStepSec;
-  while (labelStepSec * pxPerSec < MIN_LABEL_PX) {
-    labelStepSec += tickStepSec;
-  }
-
-  const extendedDuration = duration + (overscrollPx > 0 ? (overscrollPx / pxPerSec) : 0);
-
-  const tickCount = Math.floor(extendedDuration / tickStepSec);
-  const ticks = Array.from({ length: tickCount + 1 }, (_, i) => Math.round(i * tickStepSec * 1000) / 1000);
-
-  const isLabelTick = (tSec: number) => {
-    const ratio = tSec / labelStepSec;
-    return Math.abs(ratio - Math.round(ratio)) < 0.001;
-  };
+  const markerDecimals = pxPerSec >= 100 ? 3 : 2;
 
   /**
    * Aguja movida por `transform: translateX()` (propiedad de composición, no de
@@ -143,7 +187,7 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
     (timeMs: number) => {
       const el = playheadRef.current;
       if (!el) return;
-      el.style.transform = `translateX(${geometry.timeToPx(timeMs / 1000, true)}px)`;
+      el.style.transform = `translateX(${geometry.timeToPixel(timeMs / 1000, true)}px)`;
     },
     [geometry]
   );
@@ -169,18 +213,14 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
         style={{ width: `${totalRulerWidth}px` }}
         className="relative h-12 cursor-pointer bg-[#060911] overflow-hidden select-none"
       >
-        {/* Marcas de tiempo (base 5 s) con etiquetas adaptativas. */}
-        {ticks.map((tSec) => {
-          const leftPx = geometry.timeToPx(tSec);
-          const showLabel = isLabelTick(tSec);
-          const mins = Math.floor(tSec / 60);
-          const secs = Math.round(tSec % 60);
-          const timeLabel = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+        {/* Marcas temporales adaptativas: mayores etiquetadas + menores de precisión. */}
+        {ticks.map((tick) => {
+          const leftPx = geometry.timeToPixel(tick.timeSec);
 
-          if (!showLabel) {
+          if (!tick.isMajor) {
             return (
               <div
-                key={`sub-${tSec}`}
+                key={`min-${tick.timeSec}`}
                 className="absolute top-0 pointer-events-none w-[1px] h-2 bg-slate-700/40"
                 style={{ left: `${leftPx}px` }}
               />
@@ -188,11 +228,11 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
           }
 
           // Marca mayor: la línea de 1px, la guía vertical y la etiqueta caen
-          // EXACTAMENTE en `leftPx`. Antes, el contenedor `items-center` de ancho
-          // variable (el de la etiqueta) desplazaba la línea media anchura de
+          // EXACTAMENTE en `leftPx`. El contenedor `items-center` de ancho variable
+          // (el de la etiqueta) desplazaba antes la línea media anchura de la
           // etiqueta a la derecha, desalineando la regla respecto a clips/playhead.
           return (
-            <React.Fragment key={`maj-${tSec}`}>
+            <React.Fragment key={`maj-${tick.timeSec}`}>
               <div
                 className="absolute top-0 bottom-0 w-[1px] bg-white/[0.04] pointer-events-none"
                 style={{ left: `${leftPx}px` }}
@@ -205,7 +245,7 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
                 className="absolute top-4 -translate-x-1/2 text-[9px] font-mono font-medium text-slate-400 whitespace-nowrap pointer-events-none"
                 style={{ left: `${leftPx}px` }}
               >
-                {timeLabel}
+                {formatTimelineTime(tick.timeSec, rulerStep.labelDecimals)}
               </span>
             </React.Fragment>
           );
@@ -225,13 +265,10 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
 
         {/* Marcadores de Nodos Temporales (Chips rígidos numerados 1, 2, 3... Sin deformación) */}
         {audioNodes.map((node) => {
-          const leftPx = geometry.timeToPx(node.timestampSec);
+          const leftPx = geometry.timeToPixel(node.timestampSec);
           const isSelected = selectedNodeId === node.id;
           const isDragging = draggingNodeId === node.id;
-
-          const mins = Math.floor(node.timestampSec / 60);
-          const secs = (node.timestampSec % 60).toFixed(2);
-          const formattedTime = `${mins}:${node.timestampSec % 60 < 10 ? '0' : ''}${secs}`;
+          const formattedTime = formatTimelineTime(node.timestampSec, markerDecimals);
 
           return (
             <div
@@ -248,7 +285,7 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
                   : 'bg-slate-900/95 text-cyan border-cyan/40 hover:border-cyan',
               ].join(' ')}
               style={{ left: `${leftPx}px` }}
-              title={`Nodo ${node.numeroSecuencial} · ${formattedTime}s (Arrastra para mover)`}
+              title={`Nodo ${node.numeroSecuencial} · ${node.timestampSec.toFixed(3)}s (Arrastra para mover)`}
             >
               <span className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-black bg-cyan-950/60 text-cyan shrink-0 sm:w-4 sm:h-4 sm:text-[10px]">
                 {node.numeroSecuencial}
@@ -277,4 +314,3 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
     </div>
   );
 };
-

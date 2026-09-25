@@ -59,10 +59,12 @@ export function snapToleranceSec(pixelsPerSecond: number, px: number = SNAP_PX):
   return pps > 0 ? px / pps : 0;
 }
 
-function roundMs(value: number): number {
-  return Math.round(value * 1000) / 1000;
-}
-
+/**
+ * Nota de precisión: NO se redondea el tiempo a milisegundos. El imán devuelve
+ * valores exactos (borde real, playhead real, rejilla BPM exacta) o el valor
+ * crudo continuo cuando no hay referencia. Redondear a ms destruiría la
+ * precisión necesaria a zoom alto.
+ */
 export function computeSnapOffset(input: ComputeSnapInput): SnapResult {
   const raw = Math.max(0, input.rawTimeSec);
   const clipDur = Math.max(0, input.clipDurationSec);
@@ -98,14 +100,14 @@ export function computeSnapOffset(input: ComputeSnapInput): SnapResult {
   }
 
   if (bestLine !== null) {
-    return { snappedSec: Math.max(0, roundMs(bestTime)), snapLineSec: bestLine, kind: 'clip' };
+    return { snappedSec: Math.max(0, bestTime), snapLineSec: bestLine, kind: 'clip' };
   }
 
   // 2) Playhead.
   if (input.playheadSec != null && Number.isFinite(input.playheadSec)) {
     if (Math.abs(raw - input.playheadSec) <= snapTol) {
       return {
-        snappedSec: Math.max(0, roundMs(input.playheadSec)),
+        snappedSec: Math.max(0, input.playheadSec),
         snapLineSec: input.playheadSec,
         kind: 'playhead',
       };
@@ -114,7 +116,7 @@ export function computeSnapOffset(input: ComputeSnapInput): SnapResult {
 
   // 3) Origen de la pista.
   if (Math.abs(raw - origin) <= snapTol) {
-    return { snappedSec: Math.max(0, roundMs(origin)), snapLineSec: origin, kind: 'origin' };
+    return { snappedSec: Math.max(0, origin), snapLineSec: origin, kind: 'origin' };
   }
 
   // 4) Cuadrícula BPM (beat snap).
@@ -122,10 +124,14 @@ export function computeSnapOffset(input: ComputeSnapInput): SnapResult {
     const beatSec = 60 / input.bpm;
     const nearest = Math.round(raw / beatSec) * beatSec;
     if (Math.abs(raw - nearest) <= beatTol) {
-      const snapped = Math.max(0, roundMs(nearest));
+      const snapped = Math.max(0, nearest);
       return { snappedSec: snapped, snapLineSec: snapped, kind: 'grid' };
     }
   }
 
-  return { snappedSec: Math.max(0, roundMs(raw)), snapLineSec: null, kind: null };
+  return {
+    snappedSec: Math.max(0, raw),
+    snapLineSec: null,
+    kind: null,
+  };
 }
