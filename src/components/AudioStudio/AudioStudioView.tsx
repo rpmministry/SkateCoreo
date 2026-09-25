@@ -23,7 +23,9 @@ import { useAudioZoomPan } from '../../hooks/useAudioZoomPan';
 import { usePressAction } from '../../hooks/usePressAction';
 import { usePlayheadSync } from '../../hooks/usePlayheadSync';
 import { useIosFileCapture } from '../../hooks/useIosFileCapture';
-import { timeToPlayheadPx } from '../../core/audio/PlaybackClock';
+import { createTimelineGeometry } from '../../core/audio/timeline/AudioTimelineGeometry';
+import { computeTrackLaneHeight } from '../../core/audio/timeline/TrackLaneLayout';
+import { useViewportSize } from '../../hooks/useViewportSize';
 import { AudioStudioTrack } from '../../types/audioStudio';
 import { ACCEPTED_AUDIO_FORMATS } from '../../constants/mediaFormats';
 import { TopTransportBar } from './TopTransportBar';
@@ -123,6 +125,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     zoomIn,
     zoomOut,
     resetZoom,
+    isInteracting,
   } = useAudioZoomPan({
     minZoom: 1.0,
     maxZoom: 35.0,
@@ -132,6 +135,24 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     enableWheelPan: true,
     onZoomChange: (z) => useAudioStudioStore.getState().setZoom(z),
   });
+
+  /**
+   * Única transformación tiempo ↔ píxeles del Estudio. El origen es el ancho de
+   * la cabecera de pista, porque el playhead y la guía de snapping viven en el
+   * espacio del área temporal (a la derecha de la columna de nombres).
+   */
+  const timelineGeometry = useMemo(
+    () =>
+      createTimelineGeometry({
+        contentWidth,
+        durationSec: Math.max(10, totalDurationSec),
+        originPx: headerWidth,
+      }),
+    [contentWidth, totalDurationSec, headerWidth]
+  );
+
+  // Tamaño real del área de arreglos (alto útil según viewport móvil/orientación).
+  const timelineViewport = useViewportSize(timelineContainerRef);
 
   // Estado y manejadores de arrastre del Playhead (Hitbox ensanchado de 32px)
   const isDraggingPlayheadRef = useRef(false);
@@ -151,17 +172,21 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     if (!container) return;
 
     const rect = container.getBoundingClientRect();
-    const clickX = e.clientX - rect.left + container.scrollLeft - headerWidth;
-    const dur = Math.max(10, totalDurationSec);
-    const ratio = Math.max(0, Math.min(1, clickX / contentWidth));
+    const absoluteX = e.clientX - rect.left + container.scrollLeft;
+    // Tiempo continuo (sin redondear) para la proyección visual: así la aguja no
+    // da micro-saltos de 1ms en el zoom máximo.
+    const exactTimeSec = timelineGeometry.pxToTime(absoluteX, true);
     // Precisión de 1ms: el offset exacto se guarda y el motor lo usa al reanudar
-    const targetTimeSec = Math.round(ratio * dur * 1000) / 1000;
+    const targetTimeSec = Math.round(exactTimeSec * 1000) / 1000;
 
     setCurrentTimeSec(targetTimeSec);
     audioEngine.seek(targetTimeSec * 1000);
     if (playheadLineRef.current) {
       // Proyección en coma flotante, sin redondeo (evita micro-saltos)
-      playheadLineRef.current.style.transform = `translateX(${headerWidth + ratio * contentWidth}px)`;
+      playheadLineRef.current.style.transform = `translateX(${timelineGeometry.timeToPx(
+        exactTimeSec,
+        true
+      )}px)`;
     }
   };
 
@@ -180,14 +205,8 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
    * es el ancho total de la línea de tiempo.
    */
   const playheadPxFor = useCallback(
-    (timeMs: number) =>
-      timeToPlayheadPx(
-        timeMs,
-        Math.max(10, totalDurationSec) * 1000,
-        headerWidth,
-        contentWidth
-      ),
-    [totalDurationSec, headerWidth, contentWidth]
+    (timeMs: number) => timelineGeometry.timeToPx(timeMs / 1000, true),
+    [timelineGeometry]
   );
 
   /**
@@ -205,7 +224,9 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
       }
 
       const container = timelineContainerRef.current;
-      if (container && isPlaying && zoom > 1.05) {
+      // Seguimiento automático SOLO si el usuario no está manipulando el timeline
+      // (pan/pinch/arrastre): durante la edición el control de la vista es suyo.
+      if (container && isPlaying && zoom > 1.05 && !isInteracting()) {
         const left = container.scrollLeft;
         const right = left + container.clientWidth;
         if (px > right - 80 || px < left + 100) {
@@ -213,7 +234,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
         }
       }
     },
-    [playheadPxFor, isPlaying, zoom]
+    [playheadPxFor, isPlaying, zoom, isInteracting]
   );
 
   // Playhead gobernado por el reloj de hardware (AudioContext.currentTime).
@@ -316,7 +337,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     // Tiempo de HARDWARE (no el estado de React, que va con retraso): el pegado
     // cae exactamente bajo el cabezal visible.
     const exactSec = audioEngine.getCurrentTimeMs() / 1000;
-      store.pasteClip(targetTrack.id, exactSec);
+      store.pasteClip(targetTrack.id, exactSec, timelineGeometry.pixelsPerSecond);
       setCurrentTimeSec(exactSec);
       setExportNotice(`✂️ Clip pegado en "${targetTrack.name}" a los ${exactSec.toFixed(3)}s`);
           setTimeout(() => setExportNotice(null), 2500);
@@ -709,10 +730,9 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
 
     longPressTimerRef.current = window.setTimeout(() => {
       const rect = container.getBoundingClientRect();
-      const clickX = clientX - rect.left + container.scrollLeft - headerWidth;
-      const dur = Math.max(10, totalDurationSec);
-      const ratio = Math.max(0, Math.min(1, clickX / contentWidth));
-      const targetTimeSec = Math.round(ratio * dur * 1000) / 1000;
+      const absoluteX = clientX - rect.left + container.scrollLeft;
+      const targetTimeSec =
+        Math.round(timelineGeometry.pxToTime(absoluteX, true) * 1000) / 1000;
 
       setCurrentTimeSec(targetTimeSec);
       audioEngine.seek(targetTimeSec * 1000);
@@ -729,14 +749,16 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     }
   };
 
-  // Altura de carril adaptativa
-  const trackLaneHeight = useMemo(() => {
-    const totalTracks = arrangementTracks.length;
-    if (totalTracks <= 2) return 84;
-    if (totalTracks <= 3) return 72;
-    if (totalTracks <= 4) return 64;
-    return 56; // 5 pistas
-  }, [arrangementTracks.length]);
+  // Altura de carril adaptativa al ALTO REAL disponible (móvil táctil / escritorio
+  // compacto), acotada entre mínimo y máximo. Si el viewport aún no se ha medido,
+  // `computeTrackLaneHeight` conserva el reparto clásico por número de pistas.
+  const trackLaneHeight = useMemo(
+    () =>
+      computeTrackLaneHeight(timelineViewport.height, arrangementTracks.length, {
+        isMobile: timelineViewport.width > 0 && timelineViewport.width < 640,
+      }),
+    [timelineViewport.height, timelineViewport.width, arrangementTracks.length]
+  );
 
   return (
     <div 
@@ -776,7 +798,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           {/* Regla de tiempo superior */}
           <div className="sticky top-0 z-30 flex items-stretch bg-zinc-950/95 border-b border-white/10 backdrop-blur-md">
             <div
-              className="shrink-0 border-r border-white/10 flex flex-col items-center justify-center gap-0.5 bg-zinc-900/90 text-[9px] font-mono font-black text-slate-400 leading-none"
+              className="sticky left-0 z-10 shrink-0 border-r border-white/10 flex flex-col items-center justify-center gap-0.5 bg-zinc-900 text-[9px] font-mono font-black text-slate-400 leading-none"
               style={{ width: `${headerWidth}px` }}
               title="Marcadores temporales (doble clic en la regla para crear)"
             >
@@ -820,6 +842,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
                 contentWidth={contentWidth}
                 overscrollPx={overscrollPx}
                 trackLaneHeight={trackLaneHeight}
+                scrollContainerRef={timelineContainerRef}
                 onUploadFile={(file) => handleUploadFile(track.id, file)}
                 onTrackHop={(fromTrackId, targetIndex, clipId, newOffsetSec) => {
                   handleTrackHop(fromTrackId, targetIndex, clipId, newOffsetSec);
@@ -839,7 +862,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
               className="absolute top-0 bottom-0 pointer-events-none z-35 flex flex-col items-center select-none"
               style={{
                 left: 0,
-                transform: `translateX(${headerWidth + (draggingGhost.snapLineSec / Math.max(10, totalDurationSec)) * contentWidth}px)`,
+                transform: `translateX(${timelineGeometry.timeToPx(draggingGhost.snapLineSec)}px)`,
               }}
             >
               <div className="px-1.5 py-0.5 rounded bg-cyan text-slate-950 font-mono font-black text-[9px] shadow-md -translate-y-1">
@@ -859,7 +882,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             onPointerUp={handlePlayheadPointerUp}
             onPointerCancel={handlePlayheadPointerUp}
             className="absolute top-0 bottom-0 w-8 -translate-x-4 z-40 pointer-events-auto cursor-ew-resize flex justify-center group select-none touch-none"
-            style={{ left: 0, transform: `translateX(${headerWidth}px)` }}
+            style={{ left: 0, transform: `translateX(${timelineGeometry.timeToPx(0)}px)` }}
             title="Arrastra el cabezal de tiempo para desplazarte libremente"
           >
             {/* Línea visible de 2px centrada en el hitbox con iluminación cyan en hover/drag */}

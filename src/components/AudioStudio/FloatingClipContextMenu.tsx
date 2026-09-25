@@ -59,8 +59,12 @@ export const FloatingClipContextMenu: React.FC = () => {
       const w = rect.width || 280;
       const h = rect.height || 44;
       const margin = 8;
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
+      // En iOS, `innerHeight` incluye la zona bajo la barra del navegador; el
+      // visualViewport es el área realmente visible y evita que el menú quede
+      // tapado o fuera de pantalla.
+      const visualViewport = window.visualViewport;
+      const vw = visualViewport?.width ?? window.innerWidth;
+      const vh = visualViewport?.height ?? window.innerHeight;
 
       // Centrado horizontal sobre el punto tocado, pero siempre dentro del viewport
       let left = contextMenu.x - w / 2;
@@ -79,9 +83,12 @@ export const FloatingClipContextMenu: React.FC = () => {
     measure();
     window.addEventListener('resize', measure);
     window.addEventListener('orientationchange', measure);
+    const visualViewport = window.visualViewport;
+    visualViewport?.addEventListener('resize', measure);
     return () => {
       window.removeEventListener('resize', measure);
       window.removeEventListener('orientationchange', measure);
+      visualViewport?.removeEventListener('resize', measure);
     };
   }, [contextMenu]);
 

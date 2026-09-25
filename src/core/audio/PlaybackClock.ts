@@ -93,19 +93,7 @@ class PlaybackClock {
 
 export const playbackClock = new PlaybackClock();
 
-/**
- * Utilidad pura para proyectar tiempo → píxeles con precisión de coma flotante.
- * Sin `Math.round`: cualquier redondeo introduce micro-saltos visibles.
- */
-export function timeToPlayheadPx(
-  timeMs: number,
-  durationMs: number,
-  originPx: number,
-  spanPx: number
-): number {
-  if (!Number.isFinite(timeMs) || !Number.isFinite(durationMs) || durationMs <= 0) {
-    return originPx;
-  }
-  const ratio = Math.max(0, Math.min(1, timeMs / durationMs));
-  return originPx + ratio * spanPx;
-}
+// Nota: la proyección tiempo → píxeles del playhead ya NO vive aquí. Se unificó
+// en `AudioTimelineGeometry.timeToPx()` (la única transformación temporal del
+// proyecto), que además es la que usan el Audio Studio y la Pista 2D. Mantener
+// una segunda copia de esa fórmula invitaba a que ambas divergieran.

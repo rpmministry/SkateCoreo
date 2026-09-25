@@ -372,6 +372,23 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   iOS: EVITAR EL ZOOM AUTOMÁTICO AL ENFOCAR UN CAMPO
+
+   WebKit amplía la página cuando un `<input>`/`<textarea>`/`<select>` con
+   `font-size` menor de 16px recibe el foco, y ese zoom deja el editor
+   desencajado. En dispositivos táctiles forzamos 16px en controles de texto
+   (se excluyen sliders y casillas, que no se enfocan así). Misma práctica que
+   AudioMass.
+   ═══════════════════════════════════════════════════════════════════ */
+@media (pointer: coarse) {
+  input:not([type='range']):not([type='checkbox']):not([type='radio']),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    ORIENTATION-AWARE STRUCTURAL RULES
    The Tailwind `landscape:` and `portrait:` variants handle utility
    classes; these rules handle complex multi-condition media queries

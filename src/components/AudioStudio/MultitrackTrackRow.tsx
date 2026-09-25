@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { 
   Upload, 
   Mic, 
@@ -10,6 +10,7 @@ import {
 import { AudioStudioTrack } from '../../types/audioStudio';
 import { ACCEPTED_AUDIO_FORMATS } from '../../constants/mediaFormats';
 import { useAudioStudioStore } from '../../store/useAudioStudioStore';
+import { createTimelineGeometry } from '../../core/audio/timeline/AudioTimelineGeometry';
 import { AudioClipItem } from './AudioClipItem';
 import { BandLabTrackMenuModal } from './BandLabTrackMenuModal';
 import { useIosFileCapture } from '../../hooks/useIosFileCapture';
@@ -28,6 +29,8 @@ interface MultitrackTrackRowProps {
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   onDuplicate?: () => void;
+  /** Contenedor con scroll horizontal compartido (para el edge-pan de los clips). */
+  scrollContainerRef?: React.RefObject<HTMLElement | null>;
 }
 
 export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
@@ -44,6 +47,7 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
   onMoveUp,
   onMoveDown,
   onDuplicate,
+  scrollContainerRef,
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const laneRef = useRef<HTMLDivElement | null>(null);
@@ -55,6 +59,12 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
   const draggingGhost = useAudioStudioStore((s) => s.draggingGhost);
 
   const [showTrackMenu, setShowTrackMenu] = useState(false);
+
+  // Única transformación tiempo ↔ píxeles del carril (compartida con regla y clips).
+  const geometry = useMemo(
+    () => createTimelineGeometry({ contentWidth, durationSec: Math.max(10, totalDurationSec) }),
+    [contentWidth, totalDurationSec]
+  );
 
   const isMasterTrack = trackIndex === 0 || track.type === 'music';
   const isActive = activeTrackId === track.id || (isMasterTrack && (activeTrackId === 'music' || activeTrackId === 'track-music' || activeTrackId === 'master'));
@@ -80,11 +90,10 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
     if (e.target === laneRef.current) {
       const rect = laneRef.current.getBoundingClientRect();
       const clickX = e.clientX - rect.left;
-      const safeDuration = Math.max(10, totalDurationSec);
-      const clickedTimeSec = Math.max(0, (clickX / contentWidth) * safeDuration);
+      const clickedTimeSec = Math.max(0, geometry.pxToTime(clickX));
 
       if (audioClipboard && e.detail === 2) {
-        pasteClip(track.id, clickedTimeSec);
+        pasteClip(track.id, clickedTimeSec, geometry.pixelsPerSecond);
       }
     }
   };
@@ -122,8 +131,8 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
             setActiveTrackId(track.id);
             setShowTrackMenu(true);
           }}
-          className={`relative z-20 shrink-0 w-[90px] sm:w-28 border-r border-white/10 flex items-center justify-between px-1.5 sm:px-2 py-1 cursor-pointer select-none transition-colors group ${
-            isActive ? 'bg-zinc-900' : 'bg-zinc-950/90 hover:bg-zinc-900'
+          className={`sticky left-0 z-20 shrink-0 w-[90px] sm:w-28 border-r border-white/10 flex items-center justify-between px-1.5 sm:px-2 py-1 cursor-pointer select-none transition-colors group ${
+            isActive ? 'bg-zinc-900' : 'bg-zinc-950 hover:bg-zinc-900'
           }`}
           style={{ borderLeft: `3.5px solid ${track.color}` }}
           title={displayName}
@@ -215,6 +224,7 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
               trackLaneHeight={trackLaneHeight}
               trackIndex={trackIndex}
               totalTracks={totalTracks}
+              scrollContainerRef={scrollContainerRef}
               onTrackHop={(clipId, deltaY, newOffsetSec) => {
                 if (onTrackHop) {
                   const laneOffset = Math.round(deltaY / trackLaneHeight);
@@ -236,7 +246,7 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
                   {audioClipboard && (
                     <button
                       type="button"
-                      onClick={() => pasteClip(track.id, 0)}
+                      onClick={() => pasteClip(track.id, 0, geometry.pixelsPerSecond)}
                       className="ml-1 px-2.5 py-0.5 rounded-full bg-cyan text-slate-950 text-[11px] font-black hover:bg-cyan-300 transition-all shadow-md active:scale-95"
                       title="Pegar clip copiado al inicio de la Pista Master"
                     >

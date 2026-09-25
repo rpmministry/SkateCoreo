@@ -1,8 +1,8 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useAudioStudioStore } from '../../store/useAudioStudioStore';
 import { Trash2 } from 'lucide-react';
 import { usePlayheadSync } from '../../hooks/usePlayheadSync';
-import { timeToPlayheadPx } from '../../core/audio/PlaybackClock';
+import { createTimelineGeometry } from '../../core/audio/timeline/AudioTimelineGeometry';
 
 interface AudioTimeRulerProps {
   totalDurationSec: number;
@@ -40,6 +40,12 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
   const effectiveWidth = contentWidth || 1000;
   const totalRulerWidth = effectiveWidth + overscrollPx;
 
+  // Única transformación tiempo ↔ píxeles de la regla (misma que clips, nodos y playhead).
+  const geometry = useMemo(
+    () => createTimelineGeometry({ contentWidth: effectiveWidth, durationSec: duration }),
+    [effectiveWidth, duration]
+  );
+
   // Scrubbing continuo con arrastre del ratón sobre la regla de tiempo
   const handleRulerPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest('[data-marker]')) return;
@@ -47,7 +53,7 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
 
     const rect = rulerRef.current.getBoundingClientRect();
     const px = e.clientX - rect.left;
-    const clickedSec = Math.max(0, Math.round((px / effectiveWidth) * duration * 1000) / 1000);
+    const clickedSec = Math.max(0, Math.round(geometry.pxToTime(px) * 1000) / 1000);
 
     // Doble clic o Shift + clic crea marcador de nodo
     if (e.shiftKey || e.detail >= 2) {
@@ -66,7 +72,7 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
     if (!isScrubbingRulerRef.current || !rulerRef.current) return;
     const rect = rulerRef.current.getBoundingClientRect();
     const px = e.clientX - rect.left;
-    const newSec = Math.max(0, Math.round((px / effectiveWidth) * duration * 1000) / 1000);
+    const newSec = Math.max(0, Math.round(geometry.pxToTime(px) * 1000) / 1000);
     onSeek(newSec);
   };
 
@@ -93,7 +99,7 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
     if (draggingNodeId !== id || !rulerRef.current) return;
     const rect = rulerRef.current.getBoundingClientRect();
     const px = e.clientX - rect.left;
-    const newSec = Math.max(0, Math.round((px / effectiveWidth) * duration * 1000) / 1000);
+    const newSec = Math.max(0, Math.round(geometry.pxToTime(px) * 1000) / 1000);
     updateTimeNode(id, newSec);
     onSeek(newSec);
   };
@@ -109,7 +115,7 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
 
   // Graduación temporal: MARCAS cada 5 s (requisito) y ETIQUETAS adaptativas
   // para que nunca se superpongan. Nunca se altera la escala temporal real.
-  const pxPerSec = effectiveWidth / duration;
+  const pxPerSec = geometry.pixelsPerSecond;
 
   const MIN_TICK_PX = 12;
   const MIN_LABEL_PX = 54;
@@ -144,14 +150,9 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
     (timeMs: number) => {
       const el = playheadRef.current;
       if (!el) return;
-      el.style.transform = `translateX(${timeToPlayheadPx(
-        timeMs,
-        duration * 1000,
-        0,
-        effectiveWidth
-      )}px)`;
+      el.style.transform = `translateX(${geometry.timeToPx(timeMs / 1000, true)}px)`;
     },
-    [duration, effectiveWidth]
+    [geometry]
   );
 
   usePlayheadSync(applyPlayhead, {
@@ -177,7 +178,7 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
       >
         {/* Marcas de tiempo (base 5 s) con etiquetas adaptativas. */}
         {ticks.map((tSec) => {
-          const leftPx = (tSec / duration) * effectiveWidth;
+          const leftPx = geometry.timeToPx(tSec);
           const showLabel = isLabelTick(tSec);
           const mins = Math.floor(tSec / 60);
           const secs = Math.round(tSec % 60);
@@ -222,7 +223,7 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
 
         {/* Marcadores de Nodos Temporales (Chips rígidos numerados 1, 2, 3... Sin deformación) */}
         {audioNodes.map((node) => {
-          const leftPx = (node.timestampSec / duration) * effectiveWidth;
+          const leftPx = geometry.timeToPx(node.timestampSec);
           const isSelected = selectedNodeId === node.id;
           const isDragging = draggingNodeId === node.id;
 

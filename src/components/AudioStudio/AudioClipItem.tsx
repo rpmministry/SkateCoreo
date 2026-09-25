@@ -1,11 +1,22 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { useDrag } from '@use-gesture/react';
 import { AudioClip } from '../../types/audioStudio';
 import { useAudioStudioStore } from '../../store/useAudioStudioStore';
 import { useLongPress } from '../../hooks/useLongPress';
+import { createTimelineGeometry } from '../../core/audio/timeline/AudioTimelineGeometry';
+import {
+  drawWaveformColumns,
+  resolveRenderDpr,
+} from '../../core/audio/timeline/WaveformRenderer';
 
 /** Id DOM de la Dropzone (basurero) compartido con `AudioStudioView`. */
 export const TRASH_ZONE_ID = 'studio-trash-zone';
+
+/** Zona (px) junto al borde que dispara el auto-scroll al arrastrar un clip. */
+const EDGE_PAN_ZONE_PX = 44;
+/** Velocidad de edge-pan (px/frame): mínima al rozar el borde, máxima en el extremo. */
+const EDGE_PAN_MIN_SPEED = 2;
+const EDGE_PAN_MAX_SPEED = 22;
 
 interface AudioClipItemProps {
   clip: AudioClip;
@@ -17,6 +28,8 @@ interface AudioClipItemProps {
   trackIndex?: number;
   totalTracks?: number;
   onTrackHop?: (clipId: string, deltaY: number, newOffsetSec: number) => void;
+  /** Contenedor con scroll horizontal del timeline (para el edge-pan). */
+  scrollContainerRef?: React.RefObject<HTMLElement | null>;
 }
 
 export const AudioClipItem: React.FC<AudioClipItemProps> = ({
@@ -29,6 +42,7 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
   trackIndex = 0,
   totalTracks = 1,
   onTrackHop,
+  scrollContainerRef,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const clipRef = useRef<HTMLDivElement | null>(null);
@@ -57,6 +71,74 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
   // ignorarse para no abrir el menú contextual encima del modo basurero.
   const suppressClickRef = useRef(false);
 
+  // ── Edge-pan: auto-scroll horizontal al arrastrar un clip contra el borde ──
+  // Patrón de AudioMass (`edge_pan_raf` / `edge_pan_dir` / `edge_pan_update`): un
+  // bucle de rAF desplaza el contenedor y RE-EVALÚA el arrastre con el scroll ya
+  // actualizado, así el clip acompaña al puntero hacia la zona recién revelada.
+  const dragStartRef = useRef<{ clientX: number; scrollLeft: number } | null>(null);
+  const lastPointerRef = useRef<{ x: number; y: number; my: number }>({ x: 0, y: 0, my: 0 });
+  const lastOffsetRef = useRef<number | null>(null);
+  const edgePanRafRef = useRef<number | null>(null);
+  const edgePanDirRef = useRef(0);
+  // Se reasigna en cada render con la lógica de arrastre vigente.
+  const applyDragRef = useRef<(clientX: number, clientY: number, my: number) => void>(() => {});
+
+  const stopEdgePan = useCallback(() => {
+    edgePanDirRef.current = 0;
+    if (edgePanRafRef.current !== null) {
+      cancelAnimationFrame(edgePanRafRef.current);
+      edgePanRafRef.current = null;
+    }
+  }, []);
+
+  const edgePanStep = () => {
+    edgePanRafRef.current = null;
+    const container = scrollContainerRef?.current;
+    const dir = edgePanDirRef.current;
+    if (!container || !dir || !dragStartRef.current) {
+      edgePanDirRef.current = 0;
+      return;
+    }
+    const rect = container.getBoundingClientRect();
+    const x = lastPointerRef.current.x - rect.left;
+    const over = dir < 0 ? Math.max(0, x) : Math.max(0, rect.width - x);
+    const speed = Math.min(EDGE_PAN_MAX_SPEED, EDGE_PAN_MIN_SPEED + over / 3);
+    const maxScroll = Math.max(0, container.scrollWidth - container.clientWidth);
+    const before = container.scrollLeft;
+    container.scrollLeft = Math.max(0, Math.min(maxScroll, before + dir * speed));
+    // Al tocar el tope, no hay nada más que revelar.
+    if (container.scrollLeft === before) {
+      edgePanDirRef.current = 0;
+      return;
+    }
+    applyDragRef.current(
+      lastPointerRef.current.x,
+      lastPointerRef.current.y,
+      lastPointerRef.current.my
+    );
+    if (edgePanDirRef.current) edgePanRafRef.current = requestAnimationFrame(edgePanStep);
+  };
+
+  const startEdgePan = () => {
+    if (edgePanRafRef.current === null && edgePanDirRef.current) {
+      edgePanRafRef.current = requestAnimationFrame(edgePanStep);
+    }
+  };
+
+  const updateEdgePanDir = (clientX: number) => {
+    const container = scrollContainerRef?.current;
+    if (!container) {
+      edgePanDirRef.current = 0;
+      return;
+    }
+    const rect = container.getBoundingClientRect();
+    const x = clientX - rect.left;
+    edgePanDirRef.current =
+      x <= EDGE_PAN_ZONE_PX ? -1 : x >= rect.width - EDGE_PAN_ZONE_PX ? 1 : 0;
+  };
+
+  useEffect(() => () => stopEdgePan(), [stopEdgePan]);
+
   /** ¿El puntero está dentro de la Dropzone de basura? (para resaltarla y borrar). */
   const isPointOverTrash = (x: number, y: number) => {
     const el = document.getElementById(TRASH_ZONE_ID);
@@ -83,11 +165,17 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
   const currentStartSec = dragOffsetSec !== null ? dragOffsetSec : clip.startOffsetSec;
   const clipDurationSec = Math.max(0.1, clip.trimEndSec - clip.trimStartSec);
 
-  const leftPx = (currentStartSec / safeTotalDuration) * contentWidth;
-  const widthPx = Math.max(24, (clipDurationSec / safeTotalDuration) * contentWidth);
+  // Única transformación tiempo ↔ píxeles (idéntica a la regla, nodos y playhead).
+  const geometry = useMemo(
+    () => createTimelineGeometry({ contentWidth, durationSec: safeTotalDuration }),
+    [contentWidth, safeTotalDuration]
+  );
+
+  const leftPx = geometry.timeToPx(currentStartSec);
+  const widthPx = Math.max(24, geometry.durationToPx(clipDurationSec));
 
   // Px por segundo actual para calcular arrastres
-  const pxPerSec = contentWidth / safeTotalDuration;
+  const pxPerSec = geometry.pixelsPerSecond;
 
   // ── Renderizado Canvas 2D de Onda Sonora (Estilo BandLab: Forma de onda contrastada y nítida sobre bloque sólido) ──
   useEffect(() => {
@@ -97,7 +185,8 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    // DPR con tope (máx. 2): nitidez en Retina sin canvas 3× más grandes de lo necesario.
+    const dpr = resolveRenderDpr(window.devicePixelRatio);
     const renderWidth = Math.max(1, Math.floor(widthPx));
     const renderHeight = Math.max(1, Math.floor(trackLaneHeight - 8));
 
@@ -111,54 +200,20 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, renderWidth, renderHeight);
 
-    const channelData = clip.buffer.getChannelData(0);
-    const bufferDuration = clip.buffer.duration;
-    const startRatio = Math.max(0, clip.trimStartSec / bufferDuration);
-    const endRatio = Math.min(1, clip.trimEndSec / bufferDuration);
-
-    const startSample = Math.floor(startRatio * channelData.length);
-    const endSample = Math.floor(endRatio * channelData.length);
-    const samplesInClip = Math.max(1, endSample - startSample);
-
-    const midY = renderHeight / 2;
-
-    // Línea base central tenue
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.20)';
-    ctx.fillRect(0, midY - 0.5, renderWidth, 1);
-
-    // 1. Forma de onda de ALTA RESOLUCIÓN (1 barra por píxel de dispositivo)
-    //
-    // El paso se calcula en píxeles FÍSICOS y se convierte a CSS, de modo que
-    // cada barra ocupa exactamente 1px de hardware con 1px de separación: en
-    // pantallas Retina/OLED la onda se ve nítida y permite cortes milimétricos
-    // sin aliasing ni emborronado.
-    const stepCss = Math.max(1 / dpr, Math.min(3, renderWidth / 2600));
-    const barCss = Math.max(1 / dpr, stepCss - 1 / dpr);
-    const numBars = Math.max(1, Math.floor(renderWidth / stepCss));
-    const samplesPerBar = Math.max(1, samplesInClip / numBars);
-
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.68)';
-
-    for (let i = 0; i < numBars; i++) {
-      // Alinear al grid de píxeles físicos para evitar antialiasing difuso
-      const xDev = Math.round(i * stepCss * dpr) / dpr;
-      if (xDev > renderWidth) break;
-
-      const sampleStart = startSample + Math.floor(i * samplesPerBar);
-      const sampleEnd = Math.min(
-        endSample,
-        startSample + Math.floor((i + 1) * samplesPerBar) + 1
-      );
-
-      let maxPeak = 0;
-      for (let s = sampleStart; s < sampleEnd; s++) {
-        const val = Math.abs(channelData[s] || 0);
-        if (val > maxPeak) maxPeak = val;
-      }
-
-      const halfH = Math.max(1.2, maxPeak * (renderHeight * 0.38));
-      ctx.fillRect(xDev, midY - halfH, barCss, halfH * 2);
-    }
+    // 1. Forma de onda *pixels-first*: una barra por columna, agregando los picos
+    //    cacheados (WeakMap, paso 128) en lugar de barrer el PCM en cada zoom o
+    //    render. Con la caché el resultado es la onda real, a una fracción del coste.
+    drawWaveformColumns({
+      ctx,
+      buffer: clip.buffer,
+      width: renderWidth,
+      height: renderHeight,
+      startSec: clip.trimStartSec,
+      endSec: clip.trimEndSec,
+      fillStyle: 'rgba(0, 0, 0, 0.68)',
+      baselineStyle: 'rgba(0, 0, 0, 0.20)',
+      devicePixelRatio: dpr,
+    });
 
     // 2. Dibujar envolvente visual de Fade In
     const fadeInWidth = (localFadeIn / clipDurationSec) * renderWidth;
@@ -217,15 +272,64 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
     return { id: trackId, name: 'Pista', exclusive: false };
   };
 
+  /**
+   * Aplica el arrastre en una posición concreta del puntero. El delta se mide en
+   * coordenadas de CONTENIDO (añadiendo el scroll), de modo que sigue siendo
+   * correcto mientras el edge-pan desplaza el contenedor.
+   */
+  applyDragRef.current = (clientX: number, clientY: number, my: number) => {
+    const laneOffset = Math.round(my / trackLaneHeight);
+    const safeTotal = Math.max(1, totalTracks);
+    const targetIndex = Math.max(0, Math.min(safeTotal - 1, trackIndex + laneOffset));
+    const targetInfo = getTargetTrackInfo(targetIndex);
+
+    const container = scrollContainerRef?.current;
+    const start = dragStartRef.current;
+    const scrollDelta = container && start ? container.scrollLeft - start.scrollLeft : 0;
+    const contentDeltaPx = (start ? clientX - start.clientX : 0) + scrollDelta;
+    const rawSec = Math.max(0, clip.startOffsetSec + contentDeltaPx / pxPerSec);
+
+    // Imán magnético con tolerancia en PÍXELES: el mismo "pegado" visual a
+    // cualquier nivel de zoom (más fino cuanto más cerca).
+    const snapResult = calculateSnapOffset
+      ? calculateSnapOffset(
+          targetInfo.id,
+          clip.id,
+          rawSec,
+          clipDurationSec,
+          geometry.pixelsPerSecond
+        )
+      : { snappedSec: rawSec, snapLineSec: null };
+
+    lastOffsetRef.current = snapResult.snappedSec;
+    setDragOffsetSec(snapResult.snappedSec);
+    setDragDeltaY(my);
+
+    // Ghost Overlay en tiempo real
+    setDraggingGhost({
+      clip,
+      fromTrackId: trackId,
+      targetTrackIndex: targetIndex,
+      targetTrackId: targetInfo.id,
+      targetTrackName: targetInfo.name,
+      startOffsetSec: snapResult.snappedSec,
+      cursorX: clientX,
+      cursorY: clientY,
+      isOverMaster: targetIndex === 0,
+      snapLineSec: snapResult.snapLineSec,
+    });
+  };
+
   // ── Drag Gesture con @use-gesture/react ──
   const bindDrag = useDrag(
-    ({ down, movement: [mx, my], xy: [clientX, clientY], first, last, event, cancel }) => {
+    ({ down, movement: [, my], xy: [clientX, clientY], first, last, event, cancel }) => {
       if (isAdjustingFadeIn || isAdjustingFadeOut) return;
 
       // Dos o más dedos = gesto de pinza/zoom: nunca arrastrar un clip.
       // Sin esta guarda el clip "secuestraba" el pinch en landscape.
       const activeTouches = (event as TouchEvent | undefined)?.touches?.length;
       if (typeof activeTouches === 'number' && activeTouches > 1) {
+        stopEdgePan();
         cancel?.();
         return;
       }
@@ -237,6 +341,7 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
       const isTrashMode = trash.active && trash.clipId === clip.id;
 
       if (isTrashMode) {
+        stopEdgePan();
         const over = isPointOverTrash(clientX, clientY);
 
         if (first) {
@@ -287,39 +392,27 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
         setIsDraggingClip(true);
         setSelectedClipId(clip.id);
         if ('vibrate' in navigator) navigator.vibrate(10);
+        // Origen del arrastre en coordenadas de contenido.
+        const container = scrollContainerRef?.current;
+        dragStartRef.current = { clientX, scrollLeft: container ? container.scrollLeft : 0 };
       }
 
       if (down) {
-        const deltaSec = mx / pxPerSec;
-        const rawSec = Math.max(0, clip.startOffsetSec + deltaSec);
-
-        // Snapping magnético estricto de 0.5s
-        const snapResult = calculateSnapOffset
-          ? calculateSnapOffset(targetInfo.id, clip.id, rawSec, clipDurationSec, 0.50)
-          : { snappedSec: rawSec, snapLineSec: null };
-
-        setDragOffsetSec(snapResult.snappedSec);
-        setDragDeltaY(my);
-
-        // Ghost Overlay en tiempo real
-        setDraggingGhost({
-          clip,
-          fromTrackId: trackId,
-          targetTrackIndex: targetIndex,
-          targetTrackId: targetInfo.id,
-          targetTrackName: targetInfo.name,
-          startOffsetSec: snapResult.snappedSec,
-          cursorX: clientX,
-          cursorY: clientY,
-          isOverMaster: targetIndex === 0,
-          snapLineSec: snapResult.snapLineSec,
-        });
+        lastPointerRef.current = { x: clientX, y: clientY, my };
+        updateEdgePanDir(clientX);
+        if (edgePanDirRef.current) startEdgePan();
+        else stopEdgePan();
+        applyDragRef.current(clientX, clientY, my);
       }
 
       if (last) {
+        stopEdgePan();
+        dragStartRef.current = null;
         setIsDraggingClip(false);
         setDraggingGhost(null);
-        const finalSec = dragOffsetSec !== null ? dragOffsetSec : clip.startOffsetSec;
+        // Se usa el último offset calculado (ref), robusto ante el bucle de rAF.
+        const finalSec = lastOffsetRef.current !== null ? lastOffsetRef.current : clip.startOffsetSec;
+        lastOffsetRef.current = null;
         setDragOffsetSec(null);
 
         if (targetIndex !== trackIndex) {
@@ -461,6 +554,8 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
         }
       }}
       onPointerCancel={(e) => {
+        stopEdgePan();
+        dragStartRef.current = null;
         dragBind.onPointerCancel?.(e);
         longPress.onPointerCancel(e);
       }}

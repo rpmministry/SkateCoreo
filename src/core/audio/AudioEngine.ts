@@ -12,6 +12,7 @@ import { VoiceCueEngine } from './VoiceCueEngine';
 import { MediaSessionManager } from './MediaSession';
 import { BpmDetector, BpmDetectionResult } from './BpmDetector';
 import { renderChoreographyMixdown } from './audioMixdown';
+import { readWaveformPeaks } from './timeline/WaveformPeakCache';
 import { adquirirPantallaActiva, liberarPantallaActiva } from '../system/wakeLock';
 import { loadProgress } from '../../store/loadProgressStore';
 
@@ -1834,25 +1835,29 @@ export class AudioEngine {
     };
   }
 
+  /**
+   * Picos normalizados de la onda maestra para la Pista 2D.
+   *
+   * Ya NO recorre el PCM: deriva los buckets de la caché de picos (`WeakMap` con
+   * paso fijo de 128 muestras). Así, cambiar el zoom (que cambia `numBuckets`) o
+   * volver a la vista no vuelve a barrer millones de muestras; es O(buckets).
+   */
   public getWaveformData(numBuckets: number = 300): number[] {
     if (!this.audioBuffer) return [];
 
-    const channelData = this.audioBuffer.getChannelData(0);
-    const blockSize = Math.floor(channelData.length / numBuckets);
-    const peaks: number[] = [];
+    const buckets = Math.max(1, Math.floor(numBuckets));
+    const raw = readWaveformPeaks(this.audioBuffer, buckets);
 
-    for (let i = 0; i < numBuckets; i++) {
-      const start = i * blockSize;
-      let max = 0;
-      for (let j = 0; j < blockSize; j += 10) {
-        const val = Math.abs(channelData[start + j] || 0);
-        if (val > max) max = val;
-      }
-      peaks.push(max);
+    let globalMax = 0.001;
+    for (let i = 0; i < raw.length; i++) {
+      if (raw[i] > globalMax) globalMax = raw[i];
     }
 
-    const globalMax = Math.max(...peaks, 0.001);
-    return peaks.map((p) => Math.min(1.0, p / globalMax));
+    const peaks = new Array<number>(raw.length);
+    for (let i = 0; i < raw.length; i++) {
+      peaks[i] = Math.min(1.0, raw[i] / globalMax);
+    }
+    return peaks;
   }
 
   // Observers

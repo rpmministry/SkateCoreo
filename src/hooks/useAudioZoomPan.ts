@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect, useLayoutEffect, useCallback } from 'react';
+import { createTimelineGeometry } from '../core/audio/timeline/AudioTimelineGeometry';
 
 export interface UseAudioZoomPanOptions {
   minZoom?: number;
@@ -29,6 +30,12 @@ export interface UseAudioZoomPanReturn {
   setZoomExplicit: (newZoom: number, focalX?: number) => void;
   timeToPx: (timeSec: number, totalDurationSec: number, padPx?: number) => number;
   pxToTime: (px: number, totalDurationSec: number, padPx?: number) => number;
+  /**
+   * `true` mientras el usuario arrastra, hace pinza o mueve la rueda sobre el
+   * timeline (y durante un breve margen tras soltar). Se lee desde el bucle de
+   * frames del playhead para NO robarle el control durante la edición.
+   */
+  isInteracting: () => boolean;
 }
 
 interface PinchState {
@@ -78,6 +85,37 @@ export function useAudioZoomPan(options: UseAudioZoomPanOptions = {}): UseAudioZ
 
   const pendingScrollRef = useRef<number | null>(null);
 
+  // Estado de interacción directa del usuario (pan/pinch/rueda). Se mantiene en
+  // un ref para leerlo desde el rAF del playhead sin provocar re-renders.
+  const interactingRef = useRef(false);
+  const interactionTimerRef = useRef<number | null>(null);
+
+  const beginInteraction = useCallback(() => {
+    interactingRef.current = true;
+    if (interactionTimerRef.current !== null) {
+      window.clearTimeout(interactionTimerRef.current);
+      interactionTimerRef.current = null;
+    }
+  }, []);
+
+  // Margen tras soltar: absorbe la inercia del scroll y el último frame del gesto.
+  const endInteraction = useCallback(() => {
+    if (interactionTimerRef.current !== null) window.clearTimeout(interactionTimerRef.current);
+    interactionTimerRef.current = window.setTimeout(() => {
+      interactionTimerRef.current = null;
+      interactingRef.current = false;
+    }, 180);
+  }, []);
+
+  const isInteracting = useCallback(() => interactingRef.current, []);
+
+  useEffect(
+    () => () => {
+      if (interactionTimerRef.current !== null) window.clearTimeout(interactionTimerRef.current);
+    },
+    []
+  );
+
   // Callbacks y geometría en refs: deps estables para los listeners nativos
   const callbacksRef = useRef({ onZoomChange, onScroll });
   callbacksRef.current = { onZoomChange, onScroll };
@@ -107,10 +145,14 @@ export function useAudioZoomPan(options: UseAudioZoomPanOptions = {}): UseAudioZ
   const baseWidth = Math.max(100, containerWidth - widthOffset);
   const contentWidth = Math.max(baseWidth, Math.round(baseWidth * zoom));
 
-  // Aplicación inmediata del scrollLeft previo al renderizado visual (Zero-Flicker)
+  // Aplicación inmediata del scrollLeft previo al renderizado visual (Zero-Flicker).
+  // Se acota contra el nuevo `scrollWidth` (ya con el contenido reescalado) para
+  // que el ancla focal no dependa del recorte implícito del navegador.
   useLayoutEffect(() => {
-    if (pendingScrollRef.current !== null && containerRef.current) {
-      containerRef.current.scrollLeft = pendingScrollRef.current;
+    const container = containerRef.current;
+    if (pendingScrollRef.current !== null && container) {
+      const maxScroll = Math.max(0, container.scrollWidth - container.clientWidth);
+      container.scrollLeft = Math.max(0, Math.min(pendingScrollRef.current, maxScroll));
       pendingScrollRef.current = null;
     }
   }, [contentWidth, zoom]);
@@ -198,27 +240,32 @@ export function useAudioZoomPan(options: UseAudioZoomPanOptions = {}): UseAudioZ
 
     // 1. Desktop: Wheel (Ctrl/Cmd + Wheel = Zoom Focal, Wheel = Paneo horizontal)
     const handleWheel = (e: WheelEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-        e.stopPropagation();
-
-        const rect = container.getBoundingClientRect();
-        const focalX = Math.max(0, e.clientX - rect.left);
-
-        let delta = e.deltaY;
-        if (e.deltaMode === 1) delta *= 20;
-        else if (e.deltaMode === 2) delta *= 200;
-
-        const clampedDelta = Math.max(-60, Math.min(60, delta));
-        const factor = Math.exp(-clampedDelta * 0.006);
-        applyZoomRef.current(zoomRef.current * factor, focalX);
-      } else if (enableWheelPan && e.deltaY !== 0 && e.deltaX === 0) {
-        if (container.scrollWidth > container.clientWidth) {
-          let panDelta = e.deltaY;
-          if (e.deltaMode === 1) panDelta *= 20;
-          container.scrollLeft += panDelta;
+      beginInteraction();
+      try {
+        if (e.ctrlKey || e.metaKey) {
           e.preventDefault();
+          e.stopPropagation();
+
+          const rect = container.getBoundingClientRect();
+          const focalX = Math.max(0, e.clientX - rect.left);
+
+          let delta = e.deltaY;
+          if (e.deltaMode === 1) delta *= 20;
+          else if (e.deltaMode === 2) delta *= 200;
+
+          const clampedDelta = Math.max(-60, Math.min(60, delta));
+          const factor = Math.exp(-clampedDelta * 0.006);
+          applyZoomRef.current(zoomRef.current * factor, focalX);
+        } else if (enableWheelPan && e.deltaY !== 0 && e.deltaX === 0) {
+          if (container.scrollWidth > container.clientWidth) {
+            let panDelta = e.deltaY;
+            if (e.deltaMode === 1) panDelta *= 20;
+            container.scrollLeft += panDelta;
+            e.preventDefault();
+          }
         }
+      } finally {
+        endInteraction();
       }
     };
 
@@ -261,6 +308,7 @@ export function useAudioZoomPan(options: UseAudioZoomPanOptions = {}): UseAudioZ
     };
 
     const handleTouchStart = (e: TouchEvent) => {
+      beginInteraction();
       if (e.touches.length === 2) {
         // Primera pinza o reincorporación de un segundo dedo → re-anclar
         baselinePinch(e.touches);
@@ -270,6 +318,8 @@ export function useAudioZoomPan(options: UseAudioZoomPanOptions = {}): UseAudioZ
     };
 
     const handleTouchMove = (e: TouchEvent) => {
+      // Cualquier movimiento táctil (paneo nativo o pinza) es interacción directa.
+      beginInteraction();
       if (e.touches.length !== 2) return;
 
       // Si el segundo dedo entró sin un touchstart limpio, anclar ahora
@@ -304,10 +354,25 @@ export function useAudioZoomPan(options: UseAudioZoomPanOptions = {}): UseAudioZ
         // 1 → 2 dedos: volver a anclar con la nueva geometría
         baselinePinch(e.touches);
       }
+      // Se programa el fin de interacción; si queda un dedo moviendo, el
+      // `touchmove` la reactiva. Así el auto-follow nunca pelea con el gesto.
+      endInteraction();
     };
 
-    // Bloqueo de gestos de zoom nativos de Safari iOS
-    const handleGesture = (e: Event) => e.preventDefault();
+    // Safari iOS: los gestos de pinza nativos se bloquean y también cuentan como interacción.
+    const handleGesture = (e: Event) => {
+      e.preventDefault();
+      beginInteraction();
+      endInteraction();
+    };
+    const handleGestureStart = (e: Event) => {
+      e.preventDefault();
+      beginInteraction();
+    };
+    const handleGestureEnd = (e: Event) => {
+      e.preventDefault();
+      endInteraction();
+    };
 
     const handleNativeScroll = () => {
       callbacksRef.current.onScroll?.(container.scrollLeft);
@@ -318,9 +383,9 @@ export function useAudioZoomPan(options: UseAudioZoomPanOptions = {}): UseAudioZ
     container.addEventListener('touchmove', handleTouchMove, { passive: false });
     container.addEventListener('touchend', handleTouchEnd, { passive: true });
     container.addEventListener('touchcancel', handleTouchEnd, { passive: true });
-    container.addEventListener('gesturestart', handleGesture, { passive: false });
+    container.addEventListener('gesturestart', handleGestureStart, { passive: false });
     container.addEventListener('gesturechange', handleGesture, { passive: false });
-    container.addEventListener('gestureend', handleGesture, { passive: false });
+    container.addEventListener('gestureend', handleGestureEnd, { passive: false });
     container.addEventListener('scroll', handleNativeScroll, { passive: true });
 
     return () => {
@@ -330,33 +395,35 @@ export function useAudioZoomPan(options: UseAudioZoomPanOptions = {}): UseAudioZ
       container.removeEventListener('touchmove', handleTouchMove);
       container.removeEventListener('touchend', handleTouchEnd);
       container.removeEventListener('touchcancel', handleTouchEnd);
-      container.removeEventListener('gesturestart', handleGesture);
+      container.removeEventListener('gesturestart', handleGestureStart);
       container.removeEventListener('gesturechange', handleGesture);
-      container.removeEventListener('gestureend', handleGesture);
+      container.removeEventListener('gestureend', handleGestureEnd);
       container.removeEventListener('scroll', handleNativeScroll);
     };
     // Deps deliberadamente mínimas: los valores variables se leen desde refs
     // para que los listeners NO se re-registren a mitad de un gesto.
-  }, [baseWidth, enableWheelPan, touchAction]);
+  }, [baseWidth, enableWheelPan, touchAction, beginInteraction, endInteraction]);
 
-  // Helpers de Proyección Matemática
+  // Helpers de Proyección Matemática.
+  // Delegan en la ÚNICA geometría temporal compartida (`AudioTimelineGeometry`)
+  // para que no exista una segunda fórmula tiempo ↔ píxeles en el proyecto.
   const timeToPx = useCallback(
-    (timeSec: number, totalDurationSec: number, padPx: number = 0): number => {
-      const dur = Math.max(1, totalDurationSec);
-      const ratio = Math.max(0, Math.min(1, timeSec / dur));
-      const availableW = Math.max(1, contentWidth - padPx * 2);
-      return padPx + ratio * availableW;
-    },
+    (timeSec: number, totalDurationSec: number, padPx: number = 0): number =>
+      createTimelineGeometry({
+        contentWidth,
+        durationSec: Math.max(1, totalDurationSec),
+        insetPx: padPx,
+      }).timeToPx(timeSec, true),
     [contentWidth]
   );
 
   const pxToTime = useCallback(
-    (px: number, totalDurationSec: number, padPx: number = 0): number => {
-      const dur = Math.max(1, totalDurationSec);
-      const availableW = Math.max(1, contentWidth - padPx * 2);
-      const offsetPx = Math.max(0, px - padPx);
-      return (offsetPx / availableW) * dur;
-    },
+    (px: number, totalDurationSec: number, padPx: number = 0): number =>
+      createTimelineGeometry({
+        contentWidth,
+        durationSec: Math.max(1, totalDurationSec),
+        insetPx: padPx,
+      }).pxToTime(px, true),
     [contentWidth]
   );
 
@@ -372,5 +439,6 @@ export function useAudioZoomPan(options: UseAudioZoomPanOptions = {}): UseAudioZ
     setZoomExplicit,
     timeToPx,
     pxToTime,
+    isInteracting,
   };
 }

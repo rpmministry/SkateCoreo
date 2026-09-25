@@ -21,6 +21,12 @@ import { ttsService } from '../services/ttsService';
 import { useChoreographyStore } from './useChoreographyStore';
 import { renderStudioMixdown, bounceStudioClipsToBuffer } from '../core/audio/studioMixdown';
 import { VoiceRecorder, normalizeAudioBufferPeak } from '../core/audio/VoiceRecorder';
+import {
+  computeSnapOffset,
+  snapToleranceSec,
+  SNAP_PX,
+  BEAT_SNAP_PX,
+} from '../core/audio/timeline/snap';
 
 /**
  * Instantánea del estado EDITABLE del Studio (para undo/redo). No incluye
@@ -53,7 +59,7 @@ export interface AudioStudioStoreState {
     clipId: string | null,
     rawOffsetSec: number,
     clipDurationSec: number,
-    thresholdSec?: number
+    pixelsPerSecond?: number
   ) => { snappedSec: number; snapLineSec: number | null };
 
   // Consolidación Continua del Buffer en Web Audio API
@@ -104,7 +110,7 @@ export interface AudioStudioStoreState {
   duplicateClipToTrack: (fromTrackId: string, toTrackId: string, clipId: string, newStartOffsetSec: number) => AudioClip | null;
   deleteClip: (trackId?: string, clipId?: string) => void;
   copyClip: (clip?: AudioClip) => void;
-  pasteClip: (trackId?: string, atTimeSec?: number) => AudioClip | null;
+  pasteClip: (trackId?: string, atTimeSec?: number, pixelsPerSecond?: number) => AudioClip | null;
   setClipFades: (trackId: string, clipId: string, fadeInSec: number, fadeOutSec: number) => void;
 
   // Acciones de Pistas Libres Dinámicas (hasta 4 pistas adicionales)
@@ -482,16 +488,16 @@ export const flushPendingConsolidation = () => {
 export const hasPendingConsolidation = () => pendingConsolidation;
 
 /**
- * Libera explícitamente el PCM de los clips que salen del arreglo.
+ * Anula el PCM de una lista de clips para que el recolector pueda reclamarlo.
  *
- * En JavaScript basta con dejar de referenciar un `AudioBuffer` para que el
- * recolector pueda reclamarlo, pero el PCM puede quedar retenido por referencias
- * externas (cachés del motor, closures de consolidación, historial). Anular el
- * buffer aquí ayuda a liberar varios MB por fragmento en móviles con poca RAM.
+ * ⚠️ SOLO es seguro cuando esos clips ya están fuera del historial (undo/redo),
+ * del portapapeles y del arreglo actual. Su único uso válido hoy es `resetStudio`,
+ * donde acto seguido se restaura la instantánea inicial (historial vacío).
  *
- * Es SEGURO respecto al portapapeles: `copyClip` guarda una copia superficial
- * (`{ ...clip }`) con su propia referencia al buffer, así que anular la del clip
- * eliminado no rompe `pasteClip`.
+ * NUNCA llamarlo sobre clips que el historial todavía referencia: mutar el objeto
+ * compartido deja la instantánea sin PCM y el deshacer restauraría un clip mudo.
+ * En ediciones normales (borrar, quitar pista) basta con dejar de referenciar el
+ * buffer: la instantánea más antigua sale del tope de 50 y el GC reclama el PCM.
  */
 function releaseClipBuffers(clips: Array<AudioClip | undefined | null>): void {
   for (const clip of clips) {
@@ -546,88 +552,43 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   draggingGhost: null,
   setDraggingGhost: (ghost) => set({ draggingGhost: ghost }),
 
-  calculateSnapOffset: (targetTrackId, clipId, rawOffsetSec, clipDurationSec, thresholdSec = 0.5) => {
+  calculateSnapOffset: (targetTrackId, clipId, rawOffsetSec, clipDurationSec, pixelsPerSecond) => {
     const state = get();
     const targetCoreKey = resolveCoreKey(state.tracks, targetTrackId);
     const targetTrack = targetCoreKey
       ? state.tracks[targetCoreKey]
       : state.additionalTracks.find((t) => t.id === targetTrackId);
 
-    const snapThreshold = thresholdSec;
-    let bestSnappedOffset = Math.max(0, rawOffsetSec);
-    let minDistance = snapThreshold;
-    let snapLineSec: number | null = null;
+    // Los bordes del resto de clips de la pista destino son la referencia prioritaria.
+    const clipEdges = (targetTrack?.clips ?? [])
+      .filter((other) => other.id !== clipId)
+      .map((other) => {
+        const durationSec = Math.max(0.01, other.trimEndSec - other.trimStartSec);
+        return { startSec: other.startOffsetSec, endSec: other.startOffsetSec + durationSec };
+      });
 
-    let isClipSnapped = false;
+    // Tolerancia derivada de PÍXELES visibles. Si no se conoce la escala (p. ej.
+    // pegado desde un menú flotante sin geometría), se conserva el umbral clásico.
+    const hasScale =
+      typeof pixelsPerSecond === 'number' &&
+      Number.isFinite(pixelsPerSecond) &&
+      pixelsPerSecond > 0;
+    const snapTolerance = hasScale ? snapToleranceSec(pixelsPerSecond!, SNAP_PX) : 0.5;
+    const beatTolerance = hasScale ? snapToleranceSec(pixelsPerSecond!, BEAT_SNAP_PX) : 0.25;
 
-    // 1. Snapping estricto a bordes de clips existentes en la pista destino (Prioridad Máxima)
-    if (targetTrack?.clips) {
-      for (const other of targetTrack.clips) {
-        if (other.id === clipId) continue;
-        const otherDur = Math.max(0.01, other.trimEndSec - other.trimStartSec);
-        const otherStart = other.startOffsetSec;
-        const otherEnd = otherStart + otherDur;
+    const result = computeSnapOffset({
+      rawTimeSec: rawOffsetSec,
+      clipDurationSec,
+      snapToleranceSec: snapTolerance,
+      beatToleranceSec: beatTolerance,
+      clipEdges,
+      playheadSec: state.currentTimeSec,
+      originSec: 0,
+      bpm: state.globalControls.bpm || 120,
+      gridEnabled: state.snapEnabled,
+    });
 
-        // Caso A: Acoplamiento perfecto al final del clip adyacente anterior (newClip.start = prevClip.end)
-        const distToEnd = Math.abs(rawOffsetSec - otherEnd);
-        if (distToEnd <= minDistance) {
-          minDistance = distToEnd;
-          bestSnappedOffset = otherEnd;
-          snapLineSec = otherEnd;
-          isClipSnapped = true;
-        }
-
-        // Caso B: Acoplamiento perfecto al inicio del clip adyacente siguiente (newClip.end = nextClip.start)
-        const distToStart = Math.abs((rawOffsetSec + clipDurationSec) - otherStart);
-        if (distToStart <= minDistance) {
-          minDistance = distToStart;
-          bestSnappedOffset = Math.max(0, otherStart - clipDurationSec);
-          snapLineSec = otherStart;
-          isClipSnapped = true;
-        }
-
-        // Caso C: Alinear exactamente inicios de clips
-        const distStartToStart = Math.abs(rawOffsetSec - otherStart);
-        if (distStartToStart <= minDistance) {
-          minDistance = distStartToStart;
-          bestSnappedOffset = otherStart;
-          snapLineSec = otherStart;
-          isClipSnapped = true;
-        }
-      }
-    }
-
-    // 2. Snapping al origen de la pista (0.0s)
-    if (Math.abs(rawOffsetSec) <= minDistance) {
-      minDistance = Math.abs(rawOffsetSec);
-      bestSnappedOffset = 0.0;
-      snapLineSec = 0.0;
-    }
-
-    // 3. Snapping al Cabezal de Reproducción (Playhead)
-    const distToPlayhead = Math.abs(rawOffsetSec - state.currentTimeSec);
-    if (distToPlayhead <= minDistance) {
-      minDistance = distToPlayhead;
-      bestSnappedOffset = state.currentTimeSec;
-      snapLineSec = state.currentTimeSec;
-    }
-
-    // 4. Snapping a la Cuadrícula BPM (solo si no se acopló a un borde de clip o elemento previo)
-    if (!isClipSnapped && minDistance >= snapThreshold / 2 && state.snapEnabled) {
-      const bpm = state.globalControls.bpm || 120;
-      const beatSec = 60 / bpm;
-      const nearestBeat = Math.round(rawOffsetSec / beatSec) * beatSec;
-      const distToBeat = Math.abs(rawOffsetSec - nearestBeat);
-      if (distToBeat <= snapThreshold / 2) {
-        bestSnappedOffset = Math.max(0, Math.round(nearestBeat * 1000) / 1000);
-        snapLineSec = bestSnappedOffset;
-      }
-    }
-
-    return {
-      snappedSec: Math.max(0, Math.round(bestSnappedOffset * 1000) / 1000),
-      snapLineSec,
-    };
+    return { snappedSec: result.snappedSec, snapLineSec: result.snapLineSec };
   },
 
   consolidateStudioAudio: async () => {
@@ -1087,17 +1048,11 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
       const targetClipId = clipId || state.selectedClipId;
       if (!targetClipId) return state;
 
-      // Clips que salen del arreglo: se recolectan para liberar su PCM explícitamente.
-      const removedClips: AudioClip[] = [];
-
       const updateClips = (track: AudioStudioTrack): AudioStudioTrack => {
         const kept = track.clips.filter((c) => c.id !== targetClipId);
-        if (kept.length !== track.clips.length) {
-          for (const c of track.clips) {
-            if (c.id === targetClipId) removedClips.push(c);
-          }
-        }
-        return { ...track, clips: kept };
+        // Sin cambios en esta pista: se devuelve la MISMA referencia (compartición
+        // estructural, para no retener copias innecesarias en el historial).
+        return kept.length === track.clips.length ? track : { ...track, clips: kept };
       };
 
       let updatedTracks = { ...state.tracks };
@@ -1116,8 +1071,12 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         }
       }
 
-      // Libera el PCM de los fragmentos eliminados (Ayuda al GC en móviles).
-      releaseClipBuffers(removedClips);
+      // NO se anula el `buffer` del clip eliminado. El historial (que acaba de
+      // capturarse en `pushStudioEdit`) referencia ESE MISMO objeto de clip, así
+      // que anular su PCM rompía el deshacer: al deshacer, el clip volvía sin
+      // audio. El recolector libera el PCM cuando la instantánea sale del tope de
+      // 50 ediciones. (Antes se liberaba aquí "para ayudar al GC", pero no liberaba
+      // nada —el buffer seguía referenciado— y corrompía el undo.)
 
       return {
         tracks: updatedTracks,
@@ -1164,7 +1123,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
     }
   },
 
-  pasteClip: (trackId, atTimeSec) => {
+  pasteClip: (trackId, atTimeSec, pixelsPerSecond) => {
     const { clipboardClip, audioClipboard, currentTimeSec, activeTrackId, calculateSnapOffset } = get();
     const clipToPaste = clipboardClip || audioClipboard;
     if (!clipToPaste) return null;
@@ -1175,8 +1134,14 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
     const targetTime = atTimeSec !== undefined ? atTimeSec : currentTimeSec;
     const clipDur = Math.max(0.01, clipToPaste.trimEndSec - clipToPaste.trimStartSec);
 
-    // Snapping estricto de 0.5s al pegar para acoplamiento milimétrico
-    const snap = calculateSnapOffset(targetTrackId, null, Math.max(0, targetTime), clipDur, 0.5);
+    // Snapping al pegar con el MISMO imán (tolerancia en píxeles) que el arrastre.
+    const snap = calculateSnapOffset(
+      targetTrackId,
+      null,
+      Math.max(0, targetTime),
+      clipDur,
+      pixelsPerSecond
+    );
     const startOffsetSec = snap.snappedSec;
 
     const newClip: AudioClip = {

@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useEffect, useState } from 'react';
+import React, { useCallback, useRef, useEffect, useMemo, useState } from 'react';
 import { useChoreographyStore } from '../store/useChoreographyStore';
 import { useAudioStudioStore } from '../store/useAudioStudioStore';
 import { audioEngine } from '../core/audio/AudioEngine';
@@ -13,6 +13,14 @@ import {
 } from 'lucide-react';
 import { useAudioZoomPan } from '../hooks/useAudioZoomPan';
 import { usePlayheadSync } from '../hooks/usePlayheadSync';
+import { createTimelineGeometry } from '../core/audio/timeline/AudioTimelineGeometry';
+import { resolveRenderDpr } from '../core/audio/timeline/WaveformRenderer';
+import {
+  computeSnapOffset,
+  snapToleranceSec,
+  BEAT_SNAP_PX,
+} from '../core/audio/timeline/snap';
+import { useViewportSize } from '../hooks/useViewportSize';
 import { RinkAudioMixerDrawer } from './RinkAudioMixerDrawer';
 
 interface InteractiveWaveformProps {
@@ -53,13 +61,24 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
   const masterTrack = tracks.music;
   const musicVolume = masterTrack?.volume ?? 1.0;
   const musicMuted = masterTrack?.muted ?? false;
+  // Preferencia de snap y BPM compartidas con el Audio Studio (imán temporal de nodos).
+  const snapEnabled = useAudioStudioStore((s) => s.snapEnabled);
+  const bpm = useAudioStudioStore((s) => s.globalControls.bpm) || 120;
 
   // Radio seguro de marcadores en px
   const PIN_RADIUS = 18;
 
   // Filtrado exclusivo de Nodos Principales para el Timeline de Música:
-  // Elimina la saturación de micro-puntos de curvatura y eleva el rendimiento en pantallas móviles
-  const timelineNodes = points.filter((node, index) => isMainNode(node, index, points));
+  // Elimina la saturación de micro-puntos de curvatura y eleva el rendimiento en
+  // pantallas móviles. Memoizado: no se recrea en renders ajenos a los nodos.
+  const timelineNodes = useMemo(
+    () => points.filter((node, index) => isMainNode(node, index, points)),
+    [points]
+  );
+  const sortedTimelineNodes = useMemo(
+    () => [...timelineNodes].sort((a, b) => a.timestamp - b.timestamp),
+    [timelineNodes]
+  );
 
   const isDraggingPinRef = useRef<boolean>(false);
   const dragStartPointRef = useRef<{ id: string; originalMs: number } | null>(null);
@@ -73,6 +92,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     zoomIn,
     zoomOut,
     resetZoom,
+    isInteracting,
   } = useAudioZoomPan({
     minZoom: 1.0,
     maxZoom: 35.0,
@@ -104,6 +124,26 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
 
   // Duración efectiva (por defecto 120s si no hay audio cargado aún)
   const effectiveDurationMs = durationMs > 0 ? durationMs : 120000;
+
+  /**
+   * Misma geometría temporal que el Audio Studio, con el `inset` del radio de los
+   * nodos para que el primer y último marcador nunca se recorten. Así la onda, los
+   * nodos, el playhead y el seek comparten UNA sola conversión tiempo ↔ píxeles.
+   */
+  const timelineGeometry = useMemo(
+    () =>
+      createTimelineGeometry({
+        contentWidth,
+        durationSec: effectiveDurationMs / 1000,
+        insetPx: PIN_RADIUS,
+      }),
+    [contentWidth, effectiveDurationMs]
+  );
+
+  // Alto real del visor. Al cambiar el viewport (barra del navegador, teclado,
+  // giro del dispositivo) el canvas debe redibujarse aunque NO esté reproduciendo;
+  // si no, la onda quedaría estirada/recortada hasta la siguiente interacción.
+  const viewerViewport = useViewportSize(containerRef);
 
   // Integración reactiva con el Manifiesto de Mezcla Ligero del Estudio de Audio
   const mixManifest = useAudioStudioStore((state) => state.mixManifest);
@@ -169,8 +209,9 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const dpr = Math.max(1, window.devicePixelRatio || 1);
-    const width = contentWidth;
+    // DPR con tope (máx. 2): evita canvas desproporcionados en móviles Retina.
+    const dpr = resolveRenderDpr(window.devicePixelRatio);
+    const width = timelineGeometry.contentWidth;
     const height = canvas.clientHeight || 90;
 
     canvas.style.width = `${width}px`;
@@ -201,9 +242,8 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
 
     // 2. Proyección de Progreso de Reproducción con zona segura interna
     //    Coma flotante pura: sin Math.round para no introducir micro-saltos
-    const availableW = Math.max(1, width - PIN_RADIUS * 2);
-    const playheadRatio = Math.max(0, Math.min(1, timeMs / effectiveDurationMs));
-    const playheadPx = PIN_RADIUS + playheadRatio * availableW;
+    const availableW = timelineGeometry.usableWidth;
+    const playheadPx = timelineGeometry.timeToPx(timeMs / 1000, true);
 
     // Área reproducida (sombreado sutil cian)
     const playedGradient = ctx.createLinearGradient(0, 0, playheadPx, 0);
@@ -233,11 +273,10 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     }
 
     // 4. Marcadores de Nodos Coreográficos (Líneas verticales del Scrubber)
-    const sortedPoints = [...timelineNodes].sort((a, b) => a.timestamp - b.timestamp);
+    const sortedPoints = sortedTimelineNodes;
 
     sortedPoints.forEach((point) => {
-      const pointRatio = Math.max(0, Math.min(1, point.timestamp / effectiveDurationMs));
-      const pinX = PIN_RADIUS + pointRatio * availableW;
+      const pinX = timelineGeometry.timeToPx(point.timestamp / 1000, true);
       const isSelected = point.id === selectedPointId;
       const isDragged = point.id === draggedPinId;
       const theme = getMarkerTheme(point.type, isSelected, isDragged);
@@ -321,10 +360,9 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     ctx.restore();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    contentWidth,
+    timelineGeometry,
     wavePeaks,
-    effectiveDurationMs,
-    timelineNodes,
+    sortedTimelineNodes,
     selectedPointId,
     hoverX,
     hoverTimeMs,
@@ -342,27 +380,28 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
       (timeMs: number) => {
         drawWaveform(timeMs);
 
-        if (!isPlaying || zoom <= 1.05) return;
+        // Seguimiento automático SOLO si el usuario no está manipulando el
+        // timeline: durante pan/pinch/arrastre el control es suyo y la aguja no
+        // debe robarle la vista (comportamiento de AudioMass).
+        if (!isPlaying || zoom <= 1.05 || isInteracting()) return;
         const track = trackRef.current;
         if (!track) return;
 
-        const availableW = Math.max(1, contentWidth - PIN_RADIUS * 2);
-        const playheadPx =
-          PIN_RADIUS + Math.max(0, Math.min(1, timeMs / effectiveDurationMs)) * availableW;
+        const playheadPx = timelineGeometry.timeToPx(timeMs / 1000, true);
         const left = track.scrollLeft;
         const right = left + track.clientWidth;
         if (playheadPx > right - 80 || playheadPx < left + 20) {
           track.scrollLeft = Math.max(0, playheadPx - track.clientWidth / 2);
         }
       },
-      [drawWaveform, isPlaying, zoom, contentWidth, effectiveDurationMs]
+      [drawWaveform, isPlaying, zoom, timelineGeometry, isInteracting]
     ),
     {
       // Mientras suena, el bucle de frames mueve la aguja.
       active: Boolean(isPlaying),
       // En pausa, cualquier cambio de tiempo (seek, scrub, rewind), geometría o
       // marcadores provoca UNA escritura puntual con el tiempo real del motor.
-      refreshKey: `${contentWidth}|${effectiveDurationMs}|${wavePeaks.length}|${timelineNodes.length}|${zoom}|${
+      refreshKey: `${contentWidth}|${effectiveDurationMs}|${wavePeaks.length}|${timelineNodes.length}|${zoom}|${viewerViewport.height}|${
         isPlaying ? '-' : Math.round(currentTimeMs / 50)
       }`,
     }
@@ -395,11 +434,24 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     if (!track) return;
 
     const rect = track.getBoundingClientRect();
-    const availableWidth = Math.max(1, contentWidth - PIN_RADIUS * 2);
     // Incorpora scrollLeft para arrastre exacto en cualquier nivel de zoom
-    const px = e.clientX - rect.left + track.scrollLeft - PIN_RADIUS;
-    const ratio = Math.max(0, Math.min(1, px / availableWidth));
-    const timeMs = Math.round(ratio * effectiveDurationMs);
+    const absoluteX = e.clientX - rect.left + track.scrollLeft;
+    const rawSec = timelineGeometry.pxToTime(absoluteX, true);
+    // Imán temporal suave al grid BPM: misma tolerancia en PÍXELES que el Audio
+    // Studio (más fino cuanto más cerca), respetando el interruptor de snap.
+    const snappedSec = snapEnabled
+      ? computeSnapOffset({
+          rawTimeSec: rawSec,
+          clipDurationSec: 0,
+          snapToleranceSec: 0,
+          beatToleranceSec: snapToleranceSec(timelineGeometry.pixelsPerSecond, BEAT_SNAP_PX),
+          clipEdges: [],
+          playheadSec: null,
+          bpm,
+          gridEnabled: true,
+        }).snappedSec
+      : rawSec;
+    const timeMs = Math.round(snappedSec * 1000);
 
     hasMovedRef.current = true;
     updatePointTimestamp(dragStartPointRef.current.id, timeMs);
@@ -441,10 +493,8 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     if (!track) return;
 
     const rect = track.getBoundingClientRect();
-    const availableWidth = Math.max(1, contentWidth - PIN_RADIUS * 2);
-    const px = e.clientX - rect.left + track.scrollLeft - PIN_RADIUS;
-    const ratio = Math.max(0, Math.min(1, px / availableWidth));
-    const targetTimeMs = Math.round(ratio * effectiveDurationMs);
+    const absoluteX = e.clientX - rect.left + track.scrollLeft;
+    const targetTimeMs = Math.round(timelineGeometry.pxToTime(absoluteX, true) * 1000);
     onSeek(targetTimeMs);
   };
 
@@ -453,12 +503,8 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     if (!track) return;
 
     const rect = track.getBoundingClientRect();
-    const availableWidth = Math.max(1, contentWidth - PIN_RADIUS * 2);
-    const px = e.clientX - rect.left + track.scrollLeft - PIN_RADIUS;
-    const ratio = Math.max(0, Math.min(1, px / availableWidth));
-    const timeMs = Math.round(ratio * effectiveDurationMs);
-
     const canvasX = e.clientX - rect.left + track.scrollLeft;
+    const timeMs = Math.round(timelineGeometry.pxToTime(canvasX, true) * 1000);
 
     setHoverX(canvasX);
     setHoverTimeMs(timeMs);
@@ -468,8 +514,6 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     setHoverX(null);
     setHoverTimeMs(null);
   };
-
-  const sortedTimelineNodes = [...timelineNodes].sort((a, b) => a.timestamp - b.timestamp);
 
   return (
     <div
@@ -601,9 +645,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
           }}
         >
           {sortedTimelineNodes.map((point, index) => {
-            const pointRatio = Math.max(0, Math.min(1, point.timestamp / effectiveDurationMs));
-            const availableW = Math.max(1, contentWidth - PIN_RADIUS * 2);
-            const pinLeftPx = PIN_RADIUS + pointRatio * availableW;
+            const pinLeftPx = timelineGeometry.timeToPx(point.timestamp / 1000, true);
 
             const isSelected = point.id === selectedPointId;
             const isDragged = point.id === draggedPinId;

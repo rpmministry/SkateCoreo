@@ -6,6 +6,7 @@
  */
 
 import { useAudioStudioStore } from '../../store/useAudioStudioStore';
+import type { AudioClip } from '../../types/audioStudio';
 
 let total = 0;
 function assert(condition: boolean, msg: string) {
@@ -67,5 +68,64 @@ assert(
 // Limpieza del estado de prueba del historial de nodos.
 const remaining = store.getState().audioNodes.length - initialCount;
 for (let i = 0; i < remaining; i++) store.getState().deleteTimeNode(store.getState().audioNodes[0].id);
+
+// ── Fase 9: integridad del PCM en undo/redo ──
+// Borrar un clip NO debe anular su `buffer`: el historial referencia ESE MISMO
+// objeto de clip, así que anularlo dejaba el deshacer sin audio. Este test falla
+// si se reintroduce la liberación prematura en `deleteClip`.
+const clipBuffer = {
+  duration: 1,
+  length: 8000,
+  sampleRate: 8000,
+  numberOfChannels: 1,
+  getChannelData: () => new Float32Array(8000),
+} as unknown as AudioBuffer;
+
+const bufferTestClip: AudioClip = {
+  id: 'clip-buffer-integrity',
+  name: 'Buffer Test',
+  buffer: clipBuffer,
+  startOffsetSec: 0,
+  trimStartSec: 0,
+  trimEndSec: 1,
+  fadeInSec: 0,
+  fadeOutSec: 0,
+};
+
+const musicBeforeBufferTest = store.getState().tracks.music;
+store.setState((s) => ({
+  tracks: { ...s.tracks, music: { ...s.tracks.music, clips: [bufferTestClip] } },
+  studioHistory: [],
+  studioFuture: [],
+}));
+
+store.getState().deleteClip('music', bufferTestClip.id);
+assert(
+  !store.getState().tracks.music.clips.some((c) => c.id === bufferTestClip.id),
+  'El clip se elimina del arreglo'
+);
+
+store.getState().undoStudio();
+const restoredClip = store.getState().tracks.music.clips.find((c) => c.id === bufferTestClip.id);
+assert(!!restoredClip, 'Undo restaura el clip eliminado');
+assert(
+  restoredClip?.buffer != null,
+  'Undo restaura el clip CON su PCM (borrar no anula el buffer que el historial necesita)'
+);
+
+// La memoria del historial está acotada: nunca retiene más de 50 instantáneas.
+store.setState({ studioHistory: [], studioFuture: [] });
+for (let i = 0; i < 60; i++) store.getState().pushStudioEdit();
+assert(
+  store.getState().studioHistory.length <= 50,
+  `El historial no supera 50 instantáneas (memoria acotada); tiene ${store.getState().studioHistory.length}`
+);
+
+// Limpieza.
+store.setState((s) => ({
+  tracks: { ...s.tracks, music: musicBeforeBufferTest },
+  studioHistory: [],
+  studioFuture: [],
+}));
 
 console.log(`\nTODAS LAS PRUEBAS DE UNDO/REDO PASARON: ${total}/${total}`);

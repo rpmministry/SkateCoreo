@@ -10,7 +10,26 @@
 
 import { VoiceCueEngine, GOOGLE_TTS_VOICES, DEFAULT_LATIN_FEMALE_VOICE, PREMIUM_LATIN_FEMALE_VOICES } from './VoiceCueEngine';
 import { detectGoogleVoiceGender, voiceMatchesGender, isAcceptableFemaleVoice } from './voiceGender';
-import { timeToPlayheadPx } from './PlaybackClock';
+import { createTimelineGeometry } from './timeline/AudioTimelineGeometry';
+
+/**
+ * Proyección del playhead sobre la geometría temporal COMPARTIDA (la misma que
+ * usan el Audio Studio y el visor de la Pista 2D). Se conserva aquí el guardia de
+ * duración no positiva para no proyectar sobre una escala degenerada.
+ */
+const timeToPlayheadPx = (
+  timeMs: number,
+  durationMs: number,
+  originPx: number,
+  spanPx: number
+): number => {
+  if (!Number.isFinite(durationMs) || durationMs <= 0) return originPx;
+  return createTimelineGeometry({
+    contentWidth: spanPx,
+    durationSec: durationMs / 1000,
+    originPx,
+  }).timeToPx(timeMs / 1000, true);
+};
 
 function assert(condition: boolean, msg: string) {
   if (!condition) {
