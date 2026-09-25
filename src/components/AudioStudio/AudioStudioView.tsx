@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useState, useRef, useMemo } from 'react';
 import {
   ZoomIn,
   ZoomOut,
@@ -62,7 +62,10 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   const additionalTracks = useAudioStudioStore((s) => s.additionalTracks);
   const audioNodes = useAudioStudioStore((s) => s.audioNodes);
   const selectedNodeId = useAudioStudioStore((s) => s.selectedNodeId);
-  const currentTimeSec = useAudioStudioStore((s) => s.currentTimeSec);
+  // NOTA de rendimiento: este componente NO se suscribe a `currentTimeSec`. La
+  // aguja se mueve por una ruta DOM ligera (`applyPlayheadRef`) y, durante el
+  // scrub táctil, el estado del store se sincroniza COMO MÁXIMO una vez por frame.
+  // Suscribirse aquí re-renderizaba TODO el arreglo en cada `pointermove`.
   const totalDurationSec = useAudioStudioStore((s) => s.totalDurationSec);
   const isPlaying = useAudioStudioStore((s) => s.isPlaying);
   const setIsPlaying = useAudioStudioStore((s) => s.setIsPlaying);
@@ -158,6 +161,11 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const addTrackFileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Coalescencia del scrub: muchos `pointermove` → como máximo UNA sincronización
+  // de estado de React por frame. La aguja y el motor se actualizan al instante.
+  const seekRafRef = useRef<number | null>(null);
+  const pendingSeekSecRef = useRef<number | null>(null);
+
   // Motor de Zoom y Paneo Dinámico con matemática touch precisa y overscroll continuo
   const {
     zoom,
@@ -248,16 +256,91 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   );
   applyPlayheadRef.current = applyPlayheadFromHardwareClock;
 
+  /**
+   * SEEK de interfaz con RUTA LIGERA.
+   *
+   * Antes, cada `pointermove` de la regla llamaba a `setCurrentTimeSec`, lo que
+   * re-renderizaba TODO el Audio Studio (arreglo + pistas + clips + marcadores)
+   * decenas de veces por segundo → en móvil esto era el lag/saltos del playhead.
+   *
+   * Ahora TODO el trabajo se coalesce a UN frame:
+   *   1. `audioEngine.seek(ms)`  → una sola vez por frame (el seek re-agenda la
+   *      fuente y emite cambios de estado, así que no debe correr por evento).
+   *   2. `applyPlayheadRef`      → la aguja se mueve por `transform` (sin React).
+   *   3. `setCurrentTimeSec`     → el estado también, una vez por frame.
+   * Y como `AudioStudioView` ya no se suscribe a `currentTimeSec`, el último paso
+   * solo re-renderiza componentes ligeros (p. ej. la barra superior).
+   */
+  const handleSeek = useCallback(
+    (sec: number) => {
+      const clamped = Math.max(0, Number.isFinite(sec) ? sec : 0);
+      pendingSeekSecRef.current = clamped;
+      if (seekRafRef.current === null) {
+        seekRafRef.current = requestAnimationFrame(() => {
+          seekRafRef.current = null;
+          const pending = pendingSeekSecRef.current;
+          pendingSeekSecRef.current = null;
+          if (pending === null) return;
+          const ms = pending * 1000;
+          audioEngine.seek(ms);
+          applyPlayheadRef.current(ms);
+          setCurrentTimeSec(pending);
+        });
+      }
+    },
+    [setCurrentTimeSec]
+  );
+
+  /**
+   * Reposiciona la aguja ante cambios de `currentTimeSec` que NO pasan por
+   * `handleSeek` (Escape → 0:00, "Dividir en el cabezal" del menú contextual…).
+   * Se suscribe de forma IMPERATIVA al store (sin selector React), así no
+   * provoca el re-render completo del arreglo que se eliminó por rendimiento.
+   * Durante la reproducción no interfiere: el rAF del reloj manda.
+   */
+  useEffect(() => {
+    return useAudioStudioStore.subscribe((state, prev) => {
+      if (state.currentTimeSec === prev.currentTimeSec) return;
+      if (useAudioStudioStore.getState().isPlaying) return;
+      applyPlayheadRef.current(state.currentTimeSec * 1000);
+    });
+  }, []);
+
+  // Cancelación limpia de la coalescencia al desmontar (sin timers colgados).
+  useEffect(
+    () => () => {
+      if (seekRafRef.current !== null) {
+        cancelAnimationFrame(seekRafRef.current);
+        seekRafRef.current = null;
+      }
+    },
+    []
+  );
+
+  /**
+   * SNAPSHOT Rink → Studio en el MONTAJE (antes del primer pintado).
+   *
+   * Es el único puente de entrada: da igual si el usuario llegó por el botón del
+   * visor, por la navegación o por un gesto de borde. Se ejecuta de forma
+   * SINCRÓNICA con `useLayoutEffect`, así el Estudio nunca se muestra vacío ni
+   * existe una carrera temporal (no hay `setTimeout`).
+   */
+  useLayoutEffect(() => {
+    // Nota: NO se llama a `setActiveDurationSec` aquí: el dominio del motor aún es
+    // 'rink' en el montaje y sobrescribiría su duración. El efecto pasivo de
+    // duración, ya con el dominio 'studio' activo, se encarga de fijarla.
+    useAudioStudioStore.getState().syncRinkSnapshotIntoStudio();
+  }, []);
+
   // Playhead gobernado por el reloj de hardware (AudioContext.currentTime).
   // Durante la reproducción: un frame de rAF compartido para toda la app.
   // En pausa/seek/zoom: una única escritura puntual con el tiempo real.
-  // El refreshKey DEBE incluir `currentTimeSec`: al pausar (`active` pasa a false)
-  // el hook deja de refrescar por rAF, así que un cambio de tiempo estando en pausa
-  // (p. ej. STOP que devuelve a 0:00) solo se refleja si el refreshKey cambia.
-  // Sin esto, PLAY → PAUSE → STOP no reposicionaba el playhead (bug).
+  // El refreshKey incluye la geometría (zoom, anchos, duración): al cambiar
+  // reposiciona la aguja con el tiempo real del motor. El scrub táctil escribe
+  // la aguja directamente (`handleSeek`), sin depender de este refreshKey.
   usePlayheadSync(applyPlayheadFromHardwareClock, {
     active: isPlaying,
-    refreshKey: `${contentWidth}|${totalDurationSec}|${headerWidth}|${zoom}|${currentTimeSec}`,
+    refreshKey: `${contentWidth}|${totalDurationSec}|${headerWidth}|${zoom}`,
   });
 
   // 1 Pista Principal (Música) + VOZ grabada + hasta 4 Pistas Adicionales
@@ -326,9 +409,12 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
 
         // Si no hay clip seleccionado explícitamente, buscar el clip que esté bajo el cabezal
         if (!targetClipId) {
+          // Tiempo REAL del reloj de hardware (el estado de React ya no se
+          // re-suscribe al playhead para no re-renderizar el arreglo en cada frame).
+          const headSec = audioEngine.getCurrentTimeMs() / 1000;
           for (const t of arrangementTracks) {
             const found = t.clips.find(
-              (c) => currentTimeSec >= c.startOffsetSec && currentTimeSec <= c.startOffsetSec + (c.trimEndSec - c.trimStartSec)
+              (c) => headSec >= c.startOffsetSec && headSec <= c.startOffsetSec + (c.trimEndSec - c.trimStartSec)
             );
             if (found) {
               targetClipId = found.id;
@@ -398,7 +484,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isPlaying, currentTimeSec, tracks.music.id, arrangementTracks, isRecording, startVoiceRecording, stopVoiceRecording, undoStudio, redoStudio]);
+  }, [isPlaying, tracks.music.id, arrangementTracks, isRecording, startVoiceRecording, stopVoiceRecording, undoStudio, redoStudio]);
 
   // Carga infalible de archivos de audio
   const handleUploadFile = async (trackId: string, file: File) => {
@@ -510,9 +596,8 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
       // Tiempo REAL del corte (ya ajustado a cruce por cero), no el solicitado:
       // así el aviso coincide con la línea de corte y con el borde de los clips.
       const cut = useAudioStudioStore.getState().lastCutSec ?? splitAtSec;
-      // Clava el playhead en el punto EXACTO de corte para que todo coincida.
-      setCurrentTimeSec(cut);
-      audioEngine.seek(cut * 1000);
+      // Clava el playhead en el punto EXACTO de corte (ruta ligera + estado).
+      handleSeek(cut);
       setExportNotice(`✂️ Corte milimétrico a ${cut.toFixed(3)}s (sin clic)`);
       setTimeout(() => setExportNotice(null), 2200);
     }
@@ -773,34 +858,96 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     void performExportMix();
   };
 
-  // Long-press en el fondo del área de trabajo para mover el cabezal directamente
+  // Long-press en el fondo del área de trabajo para mover el cabezal directamente.
+  // Se CANCELA si el dedo se desplaza >10px (era la causa de seeks fantasma al
+  // panea/arrastrar con el dedo apoyado sobre el fondo vacío).
   const longPressTimerRef = useRef<number | null>(null);
+  const longPressStartRef = useRef<{ x: number; y: number; clientX: number } | null>(null);
+
+  const cancelWorkspaceLongPress = useCallback(() => {
+    if (longPressTimerRef.current !== null) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    longPressStartRef.current = null;
+  }, []);
+
+  // Sin esto, un long-press pendiente disparaba `handleSeek` tras desmontar el
+  // Estudio (timer huérfano).
+  useEffect(() => cancelWorkspaceLongPress, [cancelWorkspaceLongPress]);
+
   const handleWorkspacePointerDown = (e: React.PointerEvent) => {
     if ((e.target as HTMLElement).closest('button, input, label, [data-interactive]')) return;
-    
-    const clientX = e.clientX;
+
     const container = timelineContainerRef.current;
     if (!container) return;
 
+    longPressStartRef.current = { x: e.clientX, y: e.clientY, clientX: e.clientX };
     longPressTimerRef.current = window.setTimeout(() => {
+      longPressTimerRef.current = null;
+      const start = longPressStartRef.current;
+      if (!start) return;
       const rect = container.getBoundingClientRect();
-      const absoluteX = clientX - rect.left + container.scrollLeft;
+      const absoluteX = start.clientX - rect.left + container.scrollLeft;
       // Tiempo EXACTO bajo el puntero: sin redondeo a milisegundos.
       const targetTimeSec = Math.max(0, timelineGeometry.pixelToTime(absoluteX, true));
-
-      setCurrentTimeSec(targetTimeSec);
-      audioEngine.seek(targetTimeSec * 1000);
-      // El clock de hardware escribe la línea en el mismo instante del seek
-      applyPlayheadFromHardwareClock(targetTimeSec * 1000);
+      handleSeek(targetTimeSec);
       if ('vibrate' in navigator) navigator.vibrate(12);
     }, 280);
   };
 
-  const handleWorkspacePointerUp = () => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
+  const handleWorkspacePointerMove = (e: React.PointerEvent) => {
+    const start = longPressStartRef.current;
+    if (!start) return;
+    if (Math.abs(e.clientX - start.x) > 10 || Math.abs(e.clientY - start.y) > 10) {
+      cancelWorkspaceLongPress();
     }
+  };
+
+  const handleWorkspacePointerUp = () => {
+    cancelWorkspaceLongPress();
+  };
+
+  /**
+   * Tirador del PLAYHEAD (hit area independiente del marker).
+   *
+   * Captura el puntero y mueve SOLO `currentTimeSec`; nunca toca
+   * `marker.timestampSec`. La captura garantiza que el gesto sigue al dedo aunque
+   * salga del tirador, y se libera siempre en `pointerup`/`pointercancel`/
+   * `lostpointercapture` para no dejar ningún gesto "atrapado".
+   */
+  const handlePlayheadPointerDown = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    const container = timelineContainerRef.current;
+    if (!container) return;
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch (err) {}
+
+    const seekFromClientX = (clientX: number) => {
+      const rect = container.getBoundingClientRect();
+      const absoluteX = clientX - rect.left + container.scrollLeft;
+      handleSeek(Math.max(0, timelineGeometry.pixelToTime(absoluteX, true)));
+    };
+    seekFromClientX(e.clientX);
+    if ('vibrate' in navigator) navigator.vibrate(8);
+
+    // Solo el puntero que inició el gesto mueve el cabezal (un segundo dedo,
+    // p. ej. al iniciar una pinza, no lo arrastra).
+    const pointerId = e.pointerId;
+    const onMove = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      seekFromClientX(ev.clientX);
+    };
+    const onEnd = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onEnd);
+      window.removeEventListener('pointercancel', onEnd);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onEnd);
+    window.addEventListener('pointercancel', onEnd);
   };
 
   // Altura de carril adaptativa al ALTO REAL disponible (móvil táctil / escritorio
@@ -835,6 +982,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
       <div 
         ref={timelineContainerRef}
         onPointerDown={handleWorkspacePointerDown}
+        onPointerMove={handleWorkspacePointerMove}
         onPointerUp={handleWorkspacePointerUp}
         onPointerCancel={handleWorkspacePointerUp}
         className="absolute inset-0 overflow-x-auto overflow-y-auto bg-black isolate"
@@ -876,15 +1024,12 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             <div className="flex-1 overflow-hidden">
               <AudioTimeRuler
                 totalDurationSec={totalDurationSec}
-                currentTimeSec={currentTimeSec}
+                currentTimeSec={0}
                 contentWidth={contentWidth}
                 overscrollPx={overscrollPx}
                 scrollContainerRef={timelineContainerRef}
                 viewportWidth={Math.max(0, timelineViewport.width - headerWidth)}
-                onSeek={(sec) => {
-                  setCurrentTimeSec(sec);
-                  audioEngine.seek(sec * 1000);
-                }}
+                onSeek={handleSeek}
                 hidePlayhead={true}
                 isPlaying={isPlaying}
               />
@@ -1057,10 +1202,25 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           ref={playheadLineRef}
           className="absolute top-0 bottom-0 w-8 pointer-events-none flex justify-center select-none"
           style={{ left: 0, transform: `translateX(0px) translateX(-50%)` }}
-          aria-hidden="true"
         >
           <div className="w-[2px] h-full bg-white shadow-glow-cyan relative flex justify-center">
-            <div className="w-3.5 h-3.5 bg-white rotate-45 -translate-y-1 rounded-xs shadow-md shrink-0" />
+            {/* HIT AREA DEL PLAYHEAD — independiente del marker. Es un blanco
+                cómodo (~36px) sobre la aguja que SOLO modifica `currentTimeSec`.
+                `touch-action:none`: el navegador no lo interpreta como scroll ni
+                como zoom, así el scrub llega íntegro. No cubre toda la timeline:
+                es una zona pequeña centrada en la aguja. */}
+            <div
+              role="slider"
+              aria-label="Posición del cabezal"
+              aria-valuemin={0}
+              onPointerDown={handlePlayheadPointerDown}
+              className="pointer-events-auto absolute top-12 left-1/2 flex h-9 w-9 -translate-x-1/2 cursor-ew-resize items-center justify-center rounded-full transition-transform active:scale-110"
+              style={{ touchAction: 'none' }}
+              title="Arrastra para mover el cabezal"
+            >
+              <div className="w-3.5 h-3.5 bg-white rotate-45 rounded-xs shadow-md" />
+              <span className="absolute -bottom-1 h-1 w-4 rounded-full bg-white/70" />
+            </div>
           </div>
         </div>
       </div>

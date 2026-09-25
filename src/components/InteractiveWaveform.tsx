@@ -587,19 +587,28 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
           </button>
           <span className="hidden h-5 w-px bg-white/10 sm:block" aria-hidden="true" />
 
-          {/* ── Acción de herramienta especializada: abrir el Audio Studio.
-              Acceso DIRECTO y con label; no se esconde ni depende de un icono. ── */}
+          {/* ── ENTRADA ÚNICA AL AUDIO STUDIO (Pista 2D) ──
+              Es la ÚNICA acción que abre el Studio en esta vista: no hay botón
+              duplicado en la barra de acciones ni en el mezclador. Semántica
+              clara (icono + texto completo en TODOS los tamaños), estado
+              `disabled` honesto cuando no hay audio en el visor, feedback táctil
+              (`press`) y accesibilidad. Al pulsar, el Studio recibe el snapshot
+              del audio publicado + sus nodos (ver `syncRinkSnapshotIntoStudio`). */}
           {onOpenStudio && (
             <button
               type="button"
               onClick={onOpenStudio}
-              className="flex min-h-touch items-center justify-center gap-1.5 rounded-subtle border border-cyan/30 bg-cyan/10 px-2.5 font-sans text-[11px] font-bold text-cyan press hover:bg-cyan/20 sm:px-3"
-              title="Abrir el Audio Studio para cortar, mezclar y preparar la música"
+              disabled={!publishedAudio}
+              className="press flex min-h-touch items-center justify-center gap-1.5 rounded-subtle border border-cyan/30 bg-cyan/10 px-2.5 font-sans text-[11px] font-bold text-cyan hover:bg-cyan/20 disabled:pointer-events-none disabled:opacity-40 sm:px-3"
+              title={
+                publishedAudio
+                  ? 'Abrir el Audio Studio para cortar, mezclar y preparar la música'
+                  : 'Sube o publica una pista para editar la mezcla en el Estudio'
+              }
               aria-label="Editar mezcla en Estudio"
             >
               <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" />
-              <span className="hidden sm:inline">Editar mezcla en Estudio</span>
-              <span className="sm:hidden">Editar mezcla</span>
+              <span>Editar mezcla en Estudio</span>
             </button>
           )}
 
@@ -814,7 +823,6 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
       <RinkAudioMixerDrawer
         isOpen={isMiniMixerOpen}
         onClose={() => setIsMiniMixerOpen(false)}
-        onOpenStudio={onOpenStudio}
       />
     </div>
   );

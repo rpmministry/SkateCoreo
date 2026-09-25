@@ -53,13 +53,61 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
   const playheadRef = useRef<HTMLDivElement | null>(null);
   const audioNodes = useAudioStudioStore((s) => s.audioNodes);
   const addTimeNode = useAudioStudioStore((s) => s.addTimeNode);
-  const updateTimeNode = useAudioStudioStore((s) => s.updateTimeNode);
+  const moveTimeNodeLive = useAudioStudioStore((s) => s.moveTimeNodeLive);
+  const pushStudioEdit = useAudioStudioStore((s) => s.pushStudioEdit);
   const deleteTimeNode = useAudioStudioStore((s) => s.deleteTimeNode);
   const selectedNodeId = useAudioStudioStore((s) => s.selectedNodeId);
   const setSelectedNodeId = useAudioStudioStore((s) => s.setSelectedNodeId);
 
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
   const isScrubbingRulerRef = useRef(false);
+  // Punteros activos sobre la regla: con 2+ dedos el gesto es PINZA (zoom) y la
+  // regla NO debe hacer scrub ni arrastrar un marcador. Así pinch y scrub
+  // coexisten sin pelearse.
+  const activePointersRef = useRef<Set<number>>(new Set());
+  // El historial del arrastre se captura UNA sola vez, en el primer movimiento
+  // real (evita instantáneas casi idénticas y entradas vacías por un simple tap).
+  const markerHistoryPushedRef = useRef(false);
+
+  // Coalescencia del arrastre de marcador: muchos `pointermove` → una sola
+  // actualización de store por frame. Evita re-renderizar el estudio decenas de
+  // veces por segundo en móvil (causa de saltos al arrastrar un nodo).
+  const pendingNodeRef = useRef<{ id: string; sec: number } | null>(null);
+  const nodeRafRef = useRef<number | null>(null);
+
+  const flushPendingNode = useCallback(() => {
+    nodeRafRef.current = null;
+    const pending = pendingNodeRef.current;
+    pendingNodeRef.current = null;
+    if (!pending) return;
+    // Una única instantánea de undo por gesto, tomada ANTES del primer cambio.
+    if (!markerHistoryPushedRef.current) {
+      pushStudioEdit();
+      markerHistoryPushedRef.current = true;
+    }
+    // Movimiento continuo sin historial (ligero, apto para 60fps en móvil).
+    moveTimeNodeLive(pending.id, pending.sec);
+  }, [moveTimeNodeLive, pushStudioEdit]);
+
+  const scheduleNodeUpdate = useCallback(
+    (id: string, sec: number) => {
+      pendingNodeRef.current = { id, sec };
+      if (nodeRafRef.current === null) {
+        nodeRafRef.current = requestAnimationFrame(flushPendingNode);
+      }
+    },
+    [flushPendingNode]
+  );
+
+  const cancelPendingNode = useCallback(() => {
+    if (nodeRafRef.current !== null) {
+      cancelAnimationFrame(nodeRafRef.current);
+      nodeRafRef.current = null;
+    }
+    pendingNodeRef.current = null;
+  }, []);
+
+  useEffect(() => cancelPendingNode, [cancelPendingNode]);
 
   // Scroll horizontal observado localmente por la REGLA. Mantenerlo aquí (y no en
   // AudioStudioView) evita re-renderizar todo el Estudio en cada frame de scroll:
@@ -120,6 +168,13 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
 
   // Scrubbing continuo con arrastre del ratón sobre la regla de tiempo
   const handleRulerPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    activePointersRef.current.add(e.pointerId);
+    // Segundo dedo → es una pinza (zoom/pan del hook), no un scrub ni un drag.
+    if (activePointersRef.current.size > 1) {
+      isScrubbingRulerRef.current = false;
+      if (draggingNodeId) setDraggingNodeId(null);
+      return;
+    }
     if ((e.target as HTMLElement).closest('[data-marker]')) return;
     if (!rulerRef.current) return;
 
@@ -142,6 +197,8 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
   };
 
   const handleRulerPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    // Pinza en curso: la regla no interviene.
+    if (activePointersRef.current.size > 1) return;
     if (!rulerRef.current) return;
     const px = e.clientX - rulerRef.current.getBoundingClientRect().left;
 
@@ -150,7 +207,7 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
     // (elemento estable), de modo que sobrevive al reordenado/renumerado del store
     // y no puede quedar un puntero capturado en un chip desmontado (bloqueo).
     if (draggingNodeId) {
-      updateTimeNode(draggingNodeId, Math.max(0, geometry.pixelToTime(px)));
+      scheduleNodeUpdate(draggingNodeId, Math.max(0, geometry.pixelToTime(px)));
       return;
     }
 
@@ -159,8 +216,14 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
   };
 
   const handleRulerPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    activePointersRef.current.delete(e.pointerId);
     if (isScrubbingRulerRef.current) isScrubbingRulerRef.current = false;
-    if (draggingNodeId) setDraggingNodeId(null);
+    if (draggingNodeId) {
+      // Vuelca la posición final pendiente antes de soltar.
+      if (pendingNodeRef.current) flushPendingNode();
+      setDraggingNodeId(null);
+    }
+    markerHistoryPushedRef.current = false;
     try {
       (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
     } catch (err) {}
@@ -170,9 +233,13 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
   // no en el chip (que puede reordenarse/desmontarse durante el drag).
   const handleNodePointerDown = (id: string, e: React.PointerEvent) => {
     e.stopPropagation();
+    // Se registra aquí porque `stopPropagation` impide que lo haga el handler de
+    // la regla: sin esto, una pinza que empieza sobre un marcador no se detectaba.
+    activePointersRef.current.add(e.pointerId);
     try {
       rulerRef.current?.setPointerCapture(e.pointerId);
     } catch (err) {}
+    markerHistoryPushedRef.current = false;
     setDraggingNodeId(id);
     setSelectedNodeId(id);
   };
@@ -210,7 +277,20 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
         onPointerMove={handleRulerPointerMove}
         onPointerUp={handleRulerPointerUp}
         onPointerCancel={handleRulerPointerUp}
-        style={{ width: `${totalRulerWidth}px` }}
+        onLostPointerCapture={(e) => {
+          activePointersRef.current.delete(e.pointerId);
+          isScrubbingRulerRef.current = false;
+          if (draggingNodeId) {
+            if (pendingNodeRef.current) flushPendingNode();
+            setDraggingNodeId(null);
+          }
+          markerHistoryPushedRef.current = false;
+        }}
+        // `touch-action: none` SOLO en la franja de la regla (48px): aquí vive el
+        // scrub del playhead y el arrastre de markers. Sin esto, el navegador
+        // interpretaba el gesto como scroll y emitía `pointercancel` a mitad del
+        // arrastre (el playhead "se congelaba" o daba saltos en móvil).
+        style={{ width: `${totalRulerWidth}px`, touchAction: 'none' }}
         className="relative h-12 cursor-pointer bg-[#060911] overflow-hidden select-none"
       >
         {/* Marcas temporales adaptativas: mayores etiquetadas + menores de precisión. */}
@@ -277,6 +357,9 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
               onPointerDown={(e) => handleNodePointerDown(node.id, e)}
               className={[
                 'absolute top-4 -translate-x-1/2 z-20 group cursor-grab active:cursor-grabbing',
+                // Área táctil ampliada (≈44px) sin agrandar el chip visual: el
+                // pseudo-elemento captura el toque alrededor del marcador.
+                "before:absolute before:-inset-2.5 before:content-['']",
                 'flex max-w-[72px] items-center gap-0.5 px-1 py-0.5 rounded-full border shadow-lg transition-transform shrink-0',
                 'sm:max-w-none sm:gap-1 sm:px-2',
                 isDragging ? 'scale-110 z-40' : '',
@@ -284,7 +367,7 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
                   ? 'bg-cyan text-slate-950 font-black border-white shadow-cyan/40 shadow-glow-cyan'
                   : 'bg-slate-900/95 text-cyan border-cyan/40 hover:border-cyan',
               ].join(' ')}
-              style={{ left: `${leftPx}px` }}
+              style={{ left: `${leftPx}px`, touchAction: 'none' }}
               title={`Nodo ${node.numeroSecuencial} · ${node.timestampSec.toFixed(3)}s (Arrastra para mover)`}
             >
               <span className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-black bg-cyan-950/60 text-cyan shrink-0 sm:w-4 sm:h-4 sm:text-[10px]">

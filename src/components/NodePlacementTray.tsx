@@ -9,10 +9,6 @@ import {
 } from 'lucide-react';
 import { useChoreographyStore } from '../store/useChoreographyStore';
 
-interface NodePlacementTrayProps {
-  onOpenAudioStudio?: () => void;
-}
-
 const fmtTimeWithMs = (sec: number): string => {
   const mins = Math.floor(sec / 60);
   const secs = Math.floor(sec % 60);
@@ -29,9 +25,7 @@ const fmtTimeWithMs = (sec: number): string => {
  * Solo aparece cuando hay nodos pendientes (`unplacedNodes`), y desaparece al
  * vaciarlos. En escritorio (lg+) se ancla arriba a la derecha como panel.
  */
-export const NodePlacementTray: React.FC<NodePlacementTrayProps> = ({
-  onOpenAudioStudio,
-}) => {
+export const NodePlacementTray: React.FC = () => {
   const unplacedNodes = useChoreographyStore((s) => s.unplacedNodes);
   const activeTrayNodeIndex = useChoreographyStore((s) => s.activeTrayNodeIndex);
   const clearUnplacedNodes = useChoreographyStore((s) => s.clearUnplacedNodes);
@@ -133,17 +127,6 @@ export const NodePlacementTray: React.FC<NodePlacementTrayProps> = ({
                 <Sparkles className="h-3.5 w-3.5" />
                 <span>Colocar en Centro</span>
               </button>
-
-              {onOpenAudioStudio && (
-                <button
-                  type="button"
-                  onClick={onOpenAudioStudio}
-                  className="min-h-[44px] rounded-xl border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs font-medium text-slate-300 transition-all hover:bg-white/10 hover:text-white"
-                  title="Abrir el Audio Studio para editar y mezclar la música"
-                >
-                  <span>Editar mezcla en Estudio</span>
-                </button>
-              )}
             </div>
           </div>
 

@@ -534,6 +534,7 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
     <div
       ref={clipRef}
       {...dragBind}
+      data-interactive="true"
       onPointerDown={(e) => {
         dragBind.onPointerDown?.(e);
         longPress.onPointerDown(e);

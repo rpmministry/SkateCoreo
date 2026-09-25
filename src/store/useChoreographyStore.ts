@@ -147,6 +147,13 @@ function normalizePoint(pt: Partial<ChoreographyPoint> & { id: string; x: number
     geometryConfidence: pt.geometryConfidence,
     positionConfidence: pt.positionConfidence,
     digitConfidence: pt.digitConfidence,
+    // Procedencia Studio (marcadores temporales). Deben sobrevivir a la
+    // normalización: si se pierden, el puente Rink → Studio ya no reconoce el
+    // nodo como marcador (`sourceStudioMarkerId`) y el marcador desaparece.
+    sourceStudioMarkerId: pt.sourceStudioMarkerId,
+    studioPublishedTimestampMs: pt.studioPublishedTimestampMs,
+    studioTimeConflict: pt.studioTimeConflict,
+    pendingStudioTimestampMs: pt.pendingStudioTimestampMs,
     path: Array.isArray(pt.path) && pt.path.length > 0 ? pt.path.map((coord) => ({ x: coord.x, y: coord.y })) : undefined
   };
 }

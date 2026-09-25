@@ -152,7 +152,14 @@ export interface AudioStudioStoreState {
 
   // Acciones de Nodos Temporales (Marcadores)
   addTimeNode: (timestampSec: number, label?: string) => AudioTimeNode;
-  updateTimeNode: (id: string, timestampSec: number, label?: string) => void;
+  /**
+   * Movimiento CONTINUO de un marcador durante un arrastre táctil: actualiza
+   * `timestampSec` y renumera SIN empujar historial. El historial se empuja UNA
+   * vez al iniciar el gesto (`pushStudioEdit`), no en cada frame: hacerlo por
+   * `pointermove` llenaba el undo de instantáneas casi idénticas y provocaba
+   * copias pesadas que se percibían como saltos al arrastrar un nodo.
+   */
+  moveTimeNodeLive: (id: string, timestampSec: number) => void;
   deleteTimeNode: (id: string) => void;
   clearTimeNodes: () => void;
   setSelectedNodeId: (id: string | null) => void;
@@ -198,6 +205,16 @@ export interface AudioStudioStoreState {
    * único puente Rink → Studio y solo se ejecuta de forma explícita.
    */
   loadPublishedIntoStudio: () => boolean;
+  /**
+   * Snapshot completo Rink → Studio al abrir el Estudio: carga el audio publicado
+   * (solo si el borrador aún no tiene música, para no pisar ediciones) y
+   * RECONCILIA los nodos colocados en la Pista 2D como marcadores temporales,
+   * por identidad estable (`sourceStudioMarkerId`). Es idempotente: abrir el
+   * Estudio N veces produce los mismos ids y timestamps, sin duplicados.
+   */
+  syncRinkSnapshotIntoStudio: () => boolean;
+  /** Reconciliación idempotente de marcadores Rink → Studio por `sourceStudioMarkerId`. */
+  syncMarkersFromRink: () => boolean;
   renderAndExportMixdown: () => Promise<{ success: boolean; durationSec: number }>;
   /** Devuelve el Estudio a su estado inicial (cambio de cuenta / logout). */
   resetStudio: () => void;
@@ -1716,28 +1733,20 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
     return sequencedNodes.find((n) => n.id === newId)!;
   },
 
-  updateTimeNode: (id, timestampSec, label) => {
-    get().pushStudioEdit();
+  moveTimeNodeLive: (id, timestampSec) => {
+    // Sin `pushStudioEdit`: es un movimiento continuo de arrastre. El historial
+    // se captura UNA vez al iniciar el gesto desde la interfaz.
     set((state) => {
-      const updated = state.audioNodes.map((node) => {
-        if (node.id === id) {
-          const safeTime = Number.isFinite(timestampSec) ? timestampSec : node.timestampSec;
-          return {
-            ...node,
-            timestampSec: Math.max(0, Math.min(state.totalDurationSec, safeTime)),
-            label: label !== undefined ? label : node.label,
-          };
-        }
-        return node;
-      });
-
+      const safeTime = Number.isFinite(timestampSec) ? timestampSec : 0;
+      const updated = state.audioNodes.map((node) =>
+        node.id === id
+          ? { ...node, timestampSec: Math.max(0, Math.min(state.totalDurationSec, safeTime)) }
+          : node
+      );
       updated.sort((a, b) => a.timestampSec - b.timestampSec);
-      const renumbered = updated.map((node, index) => ({
-        ...node,
-        numeroSecuencial: index + 1,
-      }));
-
-      return { audioNodes: renumbered };
+      return {
+        audioNodes: updated.map((node, index) => ({ ...node, numeroSecuencial: index + 1 })),
+      };
     });
   },
 
@@ -2000,6 +2009,84 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
     // operaciones del Studio son no destructivas (crean buffers nuevos) y nunca
     // mutan el buffer publicado, así que el Rink queda intacto.
     get().setTrackBuffer('music', published.buffer, published.name || 'Audio publicado');
+    get().syncMarkersFromRink();
+    return true;
+  },
+
+  /**
+   * Reconciliación IDEMPOTENTE de marcadores Rink → Studio.
+   *
+   * Los nodos ya colocados en la Pista 2D conservan su identidad estable en
+   * `sourceStudioMarkerId` (que coincide con el `id` del marcador original del
+   * Studio). Por cada nodo con esa procedencia:
+   *   - si el marcador YA existe en el Studio → NO se crea otro (evita duplicados);
+   *   - si no existe → se añade con su `timestampSec` redondeado a ms.
+   *
+   * No se transforma la posición espacial X/Y del Rink: en el Studio el único dato
+   * relevante es el tiempo. Tampoco se tocan los marcadores creados en el Studio
+   * que aún no se han colocado en la Pista 2D.
+   */
+  syncMarkersFromRink: () => {
+    const placedPoints = useChoreographyStore.getState().points;
+    if (placedPoints.length === 0) return false;
+
+    const state = get();
+    const existingIds = new Set(state.audioNodes.map((n) => n.id));
+
+    // Duración objetivo: solo cuenta el tiempo de los marcadores AÑADIDOS, para
+    // no crecer el timeline en +1s en cada reapertura sin motivo.
+    let maxMarkerSec = 0;
+    const added: AudioTimeNode[] = [];
+
+    for (const point of placedPoints) {
+      const markerId = point.sourceStudioMarkerId;
+      if (!markerId || existingIds.has(markerId)) continue;
+      const timeMs = Number.isFinite(point.timestamp) ? point.timestamp : point.time_ms;
+      if (!Number.isFinite(timeMs)) continue;
+      const timestampSec = Math.max(0, timeMs / 1000);
+      existingIds.add(markerId);
+      maxMarkerSec = Math.max(maxMarkerSec, timestampSec);
+      added.push({
+        id: markerId,
+        numeroSecuencial: 0,
+        timestampSec,
+        label: point.label || '',
+      });
+    }
+
+    if (added.length === 0) return false;
+
+    const merged = [...state.audioNodes, ...added]
+      .sort((a, b) => a.timestampSec - b.timestampSec)
+      .map((node, index) => ({ ...node, numeroSecuencial: index + 1 }));
+
+    set({
+      audioNodes: merged,
+      // Asegura que los marcadores recién traídos caigan dentro del timeline.
+      totalDurationSec: Math.max(state.totalDurationSec, Math.ceil(maxMarkerSec + 1)),
+    });
+    // Traer nodos del Rink es un cambio del borrador hasta que se envíe de vuelta.
+    useRinkAudioStore.getState().markStudioDirty(true);
+    return true;
+  },
+
+  syncRinkSnapshotIntoStudio: () => {
+    // Se mira el BUFFER, no el número de clips: `deleteClip` conserva el buffer
+    // del borrador, así que un borrador con audio pero sin clips NO debe
+    // sobrescribirse con el audio publicado al reabrir.
+    const hasStudioMusic = !!get().tracks.music.buffer;
+
+    if (!hasStudioMusic) {
+      // Reutiliza el ÚNICO puente de audio (también reconcilia marcadores) para
+      // no tener dos implementaciones divergentes de la siembra.
+      if (get().loadPublishedIntoStudio()) return true;
+      // Sin audio publicado pero con nodos en la Pista 2D: aún así se traen.
+      get().syncMarkersFromRink();
+      return false;
+    }
+
+    // El borrador ya tiene audio: solo se reconcilian los marcadores.
+    get().syncMarkersFromRink();
     return true;
   },
 

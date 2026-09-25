@@ -14,7 +14,7 @@ import { useState, useEffect, useCallback, useMemo, useRef, startTransition, laz
 import {
   Music,
   X, ChevronDown, MoreVertical,
-  Upload, Save, HardDrive, Trash2, LogOut, Sparkles, SlidersHorizontal
+  Upload, Save, HardDrive, Trash2, LogOut, Sparkles
 } from 'lucide-react';
 import { Skater, Program, ElementLog, AudioEngineState } from './types';
 import { SkateCoreoBrand } from './components/brand/SkateCoreoBrand';
@@ -849,7 +849,8 @@ export function App() {
               En portrait los botones críticos llevan TEXTO visible: el icono
               solo era ambiguo. Una segunda fila evita todo overflow horizontal.
               · Subir pista al visor      → carga un archivo DIRECTAMENTE al visor.
-              · Editar mezcla en Estudio  → NAVEGA al Audio Studio (no publica). */}
+              La entrada al Audio Studio es ÚNICA y vive en la cabecera del visor
+              de audio («Editar mezcla en Estudio»), para no duplicar acciones. */}
           {activeView === 'rink' && (
             <div className="flex items-stretch gap-2 px-2 pb-2 lg:hidden">
               <button
@@ -861,16 +862,6 @@ export function App() {
               >
                 <Upload className="h-4 w-4 shrink-0 stroke-[2]" />
                 <span className="truncate">Subir pista al visor</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleNav('studio')}
-                className="press flex min-h-touch min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-white/[0.06] px-2.5 text-[11px] font-bold text-slate-200 hover:bg-white/[0.12]"
-                title="Abrir el Audio Studio para editar y mezclar la música (no publica ni cambia el audio activo)"
-                aria-label="Editar mezcla en Estudio"
-              >
-                <SlidersHorizontal className="h-4 w-4 shrink-0" />
-                <span className="truncate">Editar mezcla en Estudio</span>
               </button>
             </div>
           )}
@@ -936,7 +927,7 @@ export function App() {
               ARRIBA como franja compacta. La Pista 2D conserva SIEMPRE su área útil
               (nunca queda cubierta por la bandeja). */}
           <div className="flex flex-1 min-h-0 flex-col lg:flex-row">
-            <NodePlacementTray onOpenAudioStudio={() => setActiveView('studio')} />
+            <NodePlacementTray />
 
             {/* 2D Canvas Rink Engine — Zero Distortion. Zona protegida: conserva
                 una altura mínima útil y absorbe el espacio restante (protagonista). */}
@@ -981,7 +972,7 @@ export function App() {
                 isPlaying={isAudioActive}
                 onSeek={(ms) => audioEngine.seek(ms)}
                 fileName={audioState.fileName}
-                onOpenStudio={() => setActiveView('studio')}
+                onOpenStudio={() => handleNav('studio')}
                 onUndo={handleUndo}
               />
             </div>

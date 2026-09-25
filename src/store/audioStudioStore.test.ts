@@ -243,4 +243,54 @@ assert(
 );
 audioEngine.syncBusMutes({ music: false, metronome: false, voiceGuide: false });
 
+// 10. Puente Rink → Studio (snapshot al abrir): los nodos ya COLOCADOS en la
+//     Pista 2D vuelven como marcadores temporales del Studio conservando su
+//     identidad estable, y reabrir el Estudio NO los duplica (idempotente).
+useAudioStudioStore.getState().clearTimeNodes();
+assert(
+  useAudioStudioStore.getState().audioNodes.length === 0,
+  'Se vacían los marcadores del Studio para simular una reapertura'
+);
+useAudioStudioStore.getState().syncMarkersFromRink();
+const reopenedNodes = useAudioStudioStore.getState().audioNodes;
+assert(
+  reopenedNodes.length === 3,
+  'Reabrir el Estudio recupera los 3 marcadores desde los nodos de la Pista 2D'
+);
+assert(
+  reopenedNodes.every((n) => [node1Id, node2Id, node3Id].includes(n.id)),
+  'Los marcadores recuperados conservan los IDs estables de la Pista 2D (sourceStudioMarkerId)'
+);
+useAudioStudioStore.getState().syncMarkersFromRink();
+assert(
+  useAudioStudioStore.getState().audioNodes.length === 3,
+  'Volver a sincronizar NO crea marcadores duplicados (idempotente)'
+);
+
+// 11. Regresión: importar marcadores ajusta el timeline al más lejano UNA vez,
+//     sin crecer +1s en cada reapertura.
+useAudioStudioStore.setState({ totalDurationSec: 5 });
+useAudioStudioStore.getState().clearTimeNodes();
+useAudioStudioStore.getState().syncMarkersFromRink();
+const grownOnce = useAudioStudioStore.getState().totalDurationSec;
+assert(grownOnce === 23, `El timeline se ajusta al marcador más lejano (23s), no más (obtenido ${grownOnce})`);
+useAudioStudioStore.getState().clearTimeNodes();
+useAudioStudioStore.getState().syncMarkersFromRink();
+assert(
+  useAudioStudioStore.getState().totalDurationSec === 23,
+  'Reimportar marcadores NO vuelve a crecer el timeline'
+);
+
+// 12. Regresión: un borrador con audio pero SIN clips no se sobrescribe con el
+//     audio publicado al reabrir el Estudio (deleteClip conserva el buffer).
+const sentinelBuffer = { duration: 99, length: 1 } as any;
+useAudioStudioStore.setState((s) => ({
+  tracks: { ...s.tracks, music: { ...s.tracks.music, buffer: sentinelBuffer, clips: [] } },
+}));
+useAudioStudioStore.getState().syncRinkSnapshotIntoStudio();
+assert(
+  useAudioStudioStore.getState().tracks.music.buffer === sentinelBuffer,
+  'Un borrador con buffer (aunque no tenga clips) no se reemplaza por el audio publicado'
+);
+
 console.log('Resultado AudioStudioStore & Tray: todas las pruebas pasaron con éxito.\n');

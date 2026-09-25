@@ -6,8 +6,7 @@ import {
   Bell, 
   Mic, 
   Music, 
-  Sliders, 
-  ExternalLink 
+  Sliders
 } from 'lucide-react';
 import { useAudioStudioStore } from '../store/useAudioStudioStore';
 import { usePressAction } from '../hooks/usePressAction';
@@ -15,7 +14,6 @@ import { usePressAction } from '../hooks/usePressAction';
 interface RinkAudioMixerDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  onOpenStudio?: () => void;
 }
 
 /**
@@ -30,7 +28,6 @@ interface RinkAudioMixerDrawerProps {
 export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
   isOpen,
   onClose,
-  onOpenStudio,
 }) => {
   const tracks = useAudioStudioStore((s) => s.tracks);
   const setTrackVolume = useAudioStudioStore((s) => s.setTrackVolume);
@@ -265,20 +262,6 @@ export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
 
         {/* ── BOTONES DE ACCIÓN INFERIOR ── */}
         <div className="flex flex-col gap-2.5 pt-3 border-t border-white/10 shrink-0">
-          {onOpenStudio && (
-            <button
-              type="button"
-              onClick={() => {
-                onClose();
-                onOpenStudio();
-              }}
-              className="w-full h-12 min-h-touch rounded-2xl bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/40 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all active:scale-98 shadow-md"
-            >
-              <ExternalLink className="w-4 h-4" />
-              <span>Editar mezcla en Estudio</span>
-            </button>
-          )}
-
           <button
             type="button"
             onClick={onClose}
