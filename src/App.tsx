@@ -199,6 +199,7 @@ export function App() {
   const undo              = useChoreographyStore((s) => s.undo);
   const points            = useChoreographyStore((s) => s.points);
   const clearAllPoints    = useChoreographyStore((s) => s.clearAllPoints);
+  const clearUnplacedNodes = useChoreographyStore((s) => s.clearUnplacedNodes);
   const loadProgramPoints = useChoreographyStore((s) => s.loadProgramPoints);
   const clearPaperTraceOverlay = useChoreographyStore((s) => s.clearPaperTraceOverlay);
   const hasPaperTraceOverlay = useChoreographyStore((s) => Boolean(s.paperTraceOverlay));
@@ -343,10 +344,13 @@ export function App() {
    * evitar pérdidas accidentales de trabajo en pantallas táctiles.
    */
   const requestClearRink = useCallback(() => {
-    // Hay algo que limpiar si hay nodos/trazados O una hoja A4 de calco cargada.
-    if (points.length === 0 && !hasPaperTraceOverlay) return;
+    // Hay algo que limpiar si hay nodos/trazados, nodos PENDIENTES en la bandeja
+    // (`unplacedNodes`) O una hoja A4 de calco cargada. Antes solo miraba `points`,
+    // así que con un nodo únicamente en la bandeja el botón no hacía nada y el chip
+    // "Nodo 1" permanecía tras "Limpiar".
+    if (points.length === 0 && unplacedNodes.length === 0 && !hasPaperTraceOverlay) return;
     setConfirmClearOpen(true);
-  }, [points.length, hasPaperTraceOverlay]);
+  }, [points.length, unplacedNodes.length, hasPaperTraceOverlay]);
 
   /**
    * «Limpiar pista» — reset TOTAL del lienzo:
@@ -356,9 +360,12 @@ export function App() {
    */
   const handleClearRink = useCallback(() => {
     setConfirmClearOpen(false);
-    if (points.length === 0 && !hasPaperTraceOverlay) return;
+    if (points.length === 0 && unplacedNodes.length === 0 && !hasPaperTraceOverlay) return;
 
     clearAllPoints();
+    // Defensivo: vacía también la bandeja de "Nodos por colocar" (clearAllPoints ya
+    // lo hace, pero así el resultado es [] aunque cambie esa implementación).
+    clearUnplacedNodes();
     // Elimina la capa de la hoja A4 escaneada (onion skin) por completo.
     clearPaperTraceOverlay();
     audioEngine.setNodes([]);
@@ -368,7 +375,7 @@ export function App() {
         choreography_path: []
       });
     }
-  }, [points.length, hasPaperTraceOverlay, clearAllPoints, clearPaperTraceOverlay, selectedProgram, handleProgramUpdated]);
+  }, [points.length, unplacedNodes.length, hasPaperTraceOverlay, clearAllPoints, clearUnplacedNodes, clearPaperTraceOverlay, selectedProgram, handleProgramUpdated]);
 
   const handleNodeSelect = useCallback((id: string | null) => {
     if (typeof window !== 'undefined' && window.innerWidth < 1024) {
@@ -695,12 +702,12 @@ export function App() {
             <button
               type="button"
               onClick={requestClearRink}
-              disabled={points.length === 0}
+              disabled={points.length === 0 && unplacedNodes.length === 0 && !hasPaperTraceOverlay}
               className="press hidden min-h-touch min-w-touch items-center justify-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3 text-xs font-bold text-red-400 hover:bg-red-500/20 disabled:pointer-events-none disabled:opacity-30 lg:flex"
               title={
-                points.length === 0
+                points.length === 0 && unplacedNodes.length === 0 && !hasPaperTraceOverlay
                   ? 'La pista ya está vacía'
-                  : `Limpiar pista 2D (${points.length} nodos)`
+                  : `Limpiar pista 2D (${points.length} nodos${unplacedNodes.length > 0 ? ` + ${unplacedNodes.length} por colocar` : ''})`
               }
               aria-label="Limpiar toda la pista 2D"
             >
