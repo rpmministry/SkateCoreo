@@ -23,6 +23,8 @@ interface MultitrackTrackRowProps {
   contentWidth: number;
   overscrollPx?: number;
   trackLaneHeight?: number;
+  /** Ancho de la cabecera de pista, compartido con la regla y la geometría. */
+  headerWidth?: number;
   onUploadFile: (file: File) => void;
   onTrackHop?: (fromTrackId: string, toTrackIndex: number, clipId: string, newOffsetSec: number) => void;
   onRemoveTrack?: () => void;
@@ -41,6 +43,7 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
   contentWidth,
   overscrollPx = 0,
   trackLaneHeight = 64,
+  headerWidth = 90,
   onUploadFile,
   onTrackHop,
   onRemoveTrack,
@@ -131,10 +134,10 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
             setActiveTrackId(track.id);
             setShowTrackMenu(true);
           }}
-          className={`sticky left-0 z-20 shrink-0 w-[90px] sm:w-28 border-r border-white/10 flex items-center justify-between px-1.5 sm:px-2 py-1 cursor-pointer select-none transition-colors group ${
+          className={`sticky left-0 z-20 shrink-0 border-r border-white/10 flex items-center justify-between px-1.5 sm:px-2 py-1 cursor-pointer select-none transition-colors group ${
             isActive ? 'bg-zinc-900' : 'bg-zinc-950 hover:bg-zinc-900'
           }`}
-          style={{ borderLeft: `3.5px solid ${track.color}` }}
+          style={{ width: `${headerWidth}px`, borderLeft: `3.5px solid ${track.color}` }}
           title={displayName}
         >
           <div className="flex items-center gap-1 sm:gap-2 min-w-0">

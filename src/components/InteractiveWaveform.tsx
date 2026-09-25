@@ -160,16 +160,10 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
         const modulated = basePeaks.map((p) => Math.min(1.0, p * masterVol));
         setWavePeaks(modulated);
       } else {
-        // Generar onda representativa elegante si aún no se ha cargado archivo
-        const demoPeaks: number[] = [];
-        for (let i = 0; i < numBuckets; i++) {
-          const t = i / numBuckets;
-          const beat = Math.sin(t * Math.PI * 16) * 0.4 + 0.5;
-          const harmonic = Math.sin(t * Math.PI * 64) * 0.25;
-          const noise = Math.sin(t * 123.45) * 0.15;
-          demoPeaks.push(Math.max(0.12, Math.min(1.0, beat * 0.6 + harmonic + noise)));
-        }
-        setWavePeaks(demoPeaks);
+        // Sin audio real NO se dibuja ninguna onda falsa: el visor queda plano
+        // hasta que el usuario importe su música. Antes se generaba una onda
+        // "demo" que simulaba una pista inexistente.
+        setWavePeaks([]);
       }
     };
 

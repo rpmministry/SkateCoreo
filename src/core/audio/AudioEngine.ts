@@ -977,56 +977,12 @@ export class AudioEngine {
     return 1.0;
   }
 
-  // NOTA: se eliminó `generateDemoTrack()`. La aplicación arranca en «lienzo en
-  // blanco»: no se pre-carga ninguna pista de música de ejemplo. El usuario
-  // importa su propia música con «Cargar Audio».
-
-  public ensureAudioBuffer(): AudioBuffer {
-    if (this.audioBuffer) return this.audioBuffer;
-    this.initAudioContext();
-    if (!this.ctx) throw new Error('AudioContext no disponible');
-
-    const sampleRate = this.ctx.sampleRate;
-    const durationSec = 120; // 2 minutos
-    const numSamples = sampleRate * durationSec;
-    const buffer = this.ctx.createBuffer(2, numSamples, sampleRate);
-
-    const leftChannel = buffer.getChannelData(0);
-    const rightChannel = buffer.getChannelData(1);
-
-    const bpm = this.metronome.getConfig().bpm || 120;
-    const beatInterval = 60 / bpm;
-
-    for (let i = 0; i < numSamples; i++) {
-      const t = i / sampleRate;
-      const beatProgress = (t % beatInterval) / beatInterval;
-      const beatNum = Math.floor(t / beatInterval) % 3;
-      let sample = 0;
-
-      if (beatNum === 0) {
-        const env = Math.exp(-beatProgress * 15);
-        sample += Math.sin(2 * Math.PI * 70 * (1 - beatProgress * 0.5) * t) * env * 0.6;
-      } else {
-        const env = Math.exp(-beatProgress * 8);
-        const freq = beatNum === 1 ? 440 : 523.25;
-        sample += Math.sin(2 * Math.PI * freq * t) * env * 0.25;
-      }
-
-      const melodyFreq = 220 + Math.sin(t * 0.5) * 80;
-      sample += Math.sin(2 * Math.PI * melodyFreq * t) * 0.08;
-
-      leftChannel[i] = sample;
-      rightChannel[i] = sample;
-    }
-
-    this.audioBuffer = buffer;
-    this.durationMs = durationSec * 1000;
-    this.fileName = 'Pista_RollArt_CarlosTango_Demo.wav';
-    this.pausedAtTime = 0;
-    this.mediaSession.updateMetadata(this.fileName);
-    this.emitStateChange();
-    return buffer;
-  }
+  // NOTA: se eliminaron `generateDemoTrack()` y `ensureAudioBuffer()`. El motor
+  // NO fabrica ninguna pista sintética. La app arranca en «lienzo en blanco» y,
+  // si no hay música real cargada, `play()` no reproduce nada: solo suena lo que
+  // exista de verdad (música importada, metrónomo y voz guía). Así se elimina la
+  // "pista de prueba" (Pista_RollArt_CarlosTango_Demo) que se colaba al pulsar
+  // PLAY/conteo sin música cargada. El usuario importa su música con «Cargar Audio».
 
   public trimAudio(startMs: number, endMs: number): AudioBuffer {
     this.initAudioContext();
@@ -1383,7 +1339,9 @@ export class AudioEngine {
   /** Agenda la fuente de música para un instante EXACTO del reloj de audio. */
   private scheduleMusicSourceAt(whenCtxTime: number, offsetMs: number): boolean {
     if (!this.ctx || !this.musicGainNode) return false;
-    if (!this.audioBuffer) this.ensureAudioBuffer();
+    // Sin música real NO se sintetiza ni se reproduce nada. Antes se generaba aquí
+    // una "pista demo" que se oía junto al metrónomo al usar el conteo. Abortamos
+    // el arranque: `executePlay`/`startPreRoll` lo detectan y no arrancan.
     if (!this.audioBuffer) return false;
 
     if (this.isPlaying) this.stopSource();

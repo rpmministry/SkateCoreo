@@ -19,7 +19,6 @@
     "transport_seek_back": "Retroceder 10s",
     "transport_seek_forward": "Avanzar 10s",
     "load_track": "Cargar Pista Oficial",
-    "load_demo": "Pista Demo Oficial",
     "routing_title": "Enrutamiento L/R Estricto",
     "mode_split_coach": "Pista + Entrenador (L: Música / R: Metrónomo & Guías)",
     "mode_stereo": "Todo Estéreo (Música + Guías en ambos)",

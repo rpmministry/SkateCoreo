@@ -19,7 +19,6 @@
     "transport_seek_back": "Back 10s",
     "transport_seek_forward": "Forward 10s",
     "load_track": "Load Official Track",
-    "load_demo": "Official Demo Track",
     "routing_title": "Strict L/R Channel Routing",
     "mode_split_coach": "Rink + Coach (L: Music / R: Metronome & Cues)",
     "mode_stereo": "Full Stereo (Music + Cues in both)",

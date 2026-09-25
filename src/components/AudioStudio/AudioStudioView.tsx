@@ -93,6 +93,8 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   const selectedClipId = useAudioStudioStore((s) => s.selectedClipId);
   const splitClip = useAudioStudioStore((s) => s.splitClip);
   const draggingGhost = useAudioStudioStore((s) => s.draggingGhost);
+  const lastCutSec = useAudioStudioStore((s) => s.lastCutSec);
+  const setLastCutSec = useAudioStudioStore((s) => s.setLastCutSec);
   const consolidateStudioAudio = useAudioStudioStore((s) => s.consolidateStudioAudio);
   const trashDrag = useAudioStudioStore((s) => s.trashDrag);
   const endTrashDrag = useAudioStudioStore((s) => s.endTrashDrag);
@@ -109,9 +111,32 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   // Activación táctil inmediata sin doble disparo (evita el Play/Pausa fantasma)
   const press = usePressAction();
 
-  // Ancho de cabecera de pista BandLab (90px — sincronizado con MultitrackTrackRow) y Espacio Vacío Continuo de Ensamblaje (450px)
-  const headerWidth = 90;
+  /**
+   * Ancho de cabecera de pista: UNA SOLA fuente de verdad para la regla, la
+   * geometría, el playhead y las cabeceras de fila. Antes había 90px fijos aquí
+   * frente a `sm:w-28` (112px) en la fila, lo que desplazaba 22px los clips y el
+   * playhead respecto de la regla en desktop. Se sigue el breakpoint `sm` (640px).
+   */
+  const [isWideHeader, setIsWideHeader] = useState<boolean>(() =>
+    typeof window !== 'undefined' && window.matchMedia('(min-width: 640px)').matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 640px)');
+    const onChange = () => setIsWideHeader(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  const headerWidth = isWideHeader ? 112 : 90;
+  // Espacio Vacío Continuo de Ensamblaje (450px) tras el final del audio.
   const OVERSCROLL_PX = 450;
+
+  // La marca de corte es un aviso TRANSITORIO: se apaga sola tras unos segundos.
+  useEffect(() => {
+    if (lastCutSec === null) return;
+    const id = window.setTimeout(() => setLastCutSec(null), 1800);
+    return () => window.clearTimeout(id);
+  }, [lastCutSec, setLastCutSec]);
   const playheadLineRef = useRef<HTMLDivElement | null>(null);
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const addTrackFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -841,6 +866,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
                 totalDurationSec={totalDurationSec}
                 contentWidth={contentWidth}
                 overscrollPx={overscrollPx}
+                headerWidth={headerWidth}
                 trackLaneHeight={trackLaneHeight}
                 scrollContainerRef={timelineContainerRef}
                 onUploadFile={(file) => handleUploadFile(track.id, file)}
@@ -856,19 +882,54 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
 
           </div>
 
-          {/* Guía Visual Vertical de Snapping Magnético (dentro del área temporal) */}
-          {draggingGhost?.snapLineSec !== null && draggingGhost?.snapLineSec !== undefined && (
+          {/* Referencia vertical durante el arrastre de un clip (dentro del área
+              temporal): guía magnética si hay snap, o referencia de posición si no.
+              Usa la MISMA geometría que regla, playhead y clips → alineación exacta. */}
+          {!trashDrag.active && draggingGhost && (
             <div
               className="absolute top-0 bottom-0 pointer-events-none z-35 flex flex-col items-center select-none"
               style={{
                 left: 0,
-                transform: `translateX(${timelineGeometry.timeToPx(draggingGhost.snapLineSec)}px)`,
+                transform: `translateX(${timelineGeometry.timeToPx(
+                  draggingGhost.snapLineSec ?? draggingGhost.startOffsetSec
+                )}px)`,
               }}
             >
-              <div className="px-1.5 py-0.5 rounded bg-cyan text-slate-950 font-mono font-black text-[9px] shadow-md -translate-y-1">
-                🧲 {draggingGhost.snapLineSec.toFixed(2)}s
+              <div
+                className={[
+                  'px-1.5 py-0.5 rounded font-mono font-black text-[9px] shadow-md -translate-y-1 whitespace-nowrap',
+                  draggingGhost.snapLineSec != null
+                    ? 'bg-cyan text-slate-950'
+                    : 'bg-black/80 text-cyan border border-cyan/40',
+                ].join(' ')}
+              >
+                {draggingGhost.snapLineSec != null
+                  ? `🧲 ${draggingGhost.snapLineSec.toFixed(2)}s`
+                  : `${draggingGhost.startOffsetSec.toFixed(2)}s`}
               </div>
-              <div className="w-[2px] h-full bg-cyan shadow-glow-cyan" />
+              <div
+                className={[
+                  'w-[2px] h-full',
+                  draggingGhost.snapLineSec != null ? 'bg-cyan shadow-glow-cyan' : 'bg-white/40',
+                ].join(' ')}
+              />
+            </div>
+          )}
+
+          {/* Marca del ÚLTIMO CORTE: misma geometría que regla/playhead/clips, así
+              el punto de corte queda matemáticamente alineado con ambos bordes. */}
+          {lastCutSec !== null && (
+            <div
+              className="absolute top-0 bottom-0 pointer-events-none z-35 flex flex-col items-center select-none"
+              style={{
+                left: 0,
+                transform: `translateX(${timelineGeometry.timeToPx(lastCutSec)}px)`,
+              }}
+            >
+              <div className="px-1.5 py-0.5 rounded bg-white text-slate-950 font-mono font-black text-[9px] shadow-md -translate-y-1 whitespace-nowrap">
+                CORTE {lastCutSec.toFixed(3)} s
+              </div>
+              <div className="w-[2px] h-full bg-white/90 shadow-glow-cyan" />
             </div>
           )}
 

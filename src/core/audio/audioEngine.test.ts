@@ -596,6 +596,21 @@ async function runTests() {
   assert(preRollProbe.isCountdownBankReady() === false, 'El banco de voz del conteo arranca sin preparar (offline-safe)');
   assert(preRollProbe.getCountdownBuffer('3') === null, 'Sin banco natural no hay buffer: se usará UNA voz del navegador para todo el conteo');
 
+  // 15. Regresión: el motor NO debe fabricar una "pista de prueba" (demo). Antes
+  // `scheduleMusicSourceAt` llamaba a `ensureAudioBuffer()`, que SINTETIZABA una
+  // canción (Pista_RollArt_CarlosTango_Demo) y se oía junto al metrónomo al usar
+  // el conteo sin música cargada. Debe seguir eliminado.
+  const engineModule = await import('./AudioEngine');
+  const engineInstance = engineModule.audioEngine as unknown as Record<string, unknown>;
+  assert(
+    typeof engineInstance.ensureAudioBuffer === 'undefined',
+    'El motor no expone ningún generador de audio de prueba (demo eliminada)'
+  );
+  assert(
+    engineModule.audioEngine.getState().durationMs === 0,
+    'Sin música real el motor arranca en 0s (lienzo en blanco), sin pista demo'
+  );
+
   console.log(`\nResultado Módulo 1: ${passed}/${total} pruebas pasadas con éxito.\n`);
 }
 

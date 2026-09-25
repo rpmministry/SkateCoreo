@@ -102,6 +102,13 @@ export interface AudioStudioStoreState {
   setSelectedClipId: (clipId: string | null) => void;
   clipboardClip: AudioClip | null;
   audioClipboard: AudioClip | null;
+  /**
+   * Instante EXACTO del último corte (en segundos de timeline), solo para dibujar
+   * la línea de "CORTE" con su tiempo. Es feedback visual transitorio de una función
+   * existente (split); no forma parte de los datos de la coreografía.
+   */
+  lastCutSec: number | null;
+  setLastCutSec: (sec: number | null) => void;
 
   // Acciones de Clips
   splitClip: (trackId: string, clipId: string, splitTimeSec: number) => boolean;
@@ -802,11 +809,14 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   setSelectedClipId: (clipId) => set({ selectedClipId: clipId }),
   clipboardClip: null,
   audioClipboard: null,
+  lastCutSec: null,
+  setLastCutSec: (sec) => set({ lastCutSec: sec }),
 
   splitClip: (trackId, clipId, splitTimeSec) => {
     get().pushStudioEdit();
     let wasSplit = false;
     let newSplitClipId: string | null = null;
+    let cutSec: number | null = null;
     set((state) => {
       const updateClips = (track: AudioStudioTrack): AudioStudioTrack => {
         const clipIndex = track.clips.findIndex((c) => c.id === clipId);
@@ -837,6 +847,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         }
 
         const splitOffsetSec = clip.startOffsetSec + relativeSplit;
+        cutSec = splitOffsetSec;
 
         // Identificadores basados en un único sello de tiempo para que el clip
         // seleccionado tras el corte coincida exactamente con el segundo fragmento.
@@ -882,6 +893,8 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         tracks: updatedTracks,
         additionalTracks: updatedAdditional,
         selectedClipId: wasSplit && newSplitClipId ? newSplitClipId : state.selectedClipId,
+        // Instante exacto (ya ajustado a cruce por cero) para la marca de corte.
+        lastCutSec: cutSec !== null ? cutSec : state.lastCutSec,
         mixManifest: buildManifest(updatedTracks, updatedAdditional, state.globalControls, state.totalDurationSec),
       };
     });
