@@ -366,6 +366,15 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
               )}
             </div>
 
+            {/* Procedencia Studio: nunca se sobrescribe en silencio el tiempo que el
+                usuario ajustó aquí, aunque el Studio publique otro valor. */}
+            {selectedPoint.studioTimeConflict && (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 text-[10px] leading-snug text-amber-200">
+                <strong className="font-bold">Tiempo editado en la Pista 2D.</strong> El Studio
+                publicó otro valor para este marcador; se conserva tu ajuste.
+              </div>
+            )}
+
             {/* Selector de Figura Técnica Reglamentaria */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">

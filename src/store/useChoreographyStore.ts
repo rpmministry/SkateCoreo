@@ -713,18 +713,52 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
   setUnplacedNodes: (nodes: AudioTimeNode[]) => {
     const { points } = get();
     // RECONCILIACIÓN (publicación = snapshot, no «fusor» de estados):
-    //  - Un marcador cuyo ID ya existe como punto colocado NO vuelve a la bandeja:
-    //    evita Nodo 4 / duplicados al republicar (el ID es la identidad estable).
-    //  - Se preserva la POSICIÓN ESPACIAL y el timestamp del nodo ya colocado: una
-    //    nueva publicación del Studio no sobrescribe silenciosamente el trabajo del
-    //    usuario en la Pista 2D (política conservadora).
-    //  - Solo entran a la bandeja los marcadores realmente nuevos / sin ubicar, con
-    //    su timestamp ACTUALIZADO.
+    //  - Los marcadores ya COLOCADOS no vuelven a la bandeja (el id es la identidad
+    //    estable) → nunca se duplica el nodo al republicar.
+    //  - Para un nodo colocado cuyo marcador cambió de tiempo:
+    //      · si el usuario NO tocó su tiempo (sigue en la línea base publicada),
+    //        se adopta el nuevo tiempo del Studio y se preserva x/y;
+    //      · si el usuario SÍ lo editó, se CONSERVA su trabajo y se marca conflicto
+    //        (nunca se sobrescribe silenciosamente).
+    //  - Un marcador eliminado en el Studio no borra un nodo ya colocado.
+    //  - Los marcadores nuevos / sin ubicar entran a la bandeja con su tiempo actual.
+    const incomingById = new Map(nodes.map((n) => [n.id, n]));
+
+    let pointsChanged = false;
+    const updatedPoints = points.map((p) => {
+      const marker = incomingById.get(p.id);
+      if (!marker) return p; // marcador eliminado en el Studio: se conserva el nodo
+      const newMs = Math.round(marker.timestampSec * 1000);
+      const userTouchedTime =
+        p.studioPublishedTimestampMs != null &&
+        Math.abs(p.time_ms - p.studioPublishedTimestampMs) > 1;
+
+      if (!userTouchedTime) {
+        if (p.time_ms === newMs && !p.studioTimeConflict) return p;
+        pointsChanged = true;
+        return {
+          ...p,
+          time_ms: newMs,
+          timestamp: newMs,
+          studioPublishedTimestampMs: newMs,
+          studioTimeConflict: false,
+        };
+      }
+      // Editado a mano → conservar; solo señalar el conflicto la primera vez.
+      if (p.studioTimeConflict) return p;
+      pointsChanged = true;
+      return { ...p, studioTimeConflict: true };
+    });
+
     const placedIds = new Set(points.map((p) => p.id));
     const reconciled = nodes
       .filter((n) => !placedIds.has(n.id))
       .sort((a, b) => a.timestampSec - b.timestampSec);
+
     set({
+      ...(pointsChanged
+        ? { points: updatedPoints.slice().sort((a, b) => a.time_ms - b.time_ms) }
+        : {}),
       unplacedNodes: reconciled,
       activeTrayNodeIndex: 0,
     });
@@ -760,6 +794,11 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
       cp1y: Math.round(y * 100) / 100,
       cp2x: Math.round(x * 100) / 100,
       cp2y: Math.round(y * 100) / 100,
+      // Procedencia: el nodo recuerda de qué marcador del Studio viene y con qué
+      // tiempo se publicó (línea base para detectar ediciones manuales).
+      sourceStudioMarkerId: currentNode.id,
+      studioPublishedTimestampMs: timeMs,
+      studioTimeConflict: false,
     };
 
     const newPoints = [...points, newPoint].sort((a, b) => a.time_ms - b.time_ms);

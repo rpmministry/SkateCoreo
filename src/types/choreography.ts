@@ -99,6 +99,18 @@ export interface ChoreographyPathPoint {
 export interface ChoreographyPoint extends ChoreographyPathPoint {
   timestamp: number; // Exact moment in ms
   time_ms: number;   // Guaranteed alias
+
+  // ── Procedencia Studio (marcador temporal) ──────────────────────────────
+  /** Id del Studio Time Marker que originó este nodo (identidad estable). */
+  sourceStudioMarkerId?: string;
+  /**
+   * Timestamp (ms) tal como se PUBLICÓ desde el Studio. Sirve de línea base para
+   * detectar si el usuario editó el tiempo manualmente en la Pista 2D: si
+   * `time_ms !== studioPublishedTimestampMs`, la nueva publicación NO sobrescribe.
+   */
+  studioPublishedTimestampMs?: number;
+  /** true si el usuario editó el tiempo y el Studio publicó un valor distinto. */
+  studioTimeConflict?: boolean;
 }
 
 /**

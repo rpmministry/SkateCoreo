@@ -94,6 +94,22 @@ assert(
   'Un marcador nuevo tras republicar sí entra a la bandeja'
 );
 
+// AUTORRECONCILIACIÓN: si el usuario NO tocó el tiempo, la nueva publicación lo
+// actualiza y CONSERVA la posición espacial.
+useChoreographyStore.getState().setUnplacedNodes(
+  currentStudioNodes.map((n) => (n.id === node1Id ? { ...n, timestampSec: 5.0 } : n))
+);
+const p1Moved = useChoreographyStore.getState().points.find((p) => p.id === node1Id)!;
+assert(p1Moved.time_ms === 5000, 'Republicar adopta el nuevo tiempo si el usuario no lo tocó');
+assert(p1Moved.x === 10 && p1Moved.y === 12, 'Republicar conserva la posición espacial al actualizar el tiempo');
+
+// CONFLICTO: si el usuario editó el tiempo, se conserva y se marca (sin sobrescribir).
+useChoreographyStore.getState().updatePointTimestamp(node1Id, 7000);
+useChoreographyStore.getState().setUnplacedNodes(currentStudioNodes);
+const p1Conflict = useChoreographyStore.getState().points.find((p) => p.id === node1Id)!;
+assert(p1Conflict.time_ms === 7000, 'Conflicto: se conserva el tiempo editado por el usuario');
+assert(p1Conflict.studioTimeConflict === true, 'Conflicto: se marca studioTimeConflict para avisar');
+
 // 5. Controles Globales (Metrónomo, Voces Guía, BPM)
 useAudioStudioStore.getState().setGlobalBpm(136);
 assert(useAudioStudioStore.getState().globalControls.bpm === 136, 'BPM global actualizado a 136');
@@ -227,4 +243,4 @@ assert(
 );
 audioEngine.syncBusMutes({ music: false, metronome: false, voiceGuide: false });
 
-console.log('Resultado AudioStudioStore & Tray: 32/32 pruebas pasadas con éxito.\n');
+console.log('Resultado AudioStudioStore & Tray: todas las pruebas pasaron con éxito.\n');
