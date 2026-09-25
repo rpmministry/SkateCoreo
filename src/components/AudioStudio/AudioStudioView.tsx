@@ -207,11 +207,13 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     setCurrentTimeSec(targetTimeSec);
     audioEngine.seek(targetTimeSec * 1000);
     if (playheadLineRef.current) {
-      // Proyección en coma flotante, sin redondeo (evita micro-saltos)
+      // Proyección en coma flotante, sin redondeo (evita micro-saltos).
+      // `-50%` centra el hitbox de 32px sobre el tiempo exacto (su centro, no su
+      // borde izquierdo). Sin esto la aguja quedaba ~16px desplazada.
       playheadLineRef.current.style.transform = `translateX(${timelineGeometry.timeToPx(
         exactTimeSec,
         true
-      )}px)`;
+      )}px) translateX(-50%)`;
     }
   };
 
@@ -245,7 +247,8 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
 
       const line = playheadLineRef.current;
       if (line && !isDraggingPlayheadRef.current) {
-        line.style.transform = `translateX(${px}px)`;
+        // `-50%` centra el hitbox de 32px sobre el tiempo exacto (ver nota arriba).
+        line.style.transform = `translateX(${px}px) translateX(-50%)`;
       }
 
       const container = timelineContainerRef.current;
@@ -517,7 +520,13 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
 
     const didSplit = splitClip(targetTrackId, targetClipId, splitAtSec);
     if (didSplit) {
-      setExportNotice(`✂️ Corte milimétrico a ${splitAtSec.toFixed(3)}s (sin clic)`);
+      // Tiempo REAL del corte (ya ajustado a cruce por cero), no el solicitado:
+      // así el aviso coincide con la línea de corte y con el borde de los clips.
+      const cut = useAudioStudioStore.getState().lastCutSec ?? splitAtSec;
+      // Clava el playhead en el punto EXACTO de corte para que todo coincida.
+      setCurrentTimeSec(cut);
+      audioEngine.seek(cut * 1000);
+      setExportNotice(`✂️ Corte milimétrico a ${cut.toFixed(3)}s (sin clic)`);
       setTimeout(() => setExportNotice(null), 2200);
     }
   };
@@ -887,12 +896,13 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
               Usa la MISMA geometría que regla, playhead y clips → alineación exacta. */}
           {!trashDrag.active && draggingGhost && (
             <div
-              className="absolute top-0 bottom-0 pointer-events-none z-35 flex flex-col items-center select-none"
+              className="absolute top-0 bottom-0 pointer-events-none z-[35] flex flex-col items-center select-none"
               style={{
                 left: 0,
+                // `-50%` centra la guía (ancho de contenido) sobre el tiempo exacto.
                 transform: `translateX(${timelineGeometry.timeToPx(
                   draggingGhost.snapLineSec ?? draggingGhost.startOffsetSec
-                )}px)`,
+                )}px) translateX(-50%)`,
               }}
             >
               <div
@@ -920,10 +930,11 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
               el punto de corte queda matemáticamente alineado con ambos bordes. */}
           {lastCutSec !== null && (
             <div
-              className="absolute top-0 bottom-0 pointer-events-none z-35 flex flex-col items-center select-none"
+              className="absolute top-0 bottom-0 pointer-events-none z-[35] flex flex-col items-center select-none"
               style={{
                 left: 0,
-                transform: `translateX(${timelineGeometry.timeToPx(lastCutSec)}px)`,
+                // `-50%` centra la marca (ancho de contenido) sobre el corte exacto.
+                transform: `translateX(${timelineGeometry.timeToPx(lastCutSec)}px) translateX(-50%)`,
               }}
             >
               <div className="px-1.5 py-0.5 rounded bg-white text-slate-950 font-mono font-black text-[9px] shadow-md -translate-y-1 whitespace-nowrap">
@@ -942,8 +953,13 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             onPointerMove={handlePlayheadPointerMove}
             onPointerUp={handlePlayheadPointerUp}
             onPointerCancel={handlePlayheadPointerUp}
-            className="absolute top-0 bottom-0 w-8 -translate-x-4 z-40 pointer-events-auto cursor-ew-resize flex justify-center group select-none touch-none"
-            style={{ left: 0, transform: `translateX(${timelineGeometry.timeToPx(0)}px)` }}
+            className="absolute top-0 bottom-0 w-8 z-40 pointer-events-auto cursor-ew-resize flex justify-center group select-none touch-none"
+            style={{
+              left: 0,
+              // El hitbox de 32px se centra sobre el tiempo con `-50%` (antes se usaba
+              // `-translate-x-4`, que el `transform` inline anulaba → 16px de desfase).
+              transform: `translateX(${timelineGeometry.timeToPx(0)}px) translateX(-50%)`,
+            }}
             title="Arrastra el cabezal de tiempo para desplazarte libremente"
           >
             {/* Línea visible de 2px centrada en el hitbox con iluminación cyan en hover/drag */}

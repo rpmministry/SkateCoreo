@@ -22,6 +22,7 @@ export const FloatingClipContextMenu: React.FC = () => {
 
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
@@ -110,9 +111,10 @@ export const FloatingClipContextMenu: React.FC = () => {
   };
 
   const handleSplit = () => {
-    // Reloj de HARDWARE (no el `currentTimeSec` del store, que va con retraso y
-    // dejaba el corte sin efecto al primer clic). Se acota al rango del clip:
-    // si el cabezal está fuera, se corta por el punto medio para que funcione ya.
+    // Reloj de HARDWARE (no el `currentTimeSec` del store, que va con retraso).
+    // El corte se hace SIEMPRE en el cabezal. Si el cabezal NO está dentro del
+    // clip, NO se corta: antes se cortaba por el punto medio, lo que colocaba la
+    // línea de corte "en cualquier lugar" y rompía la sincronía con el playhead.
     const state = useAudioStudioStore.getState();
     const engineSec = audioEngine.getCurrentTimeMs() / 1000;
     const arrangement = [state.tracks.music, state.tracks.recording, ...state.additionalTracks];
@@ -124,16 +126,33 @@ export const FloatingClipContextMenu: React.FC = () => {
         break;
       }
     }
-    let splitAt = engineSec;
-    if (clip) {
-      const start = clip.startOffsetSec;
-      const end = clip.startOffsetSec + (clip.trimEndSec - clip.trimStartSec);
-      const margin = 0.02;
-      if (splitAt < start + margin || splitAt > end - margin) {
-        splitAt = start + (end - start) / 2;
+    if (!clip) {
+      closeContextMenu();
+      return;
+    }
+
+    const start = clip.startOffsetSec;
+    const end = clip.startOffsetSec + (clip.trimEndSec - clip.trimStartSec);
+    const margin = 0.02;
+    if (engineSec <= start + margin || engineSec >= end - margin) {
+      setNotice('Coloca el cabezal dentro del clip');
+      window.setTimeout(() => {
+        setNotice(null);
+        closeContextMenu();
+      }, 1600);
+      return;
+    }
+
+    const didSplit = splitClip(trackId, clipId, engineSec);
+    if (didSplit) {
+      // Clava el cabezal en el punto EXACTO de corte (ya ajustado a cruce por
+      // cero) para que línea de corte, playhead y borde de ambos clips coincidan.
+      const cut = useAudioStudioStore.getState().lastCutSec;
+      if (cut != null) {
+        useAudioStudioStore.getState().setCurrentTimeSec(cut);
+        audioEngine.seek(cut * 1000);
       }
     }
-    splitClip(trackId, clipId, splitAt);
     closeContextMenu();
   };
 
@@ -159,6 +178,12 @@ export const FloatingClipContextMenu: React.FC = () => {
       }}
       onPointerDown={(e) => e.stopPropagation()}
     >
+      {notice ? (
+        <span className="px-3 h-8 flex items-center text-[11px] font-bold text-amber-300 whitespace-nowrap">
+          {notice}
+        </span>
+      ) : (
+        <>
       {/* Seleccionar */}
       <button
         type="button"
@@ -223,6 +248,8 @@ export const FloatingClipContextMenu: React.FC = () => {
       >
         <X className="w-3.5 h-3.5" />
       </button>
+        </>
+      )}
     </div>
   );
 };

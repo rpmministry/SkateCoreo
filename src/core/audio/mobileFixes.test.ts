@@ -103,6 +103,27 @@ console.log('--- PRUEBAS DE ARREGLOS DE PRUEBAS MÓVIL ---');
     store.getState().tracks.recording.clips.length === 2,
     'La toma queda dividida en dos fragmentos'
   );
+
+  // Precisión del corte: el borde del clip A, el inicio del clip B y `lastCutSec`
+  // (lo que dibuja la línea de CORTE) deben coincidir EXACTAMENTE.
+  const clipsAfter = store.getState().tracks.recording.clips;
+  const firstHalf = clipsAfter.find((c) => Math.abs(c.startOffsetSec - 2) < 1e-6);
+  const secondHalf = clipsAfter.find((c) => Math.abs(c.startOffsetSec - 4) < 1e-6);
+  assert(!!firstHalf && !!secondHalf, 'Tras el split hay un fragmento en 2s y otro en 4s');
+  const firstHalfEnd = firstHalf!.startOffsetSec + (firstHalf!.trimEndSec - firstHalf!.trimStartSec);
+  const cutSec = store.getState().lastCutSec;
+  assert(
+    cutSec !== null && Math.abs(cutSec - 4) < 1e-6,
+    `lastCutSec registra el punto EXACTO de corte (${cutSec})`
+  );
+  assert(
+    Math.abs(firstHalfEnd - secondHalf!.startOffsetSec) < 1e-9,
+    'El fin del clip A = inicio del clip B (empalme sin deriva)'
+  );
+  assert(
+    Math.abs(firstHalfEnd - (cutSec as number)) < 1e-9,
+    'El borde de ambos clips coincide con lastCutSec (línea de corte exacta)'
+  );
 }
 
 // 4. Handoff al Estudio: dominio 'studio'.
