@@ -14,7 +14,7 @@ import { useState, useEffect, useCallback, useMemo, useRef, startTransition, laz
 import {
   Music,
   X, ChevronDown, MoreVertical,
-  Upload, Save, HardDrive, Trash2, LogOut, Sparkles
+  Upload, Save, HardDrive, Trash2, LogOut, Sparkles, SlidersHorizontal
 } from 'lucide-react';
 import { Skater, Program, ElementLog, AudioEngineState } from './types';
 import { SkateCoreoBrand } from './components/brand/SkateCoreoBrand';
@@ -709,16 +709,17 @@ export function App() {
             </button>
           )}
 
-          {/* Botón Cargar Audio (CTA primario único) */}
+          {/* Botón Subir pista (escritorio). En móvil/tablet vive en la segunda
+              fila del header con TEXTO visible (el icono solo era ambiguo). */}
           <button
             type="button"
             onClick={() => audioInputRef.current?.click()}
-            className="press flex min-h-touch min-w-touch items-center justify-center gap-2 rounded-xl border border-cyan/30 bg-cyan/15 px-3 text-xs font-bold text-cyan shadow-soft-elevation hover:bg-cyan/25 lg:px-3.5"
-            title="Cargar archivo de música"
-            aria-label="Cargar archivo de música"
+            className="press hidden min-h-touch items-center justify-center gap-2 rounded-xl border border-cyan/30 bg-cyan/15 px-3 text-xs font-bold text-cyan shadow-soft-elevation hover:bg-cyan/25 lg:flex lg:px-3.5"
+            title="Subir una pista de audio directamente al visor de la Pista 2D"
+            aria-label="Subir pista al visor"
           >
             <Upload className="h-4 w-4 shrink-0 stroke-[2]" />
-            <span className="hidden md:inline">Cargar Audio</span>
+            <span className="lg:inline">Subir pista al visor</span>
           </button>
 
           {/* Botón de Salir / Cerrar Sesión (header en ≥ sm; en móvil vive en el
@@ -828,6 +829,36 @@ export function App() {
           </div>
         </div>
           </div>
+
+          {/* ── FILA MÓVIL DE ACCIONES FUNDAMENTALES (Pista 2D, < lg) ──
+              En portrait los botones críticos llevan TEXTO visible: el icono
+              solo era ambiguo. Una segunda fila evita todo overflow horizontal.
+              · Subir pista al visor      → carga un archivo DIRECTAMENTE al visor.
+              · Editar mezcla en Estudio  → NAVEGA al Audio Studio (no publica). */}
+          {activeView === 'rink' && (
+            <div className="flex items-stretch gap-2 px-2 pb-2 lg:hidden">
+              <button
+                type="button"
+                onClick={() => audioInputRef.current?.click()}
+                className="press flex min-h-touch min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-cyan/30 bg-cyan/15 px-2.5 text-[11px] font-bold text-cyan hover:bg-cyan/25"
+                title="Subir una pista de audio directamente al visor de la Pista 2D"
+                aria-label="Subir pista al visor"
+              >
+                <Upload className="h-4 w-4 shrink-0 stroke-[2]" />
+                <span className="truncate">Subir pista al visor</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleNav('studio')}
+                className="press flex min-h-touch min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-white/[0.06] px-2.5 text-[11px] font-bold text-slate-200 hover:bg-white/[0.12]"
+                title="Abrir el Audio Studio para editar y mezclar la música (no publica ni cambia el audio activo)"
+                aria-label="Editar mezcla en Estudio"
+              >
+                <SlidersHorizontal className="h-4 w-4 shrink-0" />
+                <span className="truncate">Editar mezcla en Estudio</span>
+              </button>
+            </div>
+          )}
         </header>
       )}
 
