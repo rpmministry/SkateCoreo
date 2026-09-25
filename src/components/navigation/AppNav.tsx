@@ -36,10 +36,10 @@ export const APP_TABS: AppTabDef[] = [
   },
   {
     id: 'studio',
-    label: 'Estudio de Audio',
+    label: 'Audio Studio',
     short: 'Estudio',
     icon: AudioLines,
-    hint: 'DAW multipista: corta, mezcla y sincroniza',
+    hint: 'Editar mezcla en Estudio: cortar, mezclar y publicar al visor',
   },
   {
     id: 'skaters',

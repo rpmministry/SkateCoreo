@@ -275,7 +275,7 @@ export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
               className="w-full h-12 min-h-touch rounded-2xl bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/40 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all active:scale-98 shadow-md"
             >
               <ExternalLink className="w-4 h-4" />
-              <span>Abrir Estudio de Audio Completo</span>
+              <span>Editar mezcla en Estudio</span>
             </button>
           )}
 

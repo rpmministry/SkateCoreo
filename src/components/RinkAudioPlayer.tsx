@@ -149,7 +149,7 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
         <div className="flex min-w-0 flex-1 flex-col justify-center">
           <div className="flex items-center justify-between gap-2 font-mono text-[11px] font-black leading-none">
             <span className="truncate text-cyan">
-              <span className="text-slate-500">Audio · </span>
+              <span className="text-slate-500">Audio activo · </span>
               {fileName ? fileName.replace(/\.[^/.]+$/, '') : 'Sin pista cargada'}
               {sourceKind === 'studio-mix' && (
                 <span

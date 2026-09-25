@@ -730,7 +730,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     try {
       const result = await renderAndExportMixdown();
       if (result.success) {
-        setExportNotice('Mezcla enviada a la Pista 2D');
+        setExportNotice('Mezcla enviada al visor');
         setTimeout(() => setExportNotice(null), 3500);
         if (onExportToRink) onExportToRink();
       }

@@ -124,6 +124,10 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
               <span className="sm:hidden">Pista 2D</span>
             </button>
           )}
+          {/* Identidad de pantalla: deja claro que esto es la mesa de edición/mezcla */}
+          <span className="hidden md:inline text-[10px] font-black uppercase tracking-widest text-cyan/80 shrink-0">
+            Audio Studio
+          </span>
 
           {/* Display Digital de Tiempo (BandLab 00:00.0) */}
           <div className="flex items-center gap-1.5 font-mono text-xs font-black text-white pl-1 shrink-0">
@@ -232,30 +236,35 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
                 title="Traer al Estudio una copia del audio activo de la Pista 2D para editarlo (no lo modifica)"
               >
                 <Music className="w-3 h-3" />
-                Editar audio activo
+                Importar audio del visor
               </button>
             )}
           </div>
 
-          {/* Botón Acción Principal: Enviar Mezcla a la Pista 2D */}
+          {/* PUBLICACIÓN (acción principal): convierte este borrador en el audio
+              activo de la Pista 2D. Es DISTINTA de "Volver a Pista 2D" (navegar):
+              esta SÍ publica. Por eso vive en su propio grupo, con color primario
+              e icono de publicar, no de navegación. */}
           {onExportToRink && (
             <button
               type="button"
               onClick={onExportToRink}
               disabled={isExporting}
-              className="h-10 min-h-touch px-3.5 rounded-full flex items-center gap-1.5 bg-gradient-to-r from-cyan to-teal-400 text-black hover:brightness-110 transition-all active:scale-95 shadow-md shadow-cyan/25 font-bold text-xs disabled:opacity-50"
-              title="Transferir mezcla terminada y nodos al mostrador de audio de la Pista 2D"
+              className="h-10 min-h-touch px-3.5 rounded-full flex items-center gap-1.5 bg-gradient-to-r from-cyan to-teal-400 text-black hover:brightness-110 transition-all active:scale-95 shadow-md shadow-cyan/25 font-black text-xs disabled:opacity-50"
+              title="Publicar esta mezcla: pasará a ser la música activa de la Pista 2D (no cambia el borrador)"
+              aria-label="Enviar al visor: publicar la mezcla en la Pista 2D"
             >
               {isExporting ? (
                 <>
                   <div className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin shrink-0" />
-                  <span className="hidden sm:inline">Enviando...</span>
+                  <span className="hidden sm:inline">Enviando al visor…</span>
+                  <span className="sm:hidden">Enviando…</span>
                 </>
               ) : (
                 <>
                   <Send className="w-4 h-4 fill-black stroke-none shrink-0" />
-                  <span className="hidden sm:inline">Enviar a Pista 2D</span>
-                  <span className="sm:hidden">Enviar</span>
+                  <span className="hidden sm:inline">Enviar al visor</span>
+                  <span className="sm:hidden">Enviar al visor</span>
                 </>
               )}
             </button>

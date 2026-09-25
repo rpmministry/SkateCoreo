@@ -6,7 +6,8 @@ import { audioEngine } from '../core/audio/AudioEngine';
 import { roundRectPath } from '../core/canvas/roundRectPath';
 import { ChoreographyPoint, isMainNode } from '../types/choreography';
 import { 
-  Music, 
+  Waves,
+  SlidersHorizontal,
   ZoomIn, 
   ZoomOut, 
   RotateCcw,
@@ -151,7 +152,8 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
   // publicar una mezcla, `revision` cambia y la onda se recalcula. Ya no se lee el
   // `mixManifest` del Studio ni se modula la onda con su mixer: eso acoplaba el
   // visor a una mezcla todavía en edición.
-  const publishedRevision = useRinkAudioStore((s) => s.publishedAudio?.revision ?? 0);
+  const publishedAudio = useRinkAudioStore((s) => s.publishedAudio);
+  const publishedRevision = publishedAudio?.revision ?? 0;
 
   useEffect(() => {
     const updatePeaks = () => {
@@ -515,21 +517,53 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
           Todas las áreas táctiles respetan el mínimo de 48x48px. */}
       <div className="flex shrink-0 items-center justify-between gap-2 text-xs">
         <div className="flex min-w-0 items-center gap-2">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-subtle border border-border-subtle bg-surface-hover text-text-secondary">
-            <Music className="h-3.5 w-3.5" />
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-subtle border border-cyan/30 bg-cyan/10 text-cyan">
+            <Waves className="h-4 w-4" />
           </div>
           <div className="flex min-w-0 flex-col leading-tight">
-            <span className="truncate font-semibold text-text-primary max-w-[130px] sm:max-w-[190px] xl:max-w-[260px]">
-              {fileName || 'Pista Musical'}
+            {/* Identidad inequívoca: esto es el VISOR, no el editor. */}
+            <span className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-cyan">
+              Visor de audio
+              {publishedAudio && (
+                <span
+                  className="rounded px-1 py-0.5 text-[8px] font-black tracking-wide text-neon-canvas bg-cyan/90"
+                  title={
+                    publishedAudio.kind === 'studio-mix'
+                      ? 'Música publicada desde el Audio Studio'
+                      : 'Música cargada directamente en la Pista 2D'
+                  }
+                >
+                  {publishedAudio.kind === 'studio-mix' ? 'Mezcla publicada' : 'Audio activo'}
+                </span>
+              )}
+            </span>
+            <span className="truncate font-semibold text-text-primary max-w-[130px] sm:max-w-[190px] xl:max-w-[240px]">
+              {fileName || 'Sin música publicada'}
             </span>
             <span className="hidden text-[9px] font-mono uppercase tracking-wider text-text-tertiary lg:inline">
-              Waveform · {timelineNodes.length} nodos
+              Música publicada · {timelineNodes.length} nodos
             </span>
           </div>
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5">
-          {/* Botón Desplegable Mini-Mezclador (único acceso a la mezcla de la Pista 2D) */}
+          {/* Acceso DIRECTO y con label al editor de audio. No se esconde en un
+              drawer ni depende de un icono ambiguo: dice qué hace. */}
+          {onOpenStudio && (
+            <button
+              type="button"
+              onClick={onOpenStudio}
+              className="flex min-h-touch items-center justify-center gap-1.5 rounded-subtle border border-cyan/30 bg-cyan/10 px-2.5 font-sans text-[11px] font-bold text-cyan press hover:bg-cyan/20 sm:px-3"
+              title="Abrir el Audio Studio para cortar, mezclar y preparar la música"
+              aria-label="Editar mezcla en Estudio"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" />
+              <span className="hidden sm:inline">Editar mezcla en Estudio</span>
+              <span className="sm:hidden">Editar mezcla</span>
+            </button>
+          )}
+
+          {/* Botón Desplegable Mini-Mezclador (volúmenes de la Pista 2D) */}
           <button
             type="button"
             onClick={() => setIsMiniMixerOpen((prev) => !prev)}

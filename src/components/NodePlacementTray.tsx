@@ -129,9 +129,9 @@ export const NodePlacementTray: React.FC<NodePlacementTrayProps> = ({
                   type="button"
                   onClick={onOpenAudioStudio}
                   className="min-h-[44px] rounded-xl border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs font-medium text-slate-300 transition-all hover:bg-white/10 hover:text-white"
-                  title="Volver a editar tiempos en el Estudio de Audio"
+                  title="Abrir el Audio Studio para editar y mezclar la música"
                 >
-                  <span>Editar en DAW</span>
+                  <span>Editar mezcla en Estudio</span>
                 </button>
               )}
             </div>

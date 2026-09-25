@@ -230,9 +230,9 @@ export const HomeView: React.FC<HomeViewProps> = ({
             tag="Segundo pilar"
             icon={<AudioLines className="h-6 w-6" />}
             eyebrow="Audio"
-            title="Estudio de Audio"
-            lines={['Música, ritmo y sincronía', 'Edición y mezcla multipista', 'Cues vocales y tempo']}
-            cta="Abrir Estudio de Audio"
+            title="Audio Studio"
+            lines={['Editar y mezclar la música', 'Cortar, fundidos y multipista', 'Enviar la mezcla al visor']}
+            cta="Editar mezcla en Estudio"
             glyph={<WaveGlyph />}
             onClick={onOpenStudio}
           />

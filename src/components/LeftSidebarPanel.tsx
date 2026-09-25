@@ -250,7 +250,7 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
               onClick={onOpenAudioStudio}
               className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/30 text-xs font-bold transition-all interactive-tap shadow-soft-elevation"
             >
-              <span>🎛️ Abrir Estudio de Audio (DAW)</span>
+              <span>🎛️ Editar mezcla en Estudio</span>
             </button>
           )}
 
