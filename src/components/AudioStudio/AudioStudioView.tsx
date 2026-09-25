@@ -61,6 +61,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   const tracks = useAudioStudioStore((s) => s.tracks);
   const additionalTracks = useAudioStudioStore((s) => s.additionalTracks);
   const audioNodes = useAudioStudioStore((s) => s.audioNodes);
+  const selectedNodeId = useAudioStudioStore((s) => s.selectedNodeId);
   const currentTimeSec = useAudioStudioStore((s) => s.currentTimeSec);
   const totalDurationSec = useAudioStudioStore((s) => s.totalDurationSec);
   const isPlaying = useAudioStudioStore((s) => s.isPlaying);
@@ -281,9 +282,13 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   // Playhead gobernado por el reloj de hardware (AudioContext.currentTime).
   // Durante la reproducción: un frame de rAF compartido para toda la app.
   // En pausa/seek/zoom: una única escritura puntual con el tiempo real.
+  // El refreshKey DEBE incluir `currentTimeSec`: al pausar (`active` pasa a false)
+  // el hook deja de refrescar por rAF, así que un cambio de tiempo estando en pausa
+  // (p. ej. STOP que devuelve a 0:00) solo se refleja si el refreshKey cambia.
+  // Sin esto, PLAY → PAUSE → STOP no reposicionaba el playhead (bug).
   usePlayheadSync(applyPlayheadFromHardwareClock, {
     active: isPlaying,
-    refreshKey: `${contentWidth}|${totalDurationSec}|${headerWidth}|${zoom}`,
+    refreshKey: `${contentWidth}|${totalDurationSec}|${headerWidth}|${zoom}|${currentTimeSec}`,
   });
 
   // 1 Pista Principal (Música) + VOZ grabada + hasta 4 Pistas Adicionales
@@ -919,6 +924,43 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             ))}
 
           </div>
+
+          {/* ── STUDIO TIME MARKERS: línea vertical anclada al TIEMPO ──
+              Misma `AudioTimelineGeometry` (timeToPx) que regla, clips y playhead.
+              Se dibuja dentro del timeline (x ≥ headerWidth), por debajo de la regla
+              (top-12) y por encima de los clips (z-30): nunca invade la columna de
+              nombres ni la regla. Es distinta del PLAYHEAD (z-40) y de la marca de
+              CORTE. Al mover un marcador, la línea se desplaza con él en tiempo real. */}
+          {audioNodes.map((node) => {
+            const isSelectedNode = selectedNodeId === node.id;
+            return (
+              <div
+                key={`marker-${node.id}`}
+                className="absolute top-12 bottom-0 z-30 pointer-events-none flex flex-col items-center"
+                style={{
+                  left: 0,
+                  transform: `translateX(${timelineGeometry.timeToPx(
+                    node.timestampSec
+                  )}px) translateX(-50%)`,
+                }}
+                title={`Nodo ${node.numeroSecuencial} · ${node.timestampSec.toFixed(3)}s`}
+              >
+                <span
+                  className={[
+                    'flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-mono text-[9px] font-black',
+                    isSelectedNode ? 'bg-cyan text-slate-950' : 'bg-cyan/25 text-cyan',
+                  ].join(' ')}
+                >
+                  {node.numeroSecuencial}
+                </span>
+                <div
+                  className={
+                    isSelectedNode ? 'w-[2px] flex-1 bg-cyan' : 'w-px flex-1 bg-cyan/45'
+                  }
+                />
+              </div>
+            );
+          })}
 
           {/* Referencia vertical durante el arrastre de un clip (dentro del área
               temporal): guía magnética si hay snap, o referencia de posición si no.

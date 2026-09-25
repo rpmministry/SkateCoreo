@@ -56,7 +56,10 @@ export const NodePlacementTray: React.FC<NodePlacementTrayProps> = ({
   };
 
   return (
-    <div className="absolute inset-x-2 top-2 z-30 flex max-h-[46dvh] flex-col overflow-hidden rounded-2xl border border-cyan/40 bg-[#0C1220] shadow-2xl animate-in fade-in slide-in-from-top-4 duration-200 lg:inset-x-auto lg:left-auto lg:right-3 lg:top-3 lg:max-h-none lg:w-80">
+    // PANEL RESERVADO (no overlay): ocupa espacio real en el layout, así nunca
+    // tapa la Pista 2D. En desktop/tablet-landscape es una columna a la derecha
+    // (compacta, 224–256px); en portrait es una franja superior con scroll interno.
+    <div className="z-30 flex max-h-[36dvh] shrink-0 flex-col overflow-hidden border-b border-cyan/40 bg-[#0C1220] lg:max-h-none lg:h-full lg:w-56 lg:border-b-0 lg:border-l xl:w-64">
       {/* ── Cabecera de la Bandeja ── */}
       <div className="flex h-11 shrink-0 items-center justify-between border-b border-white/10 bg-gradient-to-r from-cyan/20 to-transparent px-3.5">
         <div className="flex min-w-0 items-center gap-2">

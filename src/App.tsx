@@ -916,22 +916,25 @@ export function App() {
         {/* ── CENTER WORKSPACE: 2D Rink Canvas + Waveform Timeline ── */}
         <main className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden bg-neon-canvas relative">
 
-          {/* Bandeja de Colocación de Nodos de Audio (Estricto Orden Secuencial).
-              Vive DENTRO del área de la Pista 2D para no solaparse con el
-              inspector/paneles laterales (flota sobre el propio editor). */}
-          <NodePlacementTray onOpenAudioStudio={() => setActiveView('studio')} />
+          {/* Workspace: Pista 2D + panel de Nodos RESERVADO (NO overlay).
+              En desktop/tablet-landscape el panel va a la DERECHA; en portrait va
+              ARRIBA como franja compacta. La Pista 2D conserva SIEMPRE su área útil
+              (nunca queda cubierta por la bandeja). */}
+          <div className="flex flex-1 min-h-0 flex-col lg:flex-row">
+            <NodePlacementTray onOpenAudioStudio={() => setActiveView('studio')} />
 
-          {/* 2D Canvas Rink Engine — Zero Distortion. Zona protegida: conserva
-              una altura mínima útil y absorbe el espacio restante (protagonista). */}
-          <div className="workspace-canvas overflow-hidden">
-            <RinkCanvas
-              layoutMode="ide"
-              currentProgram={selectedProgram}
-              onProgramUpdated={handleProgramUpdated}
-              elements={elements}
-              onNodeSelect={handleNodeSelect}
-              onDragChange={handleDragChange}
-            />
+            {/* 2D Canvas Rink Engine — Zero Distortion. Zona protegida: conserva
+                una altura mínima útil y absorbe el espacio restante (protagonista). */}
+            <div className="workspace-canvas flex-1 min-w-0 min-h-0 overflow-hidden">
+              <RinkCanvas
+                layoutMode="ide"
+                currentProgram={selectedProgram}
+                onProgramUpdated={handleProgramUpdated}
+                elements={elements}
+                onNodeSelect={handleNodeSelect}
+                onDragChange={handleDragChange}
+              />
+            </div>
           </div>
 
           {/* ── AUDIO DOCK: Transporte + Waveform ──
