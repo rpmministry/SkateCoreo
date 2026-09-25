@@ -689,6 +689,10 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     if (isEngineActive) {
       audioEngine.pause();
       setIsPlaying(false);
+      // Sincroniza la posición de pausa en el store (el store no se actualiza
+      // durante la reproducción). Así el transporte queda coherente y un STOP
+      // posterior supone un cambio real de tiempo.
+      setCurrentTimeSec(audioEngine.getCurrentTimeMs() / 1000);
       flushPendingConsolidation();
       return;
     }
@@ -710,6 +714,12 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     audioEngine.stop();
     setIsPlaying(false);
     setCurrentTimeSec(0);
+    // Devuelve la AGUJA a 0:00 de forma INMEDIATA y garantizada. El store
+    // `currentTimeSec` no se actualiza durante la reproducción, así que tras una
+    // pausa `setCurrentTimeSec(0)` puede ser un no-op y el one-shot de
+    // `usePlayheadSync` no se dispararía: la línea quedaba clavada. Escribimos el
+    // transform directamente (misma geometría) sin depender de un re-render.
+    applyPlayheadFromHardwareClock(0);
     flushPendingConsolidation();
   };
 
