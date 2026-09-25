@@ -6,6 +6,12 @@ export interface UseAudioZoomPanOptions {
   maxZoom?: number;
   initialZoom?: number;
   enableWheelPan?: boolean;
+  /**
+   * Si es true, la RUEDA NORMAL no se captura (deja el scroll nativo, p. ej.
+   * vertical entre pistas) y el paneo horizontal con rueda requiere `Shift`.
+   * Solo `Ctrl/⌘ + rueda` hace zoom. Necesario en el Audio Studio multitrack.
+   */
+  wheelPanRequiresShift?: boolean;
   widthOffset?: number;
   overscrollPx?: number;
   onZoomChange?: (zoom: number) => void;
@@ -69,6 +75,7 @@ export function useAudioZoomPan(options: UseAudioZoomPanOptions = {}): UseAudioZ
     maxZoom = 40.0,
     initialZoom = 1.0,
     enableWheelPan = true,
+    wheelPanRequiresShift = false,
     widthOffset = 0,
     overscrollPx = 0,
     onZoomChange,
@@ -256,7 +263,12 @@ export function useAudioZoomPan(options: UseAudioZoomPanOptions = {}): UseAudioZ
           const clampedDelta = Math.max(-60, Math.min(60, delta));
           const factor = Math.exp(-clampedDelta * 0.006);
           applyZoomRef.current(zoomRef.current * factor, focalX);
-        } else if (enableWheelPan && e.deltaY !== 0 && e.deltaX === 0) {
+        } else if (
+          enableWheelPan &&
+          (!wheelPanRequiresShift || e.shiftKey) &&
+          e.deltaY !== 0 &&
+          e.deltaX === 0
+        ) {
           if (container.scrollWidth > container.clientWidth) {
             let panDelta = e.deltaY;
             if (e.deltaMode === 1) panDelta *= 20;
@@ -264,6 +276,8 @@ export function useAudioZoomPan(options: UseAudioZoomPanOptions = {}): UseAudioZ
             e.preventDefault();
           }
         }
+        // RUEDA NORMAL sin Shift (y sin Ctrl): NO se intercepta → el navegador
+        // hace el scroll NATIVO (vertical entre pistas / horizontal del trackpad).
       } finally {
         endInteraction();
       }
@@ -402,7 +416,7 @@ export function useAudioZoomPan(options: UseAudioZoomPanOptions = {}): UseAudioZ
     };
     // Deps deliberadamente mínimas: los valores variables se leen desde refs
     // para que los listeners NO se re-registren a mitad de un gesto.
-  }, [baseWidth, enableWheelPan, touchAction, beginInteraction, endInteraction]);
+  }, [baseWidth, enableWheelPan, wheelPanRequiresShift, touchAction, beginInteraction, endInteraction]);
 
   // Helpers de Proyección Matemática.
   // Delegan en la ÚNICA geometría temporal compartida (`AudioTimelineGeometry`)

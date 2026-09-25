@@ -152,6 +152,9 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     return () => window.clearTimeout(id);
   }, [lastCutSec, setLastCutSec]);
   const playheadLineRef = useRef<HTMLDivElement | null>(null);
+  // La aguja es SOLO visual (pointer-events: none): nunca intercepta rueda, pan,
+  // drag de clips ni scroll. Este ref permite reapuntarla desde `onScroll`.
+  const applyPlayheadRef = useRef<(timeMs: number) => void>(() => {});
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const addTrackFileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -172,7 +175,12 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     widthOffset: headerWidth,
     overscrollPx: OVERSCROLL_PX,
     enableWheelPan: true,
+    // Rueda normal = scroll NATIVO (vertical entre pistas); el paneo horizontal con
+    // rueda requiere Shift; solo Ctrl/⌘+rueda hace zoom.
+    wheelPanRequiresShift: true,
     onZoomChange: (z) => useAudioStudioStore.getState().setZoom(z),
+    // Al hacer scroll horizontal, la aguja (anclada al viewport) se reposiciona.
+    onScroll: () => applyPlayheadRef.current(audioEngine.getCurrentTimeMs()),
   });
 
   /**
@@ -193,52 +201,8 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   // Tamaño real del área de arreglos (alto útil según viewport móvil/orientación).
   const timelineViewport = useViewportSize(timelineContainerRef);
 
-  // Estado y manejadores de arrastre del Playhead (Hitbox ensanchado de 32px)
-  const isDraggingPlayheadRef = useRef(false);
-
-  const handlePlayheadPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.stopPropagation();
-    e.preventDefault();
-    isDraggingPlayheadRef.current = true;
-    try {
-      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    } catch (err) {}
-  };
-
-  const handlePlayheadPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDraggingPlayheadRef.current) return;
-    const container = timelineContainerRef.current;
-    if (!container) return;
-
-    const rect = container.getBoundingClientRect();
-    const absoluteX = e.clientX - rect.left + container.scrollLeft;
-    // Tiempo continuo (sin redondear) para la proyección visual: así la aguja no
-    // da micro-saltos de 1ms en el zoom máximo.
-    const exactTimeSec = timelineGeometry.pxToTime(absoluteX, true);
-    // Precisión de 1ms: el offset exacto se guarda y el motor lo usa al reanudar
-    const targetTimeSec = Math.round(exactTimeSec * 1000) / 1000;
-
-    setCurrentTimeSec(targetTimeSec);
-    audioEngine.seek(targetTimeSec * 1000);
-    if (playheadLineRef.current) {
-      // Proyección en coma flotante, sin redondeo (evita micro-saltos).
-      // `-50%` centra el hitbox de 32px sobre el tiempo exacto (su centro, no su
-      // borde izquierdo). Sin esto la aguja quedaba ~16px desplazada.
-      playheadLineRef.current.style.transform = `translateX(${timelineGeometry.timeToPx(
-        exactTimeSec,
-        true
-      )}px) translateX(-50%)`;
-    }
-  };
-
-  const handlePlayheadPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (isDraggingPlayheadRef.current) {
-      isDraggingPlayheadRef.current = false;
-      try {
-        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-      } catch (err) {}
-    }
-  };
+  // (El playhead ya no se arrastra: es pointer-events:none. El seek se hace con la
+  // regla o el long-press sobre el workspace.)
 
   /**
    * Proyección tiempo → píxeles con coma flotante (sin redondeo).
@@ -257,12 +221,16 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
    */
   const applyPlayheadFromHardwareClock = useCallback(
     (timeMs: number) => {
+      // `px` = coordenada de CONTENIDO (incluye headerWidth). La aguja vive en un
+      // overlay del VIEWPORT de la timeline (a la derecha del header), así que se
+      // resta `scrollLeft` + `headerWidth` para confinarla: nunca invade la columna
+      // de nombres y el `overflow-hidden` del overlay la recorta al salir.
       const px = playheadPxFor(timeMs);
 
       const line = playheadLineRef.current;
-      if (line && !isDraggingPlayheadRef.current) {
-        // `-50%` centra el hitbox de 32px sobre el tiempo exacto (ver nota arriba).
-        line.style.transform = `translateX(${px}px) translateX(-50%)`;
+      if (line) {
+        const scrollLeft = timelineContainerRef.current?.scrollLeft ?? 0;
+        line.style.transform = `translateX(${px - scrollLeft - headerWidth}px) translateX(-50%)`;
       }
 
       const container = timelineContainerRef.current;
@@ -276,8 +244,9 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
         }
       }
     },
-    [playheadPxFor, isPlaying, zoom, isInteracting]
+    [playheadPxFor, isPlaying, zoom, isInteracting, headerWidth]
   );
+  applyPlayheadRef.current = applyPlayheadFromHardwareClock;
 
   // Playhead gobernado por el reloj de hardware (AudioContext.currentTime).
   // Durante la reproducción: un frame de rAF compartido para toda la app.
@@ -850,13 +819,16 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
         isExporting={isExporting}
       />
 
-      {/* ── 2. LIENZO CENTRAL DE ARREGLOS (BandLab Arrangement View con Overscroll) ── */}
+      {/* ── 2. LIENZO CENTRAL DE ARREGLOS (BandLab Arrangement View con Overscroll) ──
+          Envuelto en un contenedor `relative`: el scroll vive DENTRO y la capa del
+          playhead vive FUERA (hermana), confinada al viewport de la timeline. */}
+      <div className="relative flex-1 min-h-0">
       <div 
         ref={timelineContainerRef}
         onPointerDown={handleWorkspacePointerDown}
         onPointerUp={handleWorkspacePointerUp}
         onPointerCancel={handleWorkspacePointerUp}
-        className="relative flex-1 min-h-0 overflow-x-auto overflow-y-auto bg-black isolate"
+        className="absolute inset-0 overflow-x-auto overflow-y-auto bg-black isolate"
         style={{
           WebkitOverflowScrolling: 'touch',
           overscrollBehavior: 'contain',
@@ -1025,29 +997,6 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             </div>
           )}
 
-          {/* Aguja de Reproducción (playhead): limitada SOLO a la regla + pistas.
-              Su `bottom-0` es el final de la última pista, nunca el botón «Añadir
-              pista», que queda FUERA de este contenedor temporal. */}
-          <div
-            ref={playheadLineRef}
-            onPointerDown={handlePlayheadPointerDown}
-            onPointerMove={handlePlayheadPointerMove}
-            onPointerUp={handlePlayheadPointerUp}
-            onPointerCancel={handlePlayheadPointerUp}
-            className="absolute top-0 bottom-0 w-8 z-40 pointer-events-auto cursor-ew-resize flex justify-center group select-none touch-none"
-            style={{
-              left: 0,
-              // El hitbox de 32px se centra sobre el tiempo con `-50%` (antes se usaba
-              // `-translate-x-4`, que el `transform` inline anulaba → 16px de desfase).
-              transform: `translateX(${timelineGeometry.timeToPx(0)}px) translateX(-50%)`,
-            }}
-            title="Arrastra el cabezal de tiempo para desplazarte libremente"
-          >
-            {/* Línea visible de 2px centrada en el hitbox con iluminación cyan en hover/drag */}
-            <div className="w-[2px] h-full bg-white group-hover:bg-cyan group-active:bg-cyan shadow-glow-cyan relative flex justify-center transition-colors">
-              <div className="w-3.5 h-3.5 bg-white group-hover:bg-cyan group-active:bg-cyan rotate-45 -translate-y-1 rounded-xs shadow-md shrink-0 transition-colors" />
-            </div>
-          </div>
           </div>
 
           {/* ── BOTÓN + AÑADIR PISTA (Estilo BandLab 2_Arrangement-View-1.webp) ──
@@ -1083,6 +1032,27 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             </div>
           )}
         </div>
+      </div>
+
+      {/* PLAYHEAD OVERLAY — confinado al VIEWPORT de la timeline (a la derecha del
+          header). `left: headerWidth` + `overflow-hidden` garantizan que la aguja
+          NUNCA invade la columna de nombres; su posición resta `scrollLeft`. Es
+          `pointer-events-none`: no bloquea rueda, pan, drag de clips ni scroll. */}
+      <div
+        className="absolute inset-y-0 right-0 z-40 overflow-hidden pointer-events-none"
+        style={{ left: `${headerWidth}px` }}
+      >
+        <div
+          ref={playheadLineRef}
+          className="absolute top-0 bottom-0 w-8 pointer-events-none flex justify-center select-none"
+          style={{ left: 0, transform: `translateX(0px) translateX(-50%)` }}
+          aria-hidden="true"
+        >
+          <div className="w-[2px] h-full bg-white shadow-glow-cyan relative flex justify-center">
+            <div className="w-3.5 h-3.5 bg-white rotate-45 -translate-y-1 rounded-xs shadow-md shrink-0" />
+          </div>
+        </div>
+      </div>
       </div>
 
       {/* ── 3. BARRA INFERIOR DE TRANSPORTE BANDLAB (BandLab Bottom Dock) ──
