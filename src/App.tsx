@@ -631,12 +631,22 @@ export function App() {
 
       {/* ═══════════════════════════════════════════════
           HEADER — Consola superior
-          IZQUIERDA (marca) · CENTRO (navegación desktop) · DERECHA (acciones)
-          Sin `flex-wrap`: una sola fila garantiza cero apiñamiento/superposición.
+          IZQUIERDA (marca + atleta) · CENTRO (navegación desktop) · DERECHA (acciones)
+
+          En escritorio (lg+) la fila es una REJILLA de 3 carriles:
+          `[izquierda auto | centro 1fr | derecha auto]`. Cada zona ocupa su
+          propio carril, así el menú nunca compite por el mismo espacio ni se
+          solapa con la marca o las acciones: el carril central absorbe el
+          espacio libre y el menú se centra dentro de él. Al liberar el ancho de
+          la categoría, el carril central empieza más a la derecha y el menú se
+          desplaza hacia la derecha de forma natural. Los carriles son disjuntos:
+          no hay solapamiento posible entre menú, marca y acciones.
+          En móvil/tablet (< lg) se conserva el flex de dos columnas.
+          La categoría del atleta NO se repite aquí: ya vive en «Reglamento 2026».
           ═══════════════════════════════════════════════ */}
       {activeView !== 'studio' && (
         <header className="relative z-30 shrink-0 glass-hud border-b border-white/10 pt-safe px-safe">
-          <div className="flex min-h-[54px] items-center justify-between gap-2 px-2 py-1 sm:px-3 lg:min-h-[60px] lg:px-4">
+          <div className="flex min-h-[54px] items-center justify-between gap-2 px-2 py-1 sm:px-3 lg:grid lg:min-h-[60px] lg:grid-cols-[minmax(0,auto)_minmax(0,1fr)_minmax(0,auto)] lg:items-center lg:px-4">
 
         {/* ── IZQUIERDA: Marca (navega a Inicio) + contexto del atleta ── */}
         <div className="flex min-w-0 items-center gap-2">
@@ -651,16 +661,14 @@ export function App() {
             <SkateCoreoBrand size="md" showTagline={false} className="hidden sm:flex" />
           </button>
 
-          {/* Contexto del Atleta Activo (solo en pantallas muy anchas) */}
+          {/* Contexto del Atleta Activo (solo en pantallas muy anchas).
+              La CATEGORÍA se omite deliberadamente: ya se muestra en la sección
+              «Reglamento 2026» del panel de preparación, y repetirla aquí solo
+              robaba espacio horizontal al menú de navegación. */}
           <div className="hidden min-w-0 items-center gap-2 border-l border-white/10 pl-3 text-xs xl:flex">
-            <span className="max-w-[120px] truncate font-semibold text-slate-200" title={selectedSkater?.name}>
+            <span className="max-w-[140px] truncate font-semibold text-slate-200" title={selectedSkater?.name}>
               {selectedSkater?.name || 'Sin Atleta'}
             </span>
-            {selectedSkater?.category && (
-              <span className="shrink-0 rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-bold text-cyan">
-                {selectedSkater.category}
-              </span>
-            )}
           </div>
 
           {/* Insignia Beta Tester (acceso de 30 días) */}
@@ -682,7 +690,7 @@ export function App() {
         <DesktopHeaderNav active={activeTab} onSelect={handleNav} badges={navBadges} />
 
         {/* ── DERECHA: Transporte maestro + carga de audio + desbordamiento ── */}
-        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2 lg:min-w-0 lg:justify-self-end">
           {activeView === 'rink' && (
             <div className="hidden lg:flex">
               <RinkAudioPlayer

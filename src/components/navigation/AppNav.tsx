@@ -127,7 +127,7 @@ export const BottomNav: React.FC<NavProps> = ({ active, onSelect, badges }) => (
 export const DesktopHeaderNav: React.FC<NavProps> = ({ active, onSelect, badges }) => (
   <nav
     aria-label="Navegación principal"
-    className="hidden lg:flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.04] p-1 shadow-soft-elevation shrink-0 touch-manipulation"
+    className="hidden lg:flex lg:justify-self-center items-center gap-1 rounded-xl border border-white/10 bg-white/[0.04] p-1 shadow-soft-elevation shrink-0 touch-manipulation"
   >
     {DESKTOP_TABS.map((tab) => {
       const Icon = tab.icon;
