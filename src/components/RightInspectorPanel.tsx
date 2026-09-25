@@ -7,7 +7,7 @@ import {
   Move,
   PenTool,
   Route,
-  SlidersHorizontal,
+  Undo2,
   Eraser,
   Hash
 } from 'lucide-react';
@@ -54,7 +54,9 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
   const deletePoint = useChoreographyStore((s) => s.deletePoint);
   const setPoints = useChoreographyStore((s) => s.setPoints);
   const pushHistory = useChoreographyStore((s) => s.pushHistory);
-  const straightenSegment = useChoreographyStore((s) => s.straightenSegment);
+  // «Retroceder»: deshace SOLO el último paso del trazado en construcción.
+  const buildSteps = useChoreographyStore((s) => s.buildSteps);
+  const retrocederBuildStep = useChoreographyStore((s) => s.retrocederBuildStep);
 
   const phase = useChoreographyStore((s) => s.phase);
   const setPhase = useChoreographyStore((s) => s.setPhase);
@@ -109,9 +111,6 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
     }
   };
 
-  const updateControlPoint1 = useChoreographyStore((s) => s.updateControlPoint1);
-  const updateControlPoint2 = useChoreographyStore((s) => s.updateControlPoint2);
-
   const handleUpdateLabel = (id: string, label: string) =>
     updatePointMetadata(id, label);
 
@@ -129,41 +128,6 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
     setSelectedPointId(null);
     deletePoint(idToDelete);
     onClose?.();
-  };
-
-  const handleStraighten = () => {
-    if (!selectedPointId) return;
-    straightenSegment(selectedPointId);
-  };
-
-  const handleApplyCurve = (direction: 'out' | 'in') => {
-    if (!selectedPointId) return;
-    const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
-    const idx = sorted.findIndex((p) => p.id === selectedPointId);
-    if (idx < 0 || idx >= sorted.length - 1) return;
-
-    const p0 = sorted[idx];
-    const p1 = sorted[idx + 1];
-
-    const dx = p1.x - p0.x;
-    const dy = p1.y - p0.y;
-    const dist = Math.hypot(dx, dy) || 1;
-
-    // Vector normal unitario perpendicular
-    const nx = -dy / dist;
-    const ny = dx / dist;
-
-    const sign = direction === 'out' ? 1 : -1;
-    const offset = Math.min(6, Math.max(1.5, dist * 0.3)) * sign;
-
-    pushHistory();
-    const cp1x = Math.max(0.4, Math.min(49.6, p0.x + dx * 0.33 + nx * offset));
-    const cp1y = Math.max(0.4, Math.min(24.6, p0.y + dy * 0.33 + ny * offset));
-    const cp2x = Math.max(0.4, Math.min(49.6, p1.x - dx * 0.33 + nx * offset));
-    const cp2y = Math.max(0.4, Math.min(24.6, p1.y - dy * 0.33 + ny * offset));
-
-    updateControlPoint1(p0.id, cp1x, cp1y);
-    updateControlPoint2(p0.id, cp2x, cp2y);
   };
 
   // ── Render ─────────────────────────────────────────────────
@@ -279,8 +243,22 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
             )}
           </div>
 
-          {/* Deshacer tiene su ÚNICA ubicación en el panel de Preparación (desktop)
-              y en la barra/rail contextual (móvil); aquí se eliminó la copia. */}
+          {/* «Retroceder»: deshace SOLO el último paso del trazado en construcción
+              (NO la figura completa; eso es «Eliminar nodo»). Contextual: aparece
+              mientras se construye y se deshabilita al llegar al primer paso. */}
+          {buildSteps.length > 0 && (
+            <button
+              type="button"
+              onClick={() => retrocederBuildStep()}
+              disabled={buildSteps.length < 2}
+              className="w-full flex items-center justify-center gap-2 rounded-xl bg-neon-card py-2.5 text-xs font-bold text-slate-200 shadow-soft-elevation hover:bg-neon-hover hover:text-white interactive-tap disabled:opacity-30 disabled:pointer-events-none"
+              title="Deshacer el último punto del trazo en construcción"
+              aria-label="Retroceder último paso"
+            >
+              <Undo2 className="w-4 h-4 text-coral" />
+              Retroceder
+            </button>
+          )}
         </div>
 
         {/* ── Telemetría de nodos registrados ─── */}
@@ -522,52 +500,16 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                 </div>
               )}
 
-            {/* Curvatura del Trazo y Tiradores Bézier */}
-            <div className="p-3 bg-neon-card/70 rounded-2xl border border-cyan/20 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-cyan flex items-center gap-1.5">
-                  <SlidersHorizontal className="w-3.5 h-3.5" />
-                  Curvatura del Trazo
-                </span>
-                <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-cyan/15 text-cyan font-bold">
-                  Spline en Línea
-                </span>
-              </div>
+            {/* NOTA: la sección «Curvatura del Trazo» se eliminó. El trazado libre
+                ya cubre la necesidad (arrastrar sobre el trazo esculpe la curva),
+                así que esos botones no aportaban al flujo actual. El motor Bézier
+                (FreehandPathEngine / RinkRenderer) sigue intacto.
 
-              <p className="text-[11px] text-slate-300 leading-snug">
-                Arrastra los puntos sobre la línea o la propia curva para esculpirla con suavidad continua sin crear nodos de posición.
-              </p>
+                «Eliminar Nodo» tiene UNA sola ubicación: el botón superior, siempre
+                visible y contextual al nodo seleccionado (no se duplica aquí). */}
 
-              <div className="grid grid-cols-3 gap-1.5 pt-1">
-                <button
-                  type="button"
-                  onClick={() => handleApplyCurve('out')}
-                  className="py-2 rounded-xl bg-neon-surface hover:bg-cyan/20 text-slate-200 hover:text-cyan text-[11px] font-bold transition-all interactive-tap flex items-center justify-center gap-1"
-                  title="Curvar el trazo hacia afuera"
-                >
-                  ⤴ Ext.
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleApplyCurve('in')}
-                  className="py-2 rounded-xl bg-neon-surface hover:bg-cyan/20 text-slate-200 hover:text-cyan text-[11px] font-bold transition-all interactive-tap flex items-center justify-center gap-1"
-                  title="Curvar el trazo hacia adentro"
-                >
-                  ⤵ Int.
-                </button>
-                <button
-                  type="button"
-                  onClick={handleStraighten}
-                  className="py-2 rounded-xl bg-neon-surface hover:bg-coral/20 text-slate-200 hover:text-coral text-[11px] font-bold transition-all interactive-tap flex items-center justify-center gap-1"
-                  title="Hacer el trazo recto"
-                >
-                  — Recta
-                </button>
-              </div>
-            </div>
-
-            {/* ── ZONA DE PELIGRO / ACCIONES DEL NODO (Carbon Danger Zone) ── */}
-            <div className="pt-4 border-t border-red-500/20 space-y-3">
+            {/* ── ACCIONES DEL NODO ── */}
+            <div className="pt-4 border-t border-white/10">
               <button
                 type="button"
                 onClick={() => setSelectedPointId(null)}
@@ -576,22 +518,6 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                 <Move className="w-4 h-4" />
                 Deseleccionar
               </button>
-
-              <div className="p-3 rounded-2xl bg-red-950/25 border border-red-500/30 space-y-2">
-                <div className="flex items-center justify-between text-[10px] font-bold text-red-400 uppercase tracking-wider">
-                  <span>Zona de Peligro</span>
-                  <span className="font-mono text-red-400/70 text-[9px]">Irreversible</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleDeleteSelected}
-                  className="w-full min-h-[48px] flex items-center justify-center gap-2.5 px-4 py-3 rounded-xl bg-red-600 hover:bg-red-500 active:scale-[0.98] text-white text-xs font-black uppercase tracking-wider shadow-lg shadow-red-600/30 transition-all cursor-pointer"
-                  title="Eliminar este nodo y cerrar inspector"
-                >
-                  <Trash2 className="w-4 h-4 stroke-[2.5]" />
-                  <span>Eliminar Nodo</span>
-                </button>
-              </div>
             </div>
           </div>
         )}

@@ -137,5 +137,53 @@ const clearedC = useChoreographyStore.getState().points.find((p) => p.id === nC.
 assert(clearedC.nodeNumber === undefined, 'Borrar número: el nodo queda sin número');
 assert(clearedC.unrecognized === true, 'Borrar número: el nodo se marca como pendiente (?)');
 
+// 11. «Retroceder»: deshace SOLO el último paso de la construcción actual.
+useChoreographyStore.getState().clearAllPoints();
+const pushStep = (x: number, y: number) => {
+  const p = useChoreographyStore.getState().addPointAtCanvas(x, y, useChoreographyStore.getState().points.length * 1000);
+  useChoreographyStore.getState().pushBuildSteps([p.id]);
+  return p;
+};
+
+const s1 = pushStep(5, 5);
+assert(
+  useChoreographyStore.getState().buildSteps.length === 1,
+  'Retroceder: un solo paso creado'
+);
+assert(
+  useChoreographyStore.getState().retrocederBuildStep() === false,
+  'Retroceder: deshabilitado con un único paso (no se baja del primero)'
+);
+assert(
+  useChoreographyStore.getState().points.some((p) => p.id === s1.id),
+  'Retroceder: el primer paso NO se elimina'
+);
+
+const s2 = pushStep(10, 10);
+const s3 = pushStep(15, 10);
+const s4 = pushStep(20, 10);
+assert(useChoreographyStore.getState().buildSteps.length === 4, 'Retroceder: 4 pasos acumulados');
+
+assert(useChoreographyStore.getState().retrocederBuildStep() === true, 'Retroceder: quita un paso');
+assert(useChoreographyStore.getState().retrocederBuildStep() === true, 'Retroceder: quita otro paso');
+assert(
+  useChoreographyStore.getState().points.some((p) => p.id === s1.id) &&
+    useChoreographyStore.getState().points.some((p) => p.id === s2.id) &&
+    !useChoreographyStore.getState().points.some((p) => p.id === s3.id) &&
+    !useChoreographyStore.getState().points.some((p) => p.id === s4.id),
+  'Retroceder: tras 2 retrocesos quedan los 2 primeros pasos'
+);
+assert(useChoreographyStore.getState().buildSteps.length === 2, 'Retroceder: la pila queda en 2');
+assert(
+  useChoreographyStore.getState().retrocederBuildStep() === true &&
+    useChoreographyStore.getState().points.length === 1,
+  'Retroceder: puede bajar hasta el primer paso (queda 1)'
+);
+assert(
+  useChoreographyStore.getState().retrocederBuildStep() === false &&
+    useChoreographyStore.getState().points.length === 1,
+  'Retroceder: en el límite (primer paso) no corrompe datos; el botón queda deshabilitado'
+);
+
 console.log('\nResultado: todas las pruebas del Store Audio-First pasaron con éxito.\n');
 

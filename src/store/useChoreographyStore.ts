@@ -80,6 +80,16 @@ export interface ChoreographyStoreState {
   clearAllPoints: () => void;
   straightenSegment: (id: string) => void;
 
+  /**
+   * Pila de IDs creados en la CONSTRUCCIÓN actual (no persistida). Permite
+   * «Retroceder» el último paso del trazado sin recurrir al undo global.
+   */
+  buildSteps: string[];
+  pushBuildSteps: (ids: string[]) => void;
+  clearBuildSteps: () => void;
+  /** Quita el último paso de la construcción. false si no hay nada que quitar. */
+  retrocederBuildStep: () => boolean;
+
   // Visualización y Trazado Dinámico
   showFullTrailOverride: boolean;
   setShowFullTrailOverride: (show: boolean) => void;
@@ -212,6 +222,7 @@ export function applySmartNodeNumber(
 export const useChoreographyStore = create<ChoreographyStoreState>((set, get) => ({
   points: [],
   selectedPointId: null,
+  buildSteps: [],
   skaterGender: 'female',
   phase: 'plot',
   showControlHandles: true,
@@ -301,7 +312,8 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
       set({
         points: [],
         selectedPointId: null,
-        phase: 'plot'
+        phase: 'plot',
+        buildSteps: []
       });
       return;
     }
@@ -309,7 +321,9 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
     set({
       points: normalized,
       selectedPointId: normalized[0].id,
-      phase: 'plot'
+      phase: 'plot',
+      // Cargar un programa reinicia la construcción (no hay pasos «retrocedibles»).
+      buildSteps: []
     });
   },
 
@@ -602,6 +616,28 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
     });
   },
 
+  pushBuildSteps: (ids) => {
+    if (ids.length === 0) return;
+    set((s) => ({ buildSteps: [...s.buildSteps, ...ids] }));
+  },
+
+  clearBuildSteps: () => set({ buildSteps: [] }),
+
+  retrocederBuildStep: () => {
+    const { buildSteps, points } = get();
+    // No se puede retroceder por debajo del primer paso de la construcción.
+    if (buildSteps.length < 2) return false;
+
+    const lastId = buildSteps[buildSteps.length - 1];
+    const existsInBuild = points.some((p) => p.id === lastId);
+    // La pila puede quedar desincronizada tras un undo/redo: se descarta el paso.
+    set({ buildSteps: buildSteps.slice(0, -1) });
+    if (!existsInBuild) return false;
+
+    get().deletePoint(lastId);
+    return true;
+  },
+
   clearAllPoints: () => {
     const { pushHistory } = get();
     pushHistory();
@@ -609,6 +645,7 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
       points: [],
       selectedPointId: null,
       phase: 'plot',
+      buildSteps: [],
       // Limpiar también la bandeja de nodos pendientes del escáner: si no, quedaba
       // un nodo "fantasma" pendiente que parecía no haberse borrado.
       unplacedNodes: [],

@@ -285,6 +285,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
   const setShowControlHandles = useChoreographyStore((state) => state.setShowControlHandles);
   const setShowRinkGrid = useChoreographyStore((state) => state.setShowRinkGrid);
   const addPointAtCanvas = useChoreographyStore((state) => state.addPointAtCanvas);
+  const pushBuildSteps = useChoreographyStore((state) => state.pushBuildSteps);
   const updateSegmentControlPoints = useChoreographyStore((state) => state.updateSegmentControlPoints);
   const updatePointMetadata = useChoreographyStore((state) => state.updatePointMetadata);
   const deletePoint = useChoreographyStore((state) => state.deletePoint);
@@ -1500,7 +1501,10 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
           setSelectedPointId(stamped[1].id);
         }
 
+        // Registrar los nodos creados por ESTE trazo para poder «Retroceder».
+        const existingIds = new Set(points.map((p) => p.id));
         commitPoints(finalPoints);
+        pushBuildSteps(finalPoints.filter((p) => !existingIds.has(p.id)).map((p) => p.id));
         if (finalPoints.length >= 2) {
           setPhase('curve');
         }
@@ -1586,6 +1590,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
             const liveMs = audioEngine.getCurrentTimeMs();
             const newTime = liveMs > 0 ? liveMs : (sorted.length === 0 ? 0 : lastTime + 3000);
             const newPt = addPointAtCanvas(mX, mY, newTime);
+            pushBuildSteps([newPt.id]);
             setSelectedPointId(newPt.id);
             renderFrame();
           } else {
@@ -1695,6 +1700,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       const liveMs = audioEngine.getCurrentTimeMs();
       const newTime = liveMs > 0 ? liveMs : lastTime + 10000;
       const newPt = addPointAtCanvas(mX, mY, newTime);
+      pushBuildSteps([newPt.id]);
       setSelectedPointId(newPt.id);
       onNodeSelect?.(newPt.id);
       renderFrame();
