@@ -453,6 +453,9 @@ export class AudioEngine {
           // siendo absoluto (se reaplica bus + estado).
           this.applyBusMutes();
           if (this.metronomeMuted) this.metronome.setMuted(true);
+          // Reasserta también el arbitraje de fuentes rítmicas: tras volver del
+          // segundo plano (habitual en móvil) no puede quedar una segunda fuente.
+          this.syncRhythmSources();
         }
       });
     }
@@ -624,6 +627,22 @@ export class AudioEngine {
    * y el Estudio: el habilitado lógico, el planificador y el GainNode del
    * sub-bus. Es el método que deben usar ambos controles de la interfaz.
    */
+  /**
+   * Arbitraje ÚNICO de las fuentes rítmicas de la app.
+   *
+   * En SkateCoreo solo puede sonar UNA fuente rítmica por vez: o el metrónomo, o
+   * los "cue ticks" de la Voz Guía. Antes esta decisión se calculaba en dos
+   * sitios independientes (`setMetronomeAudible` y `beginPlaybackAt`), lo que
+   * permitía que ambos ritmos coincidieran si una ruta quedaba desincronizada
+   * (escenario típico en móvil/tablet, con más puntos de entrada). Ahora hay una
+   * sola función; los cue ticks SOLO se habilitan con el metrónomo completamente
+   * apagado (OFF) y sin silenciar. MUTE = silencio total (tampoco cue ticks).
+   */
+  private syncRhythmSources() {
+    const metronomeOff = !this.metronome.getConfig().enabled;
+    this.voiceCueEngine.setCueTicksEnabled(metronomeOff && !this.metronomeMuted);
+  }
+
   public setMetronomeAudible(audible: boolean) {
     this.metronomeMuted = !audible;
     this.metronome.setEnabled(audible);
@@ -633,8 +652,7 @@ export class AudioEngine {
     if (!audible) {
       this.metronome.suspend();
     }
-    const metronomeOff = !this.metronome.getConfig().enabled;
-    this.voiceCueEngine.setCueTicksEnabled(metronomeOff && !this.metronomeMuted);
+    this.syncRhythmSources();
     this.applyBusMutes();
     if (AUDIO_DEBUG) {
       console.debug(
@@ -663,6 +681,15 @@ export class AudioEngine {
 
   public isMetronomeMuted(): boolean {
     return this.metronomeMuted;
+  }
+
+  /**
+   * Nº de instancias vivas del metrónomo. Invariante de arquitectura: debe ser
+   * SIEMPRE 1 (un único motor central para Desktop, Tablet y Mobile). Se expone
+   * para diagnóstico y para los tests de no-duplicación.
+   */
+  public getMetronomeInstanceCount(): number {
+    return Metronome.getLiveInstanceCount();
   }
 
   public isVoiceGuideMuted(): boolean {
@@ -1438,11 +1465,9 @@ export class AudioEngine {
     if (this.playbackDomain === 'rink') {
       this.metronome.start(clampedOffsetSec, this.playbackRate, whenCtxTime);
       // UNA SOLA FUENTE RÍTMICA: los "cue ticks" son un acento corto de la Voz
-      // Guía que podía percibirse como un SEGUNDO metrónomo. Solo se permiten si
-      // el usuario APAGÓ el metrónomo por completo (no si lo muteó): así MUTE =
-      // silencio total y no queda ningún click de fondo.
-      const metronomeOff = !this.metronome.getConfig().enabled;
-      this.voiceCueEngine.setCueTicksEnabled(metronomeOff && !this.metronomeMuted);
+      // Guía que podía percibirse como un SEGUNDO metrónomo. El arbitraje vive en
+      // `syncRhythmSources()` (única fuente de verdad, compartida con el mute).
+      this.syncRhythmSources();
       this.voiceCueEngine.resetTriggeredCues(offsetMs);
       this.voiceCueEngine.startSync(
         whenCtxTime - clampedOffsetSec / this.playbackRate,
@@ -1454,6 +1479,7 @@ export class AudioEngine {
       // Pista 2D: así los metrónomos/voces de cada vista no se mezclan.
       this.metronome.start(clampedOffsetSec, this.playbackRate, whenCtxTime);
       this.voiceCueEngine.stop();
+      this.syncRhythmSources();
     }
 
     this.mediaSession.updatePlaybackState(true);
@@ -1875,6 +1901,14 @@ export class AudioEngine {
   private lastTimeEmitMs = 0;
 
   private startTracking() {
+    // IDEMPOTENTE: cancela cualquier bucle previo antes de arrancar uno nuevo.
+    // Antes, cada `executePlay` (play, seek durante reproducción o re-entrada de
+    // dominio) encolaba un `requestAnimationFrame` adicional SIN cancelar el
+    // anterior: `stopTracking()` solo podía parar el último, dejando bucles
+    // huérfanos que seguían evaluando los cues en cada frame (posible doble
+    // pulso y gasto de batería en móvil/tablet).
+    this.stopTracking();
+
     const loop = () => {
       if (this.isPlaying) {
         const time = this.getCurrentTimeMs();

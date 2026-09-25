@@ -224,11 +224,12 @@ export class VoiceCueEngine {
   /**
    * Ticks de acento de los cues (los "beeps" cortos que acompañan a cada aviso).
    *
-   * Cuando el metrónomo está sonando se DESACTIVAN desde `AudioEngine`: así
-   * NUNCA se escuchan dos fuentes rítmicas a la vez (el "doble metrónomo").
-   * Con el metrónomo apagado se mantienen como refuerzo sutil del aviso.
+   * SEGURO POR DEFECTO: arrancan DESACTIVADOS. `AudioEngine.syncRhythmSources()`
+   * es el ÚNICO sitio que los habilita, y solo cuando el metrónomo está
+   * completamente apagado (OFF) y sin silenciar. Así ninguna ruta de arranque
+   * puede dejar sonando dos fuentes rítmicas a la vez (el "doble metrónomo").
    */
-  private cueTicksEnabled = true;
+  private cueTicksEnabled = false;
 
   /** Activa/desactiva los beeps de acento de los cues (no afecta a la voz). */
   public setCueTicksEnabled(enabled: boolean) {
