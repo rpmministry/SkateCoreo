@@ -14,7 +14,10 @@ import {
   Sliders,
   Undo2,
   SkipBack,
+  Trash2,
 } from 'lucide-react';
+import { ConfirmDialog } from './ConfirmDialog';
+import { dbService } from '../services/db';
 import { useAudioZoomPan } from '../hooks/useAudioZoomPan';
 import { usePlayheadSync } from '../hooks/usePlayheadSync';
 import { createTimelineGeometry } from '../core/audio/timeline/AudioTimelineGeometry';
@@ -174,6 +177,19 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
   // espejo dejaba el botón `disabled` (pointer-events:none) y el toque "no hacía
   // nada". Se combinan ambos para no depender de un único origen.
   const canOpenStudio = !!publishedAudio || !!audioEngine.getPublishedAudio().buffer;
+  const [showDeleteAudioConfirm, setShowDeleteAudioConfirm] = useState(false);
+
+  const handleDeleteAudio = async () => {
+    setShowDeleteAudioConfirm(false);
+    audioEngine.clearRinkAudio();
+    useRinkAudioStore.getState().clear();
+    setWavePeaks([]);
+    try {
+      await dbService.clearOfflineAudio();
+    } catch (e) {
+      console.warn('No se pudo limpiar el audio offline de IndexedDB:', e);
+    }
+  };
 
   useEffect(() => {
     const updatePeaks = () => {
@@ -623,6 +639,20 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
             </button>
           )}
 
+          {/* Botón Borrar Pista de Audio de la Pista 2D */}
+          {canOpenStudio && (
+            <button
+              type="button"
+              onClick={() => setShowDeleteAudioConfirm(true)}
+              className="press flex min-h-touch items-center justify-center gap-1.5 rounded-subtle border border-rose-500/30 bg-rose-500/10 px-2.5 font-sans text-[11px] font-bold text-rose-400 hover:bg-rose-500/20 sm:px-3"
+              title="Borrar la pista de audio cargada en la Pista 2D"
+              aria-label="Borrar pista de audio"
+            >
+              <Trash2 className="h-3.5 w-3.5 shrink-0" />
+              <span>Borrar pista</span>
+            </button>
+          )}
+
           {/* Botón Desplegable Mini-Mezclador (volúmenes de la Pista 2D) */}
           <button
             type="button"
@@ -834,6 +864,18 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
       <RinkAudioMixerDrawer
         isOpen={isMiniMixerOpen}
         onClose={() => setIsMiniMixerOpen(false)}
+      />
+
+      {/* Modal de confirmación para Borrar Pista de Audio */}
+      <ConfirmDialog
+        isOpen={showDeleteAudioConfirm}
+        title="¿Borrar pista de audio?"
+        message="Se eliminará la pista musical cargada en la Pista 2D y se detendrá la reproducción. Las pistas del Estudio de Audio no se verán afectadas."
+        confirmLabel="Borrar pista"
+        cancelLabel="Cancelar"
+        tone="danger"
+        onConfirm={handleDeleteAudio}
+        onCancel={() => setShowDeleteAudioConfirm(false)}
       />
     </div>
   );

@@ -262,9 +262,11 @@ export function App() {
     try {
       const offlineRecord = await dbService.getOfflineSession();
       if (offlineRecord && !audioEngine.getState().hasAudioLoaded) {
-        await audioEngine.loadAudioFile(offlineRecord.audioBlob, offlineRecord.audioFileName);
-        // Importación DIRECTA a la Pista 2D → publica como 'direct-file' del Rink.
-        useRinkAudioStore.getState().syncFromEngine();
+        if (offlineRecord.audioBlob && offlineRecord.audioBlob.size > 0) {
+          await audioEngine.loadAudioFile(offlineRecord.audioBlob, offlineRecord.audioFileName);
+          // Importación DIRECTA a la Pista 2D → publica como 'direct-file' del Rink.
+          useRinkAudioStore.getState().syncFromEngine();
+        }
         if (offlineRecord.points && offlineRecord.points.length > 0) {
           loadProgramPoints(offlineRecord.points);
         }
@@ -283,16 +285,25 @@ export function App() {
     return () => { u1(); u2(); };
   }, []);
 
-  // ── Handoff de dominio: al entrar al Estudio se detiene TODA la Pista 2D ──
-  // (música + metrónomo + voces guía) y el dominio pasa al Estudio. Al volver,
-  // se restaura el dominio del Rink. Centraliza todos los puntos de entrada.
+  // ── Silencio absoluto entre secciones y handoff de dominio ──
+  // Al cambiar de sección (home ↔ rink ↔ studio) se detiene INMEDIATAMENTE
+  // cualquier reproducción activa, osciladores de metrónomo, pre-roll y voces guía.
   useEffect(() => {
+    audioEngine.stop();
     if (activeView === 'studio') {
       audioEngine.handoffToStudio();
     } else {
       audioEngine.setPlaybackDomain('rink');
     }
   }, [activeView]);
+
+  // ── Conexión EXPLÍCITA Pista 2D → Estudio de Audio ──
+  // Ocurre ÚNICAMENTE cuando el usuario pulsa «Editar mezcla en Estudio».
+  // Prepara el snapshot del audio publicado + marcadores hacia el Estudio y abre la vista.
+  const handleEditMixInStudio = useCallback(() => {
+    prepareStudioSnapshot();
+    startTransition(() => setActiveView('studio'));
+  }, [prepareStudioSnapshot]);
 
   // ── Gesto Edge-Swipe para transicionar a Estudio de Audio desde la Pista 2D ──
   useEffect(() => {
@@ -321,8 +332,7 @@ export function App() {
 
       if (isSwipeLeft || isSwipeUp) {
         if ('vibrate' in navigator) navigator.vibrate(15);
-        // Misma operación central que el botón: snapshot antes de abrir el Estudio.
-        prepareStudioSnapshot();
+        // Navegación pura sin transferencia automática (separación de espacios)
         setActiveView('studio');
       }
       isEdgeSwipe = false;
@@ -334,7 +344,7 @@ export function App() {
       window.removeEventListener('touchstart', handleTouchStart);
       window.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [activeView, prepareStudioSnapshot]);
+  }, [activeView]);
 
   // ── Handlers ──────────────────────────────────────────
   const handleSelectSkater = async (skater: Skater) => {
@@ -612,13 +622,12 @@ export function App() {
     setDrawerOpen(false);
     setSheetOpen(false);
     useChoreographyStore.getState().setSelectedPointId(null);
-    // Al abrir el Estudio, SIEMPRE se prepara el snapshot publicado (misma
-    // operación central para móvil, tablet y escritorio) antes de navegar.
-    if (tab === 'studio') prepareStudioSnapshot();
+    // Navegación limpia e independiente: abrir el Estudio NO debe volcar ni
+    // duplicar la música de la Pista 2D. La transferencia solo ocurre con «Editar mezcla».
     // Cambio de vista como transición: el montaje del lienzo pesado no bloquea
     // la respuesta táctil del sistema en WebKit.
     startTransition(() => setActiveView(tab));
-  }, [prepareStudioSnapshot]);
+  }, []);
 
   // El digitalizador solicita volver a la Pista 2D al terminar (sin diálogos
   // bloqueantes). Este listener garantiza la navegación inmediata.
@@ -720,7 +729,7 @@ export function App() {
 
         {/* ── DERECHA: Transporte maestro + carga de audio + desbordamiento ── */}
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2 lg:min-w-0 lg:justify-self-end">
-          {activeView === 'rink' && (
+          {activeView === 'rink' && hasDockedInspector && (
             <div className="hidden lg:flex">
               <RinkAudioPlayer
                 variant="header"
@@ -941,12 +950,14 @@ export function App() {
             {/* ── DESKTOP LEFT ASIDE (Preparación y Mezcla) ──
                 En tablet ≥7" también se muestra (panel real, no cajón). */}
             <aside className="fm-desktop-flex fm-tablet-w-left hidden lg:flex lg:w-[272px] xl:w-[288px] shrink-0 flex-col bg-neon-surface border-r border-white/5 overflow-hidden shadow-soft-elevation">
-              <LeftSidebarPanel
-                preRollSec={preRollSec}
-                onPreRollSecChange={handlePreRollSecChange}
-                onClearRink={requestClearRink}
-                onLogout={handleLogout}
-              />
+              {hasDockedInspector && (
+                <LeftSidebarPanel
+                  preRollSec={preRollSec}
+                  onPreRollSecChange={handlePreRollSecChange}
+                  onClearRink={requestClearRink}
+                  onLogout={handleLogout}
+                />
+              )}
             </aside>
 
         {/* ── CENTER WORKSPACE: 2D Rink Canvas + Waveform Timeline ── */}
@@ -981,17 +992,19 @@ export function App() {
           <div className="landscape-audio-dock audio-dock shrink-0 border-t border-white/5 pb-safe bg-neon-surface/30">
 
             {/* Transporte compacto (en desktop lo reemplaza el del header) */}
-            <div className="shrink-0 flex items-center border-b border-white/5 bg-neon-surface/60 px-2 py-1.5 pl-safe pr-safe lg:hidden">
-              <RinkAudioPlayer
-                variant="compact"
-                currentTimeMs={currentTimeMs}
-                durationMs={audioState.durationMs || 240000}
-                isPlaying={isAudioActive}
-                hasAudioLoaded={audioState.hasAudioLoaded}
-                fileName={audioState.fileName}
-                sourceKind={audioState.sourceKind}
-              />
-            </div>
+            {activeView === 'rink' && !hasDockedInspector && (
+              <div className="shrink-0 flex items-center border-b border-white/5 bg-neon-surface/60 px-2 py-1.5 pl-safe pr-safe lg:hidden">
+                <RinkAudioPlayer
+                  variant="compact"
+                  currentTimeMs={currentTimeMs}
+                  durationMs={audioState.durationMs || 240000}
+                  isPlaying={isAudioActive}
+                  hasAudioLoaded={audioState.hasAudioLoaded}
+                  fileName={audioState.fileName}
+                  sourceKind={audioState.sourceKind}
+                />
+              </div>
+            )}
 
             {/* Waveform Timeline — min-height suficiente para que el header del
                 visor + la pista de onda + los marcadores quepan sin recortes. */}
@@ -1002,7 +1015,7 @@ export function App() {
                 isPlaying={isAudioActive}
                 onSeek={(ms) => audioEngine.seek(ms)}
                 fileName={audioState.fileName}
-                onOpenStudio={() => handleNav('studio')}
+                onOpenStudio={handleEditMixInStudio}
                 onUndo={handleUndo}
               />
             </div>
@@ -1011,7 +1024,9 @@ export function App() {
 
         {/* ── DESKTOP RIGHT ASIDE (Inspector de Nodo) ── */}
         <aside className="fm-desktop-flex fm-tablet-w-right hidden lg:flex lg:w-[272px] xl:w-[288px] shrink-0 flex-col bg-neon-surface border-l border-white/5 overflow-hidden shadow-soft-elevation">
-          <RightInspectorPanel onClose={() => useChoreographyStore.getState().setSelectedPointId(null)} />
+          {hasDockedInspector && (
+            <RightInspectorPanel onClose={() => useChoreographyStore.getState().setSelectedPointId(null)} />
+          )}
         </aside>
 
 
@@ -1093,14 +1108,16 @@ export function App() {
             onPointerMove={(e) => e.stopPropagation()}
             onPointerUp={(e) => e.stopPropagation()}
           >
-            <RightInspectorPanel
-              showHeader={false}
-              isMobileModal={true}
-              onClose={() => {
-                setSheetOpen(false);
-                useChoreographyStore.getState().setSelectedPointId(null);
-              }}
-            />
+            {sheetOpen && (
+              <RightInspectorPanel
+                showHeader={false}
+                isMobileModal={true}
+                onClose={() => {
+                  setSheetOpen(false);
+                  useChoreographyStore.getState().setSelectedPointId(null);
+                }}
+              />
+            )}
           </div>
         </div>
 
@@ -1202,14 +1219,16 @@ export function App() {
           onPointerMove={(e) => e.stopPropagation()}
           onPointerUp={(e) => e.stopPropagation()}
         >
-          <LeftSidebarPanel
-            preRollSec={preRollSec}
-            onPreRollSecChange={handlePreRollSecChange}
-            onClearRink={requestClearRink}
-            onLogout={handleLogout}
-            showHeader={false}
-            isMobileModal={true}
-          />
+            {drawerOpen && (
+              <LeftSidebarPanel
+                preRollSec={preRollSec}
+                onPreRollSecChange={handlePreRollSecChange}
+                onClearRink={requestClearRink}
+                onLogout={handleLogout}
+                showHeader={false}
+                isMobileModal={true}
+              />
+            )}
         </div>
       </div>
 

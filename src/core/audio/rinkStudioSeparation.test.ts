@@ -144,4 +144,78 @@ assert(
   'El Estudio recibe EXACTAMENTE el buffer publicado (misma referencia, sin duplicar PCM)'
 );
 
+// ── REGRESIÓN DE BORRADO INDEPENDIENTE (clearRinkAudio vs clearStudioAudio) ──
+// 1. Cargar buffers en ambos dominios
+audioEngine.setPlaybackDomain('studio');
+const persistentStudioBuffer = fakeBuffer(0.95);
+audioEngine.setAudioBuffer(persistentStudioBuffer, 'studio_work.wav', false, 'studio-mix');
+assert(audioEngine.getAudioBuffer('studio') === persistentStudioBuffer, 'Buffer de studio cargado');
+
+audioEngine.setPlaybackDomain('rink');
+const persistentRinkBuffer = fakeBuffer(0.45);
+audioEngine.publishRinkAudio(persistentRinkBuffer, 'rink_show.wav', 'file');
+useRinkAudioStore.getState().syncFromEngine();
+assert(audioEngine.getAudioBuffer('rink') === persistentRinkBuffer, 'Buffer de rink publicado');
+
+// 2. clearRinkAudio(): borra Rink sin tocar Studio
+audioEngine.clearRinkAudio();
+useRinkAudioStore.getState().syncFromEngine();
+assert(audioEngine.getAudioBuffer('rink') === null, 'clearRinkAudio elimina el buffer del Rink');
+assert(audioEngine.getPublishedAudio().buffer === null, 'clearRinkAudio elimina la publicación del Rink');
+assert(useRinkAudioStore.getState().publishedAudio === null, 'clearRinkAudio limpia el store reactivo de Rink');
+assert(
+  audioEngine.getAudioBuffer('studio') === persistentStudioBuffer,
+  'clearRinkAudio NO toca el buffer ni la sesión del Studio'
+);
+
+// 3. Restaurar Rink y verificar clearStudioAudio(): borra Studio sin tocar Rink
+audioEngine.publishRinkAudio(persistentRinkBuffer, 'rink_restored.wav', 'file');
+useRinkAudioStore.getState().syncFromEngine();
+assert(audioEngine.getAudioBuffer('rink') === persistentRinkBuffer, 'Rink restaurado');
+
+audioEngine.clearStudioAudio();
+assert(audioEngine.getAudioBuffer('studio') === null, 'clearStudioAudio elimina el buffer del Studio');
+assert(
+  audioEngine.getAudioBuffer('rink') === persistentRinkBuffer,
+  'clearStudioAudio NO toca el buffer del Rink'
+);
+assert(
+  audioEngine.getPublishedAudio().buffer === persistentRinkBuffer,
+  'clearStudioAudio NO toca la publicación del Rink'
+);
+
+// 4. clearAllStudioTracks(): limpia pistas y clips del Studio sin afectar el Rink
+const dummyClip = {
+  id: 'c1',
+  name: 'Clip',
+  buffer: persistentStudioBuffer,
+  startOffsetSec: 0,
+  trimStartSec: 0,
+  trimEndSec: 1,
+  fadeInSec: 0,
+  fadeOutSec: 0,
+  gain: 1,
+};
+useAudioStudioStore.setState((s) => ({
+  tracks: {
+    ...s.tracks,
+    music: { ...s.tracks.music, buffer: persistentStudioBuffer, clips: [dummyClip], fileName: 'm.wav' },
+    voice: { ...s.tracks.voice, clips: [dummyClip] },
+  },
+  additionalTracks: [{ id: 't2', name: 'Extra', volume: 1, pan: 0, mute: false, solo: false, clips: [] }] as any,
+}));
+useRinkAudioStore.getState().markStudioDirty(true);
+
+useAudioStudioStore.getState().clearAllStudioTracks();
+const studioStateAfterClear = useAudioStudioStore.getState();
+assert(studioStateAfterClear.tracks.music.buffer === null, 'clearAllStudioTracks limpia el buffer de música');
+assert(studioStateAfterClear.tracks.music.clips.length === 0, 'clearAllStudioTracks limpia clips de música');
+assert(studioStateAfterClear.tracks.voice.clips.length === 0, 'clearAllStudioTracks limpia clips de voz');
+assert(studioStateAfterClear.additionalTracks.length === 0, 'clearAllStudioTracks limpia additionalTracks');
+assert(useRinkAudioStore.getState().studioDirty === false, 'clearAllStudioTracks restablece studioDirty a false');
+assert(
+  audioEngine.getPublishedAudio().buffer === persistentRinkBuffer,
+  'clearAllStudioTracks deja intacto el audio publicado en la Pista 2D'
+);
+
 console.log(`\nTODAS LAS PRUEBAS DE SEPARACIÓN PASARON: ${total}/${total}`);

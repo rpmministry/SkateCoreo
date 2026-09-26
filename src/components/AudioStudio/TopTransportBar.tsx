@@ -12,8 +12,10 @@ import {
   Magnet,
   FileEdit,
   Music,
-  X
+  X,
+  Trash2
 } from 'lucide-react';
+import { ConfirmDialog } from '../ConfirmDialog';
 import { useAudioStudioStore } from '../../store/useAudioStudioStore';
 import { useRinkAudioStore } from '../../store/useRinkAudioStore';
 import { ACCEPTED_AUDIO_FORMATS } from '../../constants/mediaFormats';
@@ -63,6 +65,8 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
   const [showNotesModal, setShowNotesModal] = useState(false);
   const [notesText, setNotesText] = useState('');
   const loadPublishedIntoStudio = useAudioStudioStore((s) => s.loadPublishedIntoStudio);
+  const clearAllStudioTracks = useAudioStudioStore((s) => s.clearAllStudioTracks);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   // Estado DRAFT → PUBLISH: el Studio es un borrador hasta "Enviar a Pista 2D".
   const studioDirty = useRinkAudioStore((s) => s.studioDirty);
   const hasPublishedAudio = useRinkAudioStore((s) => !!s.publishedAudio);
@@ -213,6 +217,18 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
             className="hidden"
             onChange={handleFileChange}
           />
+
+          {/* Botón Limpiar Pistas del Estudio */}
+          <button
+            type="button"
+            onClick={() => setShowClearConfirm(true)}
+            className="h-10 min-h-touch px-3 rounded-full flex items-center gap-1.5 bg-white/5 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 text-xs font-bold border border-white/10 hover:border-rose-500/40 transition-all active:scale-95 shadow-sm"
+            title="Eliminar todas las pistas y clips del Estudio de Audio"
+            aria-label="Limpiar pistas"
+          >
+            <Trash2 className="w-4 h-4 text-rose-400" />
+            <span className="hidden sm:inline">Limpiar pistas</span>
+          </button>
 
           {/* Estado DRAFT → PUBLISH (indicador mínimo, lenguaje visual actual) */}
           <div className="hidden md:flex items-center gap-1.5 mr-1">
@@ -452,6 +468,21 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
           </div>
         </div>
       )}
+
+      {/* Modal de confirmación para Limpiar Pistas del Estudio */}
+      <ConfirmDialog
+        isOpen={showClearConfirm}
+        title="¿Limpiar todas las pistas del Estudio?"
+        message="Se eliminarán todas las pistas, clips y marcadores del Estudio de Audio. La música activa de la Pista 2D no se verá afectada."
+        confirmLabel="Limpiar pistas"
+        cancelLabel="Cancelar"
+        tone="danger"
+        onConfirm={() => {
+          setShowClearConfirm(false);
+          clearAllStudioTracks();
+        }}
+        onCancel={() => setShowClearConfirm(false)}
+      />
     </>
   );
 };

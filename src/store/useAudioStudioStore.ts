@@ -124,6 +124,8 @@ export interface AudioStudioStoreState {
   // Acciones de Pistas Libres Dinámicas (hasta 4 pistas adicionales)
   addAudioTrack: (name?: string, buffer?: AudioBuffer, fileName?: string) => AudioStudioTrack;
   removeAudioTrack: (id: string) => void;
+  /** Limpia TODAS las pistas, clips y nodos pertenecientes exclusivamente al Estudio de Audio. */
+  clearAllStudioTracks: () => void;
 
   // Marcadores de tiempo (Nodos sin coordenadas espaciales)
   audioNodes: AudioTimeNode[];
@@ -1764,6 +1766,49 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         selectedNodeId: state.selectedNodeId === id ? null : state.selectedNodeId,
       };
     });
+  },
+
+  clearAllStudioTracks: () => {
+    audioEngine.clearStudioAudio();
+    const freshTracks = {
+      music: {
+        ...initialTracks.music,
+        clips: [],
+        buffer: null,
+        fileName: null,
+      },
+      voice: {
+        ...initialTracks.voice,
+        clips: [],
+        buffer: null,
+        fileName: null,
+      },
+      metronome: {
+        ...initialTracks.metronome,
+        clips: [],
+        buffer: null,
+      },
+      recording: {
+        ...initialTracks.recording,
+        clips: [],
+        buffer: null,
+        fileName: null,
+      },
+    };
+    set({
+      tracks: freshTracks,
+      additionalTracks: [],
+      audioNodes: [],
+      selectedClipId: null,
+      selectedNodeId: null,
+      currentTimeSec: 0,
+      isPlaying: false,
+      totalDurationSec: 30,
+      mixManifest: buildManifest(freshTracks, [], get().globalControls, 30),
+      contextMenu: null,
+      trashDrag: { active: false, trackId: null, clipId: null, overTrash: false },
+    });
+    useRinkAudioStore.getState().markStudioDirty(false);
   },
 
   clearTimeNodes: () => {

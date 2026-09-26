@@ -639,8 +639,9 @@ export class AudioEngine {
    * apagado (OFF) y sin silenciar. MUTE = silencio total (tampoco cue ticks).
    */
   private syncRhythmSources() {
-    const metronomeOff = !this.metronome.getConfig().enabled;
-    this.voiceCueEngine.setCueTicksEnabled(metronomeOff && !this.metronomeMuted);
+    // Garantía absoluta: NUNCA activar cue ticks que actúen como un segundo metrónomo.
+    // La Voz Guía solo emite avisos hablados (TTS y banco de voz), nunca beeps rítmicos.
+    this.voiceCueEngine.setCueTicksEnabled(false);
   }
 
   public setMetronomeAudible(audible: boolean) {
@@ -756,7 +757,10 @@ export class AudioEngine {
     this.voiceCueEngine.loadNodes(nodes);
   }
 
-  public getAudioBuffer(): AudioBuffer | null {
+  public getAudioBuffer(domain?: AudioPlaybackDomain): AudioBuffer | null {
+    if (domain) {
+      return this.buffers[domain];
+    }
     return this.audioBuffer;
   }
 
@@ -825,6 +829,50 @@ export class AudioEngine {
     this.pausedAtTime = 0;
     this.mediaSession.updateMetadata('Sin pista');
     this.emitTimeUpdate(0);
+    this.emitStateChange();
+  }
+
+  /**
+   * Elimina EXCLUSIVAMENTE el audio de la Pista 2D (dominio 'rink'),
+   * liberando el buffer y deteniendo la reproducción si pertenecía al Rink.
+   * Deja el Estudio de Audio (dominio 'studio') completamente intacto.
+   */
+  public clearRinkAudio(): void {
+    if (this.playbackDomain === 'rink') {
+      this.stop();
+    }
+    this.buffers.rink = null;
+    this.durations.rink = 0;
+    this.fileNames.rink = null;
+    this.sourceKinds.rink = 'file';
+    this.rawBlob = null;
+    this.rinkRevision++;
+    this.rinkAudioId = `rink-audio-${this.rinkRevision}`;
+    if (this.playbackDomain === 'rink') {
+      this.pausedAtTime = 0;
+      this.mediaSession.updateMetadata('Sin pista');
+      this.emitTimeUpdate(0);
+    }
+    this.emitStateChange();
+  }
+
+  /**
+   * Elimina EXCLUSIVAMENTE el audio del Estudio de Audio (dominio 'studio'),
+   * deteniendo la reproducción si pertenecía al Estudio.
+   * Deja la Pista 2D (dominio 'rink') completamente intacta.
+   */
+  public clearStudioAudio(): void {
+    if (this.playbackDomain === 'studio') {
+      this.stop();
+    }
+    this.buffers.studio = null;
+    this.durations.studio = 0;
+    this.fileNames.studio = null;
+    this.sourceKinds.studio = 'studio-mix';
+    if (this.playbackDomain === 'studio') {
+      this.pausedAtTime = 0;
+      this.emitTimeUpdate(0);
+    }
     this.emitStateChange();
   }
 
