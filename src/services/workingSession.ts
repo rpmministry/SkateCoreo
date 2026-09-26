@@ -17,10 +17,7 @@
  * vacía la sesión de trabajo para que una cuenta nueva arranque en limpio.
  */
 
-import { audioEngine } from '../core/audio/AudioEngine';
-import { dbService } from './db';
-import { useChoreographyStore } from '../store/useChoreographyStore';
-import { useAudioStudioStore } from '../store/useAudioStudioStore';
+import { resetAbsoluteSession } from './sessionLifecycle';
 
 const DATA_OWNER_KEY = 'skatecoreo_data_owner';
 
@@ -46,55 +43,26 @@ export function setDataOwnerId(id: string | null): void {
  * arreglo del Estudio y la sesión offline persistida en IndexedDB.
  */
 export async function clearWorkingSession(): Promise<void> {
-  try {
-    audioEngine.clearAudioBuffer();
-  } catch {
-    /* el motor puede no estar inicializado */
-  }
-
-  try {
-    const choreo = useChoreographyStore.getState();
-    choreo.clearAllPoints();
-    useChoreographyStore.setState({ unplacedNodes: [], activeTrayNodeIndex: 0 });
-  } catch {
-    /* store no disponible */
-  }
-
-  try {
-    useAudioStudioStore.getState().resetStudio();
-  } catch {
-    /* store no disponible */
-  }
-
-  try {
-    await dbService.clearOfflineSession();
-  } catch {
-    /* IndexedDB no disponible */
-  }
+  await resetAbsoluteSession();
 }
 
 /**
  * Asegura que los datos locales pertenecen a la cuenta actual.
  * Devuelve `true` si se realizó una limpieza.
- *
- * NOTA: cuando aún no existía dueño (primera ejecución tras esta mejora) también
- * se limpia la sesión de trabajo. Es seguro: la coreografía guardada vive dentro
- * de cada Programa (`choreography_path`) y se recarga al seleccionarlo; solo se
- * descarta el lienzo/audio sin guardar del usuario anterior.
  */
 export async function ensureDataOwnership(userId: string | null): Promise<boolean> {
   if (!userId) return false;
 
   const owner = getDataOwnerId();
-  if (owner === userId) return false;      // misma cuenta: intacto
+  if (owner === userId) return false; // misma cuenta: intacto
 
-  await clearWorkingSession();
+  await resetAbsoluteSession();
   setDataOwnerId(userId);
-  return true;                             // cuenta nueva/primera vez → limpiado
+  return true; // cuenta nueva/primera vez → limpiado
 }
 
 /** Cierra la propiedad (logout): limpia la sesión de trabajo y su dueño. */
 export async function releaseWorkingSession(): Promise<void> {
-  await clearWorkingSession();
+  await resetAbsoluteSession();
   setDataOwnerId(null);
 }

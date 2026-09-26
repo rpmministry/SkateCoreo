@@ -78,6 +78,8 @@ export interface ChoreographyStoreState {
   swapPointNumber: (id: string, targetNumber: number | null) => void;
   deletePoint: (id: string) => void;
   clearAllPoints: () => void;
+  /** Reset absoluto de la coreografía para nueva sesión o logout (sin historial previo). */
+  resetChoreographyState: () => void;
   straightenSegment: (id: string) => void;
 
   /**
@@ -669,6 +671,19 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
       // un nodo "fantasma" pendiente que parecía no haberse borrado.
       unplacedNodes: [],
       activeTrayNodeIndex: 0,
+    });
+  },
+
+  resetChoreographyState: () => {
+    set({
+      points: [],
+      selectedPointId: null,
+      phase: 'plot',
+      buildSteps: [],
+      unplacedNodes: [],
+      activeTrayNodeIndex: 0,
+      history: [],
+      paperTraceOverlay: null,
     });
   },
 

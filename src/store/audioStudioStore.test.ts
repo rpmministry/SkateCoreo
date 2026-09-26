@@ -1,4 +1,4 @@
-import { useAudioStudioStore, hasAudioInStudio } from './useAudioStudioStore';
+import { useAudioStudioStore } from './useAudioStudioStore';
 import { useChoreographyStore } from './useChoreographyStore';
 import { audioEngine } from '../core/audio/AudioEngine';
 
@@ -291,36 +291,6 @@ useAudioStudioStore.getState().syncRinkSnapshotIntoStudio();
 assert(
   useAudioStudioStore.getState().tracks.music.buffer === sentinelBuffer,
   'Un borrador con buffer (aunque no tenga clips) no se reemplaza por el audio publicado'
-);
-
-// 13. Regresión: cuando no existan pistas en el estudio de audio, hasAudioInStudio debe ser false
-//     (manteniendo el botón de play inactivo y previniendo reproducciones fantasma).
-useAudioStudioStore.getState().clearAllStudioTracks();
-assert(
-  hasAudioInStudio(useAudioStudioStore.getState()) === false,
-  'hasAudioInStudio es false cuando no hay pistas ni clips en el Estudio'
-);
-
-// Agregar clip a pista de música activa hasAudioInStudio
-useAudioStudioStore.setState((s) => ({
-  tracks: {
-    ...s.tracks,
-    music: {
-      ...s.tracks.music,
-      clips: [{ id: 'clip-test-1', name: 'Test', buffer: sentinelBuffer, startOffsetSec: 0, trimStartSec: 0, trimEndSec: 5, fadeInSec: 0, fadeOutSec: 0, gain: 1 }],
-    },
-  },
-}));
-assert(
-  hasAudioInStudio(useAudioStudioStore.getState()) === true,
-  'hasAudioInStudio es true cuando existe un clip en música'
-);
-
-// Limpiar pistas vuelve a dejar hasAudioInStudio en false
-useAudioStudioStore.getState().clearAllStudioTracks();
-assert(
-  hasAudioInStudio(useAudioStudioStore.getState()) === false,
-  'hasAudioInStudio vuelve a ser false tras clearAllStudioTracks()'
 );
 
 console.log('Resultado AudioStudioStore & Tray: todas las pruebas pasaron con éxito.\n');

@@ -31,7 +31,18 @@ import { HomeView } from './components/HomeView';
 import { useIosFileCapture } from './hooks/useIosFileCapture';
 import { useDeviceFormFactor } from './hooks/useDeviceFormFactor';
 import { LoadProgressBar } from './components/LoadProgressBar';
-import { ensureDataOwnership, releaseWorkingSession } from './services/workingSession';
+import { ensureDataOwnership } from './services/workingSession';
+import {
+  initSessionLifecycle,
+  persistActiveSessionSnapshot,
+  terminateSession,
+  resetAbsoluteSession,
+  getSessionSnapshot,
+  setActiveSessionId,
+  generateSessionId,
+  SessionSnapshot,
+} from './services/sessionLifecycle';
+import { SessionRecoveryModal } from './components/SessionRecoveryModal';
 import {
   BottomNav,
   DesktopHeaderNav,
@@ -134,11 +145,19 @@ export function App() {
     void ensureDataOwnership(authUser?.id ?? null);
   }, [authUser?.id]);
 
-  /** Logout con limpieza: no debe quedar la sesión del usuario anterior. */
+  /** Logout con reset absoluto: no debe quedar ningún dato ni estado temporal del usuario. */
   const handleLogout = useCallback(async () => {
-    await releaseWorkingSession();
+    setSelectedSkater(null);
+    setSelectedProgram(null);
+    setPrograms([]);
+    setElements([]);
+    await terminateSession();
     logout();
   }, [logout]);
+
+  // ── Gestión de Recuperación de Sesión ──────────────────────────────
+  const [showRecoveryModal, setShowRecoveryModal] = useState(false);
+  const [pendingSnapshot, setPendingSnapshot] = useState<SessionSnapshot | null>(null);
 
   // ── DB / domain state ──────────────────────────────────
   const [skaters, setSkaters] = useState<Skater[]>([]);
@@ -245,36 +264,131 @@ export function App() {
     // el último atleta/programa ni la pista/auditoría del usuario anterior.
     const hasSession = useAuthStore.getState().hasActiveAccess();
 
-    if (hasSession && allSkaters.length > 0) {
-      const active = allSkaters[0];
-      setSelectedSkater(active);
-      const progs = await dbService.getProgramsBySkater(active.id);
-      setPrograms(progs);
-      if (progs.length > 0) {
-        setSelectedProgram(progs[0]);
-        setElements(await dbService.getElementsByProgram(progs[0].id));
-      }
+    if (!hasSession) {
+      await resetAbsoluteSession();
+      setSelectedSkater(null);
+      setSelectedProgram(null);
+      setPrograms([]);
+      setElements([]);
+      return;
     }
 
-    if (!hasSession) return;
+    // Inicializar y auditar ciclo de vida de sesión
+    const sessionResult = await initSessionLifecycle(authUser?.id ?? null);
 
-    // Auto-recuperar sesión sin conexión de IndexedDB si no hay audio cargado
+    if (sessionResult.type === 'existing-active') {
+      // Recarga de pestaña activa (F5 / cambio de orientación / resize responsive):
+      // Preservamos el trabajo sin pérdida para el usuario.
+      if (allSkaters.length > 0) {
+        const snapshot = getSessionSnapshot();
+        const skaterToSelect = allSkaters.find((s) => s.id === snapshot?.selectedSkaterId) || allSkaters[0];
+        setSelectedSkater(skaterToSelect);
+        const progs = await dbService.getProgramsBySkater(skaterToSelect.id);
+        setPrograms(progs);
+        if (snapshot?.selectedProgramId) {
+          const prog = progs.find((p) => p.id === snapshot.selectedProgramId);
+          if (prog) {
+            setSelectedProgram(prog);
+            setElements(await dbService.getElementsByProgram(prog.id));
+          }
+        }
+      }
+
+      // Restaurar audio y puntos de la sesión activa en el mismo tab
+      try {
+        const offlineRecord = await dbService.getOfflineSession();
+        if (offlineRecord && !audioEngine.getState().hasAudioLoaded) {
+          if (offlineRecord.audioBlob && offlineRecord.audioBlob.size > 0) {
+            await audioEngine.loadAudioFile(offlineRecord.audioBlob, offlineRecord.audioFileName);
+            useRinkAudioStore.getState().syncFromEngine();
+          }
+          if (offlineRecord.points && offlineRecord.points.length > 0) {
+            loadProgramPoints(offlineRecord.points);
+          }
+        }
+      } catch (e) {
+        console.warn('No se pudo restaurar la sesión offline de IndexedDB:', e);
+      }
+    } else if (sessionResult.type === 'unclosed-detected') {
+      // Se detectó trabajo previo no cerrado. Ofrecemos recuperación controlada.
+      setPendingSnapshot(sessionResult.snapshot);
+      setShowRecoveryModal(true);
+      if (allSkaters.length > 0) {
+        const skaterToSelect = allSkaters.find((s) => s.id === sessionResult.snapshot.selectedSkaterId) || allSkaters[0];
+        setSelectedSkater(skaterToSelect);
+        const progs = await dbService.getProgramsBySkater(skaterToSelect.id);
+        setPrograms(progs);
+      }
+    } else {
+      // 'clean-new': Sesión 100% limpia.
+      // El usuario empieza con un lienzo en blanco (cero nodos, cero audios residuales).
+      if (allSkaters.length > 0) {
+        setSelectedSkater(allSkaters[0]);
+        const progs = await dbService.getProgramsBySkater(allSkaters[0].id);
+        setPrograms(progs);
+        setSelectedProgram(null);
+        setElements([]);
+      }
+    }
+  }, [authUser?.id, loadProgramPoints]);
+
+  const handleRecoverSession = useCallback(async () => {
+    setShowRecoveryModal(false);
     try {
       const offlineRecord = await dbService.getOfflineSession();
-      if (offlineRecord && !audioEngine.getState().hasAudioLoaded) {
+      if (offlineRecord) {
         if (offlineRecord.audioBlob && offlineRecord.audioBlob.size > 0) {
           await audioEngine.loadAudioFile(offlineRecord.audioBlob, offlineRecord.audioFileName);
-          // Importación DIRECTA a la Pista 2D → publica como 'direct-file' del Rink.
           useRinkAudioStore.getState().syncFromEngine();
         }
         if (offlineRecord.points && offlineRecord.points.length > 0) {
           loadProgramPoints(offlineRecord.points);
         }
+        if (pendingSnapshot?.selectedProgramId) {
+          const progs = await dbService.getProgramsBySkater(selectedSkater?.id || '');
+          const prog = progs.find((p) => p.id === pendingSnapshot.selectedProgramId);
+          if (prog) {
+            setSelectedProgram(prog);
+            setElements(await dbService.getElementsByProgram(prog.id));
+          }
+        }
       }
-    } catch (e) {
-      console.warn('No se pudo restaurar la sesión offline de IndexedDB:', e);
+      if (pendingSnapshot) {
+        setActiveSessionId(pendingSnapshot.sessionId);
+      }
+    } catch (err) {
+      console.warn('Error al recuperar sesión anterior:', err);
+    } finally {
+      setPendingSnapshot(null);
     }
-  }, [loadProgramPoints]);
+  }, [loadProgramPoints, pendingSnapshot, selectedSkater?.id]);
+
+  const handleDiscardSession = useCallback(async () => {
+    setShowRecoveryModal(false);
+    setPendingSnapshot(null);
+    await resetAbsoluteSession();
+    const newSessionId = generateSessionId();
+    setActiveSessionId(newSessionId);
+    setSelectedProgram(null);
+    setElements([]);
+  }, []);
+
+  // Persistencia preventiva de la sesión de trabajo activa
+  useEffect(() => {
+    if (!useAuthStore.getState().hasActiveAccess()) return;
+    const timeout = setTimeout(() => {
+      void persistActiveSessionSnapshot({
+        userId: authUser?.id ?? null,
+        points,
+        audioFileName: audioState.fileName,
+        hasAudio: audioState.hasAudioLoaded,
+        programTitle: selectedProgram?.title,
+        selectedProgramId: selectedProgram?.id ?? null,
+        selectedSkaterId: selectedSkater?.id ?? null,
+      });
+    }, 1000);
+    return () => clearTimeout(timeout);
+  }, [points, audioState.hasAudioLoaded, audioState.fileName, selectedProgram?.title, selectedProgram?.id, selectedSkater?.id, authUser?.id]);
 
   useEffect(() => { void loadData(); }, [loadData]);
 
@@ -1285,6 +1399,14 @@ export function App() {
         isOpen={paperOpen}
         onClose={() => setPaperOpen(false)}
         onDigitalized={() => setActiveView('rink')}
+      />
+
+      {/* Modal de recuperación de sesión anterior no cerrada */}
+      <SessionRecoveryModal
+        isOpen={showRecoveryModal}
+        snapshot={pendingSnapshot}
+        onContinueSession={handleRecoverSession}
+        onStartCleanSession={handleDiscardSession}
       />
       </div>
     </ProtectedLayout>

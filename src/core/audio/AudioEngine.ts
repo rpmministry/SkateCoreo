@@ -810,13 +810,13 @@ export class AudioEngine {
   }
 
   /**
-   * Vacía por completo el audio cargado (sin reproducir nada). Se usa al cambiar
-   * de cuenta para que una sesión nueva arranque SIN la pista del usuario previo.
+   * RESET ABSOLUTO DEL MOTOR DE AUDIO (Sesión / Logout / Nueva Sesión).
+   * Detiene toda reproducción, pre-roll y metrónomo, vacía todos los buffers
+   * (Rink y Studio), limpia las colas de figuras habladas de VoiceCueEngine,
+   * anula el loop, resetea revisiones y restaura metadatos limpios.
    */
-  public clearAudioBuffer() {
+  public resetAudioSession(): void {
     this.stop();
-    // Se vacían AMBAS sesiones: una cuenta nueva no debe heredar ni el audio
-    // publicado del Rink ni el borrador del Studio del usuario anterior.
     this.buffers.rink = null;
     this.buffers.studio = null;
     this.durations.rink = 0;
@@ -827,9 +827,27 @@ export class AudioEngine {
     this.sourceKinds.studio = 'studio-mix';
     this.rawBlob = null;
     this.pausedAtTime = 0;
+    this.loop = null;
+    this.rinkRevision = 0;
+    this.rinkAudioId = 'rink-audio-0';
+    this.playbackDomain = 'rink';
+    try {
+      this.voiceCueEngine.loadNodes([]);
+    } catch {
+      /* ignorar */
+    }
     this.mediaSession.updateMetadata('Sin pista');
+    this.mediaSession.updatePlaybackState(false);
     this.emitTimeUpdate(0);
     this.emitStateChange();
+  }
+
+  /**
+   * Vacía por completo el audio cargado (sin reproducir nada). Se usa al cambiar
+   * de cuenta para que una sesión nueva arranque SIN la pista del usuario previo.
+   */
+  public clearAudioBuffer() {
+    this.resetAudioSession();
   }
 
   /**
