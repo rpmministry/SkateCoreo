@@ -2218,3 +2218,15 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
 
 initialStudioSnapshot = useAudioStudioStore.getState();
 
+/**
+ * Determina si el Estudio de Audio contiene material sonoro real
+ * (clips o buffers asignados en cualquiera de sus pistas editables).
+ */
+export function hasAudioInStudio(state: AudioStudioStoreState): boolean {
+  const coreTracks = [state.tracks.music, state.tracks.voice, state.tracks.recording];
+  const allTracks = [...coreTracks, ...(state.additionalTracks || [])];
+  return allTracks.some(
+    (t) => (Array.isArray(t?.clips) && t.clips.length > 0) || !!t?.buffer
+  );
+}
+

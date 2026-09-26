@@ -17,7 +17,7 @@ import {
   Headphones,
   Timer,
 } from 'lucide-react';
-import { useAudioStudioStore, flushPendingConsolidation } from '../../store/useAudioStudioStore';
+import { useAudioStudioStore, flushPendingConsolidation, hasAudioInStudio } from '../../store/useAudioStudioStore';
 import { audioEngine } from '../../services/audioEngine';
 import { useAudioZoomPan } from '../../hooks/useAudioZoomPan';
 import { usePressAction } from '../../hooks/usePressAction';
@@ -111,9 +111,6 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   const [confirmReplaceOpen, setConfirmReplaceOpen] = useState(false);
   const [loopEnabled, setLoopEnabled] = useState<boolean>(() => !!audioEngine.getLoop());
   const [showMixerDrawer, setShowMixerDrawer] = useState(false);
-  // Estado real del motor: permite que el transporte funcione aunque la pista se
-  // haya cargado en la Pista 2D (fuera del store del Estudio).
-  const [engineHasAudio, setEngineHasAudio] = useState<boolean>(() => audioEngine.getState().hasAudioLoaded);
 
   // Activación táctil inmediata sin doble disparo (evita el Play/Pausa fantasma)
   const press = usePressAction();
@@ -349,22 +346,15 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   }, [tracks.music, tracks.recording, additionalTracks]);
 
   /**
-   * ¿Existe audio real para transportar? Se usa para deshabilitar con honestidad
-   * los controles de Rewind/Stop cuando no hay nada que mover: antes se pulsaban
-   * y "no hacían nada", lo que se percibía como botones rotos.
+   * ¿Existe audio real en las pistas del Estudio?
+   * Se verifica de forma reactiva contra todas las pistas editables (música, voz, recording, adicionales).
    */
-  const hasAudioContent = useMemo(
-    () => arrangementTracks.some((t) => (t.clips && t.clips.length > 0) || !!t.buffer),
-    [arrangementTracks]
-  );
+  const hasStudioAudio = useAudioStudioStore(hasAudioInStudio);
 
   /**
-   * Habilita el transporte si hay audio en el arreglo del Estudio O en el motor
-   * (pista cargada desde la Pista 2D). Sin esto, al abrir el Estudio con una
-   * canción ya cargada, Rewind/Stop/Cortar quedaban deshabilitados y parecían
-   * botones rotos.
+   * Habilita los controles de transporte (Stop, Split, Loop) solo si hay audio real en el Estudio.
    */
-  const hasTransportAudio = hasAudioContent || engineHasAudio;
+  const hasTransportAudio = hasStudioAudio;
 
   // Atajos de teclado en escritorio:
   // - Espacio: Reproducir / Pausar
@@ -401,6 +391,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
         // sin esto, un botón con foco + este atajo ejecutaban la acción DOS veces
         // (causa directa del Play/Pausa fantasma con teclado).
         e.preventDefault();
+        if (!hasStudioAudio && !isPlaying) return;
         handlePlayToggle();
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
         e.preventDefault();
@@ -694,7 +685,6 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
       // El pre-inicio (3, 2, 1, ¡Ya!) mantiene la UI en estado "reproduciendo"
       // aunque el buffer aún no suene: es la misma semántica que usa la Pista 2D.
       setIsPlaying(state.isPlaying || state.isPreRollActive);
-      setEngineHasAudio(state.hasAudioLoaded);
       if (!state.isPlaying) {
         // La reproducción terminó: aplicar cambios de mezcla diferidos
         flushPendingConsolidation();
@@ -745,6 +735,9 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   // Lee el estado REAL del motor (no la clausura de React) para que un toque
   // nunca invierta el sentido equivocado por un render pendiente.
   const handlePlayToggle = () => {
+    // Si no existen pistas con audio en el Estudio y no se está reproduciendo, el botón permanece inactivo
+    if (!hasStudioAudio && !isPlaying) return;
+
     audioEngine.initAudioContext();
     const engineState = audioEngine.getState();
     const isEngineActive = engineState.isPlaying || engineState.isPreRollActive;
@@ -849,9 +842,10 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   const handleExportMix = () => {
     // Evita una doble transferencia por doble pulsación.
     if (isExporting) return;
-    // Si la Pista 2D ya tiene música, se confirma el reemplazo (no se borra nada
+    // Si la Pista 2D ya tiene música publicada, se confirma el reemplazo (no se borra nada
     // antes de confirmar).
-    if (engineHasAudio) {
+    const rinkHasAudio = audioEngine.getPublishedAudio().buffer !== null;
+    if (rinkHasAudio) {
       setConfirmReplaceOpen(true);
       return;
     }
@@ -1280,15 +1274,25 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
         <div className="flex items-center gap-3 shrink-0">
           <button
             type="button"
-            {...press(handlePlayToggle)}
+            {...press(handlePlayToggle, { enabled: hasStudioAudio || isPlaying })}
+            disabled={!hasStudioAudio && !isPlaying}
+            aria-disabled={!hasStudioAudio && !isPlaying}
             aria-pressed={isPlaying}
             aria-label={isPlaying ? 'Pausar reproducción' : 'Reproducir'}
-            className={`press w-12 h-12 sm:w-14 sm:h-14 shrink-0 rounded-full flex items-center justify-center shadow-lg ${
-              isPlaying 
-                ? 'bg-amber-400 text-black shadow-amber-400/30' 
-                : 'bg-red-500 text-white shadow-red-500/30 hover:bg-red-600'
+            className={`press w-12 h-12 sm:w-14 sm:h-14 shrink-0 rounded-full flex items-center justify-center shadow-lg transition-all ${
+              !hasStudioAudio && !isPlaying
+                ? 'bg-white/10 text-slate-500 cursor-not-allowed shadow-none opacity-40 pointer-events-none'
+                : isPlaying 
+                  ? 'bg-amber-400 text-black shadow-amber-400/30' 
+                  : 'bg-red-500 text-white shadow-red-500/30 hover:bg-red-600'
             }`}
-            title={isPlaying ? 'Pausar (Espacio)' : 'Reproducir (Espacio)'}
+            title={
+              !hasStudioAudio && !isPlaying
+                ? 'No hay pistas de audio para reproducir'
+                : isPlaying
+                  ? 'Pausar (Espacio)'
+                  : 'Reproducir (Espacio)'
+            }
           >
             {isPlaying ? (
               <Pause className="w-6 h-6 fill-current" />
