@@ -217,5 +217,9 @@ assert(
   audioEngine.getPublishedAudio().buffer === persistentRinkBuffer,
   'clearAllStudioTracks deja intacto el audio publicado en la Pista 2D'
 );
+assert(
+  useAudioStudioStore.getState().tracks.music.name === 'Pista Master',
+  'La pista master se llama Pista Master en el Estudio de Audio'
+);
 
 console.log(`\nTODAS LAS PRUEBAS DE SEPARACIÓN PASARON: ${total}/${total}`);

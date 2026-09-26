@@ -639,9 +639,8 @@ export class AudioEngine {
    * apagado (OFF) y sin silenciar. MUTE = silencio total (tampoco cue ticks).
    */
   private syncRhythmSources() {
-    // Garantía absoluta: NUNCA activar cue ticks que actúen como un segundo metrónomo.
-    // La Voz Guía solo emite avisos hablados (TTS y banco de voz), nunca beeps rítmicos.
-    this.voiceCueEngine.setCueTicksEnabled(false);
+    const metronomeOff = !this.metronome.getConfig().enabled;
+    this.voiceCueEngine.setCueTicksEnabled(metronomeOff && !this.metronomeMuted);
   }
 
   public setMetronomeAudible(audible: boolean) {
@@ -810,10 +809,11 @@ export class AudioEngine {
   }
 
   /**
-   * RESET ABSOLUTO DEL MOTOR DE AUDIO (Sesión / Logout / Nueva Sesión).
-   * Detiene toda reproducción, pre-roll y metrónomo, vacía todos los buffers
-   * (Rink y Studio), limpia las colas de figuras habladas de VoiceCueEngine,
-   * anula el loop, resetea revisiones y restaura metadatos limpios.
+   * Resetea completamente el estado de la sesión de audio:
+   * 1. Detiene reproducción activa y cancela pre-roll.
+   * 2. Vacía buffers y duraciones de Pista 2D y Estudio de Audio.
+   * 3. Limpia cues del motor de voz (voiceCueEngine.loadNodes([])).
+   * 4. Limpia la sesión de medios y resetea tiempos a 0.
    */
   public resetAudioSession(): void {
     this.stop();
@@ -830,14 +830,8 @@ export class AudioEngine {
     this.loop = null;
     this.rinkRevision = 0;
     this.rinkAudioId = 'rink-audio-0';
-    this.playbackDomain = 'rink';
-    try {
-      this.voiceCueEngine.loadNodes([]);
-    } catch {
-      /* ignorar */
-    }
+    this.voiceCueEngine.loadNodes([]);
     this.mediaSession.updateMetadata('Sin pista');
-    this.mediaSession.updatePlaybackState(false);
     this.emitTimeUpdate(0);
     this.emitStateChange();
   }

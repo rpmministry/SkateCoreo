@@ -75,9 +75,8 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
   const isActive = activeTrackId === track.id || (isMasterTrack && (activeTrackId === 'music' || activeTrackId === 'track-music' || activeTrackId === 'master'));
   const isDropTarget = draggingGhost?.targetTrackIndex === trackIndex;
   const isMasterDropTarget = isMasterTrack && isDropTarget;
-  // Nombre REAL de la pista (el master se llama "Música Principal"): el header
-  // siempre lo muestra; la etiqueta MASTER va como estado, no como nombre.
-  const displayName = track.name;
+  // Nombre de la pista (el master siempre se denomina Pista Master)
+  const displayName = isMasterTrack ? 'Pista Master' : track.name;
 
   // Icono dinámico según la pista estilo BandLab
   const getTrackIcon = () => {

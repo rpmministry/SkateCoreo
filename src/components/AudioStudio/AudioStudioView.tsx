@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useLayoutEffect, useState, useRef, useMemo } from 'react';
+import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import {
   ZoomIn,
   ZoomOut,
@@ -317,20 +317,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     []
   );
 
-  /**
-   * SNAPSHOT Rink → Studio en el MONTAJE (antes del primer pintado).
-   *
-   * Es el único puente de entrada: da igual si el usuario llegó por el botón del
-   * visor, por la navegación o por un gesto de borde. Se ejecuta de forma
-   * SINCRÓNICA con `useLayoutEffect`, así el Estudio nunca se muestra vacío ni
-   * existe una carrera temporal (no hay `setTimeout`).
-   */
-  useLayoutEffect(() => {
-    // Nota: NO se llama a `setActiveDurationSec` aquí: el dominio del motor aún es
-    // 'rink' en el montaje y sobrescribiría su duración. El efecto pasivo de
-    // duración, ya con el dominio 'studio' activo, se encarga de fijarla.
-    useAudioStudioStore.getState().syncRinkSnapshotIntoStudio();
-  }, []);
+
 
   // Playhead gobernado por el reloj de hardware (AudioContext.currentTime).
   // Durante la reproducción: un frame de rAF compartido para toda la app.
