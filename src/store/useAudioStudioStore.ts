@@ -238,7 +238,7 @@ const DEFAULT_GLOBAL_CONTROLS: GlobalAudioControls = {
     enabled: false,
     volume: 0.8,
     accentFirstBeat: true,
-    muted: false,
+    muted: true,
     subdivision: 1,
   },
   voiceGuide: {
@@ -328,7 +328,7 @@ const initialTracks = {
     buffer: null,
     clips: [],
     volume: 0.8,
-    muted: false,
+    muted: true,
     solo: false,
     trimStartSec: 0,
     trimEndSec: 0,
@@ -712,8 +712,9 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
     // El estado se decide ANTES de actualizar; el efecto sobre el motor se
     // ejecuta DESPUÉS del `set` (fuera del updater) para evitar cualquier
     // problema de pureza/orden con el estado de React en móviles.
-    const newMuted = !get().globalControls.metronome.muted;
-    const newEnabled = !newMuted;
+    const isCurrentlyActive = get().globalControls.metronome.enabled && !get().globalControls.metronome.muted;
+    const newEnabled = !isCurrentlyActive;
+    const newMuted = !newEnabled;
     set((state) => {
       const updatedControls = {
         ...state.globalControls,
@@ -755,16 +756,14 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   },
 
   toggleMetronomeEnabled: () => {
+    const isCurrentlyActive = get().globalControls.metronome.enabled && !get().globalControls.metronome.muted;
+    const newEnabled = !isCurrentlyActive;
+    const newMuted = !newEnabled;
     set((state) => {
-      const newEnabled = !state.globalControls.metronome.enabled;
-      // `enabled` y `muted` van siempre juntos (misma fuente para Pista 2D y
-      // Estudio): encender limpia el mute y apagar silencia de inmediato.
-      const newMuted = !newEnabled;
       const updatedControls = {
         ...state.globalControls,
         metronome: { ...state.globalControls.metronome, enabled: newEnabled, muted: newMuted },
       };
-      audioEngine.setMetronomeAudible(newEnabled);
       return {
         globalControls: updatedControls,
         metronomeConfig: { ...state.metronomeConfig, enabled: newEnabled },
@@ -775,6 +774,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         mixManifest: buildManifest(state.tracks, state.additionalTracks, updatedControls, state.totalDurationSec),
       };
     });
+    audioEngine.setMetronomeAudible(newEnabled);
   },
 
   toggleVoiceGuideMute: () => {

@@ -290,7 +290,6 @@ export class AudioEngine {
   constructor() {
     this.metronome = new Metronome({ enabled: false, volume: 0.8 });
     this.voiceCueEngine = new VoiceCueEngine();
-    this.voiceCueEngine.setConfig({ enabled: false });
     this.mediaSession = new MediaSessionManager();
 
     this.initVisibilityListener();
@@ -559,7 +558,7 @@ export class AudioEngine {
 
   private musicMuted = false;
   private metronomeMuted = true;
-  private voiceGuideMuted = true;
+  private voiceGuideMuted = false;
   private metronomeVolume = 0.8;
 
   /** Aplica los silenciadores a los GainNode de cada sub-bus. */
@@ -828,8 +827,8 @@ export class AudioEngine {
     this.metronome.setEnabled(false);
     this.metronome.setMuted(true);
     this.metronome.stop();
-    this.voiceCueEngine.setConfig({ enabled: false });
-    this.setVoiceGuideMuted(true);
+    this.voiceCueEngine.setConfig({ enabled: true, volume: 1.0 });
+    this.setVoiceGuideMuted(false);
     this.buffers.rink = null;
     this.buffers.studio = null;
     this.durations.rink = 0;

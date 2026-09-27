@@ -31,6 +31,9 @@ assert(currentStudioNodes[2].timestampSec === 22.0 && currentStudioNodes[2].nume
 useAudioStudioStore.getState().setTrackVolume('music', 0.65);
 assert(useAudioStudioStore.getState().tracks.music.volume === 0.65, 'Volumen de música ajustado a 65%');
 
+assert(useAudioStudioStore.getState().tracks.metronome.muted === true, 'Pista de metrónomo silenciada por defecto');
+useAudioStudioStore.getState().toggleTrackMute('metronome');
+assert(useAudioStudioStore.getState().tracks.metronome.muted === false, 'Pista de metrónomo activada tras toggle');
 useAudioStudioStore.getState().toggleTrackMute('metronome');
 assert(useAudioStudioStore.getState().tracks.metronome.muted === true, 'Pista de metrónomo silenciada (Mute)');
 

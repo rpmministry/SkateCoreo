@@ -123,43 +123,49 @@ export const BandLabMixerDrawer: React.FC<BandLabMixerDrawerProps> = ({
           })}
 
           {/* Canal Global: Metrónomo */}
-          <div 
-            className="w-20 sm:w-24 shrink-0 flex flex-col items-center justify-between p-2 rounded-xl bg-zinc-900/90 border border-white/5 select-none"
-            style={{ borderTop: '4px solid #F59E0B' }}
-          >
-            <div className="w-full text-center">
-              <span className="text-[10px] font-mono font-black text-amber-400 flex items-center justify-center gap-1">
-                <Bell className="w-2.5 h-2.5" /> METRO
-              </span>
-              <p className="text-[10px] text-slate-400 truncate">Sintético</p>
-            </div>
+          {(() => {
+            const isMetroActive = globalControls.metronome.enabled && !globalControls.metronome.muted;
+            return (
+              <div 
+                className="w-20 sm:w-24 shrink-0 flex flex-col items-center justify-between p-2 rounded-xl bg-zinc-900/90 border border-white/5 select-none"
+                style={{ borderTop: `4px solid ${isMetroActive ? '#F59E0B' : '#64748B'}` }}
+              >
+                <div className="w-full text-center">
+                  <span className={`text-[10px] font-mono font-black flex items-center justify-center gap-1 transition-colors ${isMetroActive ? 'text-amber-400' : 'text-slate-400'}`}>
+                    <Bell className="w-2.5 h-2.5" /> METRO
+                  </span>
+                  <p className="text-[10px] text-slate-400 truncate">Sintético</p>
+                </div>
 
-            <div className="h-32 flex items-center justify-center my-2">
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.02"
-                value={globalControls.metronome.volume}
-                onChange={(e) => setMetronomeVolume(parseFloat(e.target.value))}
-                className="w-28 accent-amber-400 cursor-pointer -rotate-90"
-              />
-            </div>
+                <div className="h-32 flex items-center justify-center my-2">
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.02"
+                    value={globalControls.metronome.volume}
+                    onChange={(e) => setMetronomeVolume(parseFloat(e.target.value))}
+                    className="w-28 accent-amber-400 cursor-pointer -rotate-90"
+                  />
+                </div>
 
-            <span className="font-mono text-[10px] text-amber-400 font-bold mb-2">
-              {Math.round(globalControls.metronome.volume * 100)}%
-            </span>
+                <span className={`font-mono text-[10px] font-bold mb-2 ${isMetroActive ? 'text-amber-400' : 'text-slate-400'}`}>
+                  {Math.round(globalControls.metronome.volume * 100)}%
+                </span>
 
-            <button
-              type="button"
-              {...press(toggleMetronomeMute)}
-              className={`press min-h-touch w-full rounded text-[9px] font-black uppercase ${
-                globalControls.metronome.muted ? 'bg-rose-500 text-white' : 'bg-white/10 text-amber-400'
-              }`}
-            >
-              {globalControls.metronome.muted ? 'Muted' : 'Activo'}
-            </button>
-          </div>
+                <button
+                  type="button"
+                  {...press(toggleMetronomeMute)}
+                  aria-pressed={isMetroActive}
+                  className={`press min-h-touch w-full rounded text-[9px] font-black uppercase transition-colors ${
+                    isMetroActive ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-white/5 text-slate-400 border border-white/5'
+                  }`}
+                >
+                  {isMetroActive ? 'Activo' : 'Inactivo'}
+                </button>
+              </div>
+            );
+          })()}
 
           {/* Canal Global: Voces Guía */}
           <div 

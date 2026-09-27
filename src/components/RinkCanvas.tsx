@@ -2108,7 +2108,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-[11px]">
                     <div className="flex items-center gap-1.5">
-                      <Clock className="w-3 h-3 text-teal-400" />
+                      <Clock className={`w-3 h-3 transition-colors ${audio.metronome.enabled ? 'text-teal-400' : 'text-zinc-500'}`} />
                       <span className="text-zinc-300 font-semibold">Metrónomo</span>
                       <button
                         type="button"
@@ -2123,8 +2123,8 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
                         {audio.metronome.enabled ? 'ON' : 'OFF'}
                       </button>
                     </div>
-                    <span className="font-mono text-teal-300 font-bold">
-                      {Math.round(audio.metronome.volume * 100)}%
+                    <span className={`font-mono font-bold transition-colors ${audio.metronome.enabled ? 'text-teal-300' : 'text-zinc-500'}`}>
+                      {audio.metronome.enabled ? `${Math.round(audio.metronome.volume * 100)}%` : 'OFF'}
                     </span>
                   </div>
                   <input

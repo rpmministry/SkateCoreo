@@ -163,4 +163,26 @@ assert(audioEngine.getAudioBuffer('rink') === null, 'resetAudioSession limpia bu
 assert(audioEngine.getAudioBuffer('studio') === null, 'resetAudioSession limpia buffer de Estudio');
 assert(audioEngine.metronome.getConfig().enabled === false, 'resetAudioSession deja metrónomo en OFF');
 
+// 8. Pre-roll voice intro está habilitado y audible en Pista 2D
+assert(audioEngine.isVoiceGuideMuted() === false, 'AudioEngine: la voz guía NO está silenciada por defecto (audible para el pre-roll)');
+assert(audioEngine.voiceCueEngine.getConfig().enabled === true, 'VoiceCueEngine: habilitado por defecto para el conteo de entrada a pista');
+
+// 9. Concordancia de los iconos y estado del metrónomo en el Estudio de Audio
+const freshState = useAudioStudioStore.getState();
+const isMetroActiveInitial = freshState.globalControls.metronome.enabled && !freshState.globalControls.metronome.muted;
+assert(isMetroActiveInitial === false, 'Estudio nuevo: metrónomo inactivo por defecto (campana apagada)');
+assert(freshState.globalControls.metronome.muted === true, 'Estudio nuevo: globalControls.metronome.muted === true');
+assert(freshState.tracks.metronome.muted === true, 'Estudio nuevo: tracks.metronome.muted === true');
+
+useAudioStudioStore.getState().toggleMetronomeMute();
+const activeAfterToggle = useAudioStudioStore.getState().globalControls.metronome.enabled && !useAudioStudioStore.getState().globalControls.metronome.muted;
+assert(activeAfterToggle === true, 'Alternar metrónomo en el estudio: pasa a activo (campana encendida)');
+assert(useAudioStudioStore.getState().tracks.metronome.muted === false, 'Alternar metrónomo: tracks.metronome se desmutea');
+
+useAudioStudioStore.getState().toggleMetronomeMute();
+const activeAfterSecondToggle = useAudioStudioStore.getState().globalControls.metronome.enabled && !useAudioStudioStore.getState().globalControls.metronome.muted;
+assert(activeAfterSecondToggle === false, 'Segundo clic en campana: metrónomo vuelve a inactivo (campana apagada)');
+assert(useAudioStudioStore.getState().tracks.metronome.muted === true, 'Segundo clic: tracks.metronome vuelve a muted');
+
 console.log(`\nTODAS LAS PRUEBAS DE ESTADO LIMPIO Y FUENTES DE AUDIO PASARON: ${total}/${total}`);
+

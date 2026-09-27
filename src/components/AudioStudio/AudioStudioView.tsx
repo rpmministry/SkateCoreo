@@ -1382,20 +1382,25 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
         {/* Derecha: Metrónomo + Marcador + Zoom */}
         <div className="flex items-center gap-0.5 sm:gap-1.5 shrink-0">
           {/* Toggle Metrónomo rápido */}
-          <button
-            type="button"
-            {...press(toggleMetronomeMute)}
-            className={`w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center press ${
-              globalControls.metronome.muted 
-                ? 'text-slate-500 hover:bg-white/5' 
-                : 'text-amber-400 bg-amber-500/15'
-            }`}
-            aria-pressed={globalControls.metronome.muted}
-            aria-label={globalControls.metronome.muted ? 'Activar metrónomo' : 'Silenciar metrónomo'}
-            title={globalControls.metronome.muted ? 'Activar Metrónomo' : 'Silenciar Metrónomo'}
-          >
-            <Bell className="w-5 h-5" />
-          </button>
+          {(() => {
+            const isMetroActive = globalControls.metronome.enabled && !globalControls.metronome.muted;
+            return (
+              <button
+                type="button"
+                {...press(toggleMetronomeMute)}
+                className={`w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center press transition-colors ${
+                  isMetroActive 
+                    ? 'text-amber-400 bg-amber-500/15 ring-1 ring-amber-500/30' 
+                    : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
+                }`}
+                aria-pressed={isMetroActive}
+                aria-label={isMetroActive ? 'Silenciar metrónomo' : 'Activar metrónomo'}
+                title={isMetroActive ? 'Metrónomo activo (clic para silenciar)' : 'Metrónomo inactivo (clic para activar)'}
+              >
+                <Bell className="w-5 h-5" />
+              </button>
+            );
+          })()}
 
           {/* Loop — repetir la mezcla (bucle nativo sin clics) */}
           <button

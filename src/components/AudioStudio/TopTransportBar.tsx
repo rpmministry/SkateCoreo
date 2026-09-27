@@ -368,32 +368,37 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
             </div>
 
             {/* Metrónomo */}
-            <div className="pt-2 border-t border-white/10 flex flex-col gap-1.5">
-              <div className="flex items-center justify-between text-xs font-bold text-amber-400">
-                <span className="flex items-center gap-1">
-                  <Bell className="w-3.5 h-3.5" /> Metrónomo
-                </span>
-                <button
-                  type="button"
-                  {...press(toggleMetronomeMute)}
-                  aria-pressed={globalControls.metronome.muted}
-                  className={`press min-h-touch min-w-touch rounded px-2.5 text-[10px] font-black uppercase ${
-                    globalControls.metronome.muted ? 'bg-rose-500/20 text-rose-400' : 'bg-green-500/20 text-green-400'
-                  }`}
-                >
-                  {globalControls.metronome.muted ? 'Silenciado' : 'Activo'}
-                </button>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                value={globalControls.metronome.volume}
-                onChange={(e) => setMetronomeVolume(parseFloat(e.target.value))}
-                className="w-full accent-amber-400 h-1.5 bg-white/10 rounded cursor-pointer"
-              />
-            </div>
+            {(() => {
+              const isMetroActive = globalControls.metronome.enabled && !globalControls.metronome.muted;
+              return (
+                <div className="pt-2 border-t border-white/10 flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between text-xs font-bold">
+                    <span className={`flex items-center gap-1 transition-colors ${isMetroActive ? 'text-amber-400' : 'text-slate-400'}`}>
+                      <Bell className="w-3.5 h-3.5" /> Metrónomo
+                    </span>
+                    <button
+                      type="button"
+                      {...press(toggleMetronomeMute)}
+                      aria-pressed={isMetroActive}
+                      className={`press min-h-touch min-w-touch rounded px-2.5 text-[10px] font-black uppercase transition-colors ${
+                        isMetroActive ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-white/5 text-slate-400 border border-white/5'
+                      }`}
+                    >
+                      {isMetroActive ? 'Activo' : 'Inactivo'}
+                    </button>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={globalControls.metronome.volume}
+                    onChange={(e) => setMetronomeVolume(parseFloat(e.target.value))}
+                    className="w-full accent-amber-400 h-1.5 bg-white/10 rounded cursor-pointer"
+                  />
+                </div>
+              );
+            })()}
 
             {/* Voz Guía automática (IA) — distinta de la voz grabada de la entrenadora */}
             <div className="pt-2 border-t border-white/10 flex flex-col gap-1.5">

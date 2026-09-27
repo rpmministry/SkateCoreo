@@ -350,9 +350,9 @@ export class VoiceCueEngine {
    * navegador (offline/dev) se usa la voz validada del navegador.
    */
   public speakCountdown(text: string) {
-    if (!this.config.enabled || this.config.volume <= 0) return;
+    if (this.config.volume <= 0) return;
     if (this.config.ttsEngine === 'google-cloud') {
-      this.speakRaw(text);
+      this.speakRaw(text, { allowBrowserFallback: true });
       return;
     }
     this.speakBrowser(text);
@@ -1380,18 +1380,22 @@ export class VoiceCueEngine {
           ? pinned
           : this.pickBestBrowserVoice(voices, this.config.language, gender);
 
-        // REGLA DE VOZ ÚNICA: si no hay una voz femenina latina validada, se
-        // omite la locución (silencio) en lugar de reproducir una voz masculina.
-        if (!chosen) {
+        let effectiveVoice: SpeechSynthesisVoice | null = chosen;
+        if (!effectiveVoice) {
           console.warn('[VoiceCueEngine] Sin voz femenina latina válida: locución omitida.');
-          return;
+          const isCountdownText = /^(uno|dos|tres|cuatro|cinco|seis|siete|ocho|¡ya!|ya)$/i.test(text.trim());
+          if (isCountdownText && voices.length > 0) {
+            effectiveVoice = voices.find((v) => (v.lang || '').toLowerCase().startsWith(this.config.language)) || voices[0];
+          } else {
+            return;
+          }
         }
 
-        utterance.voice = chosen;
-        utterance.lang = chosen.lang;
+        utterance.voice = effectiveVoice;
+        utterance.lang = effectiveVoice.lang;
 
         if (VOICE_GUIDE_DEBUG) {
-          console.debug(`[VoiceCue] browser → ${chosen.name} (${chosen.lang})`);
+          console.debug(`[VoiceCue] browser → ${effectiveVoice.name} (${effectiveVoice.lang})`);
         }
 
         utterance.rate = this.config.voiceSpeed;

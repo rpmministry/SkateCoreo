@@ -45,6 +45,8 @@ export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
 
   const metronomeVolume = globalControls.metronome.volume;
   const metronomeMuted = globalControls.metronome.muted;
+  const metronomeEnabled = globalControls.metronome.enabled;
+  const isMetroActive = metronomeEnabled && !metronomeMuted;
 
   const voiceVolume = globalControls.voiceGuide.volume;
   const voiceMuted = globalControls.voiceGuide.muted;
@@ -217,13 +219,13 @@ export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
           <div className="flex flex-col gap-2 p-3.5 rounded-2xl bg-zinc-900/80 border border-white/10">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <Bell className="w-4 h-4 text-amber-400" />
+                <Bell className={`w-4 h-4 transition-colors ${isMetroActive ? 'text-amber-400' : 'text-slate-500'}`} />
                 <span className="text-xs font-black text-white uppercase tracking-wider">
                   Metrónomo Sintético
                 </span>
               </div>
-              <span className={`font-mono text-xs font-bold ${metronomeMuted ? 'text-rose-400' : 'text-amber-400'}`}>
-                {metronomeMuted ? 'SILENCIADO' : `${Math.round(metronomeVolume * 100)}%`}
+              <span className={`font-mono text-xs font-bold ${isMetroActive ? 'text-amber-400' : 'text-slate-500'}`}>
+                {isMetroActive ? `${Math.round(metronomeVolume * 100)}%` : 'INACTIVO'}
               </span>
             </div>
 
@@ -233,14 +235,15 @@ export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
                 type="button"
                 {...press(toggleMetronomeMute)}
                 className={`w-12 h-12 min-w-touch min-h-touch rounded-xl flex items-center justify-center transition-all active:scale-95 shadow-sm ${
-                  metronomeMuted 
-                    ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40' 
-                    : 'bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25'
+                  isMetroActive 
+                    ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25'
+                    : 'bg-white/5 text-slate-500 border border-white/10 hover:bg-white/10'
                 }`}
-                title={metronomeMuted ? 'Activar Metrónomo' : 'Silenciar Metrónomo'}
-                aria-label={metronomeMuted ? 'Activar Metrónomo' : 'Silenciar Metrónomo'}
+                title={isMetroActive ? 'Silenciar Metrónomo' : 'Activar Metrónomo'}
+                aria-label={isMetroActive ? 'Silenciar Metrónomo' : 'Activar Metrónomo'}
+                aria-pressed={isMetroActive}
               >
-                {metronomeMuted ? <VolumeX className="w-5 h-5" /> : <Bell className="w-5 h-5" />}
+                <Bell className={`w-5 h-5 ${isMetroActive ? 'text-amber-400' : 'text-slate-500'}`} />
               </button>
 
               {/* Slider Ergonómico (48px hit height) */}
@@ -250,7 +253,7 @@ export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
                   min="0"
                   max="1"
                   step="0.01"
-                  value={metronomeMuted ? 0 : metronomeVolume}
+                  value={!isMetroActive ? 0 : metronomeVolume}
                   onChange={(e) => setMetronomeVolume(parseFloat(e.target.value))}
                   className="w-full h-2.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-400"
                   aria-label="Volumen del Metrónomo"
