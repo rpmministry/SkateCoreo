@@ -28,6 +28,8 @@ import {
   computeTrackLaneHeight,
   computeTrackHeaderWidth,
 } from '../../core/audio/timeline/TrackLaneLayout';
+import { moveAdditionalTrack } from '../../core/audio/studioTrackOrdering';
+import { logAudioDiagnostic } from '../../core/audio/audioDiagnostics';
 import { useViewportSize } from '../../hooks/useViewportSize';
 import { AudioStudioTrack } from '../../types/audioStudio';
 import { ACCEPTED_AUDIO_FORMATS } from '../../constants/mediaFormats';
@@ -597,29 +599,21 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     }
   };
 
-  // Reordenar pistas adicionales
+  // Reordenar pistas adicionales.
+  // El índice recibido es el VISUAL del arreglo [Master(0), Grabación(1), ...adicionales(2..)]
+  // y se convierte con `moveAdditionalTrack` (fuente única, con test de regresión).
   const handleMoveTrackUp = (index: number) => {
-    if (index <= 1) return;
-    const addIdx = index - 1;
-    useAudioStudioStore.setState((state) => {
-      const list = [...state.additionalTracks];
-      const temp = list[addIdx];
-      list[addIdx] = list[addIdx - 1];
-      list[addIdx - 1] = temp;
-      return { additionalTracks: list };
-    });
+    useAudioStudioStore.setState((state) => ({
+      additionalTracks: moveAdditionalTrack(state.additionalTracks, index, 'up'),
+    }));
+    logAudioDiagnostic('TRACK_DRAG_END', { details: `reorder-up index=${index}` });
   };
 
   const handleMoveTrackDown = (index: number) => {
-    const addIdx = index - 1;
-    useAudioStudioStore.setState((state) => {
-      const list = [...state.additionalTracks];
-      if (addIdx >= list.length - 1) return state;
-      const temp = list[addIdx];
-      list[addIdx] = list[addIdx + 1];
-      list[addIdx + 1] = temp;
-      return { additionalTracks: list };
-    });
+    useAudioStudioStore.setState((state) => ({
+      additionalTracks: moveAdditionalTrack(state.additionalTracks, index, 'down'),
+    }));
+    logAudioDiagnostic('TRACK_DRAG_END', { details: `reorder-down index=${index}` });
   };
 
   // Duplicar pista

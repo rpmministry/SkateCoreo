@@ -11,6 +11,7 @@ import { AudioStudioTrack } from '../../types/audioStudio';
 import { ACCEPTED_AUDIO_FORMATS } from '../../constants/mediaFormats';
 import { useAudioStudioStore } from '../../store/useAudioStudioStore';
 import { createTimelineGeometry } from '../../core/audio/timeline/AudioTimelineGeometry';
+import { logAudioDiagnostic } from '../../core/audio/audioDiagnostics';
 import { AudioClipItem } from './AudioClipItem';
 import { BandLabTrackMenuModal } from './BandLabTrackMenuModal';
 import { useIosFileCapture } from '../../hooks/useIosFileCapture';
@@ -54,6 +55,12 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const laneRef = useRef<HTMLDivElement | null>(null);
+  /**
+   * Detección de DOBLE TOQUE propia (independiente de `event.detail`, que en
+   * Safari iOS/Android llega como 1 en muchos toques): permite pegar el clip
+   * del portapapeles en la pista tocada sin depender de un doble clic real.
+   */
+  const lastLaneTapRef = useRef<{ t: number; x: number; y: number } | null>(null);
 
   const activeTrackId = useAudioStudioStore((s) => s.activeTrackId);
   const setActiveTrackId = useAudioStudioStore((s) => s.setActiveTrackId);
@@ -98,8 +105,24 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
       const clickX = e.clientX - rect.left;
       const clickedTimeSec = Math.max(0, geometry.pxToTime(clickX));
 
-      if (audioClipboard && e.detail === 2) {
+      // Doble toque robusto: `detail === 2` en escritorio; en táctil, dos taps
+      // consecutivos cercanos dentro de 350 ms cuentan como doble toque.
+      const now = Date.now();
+      const last = lastLaneTapRef.current;
+      const isDoubleTap =
+        e.detail === 2 ||
+        (last !== null &&
+          now - last.t < 350 &&
+          Math.abs(e.clientX - last.x) < 28 &&
+          Math.abs(e.clientY - last.y) < 28);
+      lastLaneTapRef.current = { t: now, x: e.clientX, y: e.clientY };
+
+      if (audioClipboard && isDoubleTap) {
         pasteClip(track.id, clickedTimeSec, geometry.pixelsPerSecond);
+        logAudioDiagnostic('TRACK_PASTE', {
+          details: `track=${track.id} t=${clickedTimeSec.toFixed(3)} doubleTap`
+        });
+        lastLaneTapRef.current = null; // un tercer toque no cuenta como nuevo doble
       }
     }
   };

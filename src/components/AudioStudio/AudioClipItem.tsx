@@ -4,6 +4,7 @@ import { AudioClip } from '../../types/audioStudio';
 import { useAudioStudioStore } from '../../store/useAudioStudioStore';
 import { useLongPress } from '../../hooks/useLongPress';
 import { createTimelineGeometry } from '../../core/audio/timeline/AudioTimelineGeometry';
+import { logAudioDiagnostic } from '../../core/audio/audioDiagnostics';
 import {
   drawWaveformColumns,
   resolveRenderDpr,
@@ -67,9 +68,11 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
   const [dragOffsetSec, setDragOffsetSec] = useState<number | null>(null);
   const [dragDeltaY, setDragDeltaY] = useState(0);
 
-  // Tras una pulsación larga, el "click" sintético que sigue al soltar debe
-  // ignorarse para no abrir el menú contextual encima del modo basurero.
-  const suppressClickRef = useRef(false);
+  // Tras una pulsación larga o un arrastre real, el "click" sintético que sigue
+  // al soltar debe ignorarse para no abrir el menú contextual encima del gesto.
+  // Se usa una ventana temporal (no un booleano) para que un gesto cancelado no
+  // consuma el siguiente toque legítimo.
+  const suppressClickUntilRef = useRef(0);
 
   // ── Edge-pan: auto-scroll horizontal al arrastrar un clip contra el borde ──
   // Patrón de AudioMass (`edge_pan_raf` / `edge_pan_dir` / `edge_pan_update`): un
@@ -322,7 +325,7 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
 
   // ── Drag Gesture con @use-gesture/react ──
   const bindDrag = useDrag(
-    ({ down, movement: [, my], xy: [clientX, clientY], first, last, event, cancel }) => {
+    ({ down, movement: [mx, my], xy: [clientX, clientY], first, last, event, cancel }) => {
       if (isAdjustingFadeIn || isAdjustingFadeOut) return;
 
       // Dos o más dedos = gesto de pinza/zoom: nunca arrastrar un clip.
@@ -395,6 +398,9 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
         // Origen del arrastre en coordenadas de contenido.
         const container = scrollContainerRef?.current;
         dragStartRef.current = { clientX, scrollLeft: container ? container.scrollLeft : 0 };
+        logAudioDiagnostic('TRACK_DRAG_START', {
+          details: `clip=${clip.id} from=${trackId} index=${trackIndex}`
+        });
       }
 
       if (down) {
@@ -415,6 +421,11 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
         lastOffsetRef.current = null;
         setDragOffsetSec(null);
 
+        // Un arrastre REAL no debe abrir el menú contextual con el click
+        // sintético posterior (especialmente en táctil): se suprime la ventana.
+        const didDrag = Math.abs(mx) > 4 || Math.abs(my) > 4;
+        if (didDrag) suppressClickUntilRef.current = Date.now() + 350;
+
         if (targetIndex !== trackIndex) {
           if (targetInfo.exclusive) {
             // La pista de VOZ grabada es exclusiva: solo admite grabaciones propias.
@@ -425,8 +436,16 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
             moveClipToTrack(trackId, targetInfo.id, clip.id, finalSec);
           }
           if ('vibrate' in navigator) navigator.vibrate(15);
+          logAudioDiagnostic(targetIndex === 0 ? 'MASTER_DROP' : 'TRACK_DRAG_END', {
+            details: `clip=${clip.id} from=${trackId} to=${targetInfo.id} t=${finalSec.toFixed(3)}`
+          });
         } else {
           moveClip(trackId, clip.id, finalSec);
+          if (didDrag) {
+            logAudioDiagnostic('TRACK_DRAG_END', {
+              details: `clip=${clip.id} track=${trackId} t=${finalSec.toFixed(3)}`
+            });
+          }
         }
         setDragDeltaY(0);
       }
@@ -446,7 +465,7 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
     delay: 500,
     moveTolerance: 10,
     onLongPress: () => {
-      suppressClickRef.current = true;
+      suppressClickUntilRef.current = Date.now() + 600;
       beginTrashDrag(trackId, clip.id);
       setSelectedClipId(clip.id);
       if ('vibrate' in navigator) navigator.vibrate(20);
@@ -456,9 +475,8 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
   const dragBind = bindDrag() as Record<string, ((e: React.PointerEvent) => void) | undefined>;
 
   const handleClick = (e: React.MouseEvent) => {
-    // Click sintético posterior a una pulsación larga: ignorar.
-    if (suppressClickRef.current) {
-      suppressClickRef.current = false;
+    // Click sintético posterior a una pulsación larga o a un arrastre real: ignorar.
+    if (Date.now() < suppressClickUntilRef.current) {
       e.preventDefault();
       e.stopPropagation();
       return;

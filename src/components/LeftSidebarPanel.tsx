@@ -480,7 +480,12 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
             </div>
             <button
               type="button"
-              onClick={() => audioEngine.voiceCueEngine.testVoice()}
+              onClick={() => {
+                // La prueba usa el MISMO AudioContext del motor (nunca uno
+                // paralelo): se inicializa aquí dentro del gesto del usuario.
+                audioEngine.initAudioContext();
+                audioEngine.voiceCueEngine.testVoice();
+              }}
               className="press flex min-h-touch w-full items-center justify-center gap-1.5 rounded-xl border border-cyan/30 bg-cyan/15 px-3 py-2 text-[11px] font-bold text-cyan hover:bg-cyan/25"
             >
               <Mic className="h-3.5 w-3.5" />

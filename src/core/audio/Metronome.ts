@@ -16,7 +16,7 @@
  */
 
 import { MetronomeConfig, MetronomeSubdivision } from '../../types/audio';
-import { logAudioDiagnostic } from './audioDiagnostics';
+import { logAudioDiagnostic, recordAudioCounter } from './audioDiagnostics';
 
 export type TimeSignature = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 export type TimeSignatureDenominator = 4 | 8;
@@ -65,8 +65,38 @@ export function normalizeSubdivision(value: number | undefined | null): Metronom
  */
 let LIVE_METRONOMES = 0;
 
+/**
+ * GARANTÍA GLOBAL DE FUENTE ÚNICA (invariante anti "doble metrónomo").
+ *
+ * Registro del ÚNICO metrónomo que puede tener un scheduler armado en toda la
+ * aplicación. Si cualquier otra instancia intenta armar un scheduler mientras
+ * esta ya está activa, la instancia intrusa es SILENCIADA y DESTRUIDA, no
+ * "muteada". Así es estructuralmente imposible que suenen dos metrónomos,
+ * aunque un doble módulo, HMR, una sesión anterior o un componente oculto
+ * llegara a crear una segunda instancia.
+ */
+let ACTIVE_SCHEDULER_OWNER: Metronome | null = null;
+
+/** Contador global de clicks creados (diagnóstico de fuente única). */
+let TOTAL_CLICKS_CREATED = 0;
+
+/** Metrónomos que fueron silenciados por intentar duplicar la fuente. */
+let DUPLICATE_KILLS = 0;
+
 /** Trazabilidad de diagnóstico (solo en desarrollo, cero coste en producción). */
 const METRONOME_DEBUG = Boolean((import.meta as { env?: { DEV?: boolean } })?.env?.DEV);
+
+/** Equivalencia entre los eventos internos y la telemetría unificada. */
+const METRONOME_DIAG_EVENT_MAP = {
+  METRONOME_CREATE: 'METRONOME_CREATED',
+  METRONOME_START: 'METRONOME_STARTED',
+  METRONOME_STOP: 'METRONOME_STOPPED',
+  METRONOME_MUTE: 'METRONOME_MUTE',
+  METRONOME_UNMUTE: 'METRONOME_UNMUTE',
+  METRONOME_DESTROY: 'METRONOME_DESTROYED',
+  METRONOME_DUPLICATE_KILLED: 'METRONOME_DUPLICATE_KILLED',
+  METRONOME_STATE: 'METRONOME_STATE'
+} as const;
 
 function detectPlatform(): 'desktop' | 'mobile' | 'tablet' {
   if (typeof document !== 'undefined') {
@@ -90,8 +120,6 @@ function detectActiveView(): '2D' | 'studio' | 'viewer' {
 
 export class Metronome {
   private readonly instanceId: number;
-  private sessionId: string = 'sess_initial';
-  private audioGeneration: number = 1;
   private ctx: AudioContext | null = null;
   private outputNode: AudioNode | null = null;
   /**
@@ -165,41 +193,7 @@ export class Metronome {
       }
     }
     this.logDiagnostic('METRONOME_CREATE');
-    logAudioDiagnostic('METRONOME_CREATED', {
-      sessionId: this.sessionId,
-      generation: this.audioGeneration,
-      instanceId: this.instanceId,
-      details: `live=${LIVE_METRONOMES} hardMuted=${this.hardMuted} enabled=${this.config.enabled}`,
-    });
-  }
-
-  /**
-   * Vincula el metrónomo a una sesión y generación de audio específicas.
-   * Cualquier ciclo o timer de sesiones previas se purga de raíz.
-   */
-  public bindSession(sessionId: string, generation: number): void {
-    const isNew = this.sessionId !== sessionId || this.audioGeneration !== generation;
-    if (isNew) {
-      this.stop();
-      this.sessionId = sessionId;
-      this.audioGeneration = generation;
-      this.hardMuted = true;
-      this.config.enabled = false;
-      logAudioDiagnostic('METRONOME_STATE', {
-        sessionId: this.sessionId,
-        generation: this.audioGeneration,
-        instanceId: this.instanceId,
-        details: `bound to session ${sessionId} (gen:${generation})`,
-      });
-    }
-  }
-
-  public getSessionId(): string {
-    return this.sessionId;
-  }
-
-  public getAudioGeneration(): number {
-    return this.audioGeneration;
+    recordAudioCounter('metronomeCreates');
   }
 
   /**
@@ -213,6 +207,7 @@ export class Metronome {
       | 'METRONOME_MUTE'
       | 'METRONOME_UNMUTE'
       | 'METRONOME_DESTROY'
+      | 'METRONOME_DUPLICATE_KILLED'
       | 'METRONOME_STATE',
     extra?: string
   ) {
@@ -223,6 +218,10 @@ export class Metronome {
     if (METRONOME_DEBUG || (typeof window !== 'undefined' && (window as any).__AUDIO_DIAGNOSTICS_ENABLED__)) {
       console.log(msg);
     }
+    logAudioDiagnostic(METRONOME_DIAG_EVENT_MAP[event], {
+      instanceId: this.instanceId,
+      details: extra
+    });
   }
 
   /** Estado para diagnóstico (avalancha de logs solo en DEV). */
@@ -320,6 +319,50 @@ export class Metronome {
     return this.timerId !== null;
   }
 
+  /** ¿Esta instancia es la dueña del scheduler global? (diagnóstico/tests). */
+  public isSchedulerOwner(): boolean {
+    return ACTIVE_SCHEDULER_OWNER === this;
+  }
+
+  /** Clicks totales creados por CUALQUIER instancia (diagnóstico/tests). */
+  public static getTotalClicksCreated(): number {
+    return TOTAL_CLICKS_CREATED;
+  }
+
+  /** Nº de instancias duplicadas silenciadas por la garantía de fuente única. */
+  public static getDuplicateKillCount(): number {
+    return DUPLICATE_KILLS;
+  }
+
+  /** Osciladores vivos de ESTA instancia (diagnóstico). */
+  public getActiveNodeCount(): number {
+    return this.activeNodes.size;
+  }
+
+  /** Nº de instancias con scheduler armado (debe ser 0 o 1; diagnóstico/tests). */
+  public static getArmedSchedulerCount(): number {
+    return ACTIVE_SCHEDULER_OWNER && ACTIVE_SCHEDULER_OWNER.timerId !== null ? 1 : 0;
+  }
+
+  /** id de la instancia dueña del scheduler global (diagnóstico/tests). */
+  public static getSchedulerOwnerInstanceId(): number | null {
+    return ACTIVE_SCHEDULER_OWNER ? ACTIVE_SCHEDULER_OWNER.instanceId : null;
+  }
+
+  /**
+   * Silenciado FORZADO por duplicación: corta scheduler y nodos de inmediato.
+   * No es un "gain = 0": destruye la fuente intrusa por completo.
+   */
+  private forceSilenceAsDuplicate(): void {
+    DUPLICATE_KILLS++;
+    recordAudioCounter('metronomeDuplicateKills');
+    this.hardMuted = true;
+    this.config.enabled = false;
+    this.haltScheduler();
+    this.isRunning = false;
+    this.logDiagnostic('METRONOME_DUPLICATE_KILLED');
+  }
+
   /**
    * Cambio dinámico de BPM: recalcula el intervalo de beats sin detener la
    * reproducción musical y sin duplicar pulsos ya programados.
@@ -355,11 +398,6 @@ export class Metronome {
   public setMuted(muted: boolean) {
     this.hardMuted = muted;
     this.logDiagnostic(muted ? 'METRONOME_MUTE' : 'METRONOME_UNMUTE');
-    logAudioDiagnostic(muted ? 'METRONOME_MUTE' : 'METRONOME_UNMUTE', {
-      sessionId: this.sessionId,
-      generation: this.audioGeneration,
-      instanceId: this.instanceId,
-    });
     if (muted) {
       this.haltScheduler();
     } else if (this.isRunning && this.config.enabled && !this.hardMuted && this.timerId === null) {
@@ -399,9 +437,10 @@ export class Metronome {
   public setEnabled(enabled: boolean) {
     if (this.config.enabled === enabled) return;
     this.config.enabled = enabled;
-    if (enabled) {
-      this.hardMuted = false;
-    }
+    // NOTA DE DISEÑO: habilitar NO desmutear. El silenciador (`hardMuted`) solo
+    // lo quita `setMuted(false)` de forma explícita. Antes, `setEnabled(true)`
+    // limpiaba el mute, así que cualquier reconstrucción del grafo podía
+    // "encender" un metrónomo que la UI mostraba como OFF (fuente fantasma).
     this.logDiagnostic('METRONOME_STATE', `enabled=${enabled}`);
 
     if (!enabled) {
@@ -439,6 +478,9 @@ export class Metronome {
       globalThis.clearTimeout(this.timerId);
       this.timerId = null;
     }
+    if (ACTIVE_SCHEDULER_OWNER === this) {
+      ACTIVE_SCHEDULER_OWNER = null;
+    }
     this.stopAllNodes();
   }
 
@@ -463,12 +505,6 @@ export class Metronome {
 
     if (!this.ctx || !this.outputNode) return;
     this.logDiagnostic('METRONOME_START');
-    logAudioDiagnostic('METRONOME_STARTED', {
-      sessionId: this.sessionId,
-      generation: this.audioGeneration,
-      instanceId: this.instanceId,
-      details: `syncAudioTime=${syncAudioTimeSec} enabled=${this.config.enabled} hardMuted=${this.hardMuted}`,
-    });
 
     this.isRunning = true;
     this.playbackRate = Math.max(0.1, playbackRate || 1.0);
@@ -499,11 +535,6 @@ export class Metronome {
    */
   public stop() {
     this.logDiagnostic('METRONOME_STOP');
-    logAudioDiagnostic('METRONOME_STOPPED', {
-      sessionId: this.sessionId,
-      generation: this.audioGeneration,
-      instanceId: this.instanceId,
-    });
     this.isRunning = false;
     this.schedulerToken++; // invalida cualquier tick del ciclo anterior
     this.pendingResync = false;
@@ -511,6 +542,9 @@ export class Metronome {
     if (this.timerId !== null) {
       globalThis.clearTimeout(this.timerId);
       this.timerId = null;
+    }
+    if (ACTIVE_SCHEDULER_OWNER === this) {
+      ACTIVE_SCHEDULER_OWNER = null;
     }
 
     this.stopAllNodes();
@@ -524,16 +558,18 @@ export class Metronome {
    */
   public destroy() {
     this.logDiagnostic('METRONOME_DESTROY');
-    logAudioDiagnostic('METRONOME_DESTROYED', {
-      sessionId: this.sessionId,
-      generation: this.audioGeneration,
-      instanceId: this.instanceId,
-      details: `destroy instance #${this.instanceId}`,
-    });
     this.stop();
-    LIVE_METRONOMES = Math.max(0, LIVE_METRONOMES - 1);
+    if (ACTIVE_SCHEDULER_OWNER === this) {
+      ACTIVE_SCHEDULER_OWNER = null;
+    }
+    if (this.timerId !== null) {
+      globalThis.clearTimeout(this.timerId);
+      this.timerId = null;
+    }
+    this.stopAllNodes();
     this.ctx = null;
     this.outputNode = null;
+    LIVE_METRONOMES = Math.max(0, LIVE_METRONOMES - 1);
   }
 
   /**
@@ -588,29 +624,30 @@ export class Metronome {
    * Así es imposible que queden dos bucles vivos en paralelo.
    */
   private runScheduler() {
-    // GARANTÍA DE ÚNICO SCHEDULER: si ya hay un timer activo se cancela antes de
-    // crear uno nuevo. Nunca pueden coexistir dos bucles.
+    // GARANTÍA DE ÚNICO SCHEDULER EN TODA LA APP: si otra instancia tiene un
+    // scheduler armado, se destruye su fuente ANTES de armar la nuestra. Nunca
+    // pueden coexistir dos metrónomos sonando (causa raíz del doble click).
+    if (ACTIVE_SCHEDULER_OWNER && ACTIVE_SCHEDULER_OWNER !== this) {
+      const intruder = ACTIVE_SCHEDULER_OWNER;
+      if (intruder.timerId !== null || intruder.activeNodes.size > 0) {
+        intruder.forceSilenceAsDuplicate();
+      }
+    }
+    ACTIVE_SCHEDULER_OWNER = this;
+
+    // Idempotencia local: si ya hay un timer activo se cancela antes de crear
+    // uno nuevo. Nunca pueden coexistir dos bucles.
     if (this.timerId !== null) {
       globalThis.clearTimeout(this.timerId);
       this.timerId = null;
     }
 
     const token = ++this.schedulerToken;
-    const runGen = this.audioGeneration;
-    const runSession = this.sessionId;
     this.logState('scheduler armado');
 
     const tick = () => {
-      if (
-        !this.isRunning ||
-        !this.ctx ||
-        token !== this.schedulerToken ||
-        runGen !== this.audioGeneration ||
-        runSession !== this.sessionId ||
-        this.hardMuted ||
-        !this.config.enabled
-      ) {
-        return; // Generación obsoleta, sesión cambiada, detenido o silenciado: se autodescarta de inmediato.
+      if (!this.isRunning || !this.ctx || token !== this.schedulerToken || this.hardMuted || !this.config.enabled) {
+        return; // Generación obsoleta, detenido o silenciado: se autodescarta de inmediato.
       }
 
       // Aplica (una sola vez) cualquier resync pendiente de la configuración.
@@ -689,6 +726,8 @@ export class Metronome {
 
       const entry = { osc, gain };
       this.activeNodes.add(entry);
+      TOTAL_CLICKS_CREATED++;
+      recordAudioCounter('clicksCreated');
 
       osc.onended = () => {
         this.activeNodes.delete(entry);

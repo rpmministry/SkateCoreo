@@ -109,36 +109,38 @@ export function computeClipPlacement(
 }
 
 /**
- * Caché de un AudioContext "scratch" por sample rate.
+ * Caché de un contexto OFFLINE "scratch" por sample rate.
  *
  * `bounceStudioClipsToBuffer` necesita un contexto SOLO para crear el AudioBuffer
- * de salida. Crear uno nuevo en cada consolidación agotaba el límite de
- * AudioContexts del navegador (~6) y lanzaba "Too many AudioContexts". Se reutiliza
- * uno por sample rate (habitualmente uno solo) y nunca se cierra.
+ * de salida. Se usa un `OfflineAudioContext` (sin salida de hardware) y nunca un
+ * `AudioContext` en vivo:
+ *
+ *  · Un contexto en vivo adicional era una SEGUNDA fuente de audio de la app
+ *    (fuera del mezclador) que disparaba el límite del navegador (~6) y podía
+ *    duplicar el enrutado de audio en móvil/tablet.
+ *  · El OfflineAudioContext es inaudible por definición y sus `AudioBuffer`
+ *    resultantes son válidos para el contexto del motor (los buffers no
+ *    pertenecen a un contexto).
  */
-const scratchContexts = new Map<number, AudioContext>();
+const scratchContexts = new Map<number, OfflineAudioContext>();
 
-function getScratchAudioContext(sampleRate: number): AudioContext | null {
+function getScratchAudioContext(sampleRate: number): OfflineAudioContext | null {
   const cached = scratchContexts.get(sampleRate);
-  if (cached && cached.state !== 'closed') return cached;
+  if (cached) return cached;
 
-  const CtxClass = typeof window !== 'undefined'
-    ? (window.AudioContext || (window as any).webkitAudioContext)
-    : (globalThis as any).AudioContext;
-  if (!CtxClass) return null;
+  const OfflineCtor =
+    typeof window !== 'undefined'
+      ? (window as any).OfflineAudioContext || (window as any).webkitOfflineAudioContext
+      : (globalThis as any).OfflineAudioContext;
+  if (!OfflineCtor) return null;
 
   try {
-    const ctx = new CtxClass({ sampleRate }) as AudioContext;
+    // 1 muestra: solo se usa como fábrica de AudioBuffers.
+    const ctx = new OfflineCtor(2, 1, sampleRate) as OfflineAudioContext;
     scratchContexts.set(sampleRate, ctx);
     return ctx;
   } catch {
-    try {
-      const ctx = new CtxClass() as AudioContext;
-      scratchContexts.set(sampleRate, ctx);
-      return ctx;
-    } catch {
-      return null;
-    }
+    return null;
   }
 }
 

@@ -16,6 +16,7 @@ import {
 } from '../types/audioStudio';
 import { BpmDetector } from '../core/audio/BpmDetector';
 import { snapToZeroCrossing } from '../core/audio/zeroCrossing';
+import { logAudioDiagnostic } from '../core/audio/audioDiagnostics';
 import { audioEngine } from '../core/audio/AudioEngine';
 import { useRinkAudioStore } from './useRinkAudioStore';
 import { ttsService } from '../services/ttsService';
@@ -171,6 +172,11 @@ export interface AudioStudioStoreState {
   setIsPlaying: (playing: boolean) => void;
   setZoom: (zoom: number) => void;
   setMetronomeConfig: (config: Partial<StudioMetronomeConfig>) => void;
+  /**
+   * Fuerza el metrónomo a OFF ABSOLUTO (estado inicial obligatorio de toda
+   * sesión/nueva cuenta): apaga el planificador, el estado del store y el bus.
+   */
+  resetMetronomeControl: () => void;
   analyzeBpm: () => Promise<number | null>;
 
   // Historial de edición (undo/redo) — Fase 5.3
@@ -581,6 +587,12 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
     voiceRecorder = null;
     pendingConsolidation = false;
     set(snapshot);
+    // Invariante de sesión nueva: metrónomo OFF también en el MOTOR (no solo en
+    // el snapshot del store). Evita que una sesión previa deje un scheduler vivo.
+    audioEngine.setMetronomeAudible(false);
+    logAudioDiagnostic('STUDIO_RESET', {
+      details: `metronomeEnabled=${get().globalControls.metronome.enabled}`
+    });
   },
 
   draggingGhost: null,
@@ -775,6 +787,32 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
       };
     });
     audioEngine.setMetronomeAudible(newEnabled);
+  },
+
+  /**
+   * Estado inicial de TODA sesión: metrónomo OFF, silenciado y sin scheduler.
+   * Es la defensa de producto contra la "fuente fantasma" en móvil/tablet:
+   * aunque el estado del motor hubiera quedado encendido por una sesión previa,
+   * aquí el store y el motor vuelven a converger en OFF antes de que exista
+   * cualquier reproducción.
+   */
+  resetMetronomeControl: () => {
+    set((state) => {
+      const updatedControls = {
+        ...state.globalControls,
+        metronome: { ...state.globalControls.metronome, enabled: false, muted: true },
+      };
+      return {
+        globalControls: updatedControls,
+        metronomeConfig: { ...state.metronomeConfig, enabled: false },
+        tracks: {
+          ...state.tracks,
+          metronome: { ...state.tracks.metronome, muted: true },
+        },
+        mixManifest: buildManifest(state.tracks, state.additionalTracks, updatedControls, state.totalDurationSec),
+      };
+    });
+    audioEngine.setMetronomeAudible(false);
   },
 
   toggleVoiceGuideMute: () => {
@@ -1147,6 +1185,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   copyClip: (clip) => {
     if (clip) {
       set({ clipboardClip: { ...clip }, audioClipboard: { ...clip } });
+      logAudioDiagnostic('TRACK_COPY', { details: `clip=${clip.id} explicit` });
       return;
     }
     const state = get();
@@ -1157,6 +1196,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         const found = t.clips.find((c) => c.id === state.selectedClipId);
         if (found) {
           set({ clipboardClip: { ...found }, audioClipboard: { ...found } });
+          logAudioDiagnostic('TRACK_COPY', { details: `clip=${found.id} track=${t.id}` });
           return;
         }
       }
@@ -1233,6 +1273,9 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
     });
 
     triggerStudioConsolidation();
+    logAudioDiagnostic('TRACK_PASTE', {
+      details: `clip=${newClip.id} track=${targetTrackId} t=${startOffsetSec.toFixed(3)}`
+    });
     return newClip;
   },
 
@@ -1799,19 +1842,29 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         fileName: null,
       },
     };
-    set({
-      tracks: freshTracks,
-      additionalTracks: [],
-      audioNodes: [],
-      selectedClipId: null,
-      selectedNodeId: null,
-      currentTimeSec: 0,
-      isPlaying: false,
-      totalDurationSec: 0,
-      mixManifest: buildManifest(freshTracks, [], get().globalControls, 0),
-      contextMenu: null,
-      trashDrag: { active: false, trackId: null, clipId: null, overTrash: false },
+    set((state) => {
+      const updatedControls: GlobalAudioControls = {
+        ...state.globalControls,
+        metronome: { ...state.globalControls.metronome, enabled: false, muted: true },
+      };
+      return {
+        tracks: freshTracks,
+        additionalTracks: [],
+        audioNodes: [],
+        selectedClipId: null,
+        selectedNodeId: null,
+        currentTimeSec: 0,
+        isPlaying: false,
+        totalDurationSec: 0,
+        globalControls: updatedControls,
+        metronomeConfig: { ...state.metronomeConfig, enabled: false },
+        mixManifest: buildManifest(freshTracks, [], updatedControls, 0),
+        contextMenu: null,
+        trashDrag: { active: false, trackId: null, clipId: null, overTrash: false },
+      };
     });
+    // El motor también queda en OFF absoluto: sin scheduler y sin nodos vivos.
+    audioEngine.setMetronomeAudible(false);
     useRinkAudioStore.getState().markStudioDirty(false);
   },
 

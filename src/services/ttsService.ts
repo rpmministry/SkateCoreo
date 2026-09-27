@@ -94,9 +94,18 @@ export class TTSService {
   private language: 'es' | 'en' = 'es';
 
   // Integración Web Audio API (Canal del Coach)
+  /**
+   * Contexto de audio del MOTOR (único de la app) y su bus de salida. TTS jamás
+   * crea un `AudioContext` propio: si no está conectado al motor, la locución
+   * espera (silencio) en vez de abrir una segunda salida al dispositivo. Antes
+   * existía una ruta paralela que creaba otro AudioContext y lo conectaba a
+   * `destination`, la "segunda fuente de audio" difícil de rastrear en móvil.
+   */
   private audioContext: AudioContext | null = null;
   private coachOutputNode: AudioNode | null = null;
   private activeSourceNode: AudioBufferSourceNode | null = null;
+  /** Contexto OFFLINE (sin salida audible) solo para decodificar MP3 de TTS. */
+  private decodeContext: OfflineAudioContext | null = null;
 
   // Caché en memoria para latencia 0ms en frases y conteos coreográficos repetitivos
   private audioBufferCache: Map<string, AudioBuffer> = new Map();
@@ -492,21 +501,27 @@ export class TTSService {
   }
 
   /**
-   * Contexto de decodificación (se crea bajo demanda con OfflineAudioContext si aún no existe).
+   * Contexto de DECODIFICACIÓN (se crea bajo demanda si aún no existe).
+   *
+   * REGLA DE FUENTE ÚNICA: si el motor aún no entregó su AudioContext, se usa
+   * un `OfflineAudioContext` de 1 muestra que NO tiene salida audible. Nunca se
+   * crea un segundo `AudioContext` "en vivo" que pudiera sonar por su cuenta.
    */
-  private ensureAudioContext(): BaseAudioContext | null {
+  private ensureDecodeContext(): BaseAudioContext | null {
     if (this.audioContext) return this.audioContext;
-    if (typeof window !== 'undefined') {
-      const OfflineCtxClass = window.OfflineAudioContext || (window as any).webkitOfflineAudioContext;
-      if (OfflineCtxClass) {
-        return new OfflineCtxClass(1, 1, 44100);
-      }
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioContextClass) {
-        return new AudioContextClass();
-      }
+    if (typeof window === 'undefined') return null;
+    if (!this.decodeContext) {
+      const OfflineCtor =
+        (window as any).OfflineAudioContext || (window as any).webkitOfflineAudioContext;
+      if (!OfflineCtor) return null;
+      this.decodeContext = new OfflineCtor(1, 1, 44100) as OfflineAudioContext;
     }
-    return null;
+    return this.decodeContext;
+  }
+
+  /** ¿El servicio está conectado al motor central (contexto + bus del Coach)? */
+  public isAttachedToEngine(): boolean {
+    return Boolean(this.audioContext && this.coachOutputNode);
   }
 
   /**
@@ -687,7 +702,7 @@ export class TTSService {
 
     const fetchPromise = (async () => {
       try {
-        const ctx = this.ensureAudioContext();
+        const ctx = this.ensureDecodeContext();
 
         // 3. Caché persistente (IndexedDB): evita consumir cuota y funciona offline
         const cachedBytes = await this.getFromIDB(cacheKey);
@@ -735,15 +750,19 @@ export class TTSService {
   }
 
   /**
-   * Reproduce el AudioBuffer mediante el bus de salida del Coach (Multitrack R)
+   * Reproduce el AudioBuffer EXCLUSIVAMENTE por el bus de salida del Coach del
+   * motor central (Multitrack R).
+   *
+   * Sin contexto del motor o sin bus del Coach NO se reproduce nada: la
+   * locución queda en silencio. Es deliberado — una ruta paralela conectada a
+   * `destination` creaba una segunda salida de audio imposible de silenciar
+   * desde el mezclador (origen de artefactos de "doble audio" en móvil).
    */
   private playAudioBuffer(buffer: AudioBuffer) {
     const ctx = this.audioContext;
-    const outputNode = this.coachOutputNode;
-
-    // REGLA FUNDAMENTAL: Nunca reproducir audio por fuera del bus del motor ni crear
-    // AudioContext huérfanos conectados a destination. Toda locución debe fluir por coachOutputNode.
-    if (!ctx || !outputNode) {
+    const output = this.coachOutputNode;
+    if (!ctx || !output) {
+      console.warn('[TTSService] Sin bus del Coach: locución omitida hasta inicializar el motor.');
       return;
     }
 
@@ -754,15 +773,13 @@ export class TTSService {
     try {
       const source = ctx.createBufferSource();
       source.buffer = buffer;
-      source.connect(outputNode);
+
+      source.connect(output);
 
       source.onended = () => {
         if (this.activeSourceNode === source) {
           this.activeSourceNode = null;
         }
-        try {
-          source.disconnect();
-        } catch (e) {}
       };
 
       source.start();
