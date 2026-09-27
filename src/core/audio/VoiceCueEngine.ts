@@ -222,28 +222,19 @@ export class VoiceCueEngine {
   private onPreRollComplete: PreRollCompleteCallback | null = null;
 
   /**
-   * Ticks de acento de los cues (los "beeps" cortos que acompañan a cada aviso).
-   *
-   * SEGURO POR DEFECTO: arrancan DESACTIVADOS. `AudioEngine.syncRhythmSources()`
-   * es el ÚNICO sitio que los habilita, y solo cuando el metrónomo está
-   * completamente apagado (OFF) y sin silenciar. Así ninguna ruta de arranque
-   * puede dejar sonando dos fuentes rítmicas a la vez (el "doble metrónomo").
+   * Ticks rítmicos eliminados: VoiceCueEngine sintetiza EXCLUSIVAMENTE voz (TTS y buffers vocales).
+   * No debe generar osciladores de beeps o clicks para evitar duplicar el metrónomo.
    */
-  private cueTicksEnabled = false;
-
-  /** Activa/desactiva los beeps de acento de los cues (no afecta a la voz). */
-  public setCueTicksEnabled(enabled: boolean) {
-    this.cueTicksEnabled = enabled;
-    // Al DESACTIVAR se detienen de inmediato los acentos ya programados: sin
-    // esto seguirían sonando y parecería que el mute no hizo nada.
-    if (!enabled) this.stopCueTones();
+  /** Desactivado permanentemente: no genera osciladores rítmicos. */
+  public setCueTicksEnabled(_enabled: boolean) {
+    this.stopCueTones();
   }
 
   public getCueTicksEnabled(): boolean {
-    return this.cueTicksEnabled;
+    return false;
   }
 
-  /** Detiene y libera todos los osciladores de acento (cue ticks / alertas). */
+  /** Detiene y libera todos los osciladores de acento que pudieran quedar. */
   public stopCueTones() {
     for (const osc of this.activeToneNodes) {
       try {
@@ -1030,8 +1021,6 @@ export class VoiceCueEngine {
     const safeText = sanitizeSpeechText(cue.text, { allowManual: true });
     if (!safeText) return true; // No vocalizable: se da por resuelto.
 
-    const tickFreq = cue.type === 'figure-arrival' ? 1000 : 650;
-
     // ── Voz pre-renderizada: latencia cero y solapamiento nativo ──
     const buffer = this.prefetchedBuffers.get(cue.id);
     if (buffer) {
@@ -1040,7 +1029,6 @@ export class VoiceCueEngine {
           `[VoiceCue] ${cue.id} → ${this.config.googleVoiceName} (${this.config.ttsEngine})`
         );
       }
-      if (this.cueTicksEnabled) this.playTickTone(tickFreq, targetCtxTime);
       try {
         const source = this.ctx.createBufferSource();
         source.buffer = buffer;
@@ -1087,13 +1075,6 @@ export class VoiceCueEngine {
           this.triggeredCueIds.add(cue.id);
           this.scheduledCueIds.add(cue.id);
           this.speak(cue.text);
-          if (this.cueTicksEnabled) {
-            if (cue.type === 'figure-arrival') {
-              this.playTickTone(1000);
-            } else {
-              this.playTickTone(650);
-            }
-          }
         }
       }
     }
@@ -1157,11 +1138,9 @@ export class VoiceCueEngine {
 
       if (remaining > 0) {
         this.announceNumber(remaining);
-        if (this.cueTicksEnabled) this.playTickTone(600);
         if (onStepSound) onStepSound(remaining);
       } else {
         this.announceGo();
-        if (this.cueTicksEnabled) this.playTickTone(1200);
         if (onStepSound) onStepSound(0);
         const completeCb = this.onPreRollComplete;
         this.cancelPreRoll();
@@ -1470,33 +1449,11 @@ export class VoiceCueEngine {
     } catch (e) {}
   }
 
-  public playTickTone(freq: number, time?: number) {
-    if (!this.ctx || !this.outputNode || this.config.volume <= 0) return;
-
-    try {
-      const now = time !== undefined ? time : this.ctx.currentTime;
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(freq, now);
-
-      gain.gain.setValueAtTime(0.5 * this.config.volume, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
-
-      osc.connect(gain);
-      gain.connect(this.outputNode);
-
-      this.activeToneNodes.add(osc);
-      osc.onended = () => {
-        this.activeToneNodes.delete(osc);
-        try {
-          osc.disconnect();
-          gain.disconnect();
-        } catch (e) {}
-      };
-      osc.start(now);
-      osc.stop(now + 0.07);
-    } catch (e) {}
+  /**
+   * Neutralizado por diseño: VoiceCueEngine sintetiza exclusivamente locución vocal.
+   * No genera ningún oscilador o GainNode para prevenir terminantemente el doble metrónomo.
+   */
+  public playTickTone(_freq: number, _time?: number) {
+    return;
   }
 }

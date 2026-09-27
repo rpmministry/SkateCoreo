@@ -223,7 +223,7 @@ export interface AudioStudioStoreState {
 }
 
 const DEFAULT_METRONOME_CONFIG: StudioMetronomeConfig = {
-  enabled: true,
+  enabled: false,
   bpm: 140,
   beatsPerMeasure: 4,
   subdivision: 1,
@@ -235,14 +235,14 @@ const DEFAULT_GLOBAL_CONTROLS: GlobalAudioControls = {
   bpm: 140,
   beatsPerMeasure: 4,
   metronome: {
-    enabled: true,
+    enabled: false,
     volume: 0.8,
     accentFirstBeat: true,
     muted: false,
     subdivision: 1,
   },
   voiceGuide: {
-    enabled: true,
+    enabled: false,
     volume: 1.0,
     muted: false,
   },
@@ -741,7 +741,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         ...state.globalControls,
         metronome: { ...state.globalControls.metronome, volume: clamped },
       };
-      audioEngine.metronome.setVolume(clamped);
+      audioEngine.setMetronomeVolume(clamped);
       return {
         globalControls: updatedControls,
         metronomeConfig: { ...state.metronomeConfig, volume: clamped },
@@ -1338,7 +1338,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   selectedNodeId: null,
 
   currentTimeSec: 0,
-  totalDurationSec: 120, // 2 minutos por defecto
+  totalDurationSec: 0, // 0s por defecto (vacío hasta que se cargue audio o clips)
   isPlaying: false,
   zoom: 1,
   snapEnabled: true,
@@ -1709,7 +1709,8 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
     get().pushStudioEdit();
     const state = get();
     const safeTime = Number.isFinite(timestampSec) ? timestampSec : 0;
-    const clampedTime = Math.max(0, Math.min(state.totalDurationSec, safeTime));
+    const clampedTime = Math.max(0, safeTime);
+    const newTotalDuration = Math.max(state.totalDurationSec, Math.ceil(clampedTime + 1));
     const newId = `node-audio-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 
     const currentNodes = [...state.audioNodes, {
@@ -1729,6 +1730,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
     set({
       audioNodes: sequencedNodes,
       selectedNodeId: newId,
+      totalDurationSec: newTotalDuration,
     });
 
     return sequencedNodes.find((n) => n.id === newId)!;
@@ -1739,14 +1741,17 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
     // se captura UNA vez al iniciar el gesto desde la interfaz.
     set((state) => {
       const safeTime = Number.isFinite(timestampSec) ? timestampSec : 0;
+      const clampedTime = Math.max(0, safeTime);
+      const newTotalDuration = Math.max(state.totalDurationSec, Math.ceil(clampedTime + 1));
       const updated = state.audioNodes.map((node) =>
         node.id === id
-          ? { ...node, timestampSec: Math.max(0, Math.min(state.totalDurationSec, safeTime)) }
+          ? { ...node, timestampSec: clampedTime }
           : node
       );
       updated.sort((a, b) => a.timestampSec - b.timestampSec);
       return {
         audioNodes: updated.map((node, index) => ({ ...node, numeroSecuencial: index + 1 })),
+        totalDurationSec: newTotalDuration,
       };
     });
   },
@@ -1802,8 +1807,8 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
       selectedNodeId: null,
       currentTimeSec: 0,
       isPlaying: false,
-      totalDurationSec: 30,
-      mixManifest: buildManifest(freshTracks, [], get().globalControls, 30),
+      totalDurationSec: 0,
+      mixManifest: buildManifest(freshTracks, [], get().globalControls, 0),
       contextMenu: null,
       trashDrag: { active: false, trackId: null, clipId: null, overTrash: false },
     });

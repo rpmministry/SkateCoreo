@@ -288,8 +288,9 @@ export class AudioEngine {
   private bluetoothWarning: string | null = null;
 
   constructor() {
-    this.metronome = new Metronome();
+    this.metronome = new Metronome({ enabled: false, volume: 0.8 });
     this.voiceCueEngine = new VoiceCueEngine();
+    this.voiceCueEngine.setConfig({ enabled: false });
     this.mediaSession = new MediaSessionManager();
 
     this.initVisibilityListener();
@@ -557,8 +558,9 @@ export class AudioEngine {
      también lo ya programado, sin detener ni resincronizar la pista maestra. */
 
   private musicMuted = false;
-  private metronomeMuted = false;
-  private voiceGuideMuted = false;
+  private metronomeMuted = true;
+  private voiceGuideMuted = true;
+  private metronomeVolume = 0.8;
 
   /** Aplica los silenciadores a los GainNode de cada sub-bus. */
   private applyBusMutes() {
@@ -607,10 +609,10 @@ export class AudioEngine {
           }
           this.metronomeBusConnected = true;
         }
-        setBus(this.metronomeGainNode, 1);
+        setBus(this.metronomeGainNode, this.metronomeVolume);
       }
     } else {
-      setBus(this.metronomeGainNode, this.metronomeMuted ? 0 : 1);
+      setBus(this.metronomeGainNode, this.metronomeMuted ? 0 : this.metronomeVolume);
     }
   }
 
@@ -620,27 +622,32 @@ export class AudioEngine {
     this.emitStateChange();
   }
 
-  /**
-   * Control ÚNICO de audición del metrónomo (una sola fuente de verdad).
-   *
-   * Coordina las tres capas que antes podían desincronizarse entre la Pista 2D
-   * y el Estudio: el habilitado lógico, el planificador y el GainNode del
-   * sub-bus. Es el método que deben usar ambos controles de la interfaz.
-   */
+  public setMetronomeVolume(vol: number) {
+    this.metronomeVolume = Math.max(0, Math.min(1, vol));
+    this.metronome.setVolume(this.metronomeVolume);
+    if (!this.metronomeMuted && this.metronomeGainNode && this.ctx) {
+      try {
+        this.metronomeGainNode.gain.cancelScheduledValues(0);
+        this.metronomeGainNode.gain.setValueAtTime(this.metronomeVolume, this.ctx.currentTime);
+      } catch {
+        /* Ignorar */
+      }
+    }
+    this.emitStateChange();
+  }
+
+  public getMetronomeVolume(): number {
+    return this.metronomeVolume;
+  }
+
   /**
    * Arbitraje ÚNICO de las fuentes rítmicas de la app.
    *
-   * En SkateCoreo solo puede sonar UNA fuente rítmica por vez: o el metrónomo, o
-   * los "cue ticks" de la Voz Guía. Antes esta decisión se calculaba en dos
-   * sitios independientes (`setMetronomeAudible` y `beginPlaybackAt`), lo que
-   * permitía que ambos ritmos coincidieran si una ruta quedaba desincronizada
-   * (escenario típico en móvil/tablet, con más puntos de entrada). Ahora hay una
-   * sola función; los cue ticks SOLO se habilitan con el metrónomo completamente
-   * apagado (OFF) y sin silenciar. MUTE = silencio total (tampoco cue ticks).
+   * En SkateCore el metrónomo es la ÚNICA fuente rítmica válida.
+   * VoiceCueEngine sintetiza exclusivamente voz, jamás beeps o clicks de acento.
    */
   private syncRhythmSources() {
-    const metronomeOff = !this.metronome.getConfig().enabled;
-    this.voiceCueEngine.setCueTicksEnabled(metronomeOff && !this.metronomeMuted);
+    this.voiceCueEngine.setCueTicksEnabled(false);
   }
 
   public setMetronomeAudible(audible: boolean) {
@@ -817,6 +824,12 @@ export class AudioEngine {
    */
   public resetAudioSession(): void {
     this.stop();
+    this.setMetronomeAudible(false);
+    this.metronome.setEnabled(false);
+    this.metronome.setMuted(true);
+    this.metronome.stop();
+    this.voiceCueEngine.setConfig({ enabled: false });
+    this.setVoiceGuideMuted(true);
     this.buffers.rink = null;
     this.buffers.studio = null;
     this.durations.rink = 0;
@@ -1357,6 +1370,7 @@ export class AudioEngine {
    * timeline (`startSync`) dentro de `executePlay`.
    */
   public play(offsetMs?: number, options?: { countIn?: boolean }) {
+    if (!this.audioBuffer) return;
     this.initAudioContext();
     if (!this.ctx) return;
 

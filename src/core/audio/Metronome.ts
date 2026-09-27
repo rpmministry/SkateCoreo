@@ -79,7 +79,7 @@ export class Metronome {
   private timerId: number | null = null;
 
   private config: MetronomeConfig = {
-    enabled: true,
+    enabled: false,
     bpm: 140,
     beatsPerMeasure: 4,
     subdivision: 1,
@@ -179,7 +179,11 @@ export class Metronome {
    * "todas las subdivisiones a la vez").
    */
   private rearmAfterConfigChange() {
-    if (!this.isRunning || !this.config.enabled || this.hardMuted) return;
+    if (!this.isRunning) return;
+    if (!this.config.enabled || this.hardMuted) {
+      this.haltScheduler(); // cancela el timer y DESTRUYE los clicks agendados de inmediato
+      return;
+    }
     this.haltScheduler(); // cancela el timer y DESTRUYE los clicks ya agendados
     this.pendingResync = false;
     this.applyResync();

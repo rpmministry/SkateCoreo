@@ -402,7 +402,7 @@ async function runTests() {
   assert(Boolean(preRollCompleted) === true, 'Pre-roll completa y ejecuta callback para iniciar reproducción automática de la pista');
 
   // 10. Verificación del Metrónomo sincronizado y sin retardo de fase
-  const metroSync = new Metronome({ bpm: 140, beatsPerMeasure: 4 });
+  const metroSync = new Metronome({ enabled: true, bpm: 140, beatsPerMeasure: 4 });
   const mockCtx = new MockAudioContext();
   const mockGain = new MockGainNode();
   metroSync.init(mockCtx as any, mockGain as any);
@@ -427,7 +427,7 @@ async function runTests() {
     }
   }
 
-  const metroDup = new Metronome({ bpm: 120, beatsPerMeasure: 4 });
+  const metroDup = new Metronome({ enabled: true, bpm: 120, beatsPerMeasure: 4 });
   metroDup.init(new CountingAudioContext() as any, new MockGainNode() as any);
 
   metroDup.start(0);
@@ -472,7 +472,7 @@ async function runTests() {
   }
 
   const dupCtx = new ClockAudioContext();
-  const metroClock = new Metronome({ bpm: 120, beatsPerMeasure: 4 });
+  const metroClock = new Metronome({ enabled: true, bpm: 120, beatsPerMeasure: 4 });
   metroClock.init(dupCtx as any, new MockGainNode() as any);
 
   metroClock.start(0); // Programa el beat 0 en t=0
@@ -505,7 +505,7 @@ async function runTests() {
   }
 
   const muteCtx = new MuteClickAudioContext();
-  const metroMute = new Metronome({ bpm: 120, beatsPerMeasure: 4 });
+  const metroMute = new Metronome({ enabled: true, bpm: 120, beatsPerMeasure: 4 });
   metroMute.init(muteCtx as any, new MockGainNode() as any);
 
   metroMute.start(0);

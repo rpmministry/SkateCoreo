@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useState, useRef, useMemo } from 'react';
 import {
   ZoomIn,
   ZoomOut,
@@ -317,7 +317,20 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     []
   );
 
-
+  /**
+   * SNAPSHOT Rink → Studio en el MONTAJE (antes del primer pintado).
+   *
+   * Es el único puente de entrada: da igual si el usuario llegó por el botón del
+   * visor, por la navegación o por un gesto de borde. Se ejecuta de forma
+   * SINCRÓNICA con `useLayoutEffect`, así el Estudio nunca se muestra vacío ni
+   * existe una carrera temporal (no hay `setTimeout`).
+   */
+  useLayoutEffect(() => {
+    // Nota: NO se llama a `setActiveDurationSec` aquí: el dominio del motor aún es
+    // 'rink' en el montaje y sobrescribiría su duración. El efecto pasivo de
+    // duración, ya con el dominio 'studio' activo, se encarga de fijarla.
+    useAudioStudioStore.getState().syncRinkSnapshotIntoStudio();
+  }, []);
 
   // Playhead gobernado por el reloj de hardware (AudioContext.currentTime).
   // Durante la reproducción: un frame de rAF compartido para toda la app.
@@ -336,22 +349,15 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   }, [tracks.music, tracks.recording, additionalTracks]);
 
   /**
-   * ¿Existe audio real para transportar? Se usa para deshabilitar con honestidad
-   * los controles de Rewind/Stop cuando no hay nada que mover: antes se pulsaban
-   * y "no hacían nada", lo que se percibía como botones rotos.
+   * ¿Existe audio real en el Estudio para reproducir y manipular?
+   * Deshabilita honestamente los controles de transporte cuando el Estudio está vacío.
    */
-  const hasAudioContent = useMemo(
+  const hasStudioAudio = useMemo(
     () => arrangementTracks.some((t) => (t.clips && t.clips.length > 0) || !!t.buffer),
     [arrangementTracks]
   );
 
-  /**
-   * Habilita el transporte si hay audio en el arreglo del Estudio O en el motor
-   * (pista cargada desde la Pista 2D). Sin esto, al abrir el Estudio con una
-   * canción ya cargada, Rewind/Stop/Cortar quedaban deshabilitados y parecían
-   * botones rotos.
-   */
-  const hasTransportAudio = hasAudioContent || engineHasAudio;
+  const hasTransportAudio = hasStudioAudio;
 
   // Atajos de teclado en escritorio:
   // - Espacio: Reproducir / Pausar
@@ -388,6 +394,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
         // sin esto, un botón con foco + este atajo ejecutaban la acción DOS veces
         // (causa directa del Play/Pausa fantasma con teclado).
         e.preventDefault();
+        if (!hasStudioAudio || isRecording) return;
         handlePlayToggle();
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
         e.preventDefault();
@@ -732,6 +739,11 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   // Lee el estado REAL del motor (no la clausura de React) para que un toque
   // nunca invierta el sentido equivocado por un render pendiente.
   const handlePlayToggle = () => {
+    if (!hasStudioAudio || isRecording) {
+      setIsPlaying(false);
+      return;
+    }
+
     audioEngine.initAudioContext();
     const engineState = audioEngine.getState();
     const isEngineActive = engineState.isPlaying || engineState.isPreRollActive;
@@ -1155,7 +1167,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
                 className="cursor-pointer h-11 px-5 rounded-2xl border border-dashed border-white/20 hover:border-cyan/60 bg-zinc-950 hover:bg-zinc-900 flex items-center gap-2 text-xs font-bold text-slate-300 hover:text-white transition-all shadow-md active:scale-98"
               >
                 <Plus className="w-4 h-4 text-cyan" />
-                <span>Añadir Pista ({arrangementTracks.length}/5)</span>
+                <span>Añadir Pista ({arrangementTracks.filter((t) => (t.clips && t.clips.length > 0) || !!t.buffer).length}/5)</span>
               </label>
               <input
                 id="add-track-input"
@@ -1267,15 +1279,22 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
         <div className="flex items-center gap-3 shrink-0">
           <button
             type="button"
-            {...press(handlePlayToggle)}
+            {...press(handlePlayToggle, { enabled: hasStudioAudio && !isRecording })}
+            disabled={!hasStudioAudio || isRecording}
             aria-pressed={isPlaying}
             aria-label={isPlaying ? 'Pausar reproducción' : 'Reproducir'}
-            className={`press w-12 h-12 sm:w-14 sm:h-14 shrink-0 rounded-full flex items-center justify-center shadow-lg ${
-              isPlaying 
-                ? 'bg-amber-400 text-black shadow-amber-400/30' 
-                : 'bg-red-500 text-white shadow-red-500/30 hover:bg-red-600'
+            className={`press w-12 h-12 sm:w-14 sm:h-14 shrink-0 rounded-full flex items-center justify-center shadow-lg transition-all ${
+              !hasStudioAudio || isRecording
+                ? 'bg-zinc-800 text-zinc-600 opacity-40 cursor-not-allowed pointer-events-none shadow-none'
+                : isPlaying 
+                  ? 'bg-amber-400 text-black shadow-amber-400/30' 
+                  : 'bg-red-500 text-white shadow-red-500/30 hover:bg-red-600'
             }`}
-            title={isPlaying ? 'Pausar (Espacio)' : 'Reproducir (Espacio)'}
+            title={
+              !hasStudioAudio
+                ? 'Carga o graba una pista de audio para reproducir'
+                : isPlaying ? 'Pausar (Espacio)' : 'Reproducir (Espacio)'
+            }
           >
             {isPlaying ? (
               <Pause className="w-6 h-6 fill-current" />

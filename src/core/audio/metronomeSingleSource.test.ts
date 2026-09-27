@@ -104,8 +104,15 @@ assert(
   'MUTE detiene el scheduler (0 bucles vivos)'
 );
 
-// 6. `start()` repetido es idempotente: nunca dos schedulers a la vez.
-const metro = new Metronome({ bpm: 120, beatsPerMeasure: 4 });
+// 6. Por defecto el metrónomo arranca APAGADO (enabled: false) y no crea scheduler.
+const defaultMetro = new Metronome();
+defaultMetro.init(new MockAudioContext() as any, new MockGainNode() as any);
+assert(defaultMetro.getConfig().enabled === false, 'Metrónomo nuevo arranca con enabled: false por defecto');
+defaultMetro.start(0);
+assert(defaultMetro.hasActiveScheduler() === false, 'start() no arranca scheduler cuando enabled: false');
+
+// 7. Con enabled: true, `start()` repetido es idempotente: nunca dos schedulers a la vez.
+const metro = new Metronome({ enabled: true, bpm: 120, beatsPerMeasure: 4 });
 metro.init(new MockAudioContext() as any, new MockGainNode() as any);
 metro.start(0);
 metro.start(0);
