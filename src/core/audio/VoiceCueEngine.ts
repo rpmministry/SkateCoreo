@@ -22,9 +22,6 @@ import {
 // Re-export para mantener compatibilidad con los consumidores existentes
 export { cleanFigureNameForSpeech, sanitizeSpeechText };
 
-export type PreRollTickCallback = (remainingSec: number) => void;
-export type PreRollCompleteCallback = () => void;
-
 /**
  * Re-export del catálogo canónico (`constants/ttsVoices`) para mantener la API
  * pública histórica de este módulo. El catálogo vive en `constants/` porque lo
@@ -237,12 +234,6 @@ export class VoiceCueEngine {
   private readonly lookaheadSec = 0.25;
   /** Margen para descartar cues cuyo instante ya pasó irreversiblemente. */
   private readonly lateToleranceSec = 0.35;
-
-  // Pre-roll countdown timer
-  private preRollTimer: any = null;
-  private isPreRollActive = false;
-  private onPreRollTick: PreRollTickCallback | null = null;
-  private onPreRollComplete: PreRollCompleteCallback | null = null;
 
   /**
    * Ticks rítmicos eliminados: VoiceCueEngine sintetiza EXCLUSIVAMENTE voz (TTS y buffers vocales).
@@ -1012,14 +1003,6 @@ export class VoiceCueEngine {
       return;
     }
 
-    if (this.isPreRollActive) {
-      this.schedulerTimerId = globalThis.setTimeout(
-        () => this.scheduler(token, runGen, runSession),
-        this.lookaheadMs
-      );
-      return;
-    }
-
     const now = this.ctx.currentTime;
     const horizon = now + this.lookaheadSec;
 
@@ -1112,7 +1095,7 @@ export class VoiceCueEngine {
    * Comprueba en cada frame si corresponde disparar un aviso (usado como respaldo)
    */
   public checkPlaybackTime(currentTimeMs: number) {
-    if (!this.config.enabled || this.isPreRollActive) return;
+    if (!this.config.enabled) return;
 
     for (const cue of this.cues) {
       if (!this.triggeredCueIds.has(cue.id) && !this.scheduledCueIds.has(cue.id)) {
@@ -1140,74 +1123,15 @@ export class VoiceCueEngine {
   }
 
   /**
-   * Inicia el pre-roll countdown sincronizado (recibe intervalo de tiempo en segundos o compás)
+   * ¿Hay audio vocal en vuelo AHORA? (cues agendados, scheduler activo,
+   * síntesis del navegador o buffers TTS). Lo usa `PlaybackCore` para auditar
+   * que no quede voz sonando tras stop/reset/sesión nueva.
    */
-  public startPreRoll(
-    onTick: PreRollTickCallback, 
-    onComplete: PreRollCompleteCallback,
-    stepIntervalSec: number = 1.0,
-    onStepSound?: (remaining: number) => void
-  ) {
-    this.cancelPreRoll();
-
-    if (this.config.introDelaySec <= 0) {
-      onComplete();
-      return;
-    }
-
-    // Precalentar números del conteo en Google Cloud TTS para que suenen sin retardo
-    if (this.config.ttsEngine === 'google-cloud' && this.config.googleApiKey) {
-      const isEs = this.config.language === 'es';
-      const wordsToWarm = isEs
-        ? ['Tres', 'Dos', 'Uno', '¡Ya!', '3', '2', '1']
-        : ['Three', 'Two', 'One', 'Go!', '3', '2', '1'];
-      void this.preloadGoogleTTS(wordsToWarm);
-    }
-
-    this.isPreRollActive = true;
-    this.onPreRollTick = onTick;
-    this.onPreRollComplete = onComplete;
-
-    let remaining = this.config.introDelaySec;
-    this.onPreRollTick(remaining);
-    this.announceNumber(remaining);
-    if (onStepSound) onStepSound(remaining);
-
-    const stepMs = Math.round(stepIntervalSec * 1000);
-
-    this.preRollTimer = setInterval(() => {
-      remaining -= 1;
-      if (this.onPreRollTick) {
-        this.onPreRollTick(remaining);
-      }
-
-      if (remaining > 0) {
-        this.announceNumber(remaining);
-        if (onStepSound) onStepSound(remaining);
-      } else {
-        this.announceGo();
-        if (onStepSound) onStepSound(0);
-        const completeCb = this.onPreRollComplete;
-        this.cancelPreRoll();
-        if (completeCb) {
-          completeCb();
-        }
-      }
-    }, stepMs);
-  }
-
-  public cancelPreRoll() {
-    this.isPreRollActive = false;
-    if (this.preRollTimer !== null) {
-      clearInterval(this.preRollTimer);
-      this.preRollTimer = null;
-    }
-    this.onPreRollTick = null;
-    this.onPreRollComplete = null;
-  }
-
-  public isPreRolling(): boolean {
-    return this.isPreRollActive;
+  public hasActiveAudio(): boolean {
+    if (this.activeSources.size > 0) return true;
+    if (this.schedulerTimerId !== null) return true;
+    if (this.activeToneNodes.size > 0) return true;
+    return ttsService.isPlaying();
   }
 
   /**
@@ -1235,11 +1159,10 @@ export class VoiceCueEngine {
   }
 
   /**
-   * Detiene de inmediato cualquier reproducción vocal activa y cancela el pre-roll
+   * Detiene de inmediato cualquier reproducción vocal activa.
    */
   public stop() {
     this.stopSync();
-    this.cancelPreRoll();
     ttsService.stop();
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       try {

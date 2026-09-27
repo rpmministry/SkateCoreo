@@ -56,6 +56,12 @@ export const AudioDebugHud: React.FC = () => {
     health.armedSchedulers <= 1 &&
     diag.audioContextsCreated <= 1;
 
+  const activeByKind = health.sources.activeByKind;
+  const activeSourcesText =
+    Object.entries(activeByKind)
+      .map(([kind, count]) => `${kind}=${count}`)
+      .join(' ') || 'ninguna';
+
   return (
     <div className="fixed bottom-2 left-2 z-[9999] max-w-[280px] rounded-xl border border-white/20 bg-black/85 px-3 py-2 font-mono text-[10px] leading-tight text-slate-200 shadow-2xl backdrop-blur">
       <div className="mb-1 flex items-center justify-between gap-2">
@@ -66,7 +72,13 @@ export const AudioDebugHud: React.FC = () => {
           {diag.platform} · {diag.activeView}
         </span>
       </div>
+      <div>
+        sesión: {health.sessionId} · gen {health.generation} · fase {health.phase}
+      </div>
       <div>ctx creados: {diag.audioContextsCreated} ({health.ctxState})</div>
+      <div>
+        fuentes activas: {health.sources.activeCount} [{activeSourcesText}]
+      </div>
       <div>
         metrónomos: {health.metronomeInstances} · id #{health.metronomeInstanceId} · duplicados destruidos:{' '}
         {health.duplicateKills}

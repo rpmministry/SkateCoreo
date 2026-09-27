@@ -524,6 +524,13 @@ export class TTSService {
     return Boolean(this.audioContext && this.coachOutputNode);
   }
 
+  /** ¿Hay una locución sonando AHORA (buffer del Coach o síntesis del navegador)? */
+  public isPlaying(): boolean {
+    const speaking =
+      typeof window !== 'undefined' && window.speechSynthesis?.speaking === true;
+    return this.activeSourceNode !== null || speaking;
+  }
+
   /**
    * Obtiene los bytes MP3 del proxy propio (`POST /api/tts`).
    *

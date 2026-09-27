@@ -58,6 +58,14 @@ export function setActiveSessionId(sessionId: string): void {
   } catch {
     /* almacenamiento restringido */
   }
+  // Vinculación del motor: todos los recursos de audio que se creen a partir de
+  // aquí quedan etiquetados con esta sesión. Si el id cambia, el núcleo DESTRUYE
+  // los recursos de la sesión anterior antes de aceptar la nueva.
+  try {
+    audioEngine.beginSession(sessionId);
+  } catch {
+    /* motor aún no disponible (SSR/tests) */
+  }
 }
 
 export function clearActiveSessionId(): void {
@@ -67,6 +75,12 @@ export function clearActiveSessionId(): void {
     }
   } catch {
     /* ignorar */
+  }
+  // Fin de sesión: se destruyen TODAS las fuentes de audio registradas.
+  try {
+    audioEngine.endSession();
+  } catch {
+    /* motor aún no disponible (SSR/tests) */
   }
 }
 

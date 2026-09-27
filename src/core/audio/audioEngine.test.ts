@@ -1,6 +1,6 @@
 import { Metronome } from './Metronome';
 import { VoiceCueEngine, isSpeakableFigure, cleanFigureNameForSpeech, collectNodeFigures } from './VoiceCueEngine';
-import { validateAudioFile, MAX_AUDIO_FILE_BYTES } from './AudioEngine';
+import { validateAudioFile, MAX_AUDIO_FILE_BYTES, audioEngine } from './AudioEngine';
 import { ElementLog, ChoreographyPathPoint } from '../../types/choreography';
 import { ttsService } from '../../services/ttsService';
 
@@ -163,9 +163,13 @@ async function runTests() {
   assert(mockElements[0].execution_timestamp - leadMs === 12000, 'Aviso de Doble Axel se calcula a 12.0s (3s antes de 15s)');
   assert(mockElements[1].execution_timestamp - leadMs === 27000, 'Aviso de Camel Spin se calcula a 27.0s (3s antes de 30s)');
 
-  // 3. Pre-roll cancelation
-  voiceEngine.cancelPreRoll();
-  assert(!voiceEngine.isPreRolling(), 'Cancelación de Pre-roll resetea estado correctamente');
+  // 3. Ciclo de limpieza del motor de voz (el pre-roll LEGACY por setInterval
+  //    fue eliminado en la reconstrucción: el conteo vive en AudioEngine).
+  voiceEngine.stop();
+  assert(
+    voiceEngine.hasActiveAudio() === false,
+    'voiceEngine.stop() deja el motor vocal sin fuentes activas'
+  );
 
   // 4. Matrix Routing Simulation
   function calculateMatrix(mode: string, mVol: number, cVol: number) {
@@ -239,11 +243,18 @@ async function runTests() {
   assert(voiceEngine.getConfig().anticipationSec === 5, 'Anticipación acotada al máximo de 5s');
   voiceEngine.setAnticipation(1.5);
 
-  // 6. Prueba de stop() en VoiceCueEngine
-  voiceEngine.startPreRoll(() => {}, () => {});
-  assert(voiceEngine.isPreRolling() === true, 'Pre-roll se inicia adecuadamente');
+  // 6. La API legacy del pre-roll (setInterval) fue ELIMINADA de producción:
+  //    el único conteo es el de AudioEngine (rAF + buffers agendados).
+  assert(
+    typeof (voiceEngine as unknown as { startPreRoll?: unknown }).startPreRoll === 'undefined',
+    'VoiceCueEngine ya no expone startPreRoll (sin segunda implementación de conteo)'
+  );
+  assert(
+    typeof (voiceEngine as unknown as { isPreRolling?: unknown }).isPreRolling === 'undefined',
+    'VoiceCueEngine ya no expone isPreRolling (API legacy eliminada)'
+  );
   voiceEngine.stop();
-  assert(voiceEngine.isPreRolling() === false, 'voiceEngine.stop() detiene el pre-roll y cancela locución');
+  assert(voiceEngine.hasActiveAudio() === false, 'El motor vocal queda limpio tras stop()');
 
   // 7. Prueba del Secuenciador Matemático de Alerta Temprana: Cuenta regresiva "3, 2, 1, ¡Ya! [Figura]"
   const mockNodes: ChoreographyPathPoint[] = [
@@ -386,20 +397,19 @@ async function runTests() {
   ttsService.setLanguage('en');
   assert(ttsService.getLanguage() === 'en', 'ttsService configura idioma a inglés');
 
-  // 9. Verificación de finalización automática de pre-roll countdown
-  let preRollCompleted: boolean = false;
-  const testVoiceEngine = new VoiceCueEngine({ enabled: true, introDelaySec: 1 });
-  await new Promise<void>((resolve) => {
-    testVoiceEngine.startPreRoll(
-      () => {},
-      () => {
-        preRollCompleted = true;
-        resolve();
-      },
-      0.05 // 50ms para pruebas rápidas
-    );
-  });
-  assert(Boolean(preRollCompleted) === true, 'Pre-roll completa y ejecuta callback para iniciar reproducción automática de la pista');
+  // 9. Núcleo de reproducción integrado en el motor: en reposo no existe NINGUNA
+  //    fuente registrada (nada de pre-roll legacy ni fuentes fantasma).
+  const coreSnapshot = audioEngine.getPlaybackCoreSnapshot();
+  assert(
+    coreSnapshot.activeCount === 0,
+    `El motor en reposo no tiene fuentes activas (${coreSnapshot.activeCount})`
+  );
+  assert(coreSnapshot.phase === 'idle', 'El motor en reposo está en fase idle');
+  audioEngine.stop();
+  assert(
+    audioEngine.getPlaybackCoreSnapshot().activeCount === 0,
+    'stop() deja 0 fuentes activas (una sola ruta de parada)'
+  );
 
   // 10. Verificación del Metrónomo sincronizado y sin retardo de fase
   const metroSync = new Metronome({ enabled: true, bpm: 140, beatsPerMeasure: 4 });
@@ -413,7 +423,6 @@ async function runTests() {
   metroSync.sync(0.42857); // Exactamente 1 beat después
   assert(mockGain !== null, 'Metrónomo mantiene sincronización de audio con AudioContext');
   metroSync.stop();
-  testVoiceEngine.stop();
 
   // 11. REGRESIÓN: metrónomos duplicados (colisión de audio)
   // El bug original: la ráfaga de configuración de la UI (BPM + compás +

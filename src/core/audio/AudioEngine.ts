@@ -15,6 +15,8 @@ import { renderChoreographyMixdown } from './audioMixdown';
 import { readWaveformPeaks } from './timeline/WaveformPeakCache';
 import { adquirirPantallaActiva, liberarPantallaActiva } from '../system/wakeLock';
 import { loadProgress } from '../../store/loadProgressStore';
+import { playbackCore, type PlaybackCoreSnapshot } from './PlaybackCore';
+import { ttsService } from '../../services/ttsService';
 import {
   audioDebugEnabled,
   logAudioDiagnostic,
@@ -248,6 +250,15 @@ export class AudioEngine {
   public voiceCueEngine: VoiceCueEngine;
   public mediaSession: MediaSessionManager;
 
+  /**
+   * Id de la fuente de música registrada en `playbackCore` (null = sin fuente).
+   * Es la pieza que permite que la ÚNICA ruta de parada del núcleo detenga la
+   * música sin depender de que cada llamador recuerde hacerlo a mano.
+   */
+  private musicSourceId: number | null = null;
+  /** Ids de las fuentes del pre-roll registradas en el núcleo. */
+  private preRollSourceIds: number[] = [];
+
   // Playback state
   private isPlaying = false;
   private startTime = 0;
@@ -296,9 +307,73 @@ export class AudioEngine {
     this.voiceCueEngine = new VoiceCueEngine();
     this.mediaSession = new MediaSessionManager();
 
+    // Registro central de subsistemas con sonido propio: el snapshot del núcleo
+    // demuestra en todo momento qué puede estar sonando (y `stopAll` los para).
+    playbackCore.registerSubsystem(
+      'metronome',
+      () => this.metronome.hasActiveScheduler() || this.metronome.getActiveNodeCount() > 0,
+      () => this.metronome.stop()
+    );
+    playbackCore.registerSubsystem(
+      'voice-cue',
+      () => this.voiceCueEngine.hasActiveAudio(),
+      () => this.voiceCueEngine.stop()
+    );
+    playbackCore.registerSubsystem(
+      'tts',
+      () => ttsService.isPlaying(),
+      () => ttsService.stop()
+    );
+
     this.initVisibilityListener();
     this.initIosUnlockListener();
     this.setupMediaSession();
+
+    logAudioDiagnostic('AUDIO_ENGINE_CREATED', {
+      details: `session=${playbackCore.getSessionId()} generation=${playbackCore.getGeneration()}`
+    });
+  }
+
+  // ── Ciclo de vida de sesión ───────────────────────────────────────────────
+
+  /**
+   * Abre una sesión de audio. Si el id difiere del vigente, `PlaybackCore`
+   * DESTRUYE todos los recursos anteriores antes de aceptar la nueva sesión:
+   * una sesión nueva jamás hereda audio de la anterior.
+   */
+  public beginSession(sessionId: string): number {
+    const generation = playbackCore.beginSession(sessionId);
+    logAudioDiagnostic('SESSION_CREATED', { sessionId, generation, details: 'beginSession' });
+    return generation;
+  }
+
+  /** Cierra la sesión y destruye TODAS las fuentes registradas. */
+  public endSession(): void {
+    playbackCore.endSession();
+    logAudioDiagnostic('SESSION_DESTROYED', { details: 'endSession: all audio destroyed' });
+  }
+
+  public getPlaybackCoreSnapshot(): PlaybackCoreSnapshot {
+    return playbackCore.snapshot();
+  }
+
+  /**
+   * ÚNICA RUTA DE PARADA del motor. Detiene y libera, en un solo lugar:
+   *  · fuentes registradas en el núcleo (música, pre-roll, unlock);
+   *  · subsistemas activos (metrónomo, Voz Guía, TTS);
+   *  · cualquier resto directo (idempotente, por si algo quedara fuera).
+   */
+  private stopAllAudioSources(reason: string): void {
+    playbackCore.stopAll();
+    // Refuerzo idempotente para los dueños que gestionan nodos fuera del núcleo.
+    this.cancelPreRoll(true);
+    this.stopSource();
+    this.metronome.stop();
+    this.voiceCueEngine.stop();
+    ttsService.stop();
+    logAudioDiagnostic('PLAYBACK_STOPPED', {
+      details: `${reason} · active=${playbackCore.getActiveSourceCount()}`
+    });
   }
 
   /**
@@ -330,10 +405,33 @@ export class AudioEngine {
 
       try {
         // Buffer de silencio: "calienta" la salida de hardware en iOS.
+        // Se registra en el núcleo para que quede contabilizado (auditoría de
+        // fuentes) y se libera en `onended`.
         const silent = ctx.createBuffer(1, 1, ctx.sampleRate || 44100);
         const source = ctx.createBufferSource();
         source.buffer = silent;
         source.connect(ctx.destination);
+        const unlockSourceId = playbackCore.registerSource(
+          'unlock-silent',
+          {
+            stop: () => {
+              try {
+                source.stop();
+              } catch {
+                /* aún no iniciada o ya terminada */
+              }
+            },
+            disconnect: () => {
+              try {
+                source.disconnect();
+              } catch {
+                /* ya desconectada */
+              }
+            }
+          },
+          'ios-unlock'
+        );
+        source.onended = () => playbackCore.releaseSource(unlockSourceId);
         source.start(0);
       } catch (e) {
         /* No es crítico: solo es un refuerzo del desbloqueo. */
@@ -820,6 +918,10 @@ export class AudioEngine {
     return {
       platform: (typeof document !== 'undefined' &&
         document.documentElement.getAttribute('data-form-factor')) || 'unknown',
+      sessionId: playbackCore.getSessionId(),
+      generation: playbackCore.getGeneration(),
+      phase: playbackCore.getPhase(),
+      sources: playbackCore.snapshot(),
       metronomeInstances: Metronome.getLiveInstanceCount(),
       armedSchedulers: Metronome.getArmedSchedulerCount(),
       schedulerOwnerId: Metronome.getSchedulerOwnerInstanceId(),
@@ -874,6 +976,9 @@ export class AudioEngine {
    * 4. Limpia la sesión de medios y resetea tiempos a 0.
    */
   public resetAudioSession(): void {
+    // Reset DIRECTO del núcleo: 0 fuentes, 0 subsistemas sonando, fase idle.
+    // (No cambia el sessionId: ese ciclo lo gobierna `beginSession/endSession`.)
+    playbackCore.disposeAll('resetAudioSession');
     this.stop();
     this.setMetronomeAudible(false);
     this.metronome.setEnabled(false);
@@ -1484,6 +1589,7 @@ export class AudioEngine {
     this.preRollState = 'preparing';
     this.isPreRollActive = true;
     this.preRollCountdown = n;
+    playbackCore.setPhase('preroll');
     // El metrónomo se detiene durante el conteo (la intro manda).
     this.metronome.stop();
     this.emitStateChange();
@@ -1564,8 +1670,35 @@ export class AudioEngine {
     this.sourceNode.connect(this.musicGainNode);
     this.updateMatrixGains();
 
+    // REGISTRO EN EL NÚCLEO: la fuente de música queda contabilizada (sesión,
+    // generación, tipo) y la única ruta de parada puede destruirla.
+    const musicNode = this.sourceNode;
+    this.musicSourceId = playbackCore.registerSource(
+      'music',
+      {
+        stop: () => this.stopSource(),
+        disconnect: () => {
+          try {
+            musicNode.disconnect();
+          } catch {
+            /* ya desconectado */
+          }
+        }
+      },
+      this.fileName || `pista:${this.playbackDomain}`
+    );
+    logAudioDiagnostic('PLAYBACK_CREATED', {
+      instanceId: this.musicSourceId,
+      details: `kind=music domain=${this.playbackDomain} offset=${clampedOffsetSec.toFixed(3)}`
+    });
+
     this.sourceNode.onended = () => {
-      if (!this.sourceNode?.loop && this.isPlaying && this.getCurrentTimeMs() >= this.durationMs - 150) {
+      // Liberar el registro ANTES de cualquier decisión (fin natural o parada).
+      if (this.musicSourceId !== null) {
+        playbackCore.releaseSource(this.musicSourceId);
+        this.musicSourceId = null;
+      }
+      if (!musicNode.loop && this.isPlaying && this.getCurrentTimeMs() >= this.durationMs - 150) {
         this.stop();
       }
     };
@@ -1583,6 +1716,7 @@ export class AudioEngine {
     this.preRollState = 'idle';
     this.preRollCountdown = 0;
     this.isPlaying = true;
+    playbackCore.setPhase('playing');
 
     // Metrónomo y voz anclados al MISMO instante absoluto que la música, PERO
     // solo en el dominio de la Pista 2D. En el Audio Studio ('studio') estas
@@ -1648,8 +1782,35 @@ export class AudioEngine {
         // sin afectar a la música ni a la voz grabada de la entrenadora.
         gain.connect(this.voiceCueGainNode);
         this.preRollSources.push(source);
+
+        // Registro en el núcleo: una entrada por voz del conteo.
+        const sourceId = playbackCore.registerSource(
+          'preroll-voice',
+          {
+            stop: () => {
+              try {
+                source.stop();
+              } catch {
+                /* ya detenida */
+              }
+            },
+            disconnect: () => {
+              try {
+                source.disconnect();
+                gain.disconnect();
+              } catch {
+                /* ya desconectada */
+              }
+            }
+          },
+          `conteo:${value}`
+        );
+        this.preRollSourceIds.push(sourceId);
+
         source.onended = () => {
           this.preRollSources = this.preRollSources.filter((s) => s !== source);
+          playbackCore.releaseSource(sourceId);
+          this.preRollSourceIds = this.preRollSourceIds.filter((id) => id !== sourceId);
           try {
             source.disconnect();
             gain.disconnect();
@@ -1691,14 +1852,9 @@ export class AudioEngine {
     for (const id of this.preRollTimers) globalThis.clearTimeout(id);
     this.preRollTimers = [];
 
-    for (const src of this.preRollSources) {
-      try {
-        src.stop();
-        src.disconnect();
-      } catch {
-        /* ya detenido */
-      }
-    }
+    // Las voces del conteo se detienen y liberan por la ÚNICA ruta del núcleo.
+    for (const id of this.preRollSourceIds) playbackCore.releaseSource(id);
+    this.preRollSourceIds = [];
     this.preRollSources = [];
 
     // La música pudo quedar agendada en el futuro: se descarta.
@@ -1711,7 +1867,6 @@ export class AudioEngine {
     this.preRollCountdown = 0;
     this.preRollState = 'idle';
 
-    this.voiceCueEngine.cancelPreRoll();
     if (changed && !silent) this.emitStateChange();
   }
 
@@ -1729,21 +1884,25 @@ export class AudioEngine {
   }
 
   public pause() {
-    // Cancela por completo cualquier pre-roll (ticker, voces, música agendada).
-    this.cancelPreRoll(true);
+    // UNA SOLA RUTA DE PARADA: núcleo + subsistemas + refuerzos idempotentes.
+    // Cancela pre-roll, detiene y libera la fuente de música, el metrónomo, la
+    // Voz Guía y el TTS.
+    this.stopAllAudioSources('pause');
 
-    this.metronome.stop();
-    this.voiceCueEngine.stop();
+    this.isPreRollActive = false;
+    this.preRollState = 'idle';
+    this.preRollCountdown = 0;
 
     if (!this.isPlaying) {
+      playbackCore.setPhase('idle');
       this.stopTracking();
       this.emitStateChange();
       return;
     }
 
     this.pausedAtTime = this.getCurrentTimeMs();
-    this.stopSource();
     this.isPlaying = false;
+    playbackCore.setPhase('paused');
     this.stopTracking();
     this.lastTimeEmitMs = -1;
 
@@ -1758,14 +1917,16 @@ export class AudioEngine {
   }
 
   public stop() {
-    // Cancela por completo cualquier pre-roll (ticker, voces, música agendada).
-    this.cancelPreRoll(true);
+    // UNA SOLA RUTA DE PARADA (idempotente).
+    this.stopAllAudioSources('stop');
 
-    this.stopSource();
-    this.metronome.stop();
-    this.voiceCueEngine.stop();
+    this.isPreRollActive = false;
+    this.preRollState = 'idle';
+    this.preRollCountdown = 0;
+
     this.pausedAtTime = 0;
     this.isPlaying = false;
+    playbackCore.setPhase('idle');
     this.stopTracking();
 
     this.mediaSession.updatePlaybackState(false);
@@ -1803,11 +1964,12 @@ export class AudioEngine {
     // Cambiar de sesión detiene TODO lo de la sesión anterior (fuente, metrónomo,
     // voces y pre-roll) y arranca la nueva en 0:00. Así una preview del Studio no
     // puede seguir sonando dentro del Rink ni viceversa.
-    this.cancelPreRoll(true);
-    this.stopSource();
-    this.metronome.stop();
-    this.voiceCueEngine.stop();
+    this.stopAllAudioSources(`domain-change:${domain}`);
+    this.isPreRollActive = false;
+    this.preRollState = 'idle';
+    this.preRollCountdown = 0;
     this.isPlaying = false;
+    playbackCore.setPhase('idle');
     this.stopTracking();
     this.lastTimeEmitMs = -1;
 
@@ -2003,11 +2165,22 @@ export class AudioEngine {
 
   private stopSource() {
     if (this.sourceNode) {
-      try {
-        this.sourceNode.stop();
-        this.sourceNode.disconnect();
-      } catch (e) {}
+      const node = this.sourceNode;
+      // Se limpia la referencia ANTES de parar para que `onended` no reentre.
       this.sourceNode = null;
+      try {
+        node.onended = null;
+        node.stop();
+        node.disconnect();
+      } catch (e) {}
+    }
+    if (this.musicSourceId !== null) {
+      const wasRegistered = playbackCore.hasSource(this.musicSourceId);
+      playbackCore.releaseSource(this.musicSourceId);
+      this.musicSourceId = null;
+      if (wasRegistered) {
+        logAudioDiagnostic('PLAYBACK_DESTROYED', { details: 'music source stopped' });
+      }
     }
   }
 

@@ -1363,6 +1363,12 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
       get().setTrackBuffer(newId, buffer, fileName);
     }
 
+    // Instrumentación: toda pista nace de una acción del usuario (importar o
+    // añadir). Nunca se crean pistas desde el arranque de la app.
+    logAudioDiagnostic('TRACK_CREATED', {
+      details: `track=${newId} name=${newTrack.name} hasAudio=${Boolean(buffer)}`
+    });
+
     return newTrack;
   },
 
@@ -1375,6 +1381,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         mixManifest: buildManifest(state.tracks, updatedAdditional, state.globalControls, state.totalDurationSec),
       };
     });
+    logAudioDiagnostic('TRACK_DESTROYED', { details: `track=${id}` });
   },
 
   audioNodes: [],

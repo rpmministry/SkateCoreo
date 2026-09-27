@@ -14,6 +14,7 @@
  */
 
 export type AudioDiagnosticEventType =
+  | 'AUDIO_ENGINE_CREATED'
   | 'METRONOME_CREATED'
   | 'METRONOME_STARTED'
   | 'METRONOME_STOPPED'
@@ -30,6 +31,9 @@ export type AudioDiagnosticEventType =
   | 'PLAYBACK_CREATED'
   | 'PLAYBACK_PAUSED'
   | 'PLAYBACK_STOPPED'
+  | 'PLAYBACK_DESTROYED'
+  | 'TRACK_CREATED'
+  | 'TRACK_DESTROYED'
   | 'APP_MOUNT'
   | 'APP_UNMOUNT'
   | 'STUDIO_RESET'
