@@ -32,6 +32,7 @@ import { useIosFileCapture } from './hooks/useIosFileCapture';
 import { useDeviceFormFactor } from './hooks/useDeviceFormFactor';
 import { LoadProgressBar } from './components/LoadProgressBar';
 import { ensureDataOwnership } from './services/workingSession';
+import { logAudioDiagnostic } from './core/audio/audioDiagnostics';
 import {
   initSessionLifecycle,
   persistActiveSessionSnapshot,
@@ -136,14 +137,21 @@ export function App() {
   const getDaysRemaining = useAuthStore((s) => s.getDaysRemaining);
   const getFormattedExpiration = useAuthStore((s) => s.getFormattedExpiration);
 
-  /**
-   * Propiedad de los datos locales: si se entra con una cuenta distinta a la que
-   * dejó datos en el dispositivo, se limpia la sesión de trabajo (audio,
-   * coreografía y Estudio) para que la nueva cuenta arranque en limpio.
-   */
+  // Trazabilidad de ciclo de vida del componente raíz
   useEffect(() => {
-    void ensureDataOwnership(authUser?.id ?? null);
-  }, [authUser?.id]);
+    logAudioDiagnostic('APP_MOUNT', {
+      sessionId: audioEngine.getSessionId(),
+      generation: audioEngine.getAudioGeneration(),
+      details: 'App root mounted',
+    });
+    return () => {
+      logAudioDiagnostic('APP_UNMOUNT', {
+        sessionId: audioEngine.getSessionId(),
+        generation: audioEngine.getAudioGeneration(),
+        details: 'App root unmounted',
+      });
+    };
+  }, []);
 
   /** Logout con reset absoluto: no debe quedar ningún dato ni estado temporal del usuario. */
   const handleLogout = useCallback(async () => {
@@ -253,6 +261,10 @@ export function App() {
   // a IndexedDB + re-render continuo), lo que en Safari iOS se percibía como
   // congelamiento al navegar entre pestañas.
   const loadData = useCallback(async () => {
+    // Paso 0: Asegurar propiedad de datos antes de consultar la sesión activa o IndexedDB.
+    // Previene condiciones de carrera donde sesiones previas de otra cuenta se restauran en paralelo.
+    await ensureDataOwnership(authUser?.id ?? null);
+
     // Estado inicial limpio («lienzo en blanco»): no se siembran atletas,
     // programas ni rutas de demostración. Si la base de datos está vacía, la
     // interfaz guía al usuario a crear su primer perfil y proyecto.
@@ -409,6 +421,9 @@ export function App() {
   // Al cambiar de sección (home ↔ rink ↔ studio) se detiene INMEDIATAMENTE
   // cualquier reproducción activa, osciladores de metrónomo, pre-roll y voces guía.
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).__SKATECOREO_ACTIVE_VIEW__ = activeView === 'studio' ? 'studio' : activeView === 'rink' ? '2D' : 'home';
+    }
     audioEngine.stop();
     if (activeView === 'studio') {
       audioEngine.handoffToStudio();

@@ -209,6 +209,29 @@ export class VoiceCueEngine {
    */
   private activeToneNodes: Set<OscillatorNode> = new Set();
 
+  private sessionId: string = 'sess_initial';
+  private audioGeneration: number = 1;
+  private schedulerToken: number = 0;
+
+  public bindSession(sessionId: string, generation: number): void {
+    const isNew = this.sessionId !== sessionId || this.audioGeneration !== generation;
+    if (isNew) {
+      this.stop();
+      this.sessionId = sessionId;
+      this.audioGeneration = generation;
+      this.prefetchedBuffers.clear();
+      this.activeSources.clear();
+    }
+  }
+
+  public getSessionId(): string {
+    return this.sessionId;
+  }
+
+  public getAudioGeneration(): number {
+    return this.audioGeneration;
+  }
+
   // Parámetros del scheduler de hardware
   private readonly lookaheadMs = 20;
   private readonly lookaheadSec = 0.25;
@@ -949,6 +972,11 @@ export class VoiceCueEngine {
 
     if (!this.ctx || !this.config.enabled) return;
 
+    this.schedulerToken++;
+    const token = this.schedulerToken;
+    const runGen = this.audioGeneration;
+    const runSession = this.sessionId;
+
     if (VOICE_GUIDE_DEBUG) {
       console.debug(
         '[VoiceGuide] Engine:', this.config.ttsEngine,
@@ -962,19 +990,33 @@ export class VoiceCueEngine {
     // Pre-renderizado en segundo plano: no bloquea el arranque de la música.
     void this.prefetchCues();
 
-    this.scheduler();
+    this.scheduler(token, runGen, runSession);
   }
 
   public stopSync() {
+    this.schedulerToken++;
     if (this.schedulerTimerId !== null) {
       globalThis.clearTimeout(this.schedulerTimerId);
       this.schedulerTimerId = null;
     }
   }
 
-  private scheduler = () => {
-    if (!this.ctx || !this.config.enabled || this.isPreRollActive) {
-      this.schedulerTimerId = globalThis.setTimeout(this.scheduler, this.lookaheadMs);
+  private scheduler = (token: number, runGen: number, runSession: string) => {
+    if (
+      !this.ctx ||
+      !this.config.enabled ||
+      token !== this.schedulerToken ||
+      runGen !== this.audioGeneration ||
+      runSession !== this.sessionId
+    ) {
+      return;
+    }
+
+    if (this.isPreRollActive) {
+      this.schedulerTimerId = globalThis.setTimeout(
+        () => this.scheduler(token, runGen, runSession),
+        this.lookaheadMs
+      );
       return;
     }
 
@@ -1003,7 +1045,10 @@ export class VoiceCueEngine {
       // Si devolvió `false` (buffer aún no listo) se reintenta en el próximo tick.
     }
 
-    this.schedulerTimerId = globalThis.setTimeout(this.scheduler, this.lookaheadMs);
+    this.schedulerTimerId = globalThis.setTimeout(
+      () => this.scheduler(token, runGen, runSession),
+      this.lookaheadMs
+    );
   };
 
   /**

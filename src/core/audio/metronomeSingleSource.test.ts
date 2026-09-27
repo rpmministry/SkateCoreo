@@ -131,4 +131,29 @@ assert(metro.hasActiveScheduler() === false, 'destroy() detiene scheduler y libe
 metro.logDiagnostic('METRONOME_STATE', 'test validation');
 assert(true, 'logDiagnostic se ejecuta sin errores para trazabilidad multiplataforma');
 
+// 10. Vinculación estricta a SessionId y Generación de Audio
+const sessionMetro = new Metronome({ enabled: true });
+sessionMetro.bindSession('session_alpha', 10);
+assert(sessionMetro.getSessionId() === 'session_alpha', 'bindSession asigna correctamente el sessionId');
+assert(sessionMetro.getAudioGeneration() === 10, 'bindSession asigna correctamente la generación de audio');
+assert(sessionMetro.getConfig().enabled === false, 'bindSession fuerza enabled: false para inicio seguro');
+assert(sessionMetro.isHardMuted() === true, 'bindSession fuerza hardMuted: true');
+
+// 11. AudioEngine.setSession e incremento de generación
+const initialGen = audioEngine.getAudioGeneration();
+audioEngine.setSession('session_beta');
+assert(audioEngine.getSessionId() === 'session_beta', 'audioEngine.setSession actualiza sessionId');
+assert(audioEngine.getAudioGeneration() === initialGen + 1, 'audioEngine.setSession incrementa la generación');
+assert(audioEngine.metronome.getSessionId() === 'session_beta', 'audioEngine.setSession propaga sessionId al metrónomo');
+assert(audioEngine.metronome.getAudioGeneration() === initialGen + 1, 'audioEngine.setSession propaga generación al metrónomo');
+assert(audioEngine.metronome.getConfig().enabled === false, 'audioEngine.setSession garantiza metrónomo apagado');
+assert(audioEngine.metronome.isHardMuted() === true, 'audioEngine.setSession garantiza metrónomo silenciado');
+
+// 12. AudioEngine.resetAudioSession destruye y rearma limpio
+audioEngine.resetAudioSession();
+assert(audioEngine.getAudioGeneration() === initialGen + 2, 'resetAudioSession incrementa la generación');
+assert(audioEngine.metronome.getConfig().enabled === false, 'resetAudioSession deja metrónomo apagado');
+assert(audioEngine.metronome.isHardMuted() === true, 'resetAudioSession deja metrónomo silenciado');
+assert(audioEngine.metronome.hasActiveScheduler() === false, 'resetAudioSession no deja ningún scheduler activo');
+
 console.log(`\nTODAS LAS PRUEBAS DE FUENTE ÚNICA DE METRÓNOMO PASARON: ${total}/${total}`);

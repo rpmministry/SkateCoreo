@@ -227,6 +227,7 @@ export async function initSessionLifecycle(userId: string | null): Promise<Sessi
 
   // Caso A: Recarga en la misma pestaña (F5, Ctrl+R, orientación, layout responsive)
   if (activeId) {
+    audioEngine.setSession(activeId);
     console.log(`[SessionLifecycle] Sesión activa detectada en la misma pestaña (${activeId}). Continuando trabajo.`);
     return { type: 'existing-active', sessionId: activeId };
   }
@@ -240,9 +241,11 @@ export async function initSessionLifecycle(userId: string | null): Promise<Sessi
       await resetAbsoluteSession();
       const newSessionId = generateSessionId();
       setActiveSessionId(newSessionId);
+      audioEngine.setSession(newSessionId);
       return { type: 'clean-new', sessionId: newSessionId };
     }
 
+    audioEngine.setSession(snapshot.sessionId);
     console.log(`[SessionLifecycle] Sesión anterior no cerrada detectada (${snapshot.sessionId}). Se ofrecerá recuperación controlada.`);
     return { type: 'unclosed-detected', snapshot, sessionId: snapshot.sessionId };
   }
@@ -252,6 +255,7 @@ export async function initSessionLifecycle(userId: string | null): Promise<Sessi
   await resetAbsoluteSession();
   const newSessionId = generateSessionId();
   setActiveSessionId(newSessionId);
+  audioEngine.setSession(newSessionId);
   return { type: 'clean-new', sessionId: newSessionId };
 }
 

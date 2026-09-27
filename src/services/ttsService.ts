@@ -492,18 +492,21 @@ export class TTSService {
   }
 
   /**
-   * Contexto de decodificación (se crea bajo demanda si aún no existe).
+   * Contexto de decodificación (se crea bajo demanda con OfflineAudioContext si aún no existe).
    */
-  private ensureAudioContext(): AudioContext | null {
-    let ctx = this.audioContext;
-    if (!ctx && typeof window !== 'undefined') {
+  private ensureAudioContext(): BaseAudioContext | null {
+    if (this.audioContext) return this.audioContext;
+    if (typeof window !== 'undefined') {
+      const OfflineCtxClass = window.OfflineAudioContext || (window as any).webkitOfflineAudioContext;
+      if (OfflineCtxClass) {
+        return new OfflineCtxClass(1, 1, 44100);
+      }
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       if (AudioContextClass) {
-        ctx = new AudioContextClass();
-        this.audioContext = ctx;
+        return new AudioContextClass();
       }
     }
-    return ctx;
+    return null;
   }
 
   /**
@@ -735,16 +738,14 @@ export class TTSService {
    * Reproduce el AudioBuffer mediante el bus de salida del Coach (Multitrack R)
    */
   private playAudioBuffer(buffer: AudioBuffer) {
-    let ctx = this.audioContext;
-    if (!ctx && typeof window !== 'undefined') {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioCtx) {
-        ctx = new AudioCtx();
-        this.audioContext = ctx;
-      }
-    }
+    const ctx = this.audioContext;
+    const outputNode = this.coachOutputNode;
 
-    if (!ctx) return;
+    // REGLA FUNDAMENTAL: Nunca reproducir audio por fuera del bus del motor ni crear
+    // AudioContext huérfanos conectados a destination. Toda locución debe fluir por coachOutputNode.
+    if (!ctx || !outputNode) {
+      return;
+    }
 
     if (ctx.state === 'suspended') {
       ctx.resume().catch(() => {});
@@ -753,17 +754,15 @@ export class TTSService {
     try {
       const source = ctx.createBufferSource();
       source.buffer = buffer;
-
-      if (this.coachOutputNode) {
-        source.connect(this.coachOutputNode);
-      } else {
-        source.connect(ctx.destination);
-      }
+      source.connect(outputNode);
 
       source.onended = () => {
         if (this.activeSourceNode === source) {
           this.activeSourceNode = null;
         }
+        try {
+          source.disconnect();
+        } catch (e) {}
       };
 
       source.start();

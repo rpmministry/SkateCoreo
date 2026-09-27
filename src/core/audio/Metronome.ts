@@ -16,6 +16,7 @@
  */
 
 import { MetronomeConfig, MetronomeSubdivision } from '../../types/audio';
+import { logAudioDiagnostic } from './audioDiagnostics';
 
 export type TimeSignature = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 export type TimeSignatureDenominator = 4 | 8;
@@ -89,6 +90,8 @@ function detectActiveView(): '2D' | 'studio' | 'viewer' {
 
 export class Metronome {
   private readonly instanceId: number;
+  private sessionId: string = 'sess_initial';
+  private audioGeneration: number = 1;
   private ctx: AudioContext | null = null;
   private outputNode: AudioNode | null = null;
   /**
@@ -162,6 +165,41 @@ export class Metronome {
       }
     }
     this.logDiagnostic('METRONOME_CREATE');
+    logAudioDiagnostic('METRONOME_CREATED', {
+      sessionId: this.sessionId,
+      generation: this.audioGeneration,
+      instanceId: this.instanceId,
+      details: `live=${LIVE_METRONOMES} hardMuted=${this.hardMuted} enabled=${this.config.enabled}`,
+    });
+  }
+
+  /**
+   * Vincula el metrónomo a una sesión y generación de audio específicas.
+   * Cualquier ciclo o timer de sesiones previas se purga de raíz.
+   */
+  public bindSession(sessionId: string, generation: number): void {
+    const isNew = this.sessionId !== sessionId || this.audioGeneration !== generation;
+    if (isNew) {
+      this.stop();
+      this.sessionId = sessionId;
+      this.audioGeneration = generation;
+      this.hardMuted = true;
+      this.config.enabled = false;
+      logAudioDiagnostic('METRONOME_STATE', {
+        sessionId: this.sessionId,
+        generation: this.audioGeneration,
+        instanceId: this.instanceId,
+        details: `bound to session ${sessionId} (gen:${generation})`,
+      });
+    }
+  }
+
+  public getSessionId(): string {
+    return this.sessionId;
+  }
+
+  public getAudioGeneration(): number {
+    return this.audioGeneration;
   }
 
   /**
@@ -317,6 +355,11 @@ export class Metronome {
   public setMuted(muted: boolean) {
     this.hardMuted = muted;
     this.logDiagnostic(muted ? 'METRONOME_MUTE' : 'METRONOME_UNMUTE');
+    logAudioDiagnostic(muted ? 'METRONOME_MUTE' : 'METRONOME_UNMUTE', {
+      sessionId: this.sessionId,
+      generation: this.audioGeneration,
+      instanceId: this.instanceId,
+    });
     if (muted) {
       this.haltScheduler();
     } else if (this.isRunning && this.config.enabled && !this.hardMuted && this.timerId === null) {
@@ -420,6 +463,12 @@ export class Metronome {
 
     if (!this.ctx || !this.outputNode) return;
     this.logDiagnostic('METRONOME_START');
+    logAudioDiagnostic('METRONOME_STARTED', {
+      sessionId: this.sessionId,
+      generation: this.audioGeneration,
+      instanceId: this.instanceId,
+      details: `syncAudioTime=${syncAudioTimeSec} enabled=${this.config.enabled} hardMuted=${this.hardMuted}`,
+    });
 
     this.isRunning = true;
     this.playbackRate = Math.max(0.1, playbackRate || 1.0);
@@ -450,6 +499,11 @@ export class Metronome {
    */
   public stop() {
     this.logDiagnostic('METRONOME_STOP');
+    logAudioDiagnostic('METRONOME_STOPPED', {
+      sessionId: this.sessionId,
+      generation: this.audioGeneration,
+      instanceId: this.instanceId,
+    });
     this.isRunning = false;
     this.schedulerToken++; // invalida cualquier tick del ciclo anterior
     this.pendingResync = false;
@@ -470,7 +524,14 @@ export class Metronome {
    */
   public destroy() {
     this.logDiagnostic('METRONOME_DESTROY');
+    logAudioDiagnostic('METRONOME_DESTROYED', {
+      sessionId: this.sessionId,
+      generation: this.audioGeneration,
+      instanceId: this.instanceId,
+      details: `destroy instance #${this.instanceId}`,
+    });
     this.stop();
+    LIVE_METRONOMES = Math.max(0, LIVE_METRONOMES - 1);
     this.ctx = null;
     this.outputNode = null;
   }
@@ -535,11 +596,21 @@ export class Metronome {
     }
 
     const token = ++this.schedulerToken;
+    const runGen = this.audioGeneration;
+    const runSession = this.sessionId;
     this.logState('scheduler armado');
 
     const tick = () => {
-      if (!this.isRunning || !this.ctx || token !== this.schedulerToken || this.hardMuted || !this.config.enabled) {
-        return; // Generación obsoleta, detenido o silenciado: se autodescarta de inmediato.
+      if (
+        !this.isRunning ||
+        !this.ctx ||
+        token !== this.schedulerToken ||
+        runGen !== this.audioGeneration ||
+        runSession !== this.sessionId ||
+        this.hardMuted ||
+        !this.config.enabled
+      ) {
+        return; // Generación obsoleta, sesión cambiada, detenido o silenciado: se autodescarta de inmediato.
       }
 
       // Aplica (una sola vez) cualquier resync pendiente de la configuración.

@@ -9,6 +9,7 @@
 import { create } from 'zustand';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 import { getDeviceId, getDeviceType, getDeviceName, DeviceType } from '../utils/deviceDetector';
+import { terminateSession } from '../services/sessionLifecycle';
 
 export type UserRole = 'user' | 'tester' | 'club_admin' | 'superadmin';
 export type SubscriptionStatus = 'active' | 'inactive' | 'trial';
@@ -220,6 +221,9 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
           ? 'individual'
           : ((data.user.subscription_plan as SubscriptionPlan) || 'individual');
 
+        // Purga absoluta de sesiones y audios previos de otro usuario
+        await terminateSession();
+
         set({
           user: authenticatedUser,
           role,
@@ -318,6 +322,8 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
           nombre: data.user.full_name,
         };
 
+        await terminateSession();
+
         set({
           user: newUser,
           role: 'user',
@@ -399,6 +405,8 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
           email: data.user.email,
           nombre: data.user.full_name,
         };
+
+        await terminateSession();
 
         set({
           user: newUser,
@@ -485,6 +493,8 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
           nombre: data.user.full_name,
         };
         const plan: SubscriptionPlan = (data.subscription_plan as SubscriptionPlan) || 'beta_tester';
+
+        await terminateSession();
 
         set({
           user: newUser,
@@ -649,6 +659,7 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
   },
 
   logout: () => {
+    void terminateSession();
     localStorage.removeItem(STORAGE_KEY);
     set({
       user: null,

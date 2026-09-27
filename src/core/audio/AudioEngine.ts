@@ -15,6 +15,7 @@ import { renderChoreographyMixdown } from './audioMixdown';
 import { readWaveformPeaks } from './timeline/WaveformPeakCache';
 import { adquirirPantallaActiva, liberarPantallaActiva } from '../system/wakeLock';
 import { loadProgress } from '../../store/loadProgressStore';
+import { logAudioDiagnostic } from './audioDiagnostics';
 
 /** Trazabilidad de audio solo en desarrollo (cero coste en producción). */
 const AUDIO_DEBUG = Boolean((import.meta as { env?: { DEV?: boolean } })?.env?.DEV);
@@ -283,6 +284,9 @@ export class AudioEngine {
   private timeUpdateCallbacks: Set<TimeUpdateCallback> = new Set();
   private stateChangeCallbacks: Set<StateChangeCallback> = new Set();
 
+  private currentSessionId: string = 'sess_initial';
+  private audioGeneration: number = 1;
+
   // Bluetooth heuristic
   private isBluetoothDetected = false;
   private bluetoothWarning: string | null = null;
@@ -291,13 +295,39 @@ export class AudioEngine {
     this.metronome = new Metronome({ enabled: false, volume: 0.8 });
     this.metronome.setMuted(true);
     this.metronome.setEnabled(false);
+    this.metronome.bindSession(this.currentSessionId, this.audioGeneration);
     this.voiceCueEngine = new VoiceCueEngine();
+    this.voiceCueEngine.bindSession(this.currentSessionId, this.audioGeneration);
     this.mediaSession = new MediaSessionManager();
 
     this.initVisibilityListener();
     this.initIosUnlockListener();
     this.setupMediaSession();
   }
+
+  public setSession(sessionId: string): void {
+    if (this.currentSessionId !== sessionId) {
+      this.currentSessionId = sessionId;
+      this.audioGeneration++;
+      logAudioDiagnostic('SESSION_BOUND', {
+        sessionId: this.currentSessionId,
+        generation: this.audioGeneration,
+        details: `AudioEngine bound to session ${sessionId}`,
+      });
+      this.metronome.bindSession(sessionId, this.audioGeneration);
+      this.voiceCueEngine.bindSession(sessionId, this.audioGeneration);
+    }
+  }
+
+  public getSessionId(): string {
+    return this.currentSessionId;
+  }
+
+  public getAudioGeneration(): number {
+    return this.audioGeneration;
+  }
+
+
 
   /**
    * DESBLOQUEO iOS / iPadOS (política de autoplay de Safari).
@@ -355,6 +385,11 @@ export class AudioEngine {
     if (!this.ctx) {
       const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
       this.ctx = new AudioCtxClass({ latencyHint: 'interactive' });
+      logAudioDiagnostic('AUDIO_CONTEXT_CREATED', {
+        sessionId: this.currentSessionId,
+        generation: this.audioGeneration,
+        details: `state=${this.ctx.state} sampleRate=${this.ctx.sampleRate}`,
+      });
 
       // iOS WebKit silent switch bypass
       if ('audioSession' in navigator && (navigator as any).audioSession) {
@@ -407,7 +442,7 @@ export class AudioEngine {
       // Initialize sub-modules with AudioContext & nodes
       this.metronome.init(this.ctx, this.metronomeGainNode);
       this.metronome.setMuted(this.metronomeMuted);
-      this.metronome.setEnabled(!this.metronomeMuted);
+      this.metronome.setEnabled(!this.metronomeMuted && this.metronome.getConfig().enabled);
       this.voiceCueEngine.init(this.ctx, this.voiceCueGainNode);
 
       this.updateMatrixGains();
@@ -835,19 +870,48 @@ export class AudioEngine {
 
   /**
    * Resetea completamente el estado de la sesión de audio:
-   * 1. Detiene reproducción activa y cancela pre-roll.
-   * 2. Vacía buffers y duraciones de Pista 2D y Estudio de Audio.
-   * 3. Limpia cues del motor de voz (voiceCueEngine.loadNodes([])).
-   * 4. Limpia la sesión de medios y resetea tiempos a 0.
+   * 1. Incrementa la generación de audio para invalidar cualquier scheduler residual.
+   * 2. Detiene reproducción activa, tracking y cancela pre-roll.
+   * 3. Destruye y recrea el metrónomo en estado 100% limpio (enabled: false, hardMuted: true).
+   * 4. Vacía buffers y duraciones de Pista 2D y Estudio de Audio.
+   * 5. Limpia cues del motor de voz y silencia locuciones en curso.
+   * 6. Limpia la sesión de medios y resetea tiempos a 0.
    */
   public resetAudioSession(): void {
+    this.audioGeneration++;
+    const gen = this.audioGeneration;
+    const sess = this.currentSessionId;
+
+    logAudioDiagnostic('SESSION_DESTROYED', {
+      sessionId: sess,
+      generation: gen,
+      details: 'resetAudioSession triggered full audio session cleanup',
+    });
+
     this.stop();
-    this.setMetronomeAudible(false);
-    this.metronome.setEnabled(false);
+    this.stopTracking();
+
+    // Destruir metrónomo previo
+    this.metronome.destroy();
+
+    // Recrear metrónomo completamente limpio
+    this.metronome = new Metronome({ enabled: false, volume: this.metronomeVolume });
     this.metronome.setMuted(true);
-    this.metronome.stop();
+    this.metronome.setEnabled(false);
+    this.metronomeMuted = true;
+    this.metronome.bindSession(sess, gen);
+
+    if (this.ctx && this.metronomeGainNode) {
+      this.metronome.init(this.ctx, this.metronomeGainNode);
+    }
+
+    this.voiceCueEngine.bindSession(sess, gen);
+    this.voiceCueEngine.silenceImmediate();
+    this.voiceCueEngine.loadNodes([]);
     this.voiceCueEngine.setConfig({ enabled: true, volume: 1.0 });
     this.setVoiceGuideMuted(false);
+
+    this.audioBuffer = null;
     this.buffers.rink = null;
     this.buffers.studio = null;
     this.durations.rink = 0;
@@ -857,12 +921,16 @@ export class AudioEngine {
     this.sourceKinds.rink = 'file';
     this.sourceKinds.studio = 'studio-mix';
     this.rawBlob = null;
+    this.fileName = '';
+    this.durationMs = 0;
     this.pausedAtTime = 0;
+    this.startTime = 0;
     this.loop = null;
     this.rinkRevision = 0;
     this.rinkAudioId = 'rink-audio-0';
-    this.voiceCueEngine.loadNodes([]);
+
     this.mediaSession.updateMetadata('Sin pista');
+    this.applyBusMutes();
     this.emitTimeUpdate(0);
     this.emitStateChange();
   }
@@ -1550,6 +1618,11 @@ export class AudioEngine {
     this.preRollState = 'idle';
     this.preRollCountdown = 0;
     this.isPlaying = true;
+    logAudioDiagnostic('PLAYBACK_CREATED', {
+      sessionId: this.currentSessionId,
+      generation: this.audioGeneration,
+      details: `domain=${this.playbackDomain} offsetMs=${offsetMs} rate=${this.playbackRate}`,
+    });
 
     // Metrónomo y voz anclados al MISMO instante absoluto que la música, PERO
     // solo en el dominio de la Pista 2D. En el Audio Studio ('studio') estas
@@ -1702,6 +1775,12 @@ export class AudioEngine {
     this.metronome.stop();
     this.voiceCueEngine.stop();
 
+    logAudioDiagnostic('PLAYBACK_STOPPED', {
+      sessionId: this.currentSessionId,
+      generation: this.audioGeneration,
+      details: 'pause',
+    });
+
     if (!this.isPlaying) {
       this.stopTracking();
       this.emitStateChange();
@@ -1734,6 +1813,12 @@ export class AudioEngine {
     this.pausedAtTime = 0;
     this.isPlaying = false;
     this.stopTracking();
+
+    logAudioDiagnostic('PLAYBACK_STOPPED', {
+      sessionId: this.currentSessionId,
+      generation: this.audioGeneration,
+      details: 'stop',
+    });
 
     this.mediaSession.updatePlaybackState(false);
     this.mediaSession.updatePositionState(this.durationMs / 1000, 0, this.playbackRate);
