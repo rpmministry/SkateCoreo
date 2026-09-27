@@ -769,7 +769,7 @@ body {
     display: none !important;
   }
   [data-form-factor='tablet'] .fm-header-audio-meters {
-    display: none !important;
+    display: flex !important;
   }
 }
 

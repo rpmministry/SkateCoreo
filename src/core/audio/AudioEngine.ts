@@ -289,6 +289,8 @@ export class AudioEngine {
 
   constructor() {
     this.metronome = new Metronome({ enabled: false, volume: 0.8 });
+    this.metronome.setMuted(true);
+    this.metronome.setEnabled(false);
     this.voiceCueEngine = new VoiceCueEngine();
     this.mediaSession = new MediaSessionManager();
 
@@ -404,6 +406,8 @@ export class AudioEngine {
 
       // Initialize sub-modules with AudioContext & nodes
       this.metronome.init(this.ctx, this.metronomeGainNode);
+      this.metronome.setMuted(this.metronomeMuted);
+      this.metronome.setEnabled(!this.metronomeMuted);
       this.voiceCueEngine.init(this.ctx, this.voiceCueGainNode);
 
       this.updateMatrixGains();
@@ -588,6 +592,9 @@ export class AudioEngine {
 
     // MUTE del metrónomo = desconectar su sub-bus (silencio absoluto garantizado
     // en móvil, independientemente del scheduling de ganancia de WebKit).
+    if (this.metronome) {
+      this.metronome.setMuted(this.metronomeMuted);
+    }
     if (this.metronomeGainNode && this.coachBusGainNode) {
       if (this.metronomeMuted) {
         this.metronomeGainNode.gain.setValueAtTime(0, now);
@@ -657,6 +664,10 @@ export class AudioEngine {
     this.metronome.setMuted(!audible);
     if (!audible) {
       this.metronome.suspend();
+      this.metronome.stop();
+    } else if (this.isPlaying && this.ctx) {
+      const currentSec = this.getCurrentTimeMs() / 1000;
+      this.metronome.start(currentSec, this.playbackRate);
     }
     this.syncRhythmSources();
     this.applyBusMutes();
@@ -716,8 +727,16 @@ export class AudioEngine {
       this.metronomeMuted = flags.metronome;
       // Mute real: destruye lo programado y bloquea nuevos clicks.
       this.metronome.setMuted(flags.metronome);
-      if (flags.metronome) this.metronome.suspend();
-      else this.metronome.resume();
+      this.metronome.setEnabled(!flags.metronome);
+      if (flags.metronome) {
+        this.metronome.suspend();
+        this.metronome.stop();
+      } else if (this.isPlaying && this.ctx) {
+        const currentSec = this.getCurrentTimeMs() / 1000;
+        this.metronome.start(currentSec, this.playbackRate);
+      } else {
+        this.metronome.resume();
+      }
     }
     if (flags.voiceGuide !== undefined) this.voiceGuideMuted = flags.voiceGuide;
     this.applyBusMutes();
@@ -1535,8 +1554,13 @@ export class AudioEngine {
     // Metrónomo y voz anclados al MISMO instante absoluto que la música, PERO
     // solo en el dominio de la Pista 2D. En el Audio Studio ('studio') estas
     // fuentes se detienen: son exclusivas del Rink y no deben contaminar el editor.
+    const shouldRunMetronome = !this.metronomeMuted && this.metronome.getConfig().enabled;
     if (this.playbackDomain === 'rink') {
-      this.metronome.start(clampedOffsetSec, this.playbackRate, whenCtxTime);
+      if (shouldRunMetronome) {
+        this.metronome.start(clampedOffsetSec, this.playbackRate, whenCtxTime);
+      } else {
+        this.metronome.stop();
+      }
       // UNA SOLA FUENTE RÍTMICA: los "cue ticks" son un acento corto de la Voz
       // Guía que podía percibirse como un SEGUNDO metrónomo. El arbitraje vive en
       // `syncRhythmSources()` (única fuente de verdad, compartida con el mute).
@@ -1550,7 +1574,11 @@ export class AudioEngine {
       // AUDIO STUDIO: el metrónomo SÍ funciona en su propio dominio (botón de la
       // campana operativo), pero las VOCES GUÍA de nodos son exclusivas de la
       // Pista 2D: así los metrónomos/voces de cada vista no se mezclan.
-      this.metronome.start(clampedOffsetSec, this.playbackRate, whenCtxTime);
+      if (shouldRunMetronome) {
+        this.metronome.start(clampedOffsetSec, this.playbackRate, whenCtxTime);
+      } else {
+        this.metronome.stop();
+      }
       this.voiceCueEngine.stop();
       this.syncRhythmSources();
     }

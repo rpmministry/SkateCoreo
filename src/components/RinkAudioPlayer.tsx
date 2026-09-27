@@ -43,6 +43,7 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
 }) => {
   const tracks = useAudioStudioStore((s) => s.tracks);
   const globalControls = useAudioStudioStore((s) => s.globalControls);
+  const toggleMetronomeMute = useAudioStudioStore((s) => s.toggleMetronomeMute);
 
   const masterTrack = tracks.music;
   // Música: el store es la ÚNICA fuente que sincroniza el GainNode real del motor
@@ -149,11 +150,30 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
 
   /* ── VARIANTE COMPACTA: móvil / tablet en cualquier orientación ── */
   if (variant === 'compact') {
+    const isMetroActive = metronomeEnabled && !metronomeMuted;
     return (
       <div className="flex w-full min-w-0 items-center gap-2">
         {rewindButton('md')}
         {playButton('md')}
         {stopButton('md')}
+
+        {/* Metrónomo toggle directo en dock móvil/tablet */}
+        <button
+          type="button"
+          {...press(toggleMetronomeMute)}
+          aria-pressed={isMetroActive}
+          className={`h-12 w-12 min-w-touch min-h-touch shrink-0 rounded-xl flex items-center justify-center press transition-colors ${
+            !metronomeEnabled
+              ? 'text-slate-500 bg-white/5 hover:text-slate-300'
+              : metronomeMuted
+              ? 'text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 ring-1 ring-rose-500/30'
+              : 'text-amber-400 bg-amber-500/15 ring-1 ring-amber-500/30'
+          }`}
+          title={`Metrónomo: ${!metronomeEnabled ? 'desactivado (clic para activar)' : metronomeMuted ? 'silenciado (clic para activar)' : 'activo (clic para silenciar)'}`}
+          aria-label={`Metrónomo: ${!metronomeEnabled ? 'desactivado' : metronomeMuted ? 'silenciado' : 'activo'}`}
+        >
+          <Bell className="h-4 w-4" />
+        </button>
 
         <div className="flex min-w-0 flex-1 flex-col justify-center">
           <div className="flex items-center justify-between gap-2 font-mono text-[11px] font-black leading-none">
@@ -241,14 +261,23 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
           {!voiceEnabled ? 'OFF' : voiceMuted ? 'MUTE' : 'ON'}
         </span>
         <span className="text-white/10">·</span>
-        <span
-          className={`flex items-center gap-1 ${!metronomeEnabled ? 'text-slate-500' : metronomeMuted ? 'text-rose-400' : 'font-semibold text-amber-400'}`}
-          title={`Metrónomo: ${!metronomeEnabled ? 'desactivado' : metronomeMuted ? 'silenciado' : 'activo'}`}
+        <button
+          type="button"
+          {...press(toggleMetronomeMute)}
+          aria-pressed={metronomeEnabled && !metronomeMuted}
+          className={`press flex items-center gap-1 rounded px-1.5 py-0.5 transition-colors cursor-pointer ${
+            !metronomeEnabled
+              ? 'text-slate-500 hover:text-slate-300'
+              : metronomeMuted
+              ? 'text-rose-400 hover:text-rose-300 bg-rose-500/10'
+              : 'font-semibold text-amber-400 bg-amber-500/10 ring-1 ring-amber-500/30'
+          }`}
+          title={`Metrónomo: ${!metronomeEnabled ? 'desactivado (clic para activar)' : metronomeMuted ? 'silenciado (clic para activar)' : 'activo (clic para silenciar)'}`}
           aria-label={`Metrónomo: ${!metronomeEnabled ? 'desactivado' : metronomeMuted ? 'silenciado' : 'activo'}`}
         >
           <Bell className="h-3.5 w-3.5" />
           {!metronomeEnabled ? 'OFF' : metronomeMuted ? 'MUTE' : 'ON'}
-        </span>
+        </button>
       </div>
     </div>
   );

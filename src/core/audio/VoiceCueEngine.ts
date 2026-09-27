@@ -1411,11 +1411,13 @@ export class VoiceCueEngine {
           }
         }, 15);
       } catch (err) {
-        console.warn('[VoiceCueEngine] Fallback a tono sintético:', err);
-        this.playAlertTone();
+        console.warn('[VoiceCueEngine] Error en locución browser (omitido para evitar tonos parásitos):', err);
       }
     } else {
-      this.playAlertTone();
+      // SpeechSynthesis no disponible: silencio total en reproducción para evitar tonos sintéticos de metrónomo falso
+      if (VOICE_GUIDE_DEBUG) {
+        console.debug('[VoiceCueEngine] SpeechSynthesis no disponible en este dispositivo, locución omitida.');
+      }
     }
   }
 
@@ -1423,7 +1425,7 @@ export class VoiceCueEngine {
    * Tono sintético de alerta Web Audio (para canal derecho / auricular)
    */
   public playAlertTone(time?: number) {
-    if (!this.ctx || !this.outputNode || this.config.volume <= 0) return;
+    if (!this.config.enabled || !this.ctx || !this.outputNode || this.config.volume <= 0) return;
 
     try {
       const now = time !== undefined ? time : this.ctx.currentTime;

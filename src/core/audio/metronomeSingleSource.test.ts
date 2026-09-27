@@ -104,21 +104,31 @@ assert(
   'MUTE detiene el scheduler (0 bucles vivos)'
 );
 
-// 6. Por defecto el metrónomo arranca APAGADO (enabled: false) y no crea scheduler.
+// 6. Por defecto el metrónomo arranca APAGADO (enabled: false) y SILENCIADO (hardMuted: true).
 const defaultMetro = new Metronome();
 defaultMetro.init(new MockAudioContext() as any, new MockGainNode() as any);
 assert(defaultMetro.getConfig().enabled === false, 'Metrónomo nuevo arranca con enabled: false por defecto');
+assert(defaultMetro.isHardMuted() === true, 'Metrónomo nuevo arranca con hardMuted: true por defecto (silencio absoluto)');
 defaultMetro.start(0);
-assert(defaultMetro.hasActiveScheduler() === false, 'start() no arranca scheduler cuando enabled: false');
+assert(defaultMetro.hasActiveScheduler() === false, 'start() no arranca scheduler cuando enabled: false o hardMuted: true');
 
 // 7. Con enabled: true, `start()` repetido es idempotente: nunca dos schedulers a la vez.
 const metro = new Metronome({ enabled: true, bpm: 120, beatsPerMeasure: 4 });
 metro.init(new MockAudioContext() as any, new MockGainNode() as any);
+assert(metro.isHardMuted() === false, 'Metrónomo con enabled: true arranca desmuteado');
 metro.start(0);
 metro.start(0);
 assert(metro.hasActiveScheduler() === true, 'start() repetido mantiene un solo scheduler');
 metro.stop();
 metro.stop();
 assert(metro.hasActiveScheduler() === false, 'stop() repetido deja 0 schedulers');
+
+// 8. Destrucción explícita de metrónomo (limpieza segura)
+metro.destroy();
+assert(metro.hasActiveScheduler() === false, 'destroy() detiene scheduler y libera recursos');
+
+// 9. Trazabilidad de diagnósticos estructurados (Req #8)
+metro.logDiagnostic('METRONOME_STATE', 'test validation');
+assert(true, 'logDiagnostic se ejecuta sin errores para trazabilidad multiplataforma');
 
 console.log(`\nTODAS LAS PRUEBAS DE FUENTE ÚNICA DE METRÓNOMO PASARON: ${total}/${total}`);

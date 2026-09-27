@@ -67,15 +67,35 @@ let LIVE_METRONOMES = 0;
 /** Trazabilidad de diagnóstico (solo en desarrollo, cero coste en producción). */
 const METRONOME_DEBUG = Boolean((import.meta as { env?: { DEV?: boolean } })?.env?.DEV);
 
+function detectPlatform(): 'desktop' | 'mobile' | 'tablet' {
+  if (typeof document !== 'undefined') {
+    const attr = document.documentElement.getAttribute('data-form-factor');
+    if (attr === 'mobile' || attr === 'tablet' || attr === 'desktop') return attr;
+  }
+  if (typeof window !== 'undefined' && typeof navigator !== 'undefined') {
+    const ua = navigator.userAgent;
+    if (/iPad|Tablet/i.test(ua) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua))) return 'tablet';
+    if (/Mobi|Android|iPhone/i.test(ua)) return 'mobile';
+  }
+  return 'desktop';
+}
+
+function detectActiveView(): '2D' | 'studio' | 'viewer' {
+  if (typeof window !== 'undefined' && (window as any).__SKATECOREO_ACTIVE_VIEW__) {
+    return (window as any).__SKATECOREO_ACTIVE_VIEW__;
+  }
+  return '2D';
+}
+
 export class Metronome {
   private readonly instanceId: number;
   private ctx: AudioContext | null = null;
   private outputNode: AudioNode | null = null;
   /**
-   * Silenciador ABSOLUTO por encima del estado lógico. Cuando está activo, el
-   * motor ni siquiera crea osciladores (silencio real, no ganancia pequeña).
+   * Silenciador ABSOLUTO por encima del estado lógico. Por defecto TRUE:
+   * arranque con silencio absoluto hasta activación explícita.
    */
-  private hardMuted = false;
+  private hardMuted = true;
   private timerId: number | null = null;
 
   private config: MetronomeConfig = {
@@ -134,11 +154,36 @@ export class Metronome {
 
   constructor(config?: Partial<MetronomeConfig>) {
     this.instanceId = ++LIVE_METRONOMES;
+    this.hardMuted = true;
     if (config) {
       this.config = { ...this.config, ...config };
+      if (config.enabled === true) {
+        this.hardMuted = false;
+      }
     }
-    if (METRONOME_DEBUG) {
-      console.debug(`[METRONOME] instancia #${this.instanceId} creada · activas: ${LIVE_METRONOMES}`);
+    this.logDiagnostic('METRONOME_CREATE');
+  }
+
+  /**
+   * Trazabilidad de diagnóstico unificada (Req #8: mobile/tablet/desktop).
+   */
+  public logDiagnostic(
+    event:
+      | 'METRONOME_CREATE'
+      | 'METRONOME_START'
+      | 'METRONOME_STOP'
+      | 'METRONOME_MUTE'
+      | 'METRONOME_UNMUTE'
+      | 'METRONOME_DESTROY'
+      | 'METRONOME_STATE',
+    extra?: string
+  ) {
+    const platform = detectPlatform();
+    const view = detectActiveView();
+    const ctxId = this.ctx ? (this.ctx as any).__ctxId || this.ctx.state : 'none';
+    const msg = `[${event}] id=${this.instanceId} [PLATFORM]=${platform} [VIEW]=${view} live=${LIVE_METRONOMES} running=${this.isRunning} scheduler=${this.timerId !== null ? 'ON' : 'OFF'} enabled=${this.config.enabled} hardMuted=${this.hardMuted} ctx=${ctxId}${extra ? ` ${extra}` : ''}`;
+    if (METRONOME_DEBUG || (typeof window !== 'undefined' && (window as any).__AUDIO_DIAGNOSTICS_ENABLED__)) {
+      console.log(msg);
     }
   }
 
@@ -271,9 +316,10 @@ export class Metronome {
    */
   public setMuted(muted: boolean) {
     this.hardMuted = muted;
+    this.logDiagnostic(muted ? 'METRONOME_MUTE' : 'METRONOME_UNMUTE');
     if (muted) {
       this.haltScheduler();
-    } else if (this.isRunning && this.config.enabled && this.timerId === null) {
+    } else if (this.isRunning && this.config.enabled && !this.hardMuted && this.timerId === null) {
       // Solo se rearma si NO hay ya un scheduler activo (evita duplicarlo).
       this.pendingResync = false;
       this.applyResync();
@@ -310,10 +356,14 @@ export class Metronome {
   public setEnabled(enabled: boolean) {
     if (this.config.enabled === enabled) return;
     this.config.enabled = enabled;
+    if (enabled) {
+      this.hardMuted = false;
+    }
+    this.logDiagnostic('METRONOME_STATE', `enabled=${enabled}`);
 
     if (!enabled) {
       this.haltScheduler();
-    } else if (this.isRunning && this.timerId === null) {
+    } else if (this.isRunning && !this.hardMuted && this.timerId === null) {
       this.pendingResync = false;
       this.applyResync();
       this.runScheduler();
@@ -331,7 +381,7 @@ export class Metronome {
 
   /** Rearma el planificador tras un `suspend()` (idempotente). */
   public resume() {
-    if (this.isRunning && this.config.enabled && this.timerId === null) {
+    if (this.isRunning && this.config.enabled && !this.hardMuted && this.timerId === null) {
       this.pendingResync = false;
       this.applyResync();
       this.runScheduler();
@@ -369,6 +419,8 @@ export class Metronome {
     this.stop();
 
     if (!this.ctx || !this.outputNode) return;
+    this.logDiagnostic('METRONOME_START');
+
     this.isRunning = true;
     this.playbackRate = Math.max(0.1, playbackRate || 1.0);
 
@@ -381,12 +433,7 @@ export class Metronome {
     this.pendingResync = false;
     this.applyResync(syncAudioTimeSec);
 
-    // Con el metrónomo apagado no se arranca el bucle: `isRunning` queda en
-    // `true` para que un `setEnabled(true)` posterior lo rearme sin reiniciar
-    // el transporte.
-    // Con el metrónomo apagado (o MUTE absoluto) no se arranca el bucle:
-    // `isRunning` queda en `true` para que un `setEnabled(true)`/`setMuted(false)`
-    // posterior lo rearme sin reiniciar el transporte.
+    // Con el metrónomo apagado o silenciado estructuralmente, NO se arranca el bucle
     if (this.config.enabled && !this.hardMuted) {
       this.runScheduler();
     }
@@ -402,6 +449,7 @@ export class Metronome {
    *    incluidos los ya programados para sonar en el futuro.
    */
   public stop() {
+    this.logDiagnostic('METRONOME_STOP');
     this.isRunning = false;
     this.schedulerToken++; // invalida cualquier tick del ciclo anterior
     this.pendingResync = false;
@@ -415,6 +463,16 @@ export class Metronome {
 
     this.nextBeatIndex = 0;
     this.lastScheduledBeatIndex = -1;
+  }
+
+  /**
+   * Destrucción completa del metrónomo (limpieza al desmontar o cerrar sesión).
+   */
+  public destroy() {
+    this.logDiagnostic('METRONOME_DESTROY');
+    this.stop();
+    this.ctx = null;
+    this.outputNode = null;
   }
 
   /**
@@ -480,8 +538,8 @@ export class Metronome {
     this.logState('scheduler armado');
 
     const tick = () => {
-      if (!this.isRunning || !this.ctx || token !== this.schedulerToken) {
-        return; // Generación obsoleta: se autodescarta.
+      if (!this.isRunning || !this.ctx || token !== this.schedulerToken || this.hardMuted || !this.config.enabled) {
+        return; // Generación obsoleta, detenido o silenciado: se autodescarta de inmediato.
       }
 
       // Aplica (una sola vez) cualquier resync pendiente de la configuración.
@@ -534,7 +592,7 @@ export class Metronome {
   private emitClick(time: number, isAccent: boolean, normalGain: number) {
     if (!this.ctx || !this.outputNode) return;
     // Mute absoluto: NO se crea ningún oscilador (silencio real, no volumen bajo).
-    if (this.hardMuted || !this.config.enabled || this.config.volume <= 0) return;
+    if (!this.isRunning || this.hardMuted || !this.config.enabled || this.config.volume <= 0) return;
 
     try {
       const osc = this.ctx.createOscillator();

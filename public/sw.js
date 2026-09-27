@@ -1,6 +1,6 @@
 // Al cambiar la versión se purgan las cachés antiguas en `activate`, de modo
 // que un despliegue nuevo se vea de inmediato sin quedarse con bundles viejos.
-const CACHE_NAME = 'skatecoreo-v5';
+const CACHE_NAME = 'skatecoreo-v6';
 const STATIC_ASSETS = [
   './',
   './index.html',

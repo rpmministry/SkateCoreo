@@ -356,6 +356,12 @@ export function App() {
       if (pendingSnapshot) {
         setActiveSessionId(pendingSnapshot.sessionId);
       }
+      // Por seguridad de arquitectura (Req #6): una sesión recuperada siempre arranca con metrónomo OFF
+      audioEngine.setMetronomeAudible(false);
+      audioEngine.metronome.setEnabled(false);
+      audioEngine.metronome.setMuted(true);
+      audioEngine.metronome.stop();
+      useAudioStudioStore.getState().setMetronomeConfig({ enabled: false });
     } catch (err) {
       console.warn('Error al recuperar sesión anterior:', err);
     } finally {
@@ -844,7 +850,7 @@ export function App() {
         {/* ── DERECHA: Transporte maestro + carga de audio + desbordamiento ── */}
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2 lg:min-w-0 lg:justify-self-end">
           {activeView === 'rink' && hasDockedInspector && (
-            <div className="hidden lg:flex">
+            <div className="fm-desktop-flex hidden lg:flex">
               <RinkAudioPlayer
                 variant="header"
                 currentTimeMs={currentTimeMs}
