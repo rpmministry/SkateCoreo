@@ -31,11 +31,6 @@ import { HomeView } from './components/HomeView';
 import { useIosFileCapture } from './hooks/useIosFileCapture';
 import { useDeviceFormFactor } from './hooks/useDeviceFormFactor';
 import { LoadProgressBar } from './components/LoadProgressBar';
-import { AudioDebugHud } from './components/system/AudioDebugHud';
-import { AudioOwnershipBanner } from './components/system/AudioOwnershipBanner';
-import { setAudioDiagnosticView, logAudioDiagnostic } from './core/audio/audioDiagnostics';
-import { tabAudioCoordinator } from './core/audio/tabAudioCoordinator';
-import { getBuildLabel } from './core/audio/buildInfo';
 import { ensureDataOwnership } from './services/workingSession';
 import {
   initSessionLifecycle,
@@ -141,6 +136,15 @@ export function App() {
   const getDaysRemaining = useAuthStore((s) => s.getDaysRemaining);
   const getFormattedExpiration = useAuthStore((s) => s.getFormattedExpiration);
 
+  /**
+   * Propiedad de los datos locales: si se entra con una cuenta distinta a la que
+   * dejó datos en el dispositivo, se limpia la sesión de trabajo (audio,
+   * coreografía y Estudio) para que la nueva cuenta arranque en limpio.
+   */
+  useEffect(() => {
+    void ensureDataOwnership(authUser?.id ?? null);
+  }, [authUser?.id]);
+
   /** Logout con reset absoluto: no debe quedar ningún dato ni estado temporal del usuario. */
   const handleLogout = useCallback(async () => {
     setSelectedSkater(null);
@@ -189,22 +193,6 @@ export function App() {
   useEffect(() => {
     audioEngine.voiceCueEngine.setIntroDelay(preRollSec);
   }, [preRollSec]);
-
-  // ── Ownership de audio entre pestañas (Android Chrome/Brave) ──────────────
-  //  · Al abrir la app se registra la identidad de build + tab (diagnóstico de
-  //    versiones cacheadas en Android).
-  //  · Si esta pestaña pierde el control de audio, el metrónomo del store vuelve
-  //    a OFF para que la UI nunca muestre "encendido" sin sonido.
-  useEffect(() => {
-    logAudioDiagnostic('APP_MOUNT', {
-      details: `build=${getBuildLabel()} tab=${tabAudioCoordinator.tabId} owner=${tabAudioCoordinator.isOwner()}`
-    });
-    return tabAudioCoordinator.onChange((snapshot) => {
-      if (!snapshot.isOwner) {
-        useAudioStudioStore.getState().resetMetronomeControl();
-      }
-    });
-  }, []);
 
   // ── Audio ──────────────────────────────────────────────
   const [audioState, setAudioState] = useState<AudioEngineState>(audioEngine.getState());
@@ -265,12 +253,6 @@ export function App() {
   // a IndexedDB + re-render continuo), lo que en Safari iOS se percibía como
   // congelamiento al navegar entre pestañas.
   const loadData = useCallback(async () => {
-    // Paso 0: Asegurar propiedad de datos ANTES de consultar la sesión activa o
-    // IndexedDB. Sin este await, un reset de cuenta podía completarse DESPUÉS de
-    // restaurar la sesión anterior (audio/metrónomo de la cuenta previa seguían
-    // vivos en móvil/tablet pese al logout).
-    await ensureDataOwnership(authUser?.id ?? null);
-
     // Estado inicial limpio («lienzo en blanco»): no se siembran atletas,
     // programas ni rutas de demostración. Si la base de datos está vacía, la
     // interfaz guía al usuario a crear su primer perfil y proyecto.
@@ -428,8 +410,6 @@ export function App() {
   // cualquier reproducción activa, osciladores de metrónomo, pre-roll y voces guía.
   useEffect(() => {
     audioEngine.stop();
-    // Vista activa para la telemetría de audio y el HUD de diagnóstico.
-    setAudioDiagnosticView(activeView === 'studio' ? 'studio' : activeView === 'rink' ? '2D' : 'home');
     if (activeView === 'studio') {
       audioEngine.handoffToStudio();
     } else {
@@ -787,10 +767,6 @@ export function App() {
     <ProtectedLayout>
       {/* Indicador global de carga: barra superior no invasiva */}
       <LoadProgressBar />
-      {/* HUD de diagnóstico de audio: invisible salvo con `?audioDebug=1`. */}
-      <AudioDebugHud />
-      {/* Aviso de ownership de audio entre pestañas (solo si no somos dueños). */}
-      <AudioOwnershipBanner />
       <div className="app-viewport-height w-full overflow-hidden flex flex-col bg-neon-canvas text-white select-none font-sans">
 
         {/* Hidden file inputs */}

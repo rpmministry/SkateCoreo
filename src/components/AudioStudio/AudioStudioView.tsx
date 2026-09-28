@@ -732,7 +732,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   // Play / Pause Toggle instantáneo sin latencia (Web Audio API)
   // Lee el estado REAL del motor (no la clausura de React) para que un toque
   // nunca invierta el sentido equivocado por un render pendiente.
-  const handlePlayToggle = () => {
+  const handlePlayToggle = async () => {
     if (!hasStudioAudio || isRecording) {
       setIsPlaying(false);
       return;
@@ -757,10 +757,10 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     // El offset de arranque se toma del motor (offset de pausa/seek exacto),
     // nunca del estado de React: así la reanudación no da saltos visuales.
     const resumeFromMs = audioEngine.getCurrentTimeMs();
-    void consolidateStudioAudio();
+    await consolidateStudioAudio();
     // El Estudio arranca DIRECTO (sin cuenta atrás de entrada a pista): el
     // count-in hablado es exclusivo de la Pista 2D.
-    audioEngine.play(resumeFromMs, { countIn: false });
+    await audioEngine.play(resumeFromMs, { countIn: false });
     setIsPlaying(true);
   };
 

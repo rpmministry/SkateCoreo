@@ -106,6 +106,8 @@ export interface ChoreographyStoreState {
 // demostración (datos de prueba) y la aplicación debe arrancar en «lienzo en
 // blanco»: `points` comienza vacío y el usuario crea sus propios nodos.
 
+let nodeSeq = 0;
+
 function normalizePoint(pt: Partial<ChoreographyPoint> & { id: string; x: number; y: number }): ChoreographyPoint {
   const timestamp = pt.timestamp ?? pt.time_ms ?? 0;
   const time_ms = timestamp;
@@ -404,7 +406,7 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
     x = Math.round(Math.max(1, Math.min(49, x)) * 10) / 10;
     y = Math.round(Math.max(1, Math.min(24, y)) * 10) / 10;
 
-    const newId = `node-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const newId = `node-${Date.now()}-${++nodeSeq}-${Math.random().toString(36).slice(2, 7)}`;
     const newPoint: ChoreographyPoint = normalizePoint({
       id: newId,
       timestamp: roundedTime,
@@ -446,7 +448,7 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
       }
     }
 
-    const newId = `node-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const newId = `node-${Date.now()}-${++nodeSeq}-${Math.random().toString(36).slice(2, 7)}`;
     const newPoint: ChoreographyPoint = normalizePoint({
       id: newId,
       timestamp: time,

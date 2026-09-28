@@ -266,6 +266,8 @@ export class AudioEngine {
    * varias pestañas vivas podían sonar en paralelo (dos metrónomos).
    */
   private ownership: TabAudioCoordinator = tabAudioCoordinator;
+  private metronomeClaimToken = 0;
+  private playbackIntentToken = 0;
 
   // Playback state
   private isPlaying = false;
@@ -426,6 +428,7 @@ export class AudioEngine {
    *  · cualquier resto directo (idempotente, por si algo quedara fuera).
    */
   private stopAllAudioSources(reason: string): void {
+    this.playbackIntentToken++;
     playbackCore.stopAll();
     // Refuerzo idempotente para los dueños que gestionan nodos fuera del núcleo.
     this.cancelPreRoll(true);
@@ -829,11 +832,17 @@ export class AudioEngine {
   }
 
   public setMetronomeAudible(audible: boolean) {
+    if (!audible) {
+      this.metronomeClaimToken++;
+    }
+    const token = ++this.metronomeClaimToken;
     // Encender el metrónomo requiere ser la pestaña propietaria del audio.
     // Apagarlo se permite SIEMPRE (seguridad: cualquier pestaña puede silenciar).
     if (audible && !this.ensureAudioOwnership('metronome-on')) {
       void this.ownership.claim('metronome-on').then((granted) => {
-        if (granted) this.setMetronomeAudible(true);
+        if (token === this.metronomeClaimToken && !this.metronomeMuted && granted) {
+          this.setMetronomeAudible(true);
+        }
       });
       return;
     }
@@ -1601,13 +1610,16 @@ export class AudioEngine {
    * timeline (`startSync`) dentro de `executePlay`.
    */
   public play(offsetMs?: number, options?: { countIn?: boolean }) {
+    const token = ++this.playbackIntentToken;
     // PUERTA DE OWNERSHIP (anti doble metrónomo/reproducción entre pestañas):
     // solo la pestaña propietaria del audio puede iniciar reproducción.
     // Si no lo somos, se intenta el traspaso (inmediato si la otra pestaña está
     // inactiva; denegado si está reproduciendo → nunca dos fuentes a la vez).
     if (!this.ensureAudioOwnership('play')) {
       void this.ownership.claim('play').then((granted) => {
-        if (granted) this.playInternal(offsetMs, options);
+        if (token === this.playbackIntentToken && granted) {
+          this.playInternal(offsetMs, options);
+        }
       });
       return;
     }

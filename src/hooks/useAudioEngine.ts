@@ -52,13 +52,34 @@ export interface UseAudioEngineReturn {
 }
 
 /**
+ * Hook ligero para componentes de interfaz que necesitan un cronómetro en vivo
+ * (p. ej. la barra de transporte o reloj digital). No debe usarse en componentes
+ * pesados como el canvas ni la raíz de la app.
+ */
+export function useAudioPlaybackTime(): number {
+  const [timeMs, setTimeMs] = useState<number>(() => audioEngine.getCurrentTimeMs());
+
+  useEffect(() => {
+    return audioEngine.onTimeUpdate((time) => {
+      setTimeMs(time);
+    });
+  }, []);
+
+  return timeMs;
+}
+
+/**
  * Custom Hook Headless para encapsular toda la lógica de Web Audio API,
  * enrutamiento estricto L/R, metrónomo y secuenciador de alertas vocales.
  * No renderiza elementos visuales; provee métodos e inputs de estado limpios a la UI.
+ *
+ * RENDIMIENTO: Se suscribe a `onStateChange` (play, pause, seek, stop, carga de buffer),
+ * NO a `onTimeUpdate` (bucle de alta frecuencia). Así los componentes que lo consumen
+ * (RinkCanvas, LeftSidebarPanel, RightInspectorPanel) NO se re-renderizan a decenas
+ * de Hz durante la reproducción, eliminando el lag y congelamiento en móviles/tablets.
  */
 export function useAudioEngine(): UseAudioEngineReturn {
   const [audioState, setAudioState] = useState<AudioEngineState>(() => audioEngine.getState());
-  const [currentTimeMs, setCurrentTimeMs] = useState<number>(0);
 
   // ── Metrónomo: ÚNICA fuente de verdad compartida con el Estudio ──
   // El estado NO se espeja desde el motor (podía quedar obsoleto y divergir del
@@ -76,18 +97,13 @@ export function useAudioEngine(): UseAudioEngineReturn {
   const storeSetMetronomeVolume = useAudioStudioStore((s) => s.setMetronomeVolume);
   const storeSetMetronomeConfig = useAudioStudioStore((s) => s.setMetronomeConfig);
 
-  // Suscripción al ciclo de eventos del AudioEngine
+  // Suscripción al ciclo de eventos del AudioEngine (exclusivamente cambios discretos de estado)
   useEffect(() => {
-    const unsubTime = audioEngine.onTimeUpdate((time) => {
-      setCurrentTimeMs(time);
-    });
-
     const unsubState = audioEngine.onStateChange((state) => {
       setAudioState(state);
     });
 
     return () => {
-      unsubTime();
       unsubState();
     };
   }, []);
@@ -185,7 +201,7 @@ export function useAudioEngine(): UseAudioEngineReturn {
     isPreRollActive: audioState.isPreRollActive,
     preRollCountdown: audioState.preRollCountdown,
     isAudioActive,
-    currentTimeMs,
+    currentTimeMs: audioState.currentTimeMs,
     durationMs: audioState.durationMs,
     fileName: audioState.fileName,
     hasAudioLoaded: audioState.hasAudioLoaded,
