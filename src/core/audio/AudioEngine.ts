@@ -1632,30 +1632,32 @@ export class AudioEngine {
    * Las figuras se siguen agendando por nodos de la Pista 2D contra el reloj del
    * timeline (`startSync`) dentro de `executePlay`.
    */
-  public play(offsetMs?: number, options?: { countIn?: boolean }) {
+  public async play(offsetMs?: number, options?: { countIn?: boolean }): Promise<boolean> {
     const token = ++this.playbackIntentToken;
     // PUERTA DE OWNERSHIP (anti doble metrónomo/reproducción entre pestañas):
     // solo la pestaña propietaria del audio puede iniciar reproducción.
     // Si no lo somos, se intenta el traspaso (inmediato si la otra pestaña está
     // inactiva; denegado si está reproduciendo → nunca dos fuentes a la vez).
     if (!this.ensureAudioOwnership('play')) {
-      void this.ownership.claim('play').then((granted) => {
-        if (token === this.playbackIntentToken && granted) {
-          this.playInternal(offsetMs, options);
-        }
-      });
-      return;
+      const granted = await this.ownership.claim('play');
+      if (token !== this.playbackIntentToken || !granted) {
+        return false;
+      }
     }
-    this.playInternal(offsetMs, options);
+    return this.playInternal(offsetMs, options);
   }
 
-  private playInternal(offsetMs?: number, options?: { countIn?: boolean }) {
-    if (!this.audioBuffer) return;
+  private async playInternal(offsetMs?: number, options?: { countIn?: boolean }): Promise<boolean> {
+    if (!this.audioBuffer) return false;
     this.initAudioContext();
-    if (!this.ctx) return;
+    if (!this.ctx) return false;
 
     if (this.ctx.state === 'suspended') {
-      void this.ctx.resume();
+      try {
+        await this.ctx.resume();
+      } catch (err) {
+        console.warn('[AudioEngine] Error al reanudar AudioContext:', err);
+      }
     }
 
     const currentOffset = offsetMs !== undefined ? offsetMs : this.pausedAtTime;
@@ -1672,15 +1674,16 @@ export class AudioEngine {
       !this.isPreRollActive
     ) {
       this.startPreRoll();
-      return;
+      return true;
     }
 
-    this.executePlay(currentOffset);
+    await this.executePlay(currentOffset);
+    return true;
   }
 
   /** Alias histórico: reproduce con la cuenta atrás hablada configurada. */
-  public playWithPreRoll(offsetMs?: number) {
-    this.play(offsetMs);
+  public playWithPreRoll(offsetMs?: number): Promise<boolean> {
+    return this.play(offsetMs);
   }
 
   /**
@@ -1702,7 +1705,7 @@ export class AudioEngine {
 
     const n = Math.max(0, Math.min(30, Math.round(this.voiceCueEngine.getConfig().introDelaySec)));
     if (n <= 0) {
-      this.executePlay(this.pausedAtTime);
+      void this.executePlay(this.pausedAtTime);
       return;
     }
 
@@ -1721,13 +1724,39 @@ export class AudioEngine {
     this.emitStateChange();
 
     void (async () => {
+      // 0. Asegurar contexto activo antes de calcular tiempos de hardware:
+      if (this.ctx && this.ctx.state === 'suspended') {
+        try {
+          await this.ctx.resume();
+        } catch {
+          /* ignorar */
+        }
+      }
+      if (token !== this.preRollCancelToken || !this.ctx) return;
+
       // 1. Voz pregenerada (una sola voz) lista ANTES de contar.
       await this.voiceCueEngine.prepareCountdownBank();
       if (token !== this.preRollCancelToken || !this.ctx) return;
 
+      // Desbloqueo WebKit: tocar un buffer silencioso si ctx aún no corre
+      if (this.ctx.state !== 'running') {
+        try {
+          const silentBuf = this.ctx.createBuffer(1, 1, 22050);
+          const src = this.ctx.createBufferSource();
+          src.buffer = silentBuf;
+          src.connect(this.ctx.destination);
+          src.start(0);
+          await this.ctx.resume();
+        } catch {
+          /* ignorar */
+        }
+      }
+
       // 2. Instante exacto de arranque de la música (con margen de agendado).
+      const startWallClock = performance.now();
       const lead = 0.12;
-      const musicStart = this.ctx.currentTime + lead + n;
+      const ctxStartTime = this.ctx.currentTime;
+      const musicStart = ctxStartTime + lead + n;
       this.preRollState = 'counting';
 
       // 3. Música agendada para `musicStart` (silenciosa hasta entonces).
@@ -1746,10 +1775,16 @@ export class AudioEngine {
 
       this.preRollState = 'starting';
 
-      // 4. Ticker único basado en el reloj de audio (no acumula error).
+      // 4. Ticker dual: reloj de audio prioritario + fallback determinista por reloj de pared (performance.now)
       const tick = () => {
         if (token !== this.preRollCancelToken || !this.ctx) return;
-        const remaining = musicStart - this.ctx.currentTime;
+
+        // Reloj de audio vs reloj de pared
+        const ctxElapsed = this.ctx.currentTime - ctxStartTime;
+        const wallElapsed = (performance.now() - startWallClock) / 1000;
+        const effectiveElapsed = Math.max(ctxElapsed, wallElapsed);
+        const remaining = Math.max(0, (lead + n) - effectiveElapsed);
+
         // El rótulo visual sigue EXACTAMENTE a la voz: durante el último tramo
         // (duración del "¡Ya!") se muestra 0 → la UI pinta "¡YA!" mientras la
         // voz lo dice, y la música entra justo después.
@@ -1760,7 +1795,7 @@ export class AudioEngine {
         }
         if (remaining <= 0) {
           this.preRollTickerId = null;
-          this.beginPlaybackAt(musicStart, 0);
+          this.beginPlaybackAt(Math.max(musicStart, this.ctx.currentTime), 0);
           return;
         }
         this.preRollTickerId = globalThis.requestAnimationFrame(tick);
@@ -2009,12 +2044,16 @@ export class AudioEngine {
     if (changed && !silent) this.emitStateChange();
   }
 
-  private executePlay(offsetMs: number) {
+  private async executePlay(offsetMs: number): Promise<void> {
     this.initAudioContext();
     if (!this.ctx || !this.musicGainNode) return;
 
     if (this.ctx.state === 'suspended') {
-      void this.ctx.resume();
+      try {
+        await this.ctx.resume();
+      } catch (err) {
+        console.warn('[AudioEngine] Error al reanudar AudioContext en executePlay:', err);
+      }
     }
 
     const when = this.ctx.currentTime;

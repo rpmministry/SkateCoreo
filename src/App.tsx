@@ -26,6 +26,7 @@ import { useRinkAudioStore } from './store/useRinkAudioStore';
 import { useAuthStore } from './store/useAuthStore';
 import { ACCEPTED_AUDIO_FORMATS, ACCEPTED_PROJECT_FORMATS } from './constants/mediaFormats';
 import { ProtectedLayout } from './components/ProtectedLayout';
+import { ErrorBoundary } from './components/system/ErrorBoundary';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { HomeView } from './components/HomeView';
 import { useIosFileCapture } from './hooks/useIosFileCapture';
@@ -94,7 +95,9 @@ const SkatersManager = (props: React.ComponentProps<typeof SkatersManagerLazy>) 
   <Suspense fallback={<ViewLoadingFallback />}><SkatersManagerLazy {...props} /></Suspense>
 );
 const InteractiveWaveform = (props: React.ComponentProps<typeof InteractiveWaveformLazy>) => (
-  <Suspense fallback={null}><InteractiveWaveformLazy {...props} /></Suspense>
+  <ErrorBoundary inline inlineMessage="El visor de audio se está reanudando...">
+    <Suspense fallback={null}><InteractiveWaveformLazy {...props} /></Suspense>
+  </ErrorBoundary>
 );
 const LeftSidebarPanel = (props: React.ComponentProps<typeof LeftSidebarPanelLazy>) => (
   <Suspense fallback={null}><LeftSidebarPanelLazy {...props} /></Suspense>

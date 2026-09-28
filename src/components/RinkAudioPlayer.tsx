@@ -88,7 +88,7 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
     } else {
       // La Pista 2D reproduce en su propio dominio: metrónomo + voces guía activos.
       audioEngine.setPlaybackDomain('rink');
-      audioEngine.play();
+      void audioEngine.play();
     }
   };
 

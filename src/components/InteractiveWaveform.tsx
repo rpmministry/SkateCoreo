@@ -237,110 +237,137 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     const width = timelineGeometry.contentWidth;
     const height = canvas.clientHeight || 90;
 
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
-
-    if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
-      canvas.width = Math.round(width * dpr);
-      canvas.height = Math.round(height * dpr);
+    // GUARDIA ESTRICTO DE DIMENSIONES:
+    // Si el contenedor aún no ha sido medido (width <= 0) o el visor está oculto/minúsculo,
+    // abortamos de inmediato para evitar IndexSizeError en drawImage y fallos de Canvas en Android/iOS.
+    if (!width || width <= 10 || !height || height <= 10 || !Number.isFinite(width) || !Number.isFinite(height)) {
+      return;
     }
 
-    ctx.save();
-    ctx.scale(dpr, dpr);
-    ctx.clearRect(0, 0, width, height);
+    try {
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
 
-    const centerY = height / 2;
+      const targetPixelW = Math.round(width * dpr);
+      const targetPixelH = Math.round(height * dpr);
 
-    // 1. Limpieza de Fondo
-    ctx.fillStyle = '#090D16';
-    ctx.fillRect(0, 0, width, height);
+      if (targetPixelW > 0 && targetPixelH > 0 && (canvas.width !== targetPixelW || canvas.height !== targetPixelH)) {
+        canvas.width = targetPixelW;
+        canvas.height = targetPixelH;
+      }
 
-    // Línea base central
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(0, centerY);
-    ctx.lineTo(width, centerY);
-    ctx.stroke();
+      ctx.save();
+      ctx.scale(dpr, dpr);
+      ctx.clearRect(0, 0, width, height);
 
-    // 2. Proyección de Progreso de Reproducción con zona segura interna
-    //    Coma flotante pura: sin Math.round para no introducir micro-saltos
-    const availableW = timelineGeometry.usableWidth;
-    const playheadPx = timelineGeometry.timeToPx(timeMs / 1000, true);
+      const centerY = height / 2;
 
-    // Área reproducida (sombreado sutil cian)
-    const playedGradient = ctx.createLinearGradient(0, 0, playheadPx, 0);
-    playedGradient.addColorStop(0, 'rgba(0, 245, 255, 0.04)');
-    playedGradient.addColorStop(1, 'rgba(0, 245, 255, 0.16)');
-    ctx.fillStyle = playedGradient;
-    ctx.fillRect(0, 0, playheadPx, height);
+      // 1. Limpieza de Fondo
+      ctx.fillStyle = '#090D16';
+      ctx.fillRect(0, 0, width, height);
 
-    // 3. Renderizado de Picos de la Onda Sonora (Offscreen Canvas acelerado por GPU)
-    if (wavePeaks.length > 0) {
-      const step = availableW / wavePeaks.length;
-      const barWidth = Math.max(1, Math.min(5, Math.floor(step * 0.75)));
-      const cacheKey = `${width}|${height}|${dpr}|${wavePeaks.length}|${barWidth}`;
+      // Línea base central
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, centerY);
+      ctx.lineTo(width, centerY);
+      ctx.stroke();
 
-      if (offscreenKeyRef.current !== cacheKey) {
-        offscreenKeyRef.current = cacheKey;
+      // 2. Proyección de Progreso de Reproducción con zona segura interna
+      //    Coma flotante pura: sin Math.round para no introducir micro-saltos
+      const availableW = timelineGeometry.usableWidth;
+      const playheadPx = timelineGeometry.timeToPx(timeMs / 1000, true);
 
-        if (!offscreenUnplayedRef.current) offscreenUnplayedRef.current = document.createElement('canvas');
-        if (!offscreenPlayedRef.current) offscreenPlayedRef.current = document.createElement('canvas');
+      // Área reproducida (sombreado sutil cian)
+      const playedGradient = ctx.createLinearGradient(0, 0, playheadPx, 0);
+      playedGradient.addColorStop(0, 'rgba(0, 245, 255, 0.04)');
+      playedGradient.addColorStop(1, 'rgba(0, 245, 255, 0.16)');
+      ctx.fillStyle = playedGradient;
+      ctx.fillRect(0, 0, playheadPx, height);
 
-        const uCan = offscreenUnplayedRef.current;
-        const pCan = offscreenPlayedRef.current;
+      // 3. Renderizado de Picos de la Onda Sonora (Offscreen Canvas acelerado por GPU)
+      if (wavePeaks.length > 0 && availableW > 10) {
+        const step = availableW / wavePeaks.length;
+        const barWidth = Math.max(1, Math.min(5, Math.floor(step * 0.75)));
+        const cacheKey = `${width}|${height}|${dpr}|${wavePeaks.length}|${barWidth}`;
 
-        uCan.width = Math.round(width * dpr);
-        uCan.height = Math.round(height * dpr);
-        pCan.width = Math.round(width * dpr);
-        pCan.height = Math.round(height * dpr);
+        if (offscreenKeyRef.current !== cacheKey) {
+          offscreenKeyRef.current = cacheKey;
 
-        const uCtx = uCan.getContext('2d');
-        const pCtx = pCan.getContext('2d');
+          if (!offscreenUnplayedRef.current) offscreenUnplayedRef.current = document.createElement('canvas');
+          if (!offscreenPlayedRef.current) offscreenPlayedRef.current = document.createElement('canvas');
 
-        if (uCtx && pCtx) {
-          uCtx.save();
-          uCtx.scale(dpr, dpr);
-          pCtx.save();
-          pCtx.scale(dpr, dpr);
+          const uCan = offscreenUnplayedRef.current;
+          const pCan = offscreenPlayedRef.current;
 
-          uCtx.fillStyle = 'rgba(161, 161, 170, 0.35)';
-          pCtx.fillStyle = '#00F5FF';
+          const offscreenW = Math.max(1, Math.round(width * dpr));
+          const offscreenH = Math.max(1, Math.round(height * dpr));
 
-          uCtx.beginPath();
-          pCtx.beginPath();
+          uCan.width = offscreenW;
+          uCan.height = offscreenH;
+          pCan.width = offscreenW;
+          pCan.height = offscreenH;
 
-          for (let i = 0; i < wavePeaks.length; i++) {
-            const peakVal = wavePeaks[i];
-            const barX = PIN_RADIUS + i * step;
-            const barHeight = Math.max(2, peakVal * (height * 0.82));
-            const topY = centerY - barHeight / 2;
+          const uCtx = uCan.getContext('2d');
+          const pCtx = pCan.getContext('2d');
 
-            roundRectPath(uCtx, barX, topY, barWidth, barHeight, 1);
-            roundRectPath(pCtx, barX, topY, barWidth, barHeight, 1);
+          if (uCtx && pCtx) {
+            uCtx.save();
+            uCtx.scale(dpr, dpr);
+            pCtx.save();
+            pCtx.scale(dpr, dpr);
+
+            uCtx.fillStyle = 'rgba(161, 161, 170, 0.35)';
+            pCtx.fillStyle = '#00F5FF';
+
+            uCtx.beginPath();
+            pCtx.beginPath();
+
+            for (let i = 0; i < wavePeaks.length; i++) {
+              const peakVal = wavePeaks[i];
+              const barX = PIN_RADIUS + i * step;
+              const barHeight = Math.max(2, peakVal * (height * 0.82));
+              const topY = centerY - barHeight / 2;
+
+              roundRectPath(uCtx, barX, topY, barWidth, barHeight, 1);
+              roundRectPath(pCtx, barX, topY, barWidth, barHeight, 1);
+            }
+
+            uCtx.fill();
+            pCtx.fill();
+            uCtx.restore();
+            pCtx.restore();
           }
+        }
 
-          uCtx.fill();
-          pCtx.fill();
-          uCtx.restore();
-          pCtx.restore();
+        // Blit ultra-rápido por GPU con comprobación defensiva contra IndexSizeError:
+        if (
+          offscreenUnplayedRef.current &&
+          offscreenUnplayedRef.current.width > 0 &&
+          offscreenUnplayedRef.current.height > 0 &&
+          width > 0 &&
+          height > 0
+        ) {
+          ctx.drawImage(offscreenUnplayedRef.current, 0, 0, width, height);
+        }
+
+        if (
+          playheadPx > 0 &&
+          offscreenPlayedRef.current &&
+          offscreenPlayedRef.current.width > 0 &&
+          offscreenPlayedRef.current.height > 0 &&
+          width > 0 &&
+          height > 0
+        ) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(0, 0, playheadPx, height);
+          ctx.clip();
+          ctx.drawImage(offscreenPlayedRef.current, 0, 0, width, height);
+          ctx.restore();
         }
       }
-
-      // Blit ultra-rápido por GPU (0.05ms en lugar de miles de operaciones vectoriales por frame):
-      if (offscreenUnplayedRef.current) {
-        ctx.drawImage(offscreenUnplayedRef.current, 0, 0, width, height);
-      }
-
-      if (playheadPx > 0 && offscreenPlayedRef.current) {
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(0, 0, playheadPx, height);
-        ctx.clip();
-        ctx.drawImage(offscreenPlayedRef.current, 0, 0, width, height);
-        ctx.restore();
-      }
-    }
 
     // 4. Marcadores de Nodos Coreográficos (Líneas verticales del Scrubber)
     const sortedPoints = sortedTimelineNodes;
@@ -427,7 +454,10 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
       ctx.restore();
     }
 
-    ctx.restore();
+      ctx.restore();
+    } catch (err) {
+      console.warn('[InteractiveWaveform] Render error:', err);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     timelineGeometry,

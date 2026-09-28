@@ -34,15 +34,17 @@ export function usePressAction(guardMs: number = 450) {
           // Solo botón principal del ratón; cualquier contacto táctil/pen vale.
           if (e.pointerType === 'mouse' && e.button !== 0) return;
           lastPointerActivationRef.current = performance.now();
-          // Evita el click sintético y la selección de texto, sin bloquear el gesto.
-          e.preventDefault();
+          // NO usar e.preventDefault() en pointerdown: en WebKit (iOS Safari)
+          // cancela la cadena de User Activation, impidiendo desbloquear Web Audio.
           run();
         },
         onClick: (e: React.MouseEvent) => {
           if (!enabled) return;
-          // Click sintético posterior a un pointerdown ya atendido → ignorar.
-          if (performance.now() - lastPointerActivationRef.current < guardMs) return;
-          e.preventDefault();
+          // Click sintético posterior a un pointerdown ya atendido → ignorar y cancelar.
+          if (performance.now() - lastPointerActivationRef.current < guardMs) {
+            e.preventDefault();
+            return;
+          }
           run();
         },
       };

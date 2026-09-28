@@ -54,11 +54,18 @@ export async function ensureDataOwnership(userId: string | null): Promise<boolea
   if (!userId) return false;
 
   const owner = getDataOwnerId();
+  if (!owner) {
+    // Sin dueño previo (primer uso / reingreso): se adopta la cuenta sin borrar nada.
+    setDataOwnerId(userId);
+    return false;
+  }
+
   if (owner === userId) return false; // misma cuenta: intacto
 
+  // Cuenta distinta: purga de datos del usuario previo
   await resetAbsoluteSession();
   setDataOwnerId(userId);
-  return true; // cuenta nueva/primera vez → limpiado
+  return true;
 }
 
 /** Cierra la propiedad (logout): limpia la sesión de trabajo y su dueño. */

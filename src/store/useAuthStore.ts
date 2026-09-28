@@ -10,6 +10,7 @@ import { create } from 'zustand';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 import { getDeviceId, getDeviceType, getDeviceName, DeviceType } from '../utils/deviceDetector';
 import { terminateSession } from '../services/sessionLifecycle';
+import { setDataOwnerId, getDataOwnerId } from '../services/workingSession';
 
 export type UserRole = 'user' | 'tester' | 'club_admin' | 'superadmin';
 export type SubscriptionStatus = 'active' | 'inactive' | 'trial';
@@ -150,6 +151,9 @@ const loadSavedSession = (): {
 };
 
 const initialSession = loadSavedSession();
+if (initialSession.user?.id && !getDataOwnerId()) {
+  setDataOwnerId(initialSession.user.id);
+}
 const initialDeviceId = getDeviceId();
 const initialDeviceType = getDeviceType();
 
@@ -243,6 +247,9 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
             access_expires_at: accessExpiry,
           })
         );
+
+        // Establecer la propiedad del usuario autenticado
+        setDataOwnerId(authenticatedUser.id);
 
         // Cargar lista de dispositivos
         get().fetchDevices().catch(() => {});
@@ -344,6 +351,7 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
           })
         );
 
+        setDataOwnerId(newUser.id);
         get().fetchDevices().catch(() => {});
 
         return { success: true, message: '¡Cuenta creada y activada por 1 año con éxito!' };
@@ -428,6 +436,7 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
           })
         );
 
+        setDataOwnerId(newUser.id);
         get().fetchDevices().catch(() => {});
 
         return { success: true, message: '¡Código de regalo canjeado con éxito! Tienes 1 año de acceso.' };
@@ -516,6 +525,7 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
           })
         );
 
+        setDataOwnerId(newUser.id);
         get().fetchDevices().catch(() => {});
 
         return {
@@ -661,6 +671,7 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
   logout: () => {
     void terminateSession();
     localStorage.removeItem(STORAGE_KEY);
+    setDataOwnerId(null);
     set({
       user: null,
       role: 'user',

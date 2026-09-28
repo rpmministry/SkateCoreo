@@ -31,6 +31,11 @@ function setupServiceWorker() {
     const hadController = Boolean(navigator.serviceWorker.controller);
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (!hadController || reloading) return;
+      // No recargar automáticamente si hay una sesión activa en progreso:
+      // evita interrumpir subidas de pistas o edición al volver de otra app en Android.
+      try {
+        if (sessionStorage.getItem('skatecoreo_active_session_id')) return;
+      } catch {}
       reloading = true;
       window.location.reload();
     });
