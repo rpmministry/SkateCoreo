@@ -32,7 +32,10 @@ import { useIosFileCapture } from './hooks/useIosFileCapture';
 import { useDeviceFormFactor } from './hooks/useDeviceFormFactor';
 import { LoadProgressBar } from './components/LoadProgressBar';
 import { AudioDebugHud } from './components/system/AudioDebugHud';
-import { setAudioDiagnosticView } from './core/audio/audioDiagnostics';
+import { AudioOwnershipBanner } from './components/system/AudioOwnershipBanner';
+import { setAudioDiagnosticView, logAudioDiagnostic } from './core/audio/audioDiagnostics';
+import { tabAudioCoordinator } from './core/audio/tabAudioCoordinator';
+import { getBuildLabel } from './core/audio/buildInfo';
 import { ensureDataOwnership } from './services/workingSession';
 import {
   initSessionLifecycle,
@@ -186,6 +189,22 @@ export function App() {
   useEffect(() => {
     audioEngine.voiceCueEngine.setIntroDelay(preRollSec);
   }, [preRollSec]);
+
+  // ── Ownership de audio entre pestañas (Android Chrome/Brave) ──────────────
+  //  · Al abrir la app se registra la identidad de build + tab (diagnóstico de
+  //    versiones cacheadas en Android).
+  //  · Si esta pestaña pierde el control de audio, el metrónomo del store vuelve
+  //    a OFF para que la UI nunca muestre "encendido" sin sonido.
+  useEffect(() => {
+    logAudioDiagnostic('APP_MOUNT', {
+      details: `build=${getBuildLabel()} tab=${tabAudioCoordinator.tabId} owner=${tabAudioCoordinator.isOwner()}`
+    });
+    return tabAudioCoordinator.onChange((snapshot) => {
+      if (!snapshot.isOwner) {
+        useAudioStudioStore.getState().resetMetronomeControl();
+      }
+    });
+  }, []);
 
   // ── Audio ──────────────────────────────────────────────
   const [audioState, setAudioState] = useState<AudioEngineState>(audioEngine.getState());
@@ -770,6 +789,8 @@ export function App() {
       <LoadProgressBar />
       {/* HUD de diagnóstico de audio: invisible salvo con `?audioDebug=1`. */}
       <AudioDebugHud />
+      {/* Aviso de ownership de audio entre pestañas (solo si no somos dueños). */}
+      <AudioOwnershipBanner />
       <div className="app-viewport-height w-full overflow-hidden flex flex-col bg-neon-canvas text-white select-none font-sans">
 
         {/* Hidden file inputs */}

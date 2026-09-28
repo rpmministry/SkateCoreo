@@ -56,6 +56,7 @@ export const AudioDebugHud: React.FC = () => {
     health.armedSchedulers <= 1 &&
     diag.audioContextsCreated <= 1;
 
+  const ownership = audioEngine.getAudioOwnershipSnapshot();
   const activeByKind = health.sources.activeByKind;
   const activeSourcesText =
     Object.entries(activeByKind)
@@ -69,8 +70,16 @@ export const AudioDebugHud: React.FC = () => {
           AUDIO {ok ? 'OK' : 'REVISAR'}
         </span>
         <span className="text-slate-400">
-          {diag.platform} · {diag.activeView}
+          {diag.platform} · {diag.activeView} · {diag.build}
         </span>
+      </div>
+      <div>
+        tab: {ownership.tabId} · owner: {String(ownership.isOwner)}
+        {ownership.ownerId !== null ? ` (#${ownership.ownerId})` : ''}
+      </div>
+      <div>
+        otra pestaña: play={String(ownership.otherTabPlaying)} metro=
+        {String(ownership.otherTabMetronomeOn)}
       </div>
       <div>
         sesión: {health.sessionId} · gen {health.generation} · fase {health.phase}

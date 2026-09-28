@@ -13,6 +13,8 @@
  * afectar el rendimiento ni la experiencia normal.
  */
 
+import { getBuildLabel } from './buildInfo';
+
 export type AudioDiagnosticEventType =
   | 'AUDIO_ENGINE_CREATED'
   | 'METRONOME_CREATED'
@@ -34,6 +36,10 @@ export type AudioDiagnosticEventType =
   | 'PLAYBACK_DESTROYED'
   | 'TRACK_CREATED'
   | 'TRACK_DESTROYED'
+  | 'TAB_OWNER_CLAIMED'
+  | 'TAB_OWNER_RELEASED'
+  | 'TAB_OWNER_DENIED'
+  | 'PLAYBACK_BLOCKED_NOT_OWNER'
   | 'APP_MOUNT'
   | 'APP_UNMOUNT'
   | 'STUDIO_RESET'
@@ -57,11 +63,23 @@ export interface AudioDiagnosticCounters {
   clicksCreated: number;
   activeView: string;
   platform: string;
+  tabId: string;
+  build: string;
 }
 
 const IS_DEV = Boolean((import.meta as { env?: { DEV?: boolean } })?.env?.DEV);
 
 let activeViewOverride: string | null = null;
+let diagnosticTabId: string | null = null;
+
+/** Tab id publicado por el coordinador de audio (diagnóstico multi-pestaña). */
+export function setAudioDiagnosticTabId(tabId: string): void {
+  diagnosticTabId = tabId;
+}
+
+export function getAudioDiagnosticTabId(): string {
+  return diagnosticTabId ?? 'unknown';
+}
 
 /**
  * ¿Debe emitirse telemetría de audio? DEV siempre; en producción solo con
@@ -134,8 +152,10 @@ export function logAudioDiagnostic(event: AudioDiagnosticEventType, ctx?: AudioD
   const gen = ctx?.generation !== undefined ? `gen=${ctx.generation}` : 'gen=0';
   const inst = ctx?.instanceId !== undefined ? `inst=${ctx.instanceId}` : '';
   const details = ctx?.details ? `(${ctx.details})` : '';
+  const tab = diagnosticTabId ?? 'tab?';
+  const build = getBuildLabel();
 
-  const formatted = `[${event}] [PLATFORM:${platform.toUpperCase()}] [VIEW:${view.toUpperCase()}] sid=${sid} ${gen} ${inst} ${details}`.replace(/\s+/g, ' ').trim();
+  const formatted = `[${event}] [PLATFORM:${platform.toUpperCase()}] [VIEW:${view.toUpperCase()}] [${tab}] [${build}] sid=${sid} ${gen} ${inst} ${details}`.replace(/\s+/g, ' ').trim();
 
   if (audioDebugEnabled()) {
     eventBuffer.push({ t: Date.now(), event, platform, view, details: ctx?.details });
@@ -152,6 +172,8 @@ export function getAudioDiagnosticSnapshot(): AudioDiagnosticCounters & {
     ...counters,
     activeView: detectAudioActiveView(),
     platform: detectAudioPlatform(),
+    tabId: getAudioDiagnosticTabId(),
+    build: getBuildLabel(),
     events: [...eventBuffer]
   };
 }

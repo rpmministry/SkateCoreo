@@ -727,6 +727,10 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
     const isCurrentlyActive = get().globalControls.metronome.enabled && !get().globalControls.metronome.muted;
     const newEnabled = !isCurrentlyActive;
     const newMuted = !newEnabled;
+    // OWNERSHIP ENTRE PESTAÑAS: encender el metrónomo requiere control de audio.
+    // Si otra pestaña está reproduciendo, la UI NO miente: no se enciende nada
+    // (el banner explica por qué) y el motor ya bloquea la fuente.
+    if (newEnabled && !audioEngine.tryAcquireAudioControl('metronome-on')) return;
     set((state) => {
       const updatedControls = {
         ...state.globalControls,
@@ -771,6 +775,8 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
     const isCurrentlyActive = get().globalControls.metronome.enabled && !get().globalControls.metronome.muted;
     const newEnabled = !isCurrentlyActive;
     const newMuted = !newEnabled;
+    // Misma puerta de ownership que el botón de la campana (anti doble fuente).
+    if (newEnabled && !audioEngine.tryAcquireAudioControl('metronome-on')) return;
     set((state) => {
       const updatedControls = {
         ...state.globalControls,

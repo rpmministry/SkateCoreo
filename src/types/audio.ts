@@ -31,6 +31,12 @@ export interface AudioEngineState {
   sourceKind: 'file' | 'studio-mix';
   isPreRollActive: boolean;
   preRollCountdown: number; // 3, 2, 1...
+  /** Identidad de la pestaña (diagnóstico multi-pestaña en Android). */
+  tabId: string;
+  /** ¿Esta pestaña es la propietaria del audio? (solo una por navegador). */
+  isAudioOwner: boolean;
+  /** Otra pestaña está sonando (música o metrónomo): esta debe permanecer muda. */
+  otherTabAudioActive: boolean;
 }
 
 /** Subdivisión del metrónomo: pulsos por beat (1/1 = 1, 1/2 = 2, 1/4 = 4, 1/8 = 8). */

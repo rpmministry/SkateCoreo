@@ -16,6 +16,7 @@ import { readWaveformPeaks } from './timeline/WaveformPeakCache';
 import { adquirirPantallaActiva, liberarPantallaActiva } from '../system/wakeLock';
 import { loadProgress } from '../../store/loadProgressStore';
 import { playbackCore, type PlaybackCoreSnapshot } from './PlaybackCore';
+import { tabAudioCoordinator, type TabAudioCoordinator } from './tabAudioCoordinator';
 import { ttsService } from '../../services/ttsService';
 import {
   audioDebugEnabled,
@@ -259,6 +260,13 @@ export class AudioEngine {
   /** Ids de las fuentes del pre-roll registradas en el núcleo. */
   private preRollSourceIds: number[] = [];
 
+  /**
+   * Coordinador de ownership de audio entre pestañas del mismo navegador.
+   * UNA sola pestaña puede reproducir (música/metrónomo) a la vez: en Android
+   * varias pestañas vivas podían sonar en paralelo (dos metrónomos).
+   */
+  private ownership: TabAudioCoordinator = tabAudioCoordinator;
+
   // Playback state
   private isPlaying = false;
   private startTime = 0;
@@ -329,9 +337,63 @@ export class AudioEngine {
     this.initIosUnlockListener();
     this.setupMediaSession();
 
-    logAudioDiagnostic('AUDIO_ENGINE_CREATED', {
-      details: `session=${playbackCore.getSessionId()} generation=${playbackCore.getGeneration()}`
+    // OWNERSHIP ENTRE PESTAÑAS: si esta pestaña pierde el control de audio
+    // (otra pestaña lo reclamó, o este tab se ocultó inactivo), se DESTRUYE
+    // todo lo local. Jamás puede quedar una segunda fuente sonando.
+    let ownedBefore = this.ownership.isOwner();
+    this.ownership.onChange((snapshot) => {
+      if (ownedBefore && !snapshot.isOwner) {
+        this.stopAllAudioSources('ownership-lost');
+        this.setMetronomeAudible(false);
+        logAudioDiagnostic('TAB_OWNER_RELEASED', {
+          details: `tab=${snapshot.tabId} newOwner=${snapshot.ownerId ?? 'none'}`
+        });
+      }
+      ownedBefore = snapshot.isOwner;
+      this.emitStateChange();
     });
+
+    logAudioDiagnostic('AUDIO_ENGINE_CREATED', {
+      details: `session=${playbackCore.getSessionId()} generation=${playbackCore.getGeneration()} tab=${this.ownership.tabId} owner=${this.ownership.isOwner()}`
+    });
+  }
+
+  /**
+   * Puerta ÚNICA de ownership para acciones que CREAN audio (play, metrónomo ON).
+   * Síncrona en el caso normal (una sola pestaña): si no hay dueño activo,
+   * adquiere el control al instante y devuelve true.
+   */
+  private ensureAudioOwnership(action: string): boolean {
+    if (this.ownership.isOwner()) return true;
+    if (this.ownership.tryClaimNow(action)) return true;
+    logAudioDiagnostic('PLAYBACK_BLOCKED_NOT_OWNER', {
+      details: `action=${action} owner=${this.ownership.getOwnerId() ?? 'none'} otherPlaying=${this.ownership.getSnapshot().otherTabPlaying}`
+    });
+    this.emitStateChange();
+    return false;
+  }
+
+  /** Solo para tests: sustituye el coordinador real por uno determinista. */
+  public __setOwnershipForTests(coordinator: TabAudioCoordinator): void {
+    this.ownership = coordinator;
+  }
+
+  /** ¿Esta pestaña tiene permitido crear/reproducir audio? (UI del banner). */
+  public canControlAudio(): boolean {
+    return this.ownership.isOwner();
+  }
+
+  /**
+   * Intenta adquirir el control de audio de forma SÍNCRONA (lo usan los stores
+   * antes de cambiar la UI a "encendido"). Devuelve false si otra pestaña está
+   * reproduciendo (la UI no debe mentir: sin sonido no se muestra ON).
+   */
+  public tryAcquireAudioControl(reason: string): boolean {
+    return this.ensureAudioOwnership(reason);
+  }
+
+  public getAudioOwnershipSnapshot() {
+    return this.ownership.getSnapshot();
   }
 
   // ── Ciclo de vida de sesión ───────────────────────────────────────────────
@@ -371,6 +433,8 @@ export class AudioEngine {
     this.metronome.stop();
     this.voiceCueEngine.stop();
     ttsService.stop();
+    // Las demás pestañas dejan de considerar a esta como "reproduciendo".
+    this.ownership.setPlaying(false);
     logAudioDiagnostic('PLAYBACK_STOPPED', {
       details: `${reason} · active=${playbackCore.getActiveSourceCount()}`
     });
@@ -765,6 +829,14 @@ export class AudioEngine {
   }
 
   public setMetronomeAudible(audible: boolean) {
+    // Encender el metrónomo requiere ser la pestaña propietaria del audio.
+    // Apagarlo se permite SIEMPRE (seguridad: cualquier pestaña puede silenciar).
+    if (audible && !this.ensureAudioOwnership('metronome-on')) {
+      void this.ownership.claim('metronome-on').then((granted) => {
+        if (granted) this.setMetronomeAudible(true);
+      });
+      return;
+    }
     this.metronomeMuted = !audible;
     // ORDEN ÚNICO Y SEGURO (una sola escritura de estado lógico + silenciador):
     //  · ON  → habilitar y luego quitar el mute (solo aquí se desmutea).
@@ -779,6 +851,9 @@ export class AudioEngine {
     }
     this.syncRhythmSources();
     this.applyBusMutes();
+    // Informa al coordinador de pestañas: las demás pestañas sabrán que este
+    // metrónomo está encendido y no podrán encender otro en paralelo.
+    this.ownership.setMetronomeOn(audible);
     logAudioDiagnostic(audible ? 'METRONOME_UNMUTE' : 'METRONOME_MUTE', {
       instanceId: this.metronome.getInstanceId(),
       details: `instanceCount=${Metronome.getLiveInstanceCount()} armedSchedulers=${Metronome.getArmedSchedulerCount()}`
@@ -1526,6 +1601,20 @@ export class AudioEngine {
    * timeline (`startSync`) dentro de `executePlay`.
    */
   public play(offsetMs?: number, options?: { countIn?: boolean }) {
+    // PUERTA DE OWNERSHIP (anti doble metrónomo/reproducción entre pestañas):
+    // solo la pestaña propietaria del audio puede iniciar reproducción.
+    // Si no lo somos, se intenta el traspaso (inmediato si la otra pestaña está
+    // inactiva; denegado si está reproduciendo → nunca dos fuentes a la vez).
+    if (!this.ensureAudioOwnership('play')) {
+      void this.ownership.claim('play').then((granted) => {
+        if (granted) this.playInternal(offsetMs, options);
+      });
+      return;
+    }
+    this.playInternal(offsetMs, options);
+  }
+
+  private playInternal(offsetMs?: number, options?: { countIn?: boolean }) {
     if (!this.audioBuffer) return;
     this.initAudioContext();
     if (!this.ctx) return;
@@ -1590,6 +1679,8 @@ export class AudioEngine {
     this.isPreRollActive = true;
     this.preRollCountdown = n;
     playbackCore.setPhase('preroll');
+    // El conteo hablado ya suena: se protege ante reclamos de otras pestañas.
+    this.ownership.setPlaying(true);
     // El metrónomo se detiene durante el conteo (la intro manda).
     this.metronome.stop();
     this.emitStateChange();
@@ -1710,6 +1801,14 @@ export class AudioEngine {
 
   /** Conmuta a "playing" exactamente en el instante agendado de la música. */
   private beginPlaybackAt(whenCtxTime: number, offsetMs: number) {
+    // Defensa final: si esta pestaña dejó de ser la propietaria (otra pestaña
+    // reclamó justo antes), no se inicia nada y se limpia lo agendado.
+    if (!this.ownership.isOwner()) {
+      this.stopAllAudioSources('not-owner');
+      this.isPlaying = false;
+      return;
+    }
+
     const clampedOffsetSec = Math.max(0, Math.min(offsetMs / 1000, this.audioBuffer?.duration ?? 0));
 
     this.isPreRollActive = false;
@@ -1717,6 +1816,8 @@ export class AudioEngine {
     this.preRollCountdown = 0;
     this.isPlaying = true;
     playbackCore.setPhase('playing');
+    // Protege la reproducción ante reclamos de otras pestañas.
+    this.ownership.setPlaying(true);
 
     // Metrónomo y voz anclados al MISMO instante absoluto que la música, PERO
     // solo en el dominio de la Pista 2D. En el Audio Studio ('studio') estas
@@ -1866,6 +1967,9 @@ export class AudioEngine {
     this.isPreRollActive = false;
     this.preRollCountdown = 0;
     this.preRollState = 'idle';
+    // Si no hay música sonando, esta pestaña deja de estar "reproduciendo"
+    // (permite que otra pestaña reclame el audio sin crear dos fuentes).
+    if (!this.isPlaying) this.ownership.setPlaying(false);
 
     if (changed && !silent) this.emitStateChange();
   }
@@ -2265,7 +2369,10 @@ export class AudioEngine {
       fileName: this.fileName,
       sourceKind: this.sourceKind,
       isPreRollActive: this.isPreRollActive,
-      preRollCountdown: this.preRollCountdown
+      preRollCountdown: this.preRollCountdown,
+      tabId: this.ownership.tabId,
+      isAudioOwner: this.ownership.isOwner(),
+      otherTabAudioActive: this.ownership.isOtherTabAudible()
     };
   }
 
