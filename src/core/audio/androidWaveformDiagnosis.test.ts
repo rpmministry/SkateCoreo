@@ -11,8 +11,6 @@
 
 import { audioEngine } from './AudioEngine';
 import { useRinkAudioStore } from '../../store/useRinkAudioStore';
-import { useAudioStudioStore } from '../../store/useAudioStudioStore';
-import { Metronome } from './Metronome';
 
 let total = 0;
 let failures = 0;
