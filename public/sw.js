@@ -1,6 +1,6 @@
 // Al cambiar la versión se purgan las cachés antiguas en `activate`, de modo
 // que un despliegue nuevo se vea de inmediato sin quedarse con bundles viejos.
-const CACHE_NAME = 'skatecoreo-v7';
+const CACHE_NAME = 'skatecoreo-v8';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -31,6 +31,16 @@ self.addEventListener('activate', (event) => {
       );
     }).then(() => self.clients.claim())
   );
+});
+
+// Permite forzar la activación desde la página (botón "Buscar actualización"):
+// la nueva versión toma el control de inmediato en lugar de esperar a que se
+// cierren todas las pestañas (clave en Android, donde una pestaña puede quedar
+// viva en segundo plano durante días sirviendo código viejo).
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener('fetch', (event) => {

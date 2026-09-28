@@ -1,8 +1,38 @@
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import { execSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 // Se importa EXACTAMENTE el mismo archivo que despliega Vercel, de modo que el
-// middleware de desarrollo y la función en producción no puedan divergir.
+// middleware de desarrollo y la funciÃ³n en producciÃ³n no puedan divergir.
 import { handleTtsProxyRequest, readNodeRequestBody } from './api/tts';
+
+/**
+ * Identidad de BUILD para diagnóstico en dispositivo real (Android/iOS).
+ * Se inyecta como constantes globales y se muestra en el HUD `?audioDebug=1`:
+ * así se verifica qué código ejecuta realmente Brave/Chrome y se detecta una
+ * PWA/Service Worker atrapada en una versión anterior.
+ */
+function resolveBuildInfo() {
+  let version = 'dev';
+  try {
+    version = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version ?? 'dev';
+  } catch {
+    /* sin package.json legible */
+  }
+  let commit = 'unknown';
+  try {
+    commit = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim();
+  } catch {
+    /* sin git disponible (build en CI sin .git) */
+  }
+  return {
+    version,
+    commit,
+    timestamp: new Date().toISOString()
+  };
+}
 
 /**
  * Middleware de desarrollo: expone `POST /api/tts` dentro del dev server de Vite
@@ -56,10 +86,16 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const serverApiKey =
     (env.GOOGLE_TTS_API_KEY || env.VITE_GOOGLE_TTS_API_KEY || '').trim() || null;
+  const buildInfo = resolveBuildInfo();
 
   return {
     plugins: [react(), ttsDevApi(serverApiKey)],
     base: './',
+    define: {
+      __BUILD_VERSION__: JSON.stringify(buildInfo.version),
+      __BUILD_COMMIT__: JSON.stringify(buildInfo.commit),
+      __BUILD_TIMESTAMP__: JSON.stringify(buildInfo.timestamp)
+    },
     server: {
       port: 3000,
       host: true,

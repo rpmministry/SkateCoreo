@@ -20,23 +20,48 @@ function setupServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
 
   if (import.meta.env.PROD) {
-    window.addEventListener('load', () => {
+    // Actualización GARANTIZADA del bundle (Android Chrome/Brave):
+    //  · `updateViaCache: 'none'` → el navegador nunca sirve `sw.js` desde su
+    //    caché HTTP; siempre comprueba la versión desplegada.
+    //  · al activarse un SW nuevo (`controllerchange`) se recarga UNA vez: sin
+    //    esto, una pestaña Android viva en segundo plano podía seguir ejecutando
+    //    el bundle anterior durante días (el bug "los cambios no se reflejan").
+    //  · `update()` periódico y al volver a primer plano.
+    let reloading = false;
+    const hadController = Boolean(navigator.serviceWorker.controller);
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController || reloading) return;
+      reloading = true;
+      window.location.reload();
+    });
+
+    const register = () => {
       navigator.serviceWorker
-        .register('./sw.js')
+        .register('./sw.js', { updateViaCache: 'none' })
         .then((reg) => {
-          reg.update();
+          void reg.update();
           reg.addEventListener('updatefound', () => {
             const newWorker = reg.installing;
             if (!newWorker) return;
             newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                window.location.reload();
+              if (newWorker.state === 'installed') {
+                // Pide activación inmediata; `controllerchange` recarga la página.
+                newWorker.postMessage({ type: 'SKIP_WAITING' });
               }
             });
           });
+
+          // Comprobación periódica (cada 15 min) y al volver a primer plano.
+          window.setInterval(() => void reg.update(), 15 * 60 * 1000);
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') void reg.update();
+          });
         })
         .catch((err) => console.warn('[PWA] Error al registrar Service Worker:', err));
-    });
+    };
+
+    if (document.readyState === 'complete') register();
+    else window.addEventListener('load', register);
     return;
   }
 

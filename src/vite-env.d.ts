@@ -14,3 +14,12 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+/**
+ * Identidad de BUILD inyectada por `vite.config.ts` (define). Permite comprobar
+ * desde un móvil/tablet REAL qué versión exacta está ejecutando el navegador
+ * (diagnóstico de cachés/PWA/Service Worker obsoletos).
+ */
+declare const __BUILD_VERSION__: string;
+declare const __BUILD_COMMIT__: string;
+declare const __BUILD_TIMESTAMP__: string;
