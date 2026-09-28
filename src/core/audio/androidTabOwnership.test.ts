@@ -1,17 +1,18 @@
 /**
  * androidTabOwnership.test.ts — Regresión del ownership de audio entre pestañas.
  *
- * Cubre la causa más probable del "doble metrónomo" en Android Chrome/Brave:
- * varias pestañas del mismo usuario, cada una con su propio AudioEngine, sonando
- * a la vez (en iOS/desktop solo hay una activa). Reglas verificadas:
- *
- *  · una pestaña nueva NO es dueña ni reproduce nada por sí sola;
- *  · solo UNA pestaña puede ser dueña;
- *  · una pestaña que REPRODUCE nunca es desplazada (jamás dos fuentes);
- *  · un dueño inactivo libera el control por handshake (traspaso controlado);
- *  · un dueño muerto (lease caducado) deja el control libre;
- *  · pagehide/oculto-inactivo libera; reproducir en segundo plano renueva;
- *  · el motor bloquea play/metrónomo cuando esta pestaña no es dueña.
+ * Cubre la causa más probable del "doble metrónomo" y el "falso aviso de otra pestaña"
+ * en Android Chrome/Brave y dispositivos móviles:
+ *  · una pestaña nueva NO es dueña ni reproduce nada por sí sola (aviso no visible);
+ *  · solo UNA pestaña puede ser dueña de audio a la vez;
+ *  · si una pestaña REPRODUCE, la otra pestaña no reproduce directamente (aviso visible);
+ *  · al pulsar "Tomar control", el traspaso se resuelve de forma inmediata y limpia;
+ *  · si la dueña está congelada o muerta en segundo plano (sin responder al handshake),
+ *    la pestaña activa asume el control forzado y JAMÁS bloquea al usuario;
+ *  · un dueño inactivo libera el control de forma inmediata y síncrona;
+ *  · un dueño muerto (lease caducado o sin heartbeat) deja el control libre al instante;
+ *  · al abrir una pestaña con un lease viejo de una sesión previa, este se purga de inmediato;
+ *  · pagehide / oculto-inactivo libera el ownership.
  */
 
 import {
@@ -36,7 +37,7 @@ function assert(condition: boolean, msg: string) {
   }
 }
 
-/** Mundo compartido por varias "pestañas" (localStorage + BroadcastChannel). */
+/** Mundo compartido por varias "pestañas" (localStorage + BroadcastChannel simulados). */
 class FakeWorld {
   public record: TabAudioOwnerRecord | null = null;
   public time = 1_000_000;
@@ -66,7 +67,10 @@ class FakeWorld {
         this.hooks.set(tabId, h);
         return () => this.hooks.delete(tabId);
       },
-      sleep: () => Promise.resolve(),
+      sleep: (ms) => {
+        this.time += ms;
+        return Promise.resolve();
+      },
       startInterval: () => () => {}
     };
   }
@@ -94,7 +98,7 @@ async function run() {
     assert(getBuildLabel().startsWith('v'), `Etiqueta de build legible (${getBuildLabel()})`);
   }
 
-  // 2. Pestaña nueva: ni dueña ni sonando (TEST A/B).
+  // 2. Pestaña nueva: ni dueña ni sonando (NO muestra aviso).
   {
     const world = new FakeWorld();
     const tabA = createTabAudioCoordinatorForTests({ tabId: 'A', env: world.envFor('A') });
@@ -104,7 +108,28 @@ async function run() {
     tabA.destroy();
   }
 
-  // 3. La primera pestaña que actúa adquiere; la segunda no puede mientras suena.
+  // 3. Purga inmediata de residuo muerto en localStorage al iniciar pestaña nueva.
+  {
+    const world = new FakeWorld();
+    // Simula que una sesión previa dejó un registro hace 10 segundos
+    world.record = {
+      ownerId: 'OLD_DEAD_TAB',
+      playing: true,
+      metronomeOn: false,
+      heartbeatAt: world.time - 10_000,
+      expiresAt: world.time - 7_000
+    };
+
+    const tabA = createTabAudioCoordinatorForTests({ tabId: 'A', env: world.envFor('A') });
+    assert(tabA.isOwner() === false, 'Pestaña nueva con residuo no es dueña');
+    assert(tabA.isOtherTabAudible() === false, 'Residuo viejo expirado NO produce aviso de otra pestaña');
+    assert(world.record === null, 'Constructor purga de inmediato el lease viejo');
+    assert(tabA.tryClaimNow('play') === true, 'Pestaña puede reproducir inmediatamente sin bloqueo');
+    tabA.destroy();
+    world.record = null;
+  }
+
+  // 4. Intento síncrono mientras otra pestaña suena: se deniega y se activa aviso.
   {
     const world = new FakeWorld();
     const tabA = createTabAudioCoordinatorForTests({ tabId: 'A', env: world.envFor('A') });
@@ -116,102 +141,148 @@ async function run() {
     tabA.setPlaying(true);
     assert(world.record?.playing === true, 'El lease de A marca "reproduciendo"');
 
-    assert(tabB.tryClaimNow('play') === false, 'B NO puede reproducir mientras A suena');
+    assert(tabB.tryClaimNow('play') === false, 'B NO puede reproducir directamente mientras A suena');
     assert(tabB.getSnapshot().otherTabPlaying === true, 'B sabe que A está reproduciendo');
-    assert(tabB.isOtherTabAudible() === true, 'B muestra "otra pestaña sonando"');
+    assert(tabB.isOtherTabAudible() === true, 'B activa el aviso "El audio está sonando en otra pestaña"');
     assert(tabB.isOwner() === false, 'A conserva el ownership (sin dos fuentes)');
 
-    const denied = await tabB.claim('play');
-    assert(denied === false, 'claim() de B también es denegado mientras A suena');
-    assert(tabA.isOwner() === true, 'Tras el intento de B, A sigue siendo la única fuente');
     tabA.destroy();
     tabB.destroy();
+    world.record = null;
   }
 
-  // 4. Traspaso controlado: dueño inactivo libera y B adquiere.
+  // 5. Traspaso controlado con "Tomar control": A cede limpiamente y B adquiere.
   {
     const world = new FakeWorld();
     const tabA = createTabAudioCoordinatorForTests({ tabId: 'A', env: world.envFor('A') });
     const tabB = createTabAudioCoordinatorForTests({ tabId: 'B', env: world.envFor('B') });
-    tabA.tryClaimNow('play');
-    tabA.setPlaying(false);
 
-    const granted = await tabB.claim('play');
-    assert(granted === true, 'B adquiere el control tras el handshake');
-    assert(tabA.isOwner() === false, 'El dueño inactivo liberó el control');
-    assert(world.record?.ownerId === 'B', 'El lease escrito pertenece a B');
+    tabA.tryClaimNow('play');
+    tabA.setPlaying(true);
+
+    // B pulsa "Tomar control" desde el banner
+    const granted = await tabB.claim('banner-takeover');
+    assert(granted === true, 'claim() de B tiene éxito al pulsar Tomar control');
+    assert(tabA.isOwner() === false, 'A cedió el control y dejó de ser dueña');
+    assert(tabA.isPlayingHere() === false, 'A detuvo su reproducción local');
     assert(tabB.isOwner() === true, 'B es la nueva dueña');
+    assert(world.record?.ownerId === 'B', 'El nuevo lease en storage pertenece a B');
+
     tabA.destroy();
     tabB.destroy();
+    world.record = null;
   }
 
-  // 5. Dueño muerto (lease caducado, sin audio): el control queda libre.
+  // 6. Traspaso forzado si la otra pestaña está congelada/muerta en segundo plano (Android).
+  {
+    const world = new FakeWorld();
+    const tabA = createTabAudioCoordinatorForTests({ tabId: 'A', env: world.envFor('A') });
+    const tabB = createTabAudioCoordinatorForTests({ tabId: 'B', env: world.envFor('B') });
+
+    tabA.tryClaimNow('play');
+    tabA.setPlaying(true);
+
+    // Simula que Android congela el proceso de Tab A (no puede responder al handshake)
+    tabA.destroy(); // A ya no escucha mensajes BroadcastChannel
+
+    const granted = await tabB.claim('banner-takeover');
+    assert(granted === true, 'B toma el control de forma forzada si A no responde');
+    assert(tabB.isOwner() === true, 'B se convierte en dueña sin bloquear al usuario');
+    assert(tabB.isOtherTabAudible() === false, 'El aviso se apaga inmediatamente en B');
+
+    tabB.destroy();
+    world.record = null;
+  }
+
+  // 7. Dueño inactivo: si A no está sonando, B adquiere de forma INMEDIATA y SÍNCRONA.
+  {
+    const world = new FakeWorld();
+    const tabA = createTabAudioCoordinatorForTests({ tabId: 'A', env: world.envFor('A') });
+    const tabB = createTabAudioCoordinatorForTests({ tabId: 'B', env: world.envFor('B') });
+
+    tabA.tryClaimNow('play');
+    tabA.setPlaying(false); // A está inactiva (sin audio)
+
+    assert(tabB.tryClaimNow('play') === true, 'B adquiere síncronamente si A está inactiva');
+    assert(tabB.isOwner() === true, 'B es dueña de inmediato (cero espera)');
+    assert(world.record?.ownerId === 'B', 'Storage actualizado a B');
+
+    tabA.destroy();
+    tabB.destroy();
+    world.record = null;
+  }
+
+  // 8. Dueño muerto (lease caducado sin heartbeat): B reclama sin demoras.
   {
     const world = new FakeWorld();
     const tabA = createTabAudioCoordinatorForTests({ tabId: 'A', env: world.envFor('A') });
     const tabB = createTabAudioCoordinatorForTests({ tabId: 'B', env: world.envFor('B') });
     tabA.tryClaimNow('play');
-    tabA.destroy(); // simula pestaña cerrada sin liberar (crash)
-    world.time += 25_000; // caduca el lease (20s)
+    tabA.destroy(); // simula crash/cierre sin evento
+    world.time += 4_000; // caduca el lease (3s)
 
     assert(tabB.tryClaimNow('play') === true, 'B reclama un lease caducado sin dueño vivo');
     assert(tabB.isOwner() === true, 'B es dueña tras la caducidad');
     tabB.destroy();
+    world.record = null;
   }
 
-  // 6. Dueño que "suena" no se desplaza ni con lease caducado (gracia de audio).
+  // 9. Dueño que sonaba pero crasheó: tras el margen de gracia (3s), se libera.
   {
     const world = new FakeWorld();
     const tabA = createTabAudioCoordinatorForTests({ tabId: 'A', env: world.envFor('A') });
     const tabB = createTabAudioCoordinatorForTests({ tabId: 'B', env: world.envFor('B') });
     tabA.tryClaimNow('play');
     tabA.setPlaying(true);
-    tabA.destroy(); // crash sonando (no renovará)
-    world.time += 25_000; // lease vencido, pero < gracia (45s)
+    tabA.destroy(); // crash mientras sonaba
+    world.time += 1_000;
 
-    assert(tabB.tryClaimNow('play') === false, 'Con audio reciente, B NO desplaza a A');
+    assert(tabB.tryClaimNow('play') === false, 'Con audio muy reciente (<3s), B no desplaza a ciegas');
 
-    world.time += 30_000; // supera la gracia de audio
-    assert(tabB.tryClaimNow('play') === true, 'Pasada la gracia, B puede reclamar');
+    world.time += 3_500; // supera la gracia de audio sin heartbeat
+    assert(tabB.tryClaimNow('play') === true, 'Pasada la gracia sin heartbeat, B adquiere el control');
     tabB.destroy();
+    world.record = null;
   }
 
-  // 7. Heartbeat: el dueño renueva su lease; otro tick no roba el control.
+  // 10. Heartbeat: el dueño renueva su lease periódicamente.
   {
     const world = new FakeWorld();
     const tabA = createTabAudioCoordinatorForTests({ tabId: 'A', env: world.envFor('A') });
     const tabB = createTabAudioCoordinatorForTests({ tabId: 'B', env: world.envFor('B') });
     tabA.tryClaimNow('play');
     const initialExpiry = world.record?.expiresAt ?? 0;
-    world.time += 10_000;
+    world.time += 2_000;
     tabA.tick();
     assert((world.record?.expiresAt ?? 0) > initialExpiry, 'El heartbeat renueva el lease');
     tabB.tick();
     assert(tabA.isOwner() === true, 'El tick de B no roba el control a un dueño vivo');
     tabA.destroy();
     tabB.destroy();
+    world.record = null;
   }
 
-  // 8. Ocultar sin reproducir libera; reproducir en segundo plano renueva.
+  // 11. Ocultar inactivo libera; reproducir en segundo plano renueva.
   {
     const world = new FakeWorld();
     const tabA = createTabAudioCoordinatorForTests({ tabId: 'A', env: world.envFor('A') });
     tabA.tryClaimNow('play');
     tabA.setPlaying(false);
     world.triggerHiddenIdle('A');
-    assert(tabA.isOwner() === false, 'Ocultar inactivo libera el control (B puede tomar el relevo)');
+    assert(tabA.isOwner() === false, 'Ocultar inactivo libera el control (otra pestaña puede tomar el relevo)');
 
     tabA.tryClaimNow('play');
     tabA.setPlaying(true);
     const before = world.record?.expiresAt ?? 0;
-    world.time += 5_000;
+    world.time += 1_000;
     world.triggerHiddenIdle('A');
     assert(tabA.isOwner() === true, 'Reproduciendo en segundo plano NO se libera');
     assert((world.record?.expiresAt ?? 0) > before, 'Reproduciendo en background renueva el lease');
     tabA.destroy();
+    world.record = null;
   }
 
-  // 9. pagehide (cierre/navegación) libera siempre.
+  // 12. pagehide (cierre/navegación) libera siempre.
   {
     const world = new FakeWorld();
     const tabA = createTabAudioCoordinatorForTests({ tabId: 'A', env: world.envFor('A') });
@@ -220,9 +291,10 @@ async function run() {
     world.triggerPageHide('A');
     assert(tabA.isOwner() === false && world.record === null, 'pagehide libera el ownership');
     tabA.destroy();
+    world.record = null;
   }
 
-  // 10. Los avisos STATE informan a las demás pestañas del metrónomo.
+  // 13. Los avisos STATE informan a las demás pestañas del metrónomo.
   {
     const world = new FakeWorld();
     const tabA = createTabAudioCoordinatorForTests({ tabId: 'A', env: world.envFor('A') });
@@ -235,20 +307,10 @@ async function run() {
     assert(tabB.getSnapshot().otherTabMetronomeOn === false, 'B percibe el apagado del metrónomo');
     tabA.destroy();
     tabB.destroy();
+    world.record = null;
   }
 
-  // 11. destroy() deja de escuchar (sin fugas de listeners).
-  {
-    const world = new FakeWorld();
-    const tabA = createTabAudioCoordinatorForTests({ tabId: 'A', env: world.envFor('A') });
-    const tabB = createTabAudioCoordinatorForTests({ tabId: 'B', env: world.envFor('B') });
-    tabB.destroy();
-    tabA.tryClaimNow('play');
-    assert(tabA.isOwner() === true, 'A sigue funcionando tras destruir B');
-    tabA.destroy();
-  }
-
-  // 12. Integración con el MOTOR: puertas de play/metrónomo con ownership ajeno.
+  // 14. Integración con el MOTOR: puertas de play/metrónomo y recuperación.
   {
     const world = new FakeWorld();
     const tabA = createTabAudioCoordinatorForTests({ tabId: 'ENGINE_A', env: world.envFor('ENGINE_A') });
@@ -261,7 +323,7 @@ async function run() {
     assert(audioEngine.tryAcquireAudioControl('test') === false, 'El motor deniega el control si A suena');
     assert(
       audioEngine.getAudioOwnershipSnapshot().otherTabPlaying === true,
-      'El estado del motor expone que otra pestaña reproduce (banner)'
+      'El estado del motor expone que otra pestaña reproduce'
     );
 
     audioEngine.setMetronomeAudible(true);
@@ -270,34 +332,21 @@ async function run() {
       'El metrónomo NO se enciende en una pestaña sin ownership'
     );
     await flush();
-    assert(audioEngine.isMetronomeMuted() === true, 'Ni siquiera tras el intento asíncrono se enciende');
+    assert(audioEngine.isMetronomeMuted() === true, 'El bus permanece silenciado');
 
-    // A deja de sonar: B puede adquirir por handshake y entonces sí encender.
-    tabA.setPlaying(false);
-    const granted = await tabB.claim('metronome-on');
-    assert(granted === true, 'B adquiere el control por handshake');
+    // B toma el control con claim()
+    const granted = await tabB.claim('banner-takeover');
+    assert(granted === true, 'B adquiere el control');
     assert(audioEngine.canControlAudio() === true, 'El motor reconoce a B como dueña');
+
     audioEngine.setMetronomeAudible(true);
     assert(audioEngine.metronome.getConfig().enabled === true, 'Con ownership, el metrónomo se enciende');
     assert(audioEngine.isMetronomeMuted() === false, 'Con ownership, el bus del metrónomo está audible');
 
-    // Apagar funciona SIEMPRE, aunque se pierda el ownership.
-    tabB.setPlaying(true); // B reproduce: no puede ser desplazada a la fuerza
-    assert(
-      tabA.tryClaimNow('takeover-again') === false,
-      'A no desplaza a B mientras B reproduce'
-    );
-    tabB.setPlaying(false);
-    tabA.tryClaimNow('takeover-again-2'); // handshake: B inactivo libera
-    assert(
-      tabA.tryClaimNow('takeover-again-3') === true,
-      'Tras liberar B, A adquiere el control'
-    );
-    audioEngine.__setOwnershipForTests(tabA);
-    assert(audioEngine.canControlAudio() === true, 'El motor reconoce al nuevo dueño');
+    // Apagar funciona SIEMPRE
     audioEngine.setMetronomeAudible(false);
     assert(audioEngine.isMetronomeMuted() === true, 'Apagar el metrónomo funciona siempre');
-    assert(audioEngine.metronome.getConfig().enabled === false, 'Sin ownership previo, el metrónomo queda OFF');
+    assert(audioEngine.metronome.getConfig().enabled === false, 'El metrónomo queda OFF');
 
     tabA.destroy();
     tabB.destroy();

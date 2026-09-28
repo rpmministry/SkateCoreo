@@ -139,18 +139,35 @@ export class TabAudioCoordinator {
   constructor(options: TabAudioCoordinatorOptions) {
     this.tabId = options.tabId;
     this.env = options.env;
-    this.heartbeatMs = options.heartbeatMs ?? 5000;
-    this.leaseMs = options.leaseMs ?? 20000;
-    this.takeoverTimeoutMs = options.takeoverTimeoutMs ?? 900;
-    this.playingGraceMs = options.playingGraceMs ?? 45000;
+    this.heartbeatMs = options.heartbeatMs ?? 1200;
+    this.leaseMs = options.leaseMs ?? 3000;
+    this.takeoverTimeoutMs = options.takeoverTimeoutMs ?? 300;
+    this.playingGraceMs = options.playingGraceMs ?? 3000;
     this.startTimers = options.startTimers ?? true;
     this.onEvent = options.onEvent;
 
     const record = this.env.read();
-    this.ownerId = record && record.expiresAt > this.env.now() ? record.ownerId : null;
-    if (record && record.ownerId !== this.tabId) {
-      this.otherTabPlaying = record.playing;
-      this.otherTabMetronomeOn = record.metronomeOn;
+    const now = this.env.now();
+    const isStale = record ? (now - record.heartbeatAt > this.leaseMs) : true;
+    if (isStale && record && record.ownerId !== this.tabId) {
+      // Purgar de inmediato leases caducados de sesiones/pestañas muertas
+      this.env.write(null);
+      this.ownerId = null;
+      this.otherTabPlaying = false;
+      this.otherTabMetronomeOn = false;
+    } else if (record && record.ownerId === this.tabId) {
+      // Recarga de la misma pestaña: conserva la identidad
+      this.ownerId = this.tabId;
+      this.otherTabPlaying = false;
+      this.otherTabMetronomeOn = false;
+    } else if (record && !isStale) {
+      this.ownerId = record.ownerId;
+      this.otherTabPlaying = Boolean(record.playing);
+      this.otherTabMetronomeOn = Boolean(record.metronomeOn);
+    } else {
+      this.ownerId = null;
+      this.otherTabPlaying = false;
+      this.otherTabMetronomeOn = false;
     }
 
     this.detachMessages = this.env.subscribe((message) => this.handleMessage(message));
@@ -206,10 +223,9 @@ export class TabAudioCoordinator {
   // ── Adquisición ───────────────────────────────────────────────────────────
 
   /**
-   * Intento SÍNCRONO (ruta común, una sola pestaña):
-   *  · sin dueño / lease caducado / soy el dueño → adquiere y devuelve true;
-   *  · otra pestaña inactiva → solicita traspaso (async) y devuelve false;
-   *  · otra pestaña REPRODUCIENDO → deniega y devuelve false.
+   * Intento SÍNCRONO (ruta común, pestaña única o dueño inactivo):
+   *  · sin dueño / lease caducado / soy el dueño / dueño inactivo → adquiere y devuelve true;
+   *  · otra pestaña REPRODUCIENDO sonido → deniega y devuelve false.
    */
   public tryClaimNow(reason: string): boolean {
     if (this.isOwner()) return true;
@@ -219,16 +235,13 @@ export class TabAudioCoordinator {
     if (record && record.ownerId !== this.tabId) {
       if (this.isForeignOwnerPlaying(record, now)) {
         this.log('TAB_OWNER_DENIED', `${reason}:playing:${record.ownerId}`);
-        this.otherTabPlaying = true;
+        this.otherTabPlaying = Boolean(record.playing);
+        this.otherTabMetronomeOn = Boolean(record.metronomeOn);
         this.emit();
         return false;
       }
-      if (record.expiresAt > now) {
-        // Dueño inactivo: se pide el traspaso; lo resolverá `claim()`.
-        this.env.broadcast({ type: 'TAKEOVER_REQUEST', from: this.tabId });
-        return false;
-      }
-      // Lease caducado y sin audio: la pestaña dueña está muerta → libre.
+      // Dueño inactivo o lease expirado: no hay conflicto físico de sonido.
+      // Se adquiere al instante sin demoras ni handshake innecesario.
     }
 
     this.acquire(reason);
@@ -236,8 +249,10 @@ export class TabAudioCoordinator {
   }
 
   /**
-   * Intento ASÍNCRONO con handshake de traspaso. Nunca fuerza la salida de una
-   * pestaña que está reproduciendo: en ese caso devuelve false (sin dos fuentes).
+   * Intento ASÍNCRONO con handshake de traspaso.
+   * Si otra pestaña está sonando, le pide ceder el control. Si la otra pestaña
+   * responde, cede amablemente; si no responde (segundo plano Android congelado
+   * o pestaña muerta), fuerza la toma de control para NUNCA bloquear al usuario.
    */
   public async claim(reason: string): Promise<boolean> {
     if (this.isOwner()) return true;
@@ -247,36 +262,34 @@ export class TabAudioCoordinator {
 
     if (record && record.ownerId !== this.tabId) {
       if (this.isForeignOwnerPlaying(record, now)) {
-        this.log('TAB_OWNER_DENIED', `${reason}:busy:${record.ownerId}`);
-        this.otherTabPlaying = true;
-        this.emit();
-        return false;
-      }
-      if (record.expiresAt > now) {
+        // Si otra pestaña está sonando físicamente y el intento NO es una toma explícita
+        // desde el botón de la interfaz ('banner-takeover'), se deniega para no usurpar audio en segundo plano.
+        if (reason !== 'banner-takeover') {
+          this.log('TAB_OWNER_DENIED', `${reason}:busy:${record.ownerId}`);
+          this.otherTabPlaying = Boolean(record.playing);
+          this.otherTabMetronomeOn = Boolean(record.metronomeOn);
+          this.emit();
+          return false;
+        }
+
         this.env.broadcast({ type: 'TAKEOVER_REQUEST', from: this.tabId });
         const granted = await this.waitForAck();
         if (!granted) {
-          const after = this.env.read();
-          const free = !after || after.ownerId === this.tabId || after.expiresAt <= this.env.now();
-          if (!free) {
-            this.log('TAB_OWNER_DENIED', `${reason}:no-ack:${after?.ownerId ?? 'none'}`);
-            this.emit();
-            return false;
-          }
+          // Si no contestó en el timeout (pestaña en segundo plano en Android suspendida,
+          // o caída), el usuario que pulsó explícitamente "Tomar control" asume la propiedad forzada.
+          this.log('TAB_OWNER_FORCE_TAKEOVER', `${reason}:unresponsive:${record.ownerId}`);
         }
       }
-      // Lease caducado y sin audio: el dueño anterior está muerto → libre.
     }
 
     this.acquire(reason);
     return true;
   }
 
-  /** El dueño actual (otra pestaña) permanece "vivo" reproduciendo. */
+  /** El dueño actual (otra pestaña) permanece "vivo" reproduciendo audio o metrónomo. */
   private isForeignOwnerPlaying(record: TabAudioOwnerRecord, now: number): boolean {
-    if (!record.playing) return false;
-    // Si el heartbeat está reciente, aunque el lease figure vencido se respeta:
-    // una pestaña que suena no se interrumpe jamás desde otra pestaña.
+    if (!record.playing && !record.metronomeOn) return false;
+    // Si el heartbeat está reciente, el audio está físicamente en curso en otra pestaña.
     return now - record.heartbeatAt <= this.playingGraceMs;
   }
 
@@ -356,17 +369,18 @@ export class TabAudioCoordinator {
       this.otherTabMetronomeOn = false;
       return;
     }
-    if (record.ownerId !== this.tabId && record.expiresAt <= now && !this.isForeignOwnerPlaying(record, now)) {
-      // Dueño muerto/congelado sin audio: el lease se considera libre.
+    if (record.ownerId !== this.tabId && (now - record.heartbeatAt > this.leaseMs || record.expiresAt <= now)) {
+      // Dueño muerto/congelado sin heartbeat: el lease se considera libre.
       this.env.write(null);
       this.ownerId = null;
       this.otherTabPlaying = false;
       this.otherTabMetronomeOn = false;
+      this.emit();
     }
   }
 
   private handleHiddenIdle(): void {
-    if (this.isOwner() && !this.myPlaying) {
+    if (this.isOwner() && !this.myPlaying && !this.myMetronomeOn) {
       this.release('hidden-idle');
     } else if (this.isOwner()) {
       // Reproduciendo en segundo plano: renovar lease de inmediato.
@@ -378,10 +392,10 @@ export class TabAudioCoordinator {
     switch (message.type) {
       case 'TAKEOVER_REQUEST': {
         if (!this.isOwner() || message.from === this.tabId) return;
-        if (this.myPlaying) {
-          this.env.broadcast({ type: 'TAKEOVER_ACK', from: this.tabId, granted: false });
-          return;
-        }
+        // Cuando otra pestaña solicita tomar el control (usuario pulsó el botón de traspaso),
+        // detenemos todo audio local y concedemos el relevo sin duplicar fuentes.
+        this.myPlaying = false;
+        this.myMetronomeOn = false;
         this.release('takeover-granted');
         this.env.broadcast({ type: 'TAKEOVER_ACK', from: this.tabId, granted: true });
         break;
@@ -395,14 +409,17 @@ export class TabAudioCoordinator {
       }
       case 'CLAIMED': {
         if (message.tabId === this.tabId) return;
-        if (this.isOwner() && this.myPlaying) {
-          // Reafirma la propiedad: una pestaña que suena no puede ser desplazada.
-          this.writeOwnRecord(this.env.now());
-          return;
-        }
-        if (this.isOwner()) this.release('claimed-by-other');
+        const wasOwner = this.isOwner();
+        this.myPlaying = false;
+        this.myMetronomeOn = false;
         this.ownerId = message.tabId;
         this.otherTabPlaying = false;
+        this.otherTabMetronomeOn = false;
+        this.stopHeartbeat?.();
+        this.stopHeartbeat = null;
+        if (wasOwner) {
+          this.log('TAB_OWNER_RELEASED', 'claimed-by-other');
+        }
         this.emit();
         break;
       }
