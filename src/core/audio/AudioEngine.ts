@@ -12,7 +12,7 @@ import { VoiceCueEngine } from './VoiceCueEngine';
 import { MediaSessionManager } from './MediaSession';
 import { BpmDetector, BpmDetectionResult } from './BpmDetector';
 import { renderChoreographyMixdown } from './audioMixdown';
-import { readWaveformPeaks } from './timeline/WaveformPeakCache';
+import { readWaveformPeaks, DEFAULT_WAVE_PEAK_STEP } from './timeline/WaveformPeakCache';
 import { adquirirPantallaActiva, liberarPantallaActiva } from '../system/wakeLock';
 import { loadProgress } from '../../store/loadProgressStore';
 import { playbackCore, type PlaybackCoreSnapshot } from './PlaybackCore';
@@ -1039,7 +1039,11 @@ export class AudioEngine {
     const domain = targetDomain || this.playbackDomain;
     const previousPosition = this.pausedAtTime;
     if (this.playbackDomain === domain) {
-      this.stop();
+      if (preservePosition) {
+        this.stopSource();
+      } else {
+        this.stop();
+      }
     }
     this.buffers[domain] = buffer;
     this.durations[domain] = Math.round(buffer.duration * 1000);
@@ -1304,6 +1308,11 @@ export class AudioEngine {
       // Publica autoritativamente en la Pista 2D (dominio 'rink'):
       // Incrementa revisión, genera nuevo id estable, asigna buffers, duraciones y metadatos.
       this.publishRinkAudio(decoded, this.fileName, 'file');
+
+      // Inicializa también el buffer activo para el dominio actual
+      this.audioBuffer = decoded;
+      this.durationMs = Math.round(decoded.duration * 1000);
+      this.pausedAtTime = 0;
 
       // INVARIANTE ARQUITECTÓNICA: Cargar una pista NUNCA activa el metrónomo.
       // Queda estrictamente en OFF, silenciado y con planificador destruido.
@@ -2424,7 +2433,8 @@ export class AudioEngine {
     if (!source) return [];
 
     const buckets = Math.max(1, Math.floor(numBuckets));
-    const raw = readWaveformPeaks(source, buckets);
+    // channel = -1: análisis compuesto de todos los canales (L+R) para no perder música en pistas estéreo
+    const raw = readWaveformPeaks(source, buckets, DEFAULT_WAVE_PEAK_STEP, -1);
 
     let globalMax = 0.001;
     for (let i = 0; i < raw.length; i++) {

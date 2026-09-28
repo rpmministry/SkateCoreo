@@ -27,11 +27,17 @@ export interface MixdownOptions {
   points?: ChoreographyPathPoint[];
   playbackRate?: number;
   phaseOffsetSec?: number;
+  /**
+   * Si es true, activa la matriz de aislamiento para audífonos de entrenador (L: Coach/Metrónomo, R: Música).
+   * Si es false o no se especifica, exporta una mezcla estéreo normal completa (L+R).
+   */
+  splitChannelMode?: boolean;
 }
 
 /**
- * Renderiza la mezcla final por hardware utilizando OfflineAudioContext
- * garantizando aislamiento absoluto L/R (L = Coach/Metrónomo/Voz, R = Música).
+ * Renderiza la mezcla final por hardware utilizando OfflineAudioContext.
+ * Por defecto genera una mezcla estéreo balanceada completa (L+R).
+ * Si splitChannelMode=true, garantiza aislamiento L/R (L = Coach/Metrónomo/Voz, R = Música).
  */
 export async function renderChoreographyMixdown(
   options: MixdownOptions
@@ -47,7 +53,8 @@ export async function renderChoreographyMixdown(
     coachVolume = options.coachVolume ?? options.metronomeVolume ?? 0.85,
     points = [],
     playbackRate = 1.0,
-    phaseOffsetSec = 0
+    phaseOffsetSec = 0,
+    splitChannelMode = false
   } = options;
 
   const sampleRate = musicBuffer.sampleRate;
@@ -59,11 +66,11 @@ export async function renderChoreographyMixdown(
   // 1. Crear OfflineAudioContext por hardware
   const offlineCtx = new OfflineAudioContext(numberOfChannels, totalFrames, sampleRate);
 
-  // 2. Matriz de Mezcla Estricta (Merger de 2 canales)
+  // 2. Matriz de Mezcla (Merger de 2 canales)
   const merger = offlineCtx.createChannelMerger(2);
   merger.connect(offlineCtx.destination);
 
-  // ── BUS DE MÚSICA (Exclusivamente Canal Derecho - R: input 1) ──
+  // ── BUS DE MÚSICA ──
   const musicSource = offlineCtx.createBufferSource();
   musicSource.buffer = musicBuffer;
   musicSource.playbackRate.value = effectivePlaybackRate;
@@ -72,16 +79,26 @@ export async function renderChoreographyMixdown(
   musicGain.gain.value = musicVolume;
 
   musicSource.connect(musicGain);
-  // Conectar música exclusivamente al canal derecho (input 1 del merger)
-  musicGain.connect(merger, 0, 1);
-  musicSource.start(0);
 
-  // ── BUS DEL COACH (Exclusivamente Canal Izquierdo - L: input 0) ──
+  // ── BUS DEL COACH ──
   const coachGain = offlineCtx.createGain();
   coachGain.gain.value = coachVolume;
-  coachGain.connect(merger, 0, 0);
 
-  // 3. Superposición de pulsos de Metrónomo en marcas exactas sobre el Canal L
+  if (splitChannelMode) {
+    // Modo entrenador con audífonos divididos: Música en R (input 1), Coach en L (input 0)
+    musicGain.connect(merger, 0, 1);
+    coachGain.connect(merger, 0, 0);
+  } else {
+    // Mezcla estéreo normal estándar: música y guías audibles en ambos canales (L + R)
+    musicGain.connect(merger, 0, 0);
+    musicGain.connect(merger, 0, 1);
+    coachGain.connect(merger, 0, 0);
+    coachGain.connect(merger, 0, 1);
+  }
+
+  musicSource.start(0);
+
+  // 3. Superposición de pulsos de Metrónomo si está explícitamente habilitado
   if (metronomeEnabled && bpm > 0) {
     const subdivision = normalizeSubdivision(options.subdivision);
     const secondsPerPulse = (60.0 / bpm) / subdivision / effectivePlaybackRate;

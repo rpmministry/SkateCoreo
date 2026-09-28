@@ -69,7 +69,7 @@ export function drawWaveformColumns(options: DrawWaveformColumnsOptions): void {
     endSec,
     fillStyle,
     baselineStyle,
-    channel = 0,
+    channel = -1,
     amplitudeFraction = 0.38,
     minHalfHeightPx = 1.2,
     devicePixelRatio,
@@ -81,9 +81,24 @@ export function drawWaveformColumns(options: DrawWaveformColumnsOptions): void {
   const midY = renderHeight / 2;
 
   const sampleRate = buffer.sampleRate;
-  const channelData = buffer.getChannelData(channel);
-  const totalSamples = channelData.length;
+  const numChannels = buffer.numberOfChannels || 1;
+  const targetChannels: number[] = [];
+  if (channel >= 0 && channel < numChannels) {
+    targetChannels.push(channel);
+  } else {
+    for (let c = 0; c < numChannels; c++) targetChannels.push(c);
+  }
 
+  const channelArrays: Float32Array[] = [];
+  for (const c of targetChannels) {
+    try {
+      channelArrays.push(buffer.getChannelData(c));
+    } catch {
+      /* fallback */
+    }
+  }
+
+  const totalSamples = channelArrays[0]?.length || 0;
   const startSample = Math.max(0, Math.min(totalSamples, Math.floor(startSec * sampleRate)));
   const endSample = Math.max(0, Math.min(totalSamples, Math.floor(endSec * sampleRate)));
   const samplesInClip = Math.max(1, endSample - startSample);
@@ -127,8 +142,10 @@ export function drawWaveformColumns(options: DrawWaveformColumnsOptions): void {
       }
     } else {
       for (let s = sampleStart; s < sampleEnd; s++) {
-        const value = Math.abs(channelData[s] || 0);
-        if (value > maxPeak) maxPeak = value;
+        for (let c = 0; c < channelArrays.length; c++) {
+          const value = Math.abs(channelArrays[c][s] || 0);
+          if (value > maxPeak) maxPeak = value;
+        }
       }
     }
 

@@ -117,6 +117,40 @@ assert(audioEngine.getAudioBuffer('studio') === null, 'Buffer de Studio limpiado
 assert(audioEngine.metronome.getConfig().enabled === false, 'Metrónomo disabled tras reset');
 assert(audioEngine.isMetronomeMuted() === true, 'Metrónomo muted tras reset');
 
+// ── 8. Picos Compuestos Multicanal (L + R) ──
+console.log('\n8. Picos Compuestos Multicanal (Audio sólo en Canal R no se pierde)');
+const lengthR = 44100 * 2;
+const silenceLeft = new Float32Array(lengthR); // Canal L en silencio absoluto
+const signalRight = new Float32Array(lengthR);
+for (let i = 0; i < lengthR; i++) {
+  signalRight[i] = Math.sin((2 * Math.PI * 220 * i) / 44100) * 0.8;
+}
+const rightOnlyBuffer = {
+  sampleRate: 44100,
+  length: lengthR,
+  duration: 2.0,
+  numberOfChannels: 2,
+  getChannelData: (ch: number) => (ch === 0 ? silenceLeft : signalRight),
+  copyFromChannel: () => {},
+  copyToChannel: () => {},
+} as unknown as AudioBuffer;
+
+audioEngine.publishRinkAudio(rightOnlyBuffer, 'pista_canal_derecho.wav', 'file');
+const compositePeaks = audioEngine.getWaveformData(50, 'rink');
+assert(compositePeaks.length === 50, 'getWaveformData devuelve exactamente 50 buckets');
+assert(compositePeaks.some((p) => p > 0.5), 'La forma de onda detecta la señal del canal derecho a pesar del canal izquierdo silencioso');
+
+// ── 9. Aislamiento de setMetronomeConfig (BPM / subdivisión jamás activan el metrónomo) ──
+console.log('\n9. Aislamiento estricto de setMetronomeConfig');
+assert(audioEngine.metronome.getConfig().enabled === false, 'Metrónomo empieza OFF');
+assert(audioEngine.isMetronomeMuted() === true, 'Metrónomo empieza muted');
+
+audioEngine.metronome.setBpm(165);
+audioEngine.metronome.setSubdivision(4);
+audioEngine.metronome.setBeatsPerMeasure(3);
+assert(audioEngine.metronome.getConfig().enabled === false, 'Modificar BPM/subdivisión/compás mantiene enabled=false');
+assert(audioEngine.isMetronomeMuted() === true, 'Modificar BPM/subdivisión/compás mantiene muted=true');
+
 console.log(`\n========================================`);
 console.log(`RESULTADO FINAL: ${total - failures}/${total} aserciones pasadas.`);
 if (failures > 0) {

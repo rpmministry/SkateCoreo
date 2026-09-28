@@ -41,25 +41,49 @@ const CACHE = new WeakMap<AudioBuffer, Map<number, WaveformPeakData>>();
 /**
  * Devuelve los picos de un `AudioBuffer`, calculándolos una sola vez y
  * memorizándolos por (buffer, paso, canal). Llamadas repetidas son O(1).
+ * Si `channel === -1` (por defecto), analiza la envolvente compuesta de TODOS
+ * los canales disponibles del buffer (L+R), evitando que canales silenciosos o
+ * pistas divididas (split-coach) oculten la forma de onda real.
  */
 export function getWaveformPeaks(
   buffer: AudioBuffer,
   step: number = DEFAULT_WAVE_PEAK_STEP,
-  channel: number = 0
+  channel: number = -1
 ): WaveformPeakData {
   const safeStep = Math.max(1, Math.floor(step));
+  const numChannels = buffer.numberOfChannels || 1;
 
-  let byStep = CACHE.get(buffer);
-  if (!byStep) {
-    byStep = new Map<number, WaveformPeakData>();
-    CACHE.set(buffer, byStep);
+  // Determinar qué canales se analizan (canal único o compuesto de todos)
+  const targetChannels: number[] = [];
+  if (channel >= 0 && channel < numChannels) {
+    targetChannels.push(channel);
+  } else {
+    for (let c = 0; c < numChannels; c++) {
+      targetChannels.push(c);
+    }
   }
 
-  const cached = byStep.get(safeStep);
+  let byKey = CACHE.get(buffer);
+  if (!byKey) {
+    byKey = new Map<number, WaveformPeakData>();
+    CACHE.set(buffer, byKey);
+  }
+
+  // Clave de caché única por (canal, paso)
+  const cacheKey = (channel << 16) ^ safeStep;
+  const cached = byKey.get(cacheKey);
   if (cached) return cached;
 
-  const data = buffer.getChannelData(channel);
-  const sampleCount = data.length;
+  const channelArrays: Float32Array[] = [];
+  for (const c of targetChannels) {
+    try {
+      channelArrays.push(buffer.getChannelData(c));
+    } catch {
+      /* Canal fuera de rango en mock */
+    }
+  }
+
+  const sampleCount = channelArrays[0]?.length || 0;
   const peakCount = Math.max(1, Math.ceil(sampleCount / safeStep));
   const min = new Float32Array(peakCount);
   const max = new Float32Array(peakCount);
@@ -70,28 +94,31 @@ export function getWaveformPeaks(
     let mn = 0;
     let mx = 0;
     for (let j = from; j < to; j++) {
-      const value = data[j];
-      if (value > mx) mx = value;
-      else if (value < mn) mn = value;
+      for (let c = 0; c < channelArrays.length; c++) {
+        const value = channelArrays[c][j];
+        if (value > mx) mx = value;
+        else if (value < mn) mn = value;
+      }
     }
     min[i] = mn;
     max[i] = mx;
   }
 
   const result: WaveformPeakData = { sampleCount, step: safeStep, min, max };
-  byStep.set(safeStep, result);
+  byKey.set(cacheKey, result);
   return result;
 }
 
 /**
  * Reduce los picos cacheados a `numBuckets` valores de máximo ABSOLUTO, sin
  * volver a tocar el PCM. Es lo que necesita el visor de la Pista 2D.
+ * Por defecto (`channel = -1`) analiza todos los canales combinados.
  */
 export function readWaveformPeaks(
   buffer: AudioBuffer,
   numBuckets: number,
   step: number = DEFAULT_WAVE_PEAK_STEP,
-  channel: number = 0
+  channel: number = -1
 ): Float32Array {
   const buckets = Math.max(1, Math.floor(numBuckets));
   const out = new Float32Array(buckets);
