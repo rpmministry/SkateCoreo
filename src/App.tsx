@@ -305,6 +305,12 @@ export function App() {
           if (offlineRecord.points && offlineRecord.points.length > 0) {
             loadProgramPoints(offlineRecord.points);
           }
+          // Invariante de seguridad: una sesión activa restaurada arranca SIEMPRE con metrónomo OFF
+          audioEngine.setMetronomeAudible(false);
+          audioEngine.metronome.setEnabled(false);
+          audioEngine.metronome.setMuted(true);
+          audioEngine.metronome.stop();
+          useAudioStudioStore.getState().resetMetronomeControl();
         }
       } catch (e) {
         console.warn('No se pudo restaurar la sesión offline de IndexedDB:', e);

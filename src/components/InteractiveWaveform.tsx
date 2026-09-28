@@ -177,10 +177,15 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
 
   useEffect(() => {
     const updatePeaks = () => {
-      // Al hacer zoom pedimos más resolución (buckets) del buffer PUBLICADO.
-      const numBuckets = Math.max(300, Math.min(3000, Math.floor(contentWidth / 3.2)));
+      // Cálculo adaptativo de buckets según el ancho disponible:
+      // Cada barra debe tener un paso mínimo de 3px para evitar solapamientos y patrones Moiré en móviles
+      const targetStepPx = 3;
+      const availableW = Math.max(60, timelineGeometry.usableWidth);
+      const calculatedBuckets = Math.floor(availableW / targetStepPx);
+      const numBuckets = Math.max(64, Math.min(3000, calculatedBuckets));
+
       const basePeaks = audioEngine.getWaveformData(numBuckets, 'rink');
-      // Sin audio publicado el visor queda plano (nunca una onda inventada).
+      // Sin audio publicado el visor queda plano (nunca una onda inventada ni dummy bars).
       setWavePeaks(basePeaks && basePeaks.length > 0 ? basePeaks : []);
     };
 
@@ -267,24 +272,26 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     ctx.fillStyle = playedGradient;
     ctx.fillRect(0, 0, playheadPx, height);
 
-    // 3. Renderizado de Picos de la Onda Sonora (Detalle de alta densidad al hacer zoom)
-    const peaks = wavePeaks.length > 0 ? wavePeaks : [0.5];
-    const step = availableW / peaks.length;
-    const barWidth = Math.max(1.5, Math.min(6, step - 1));
+    // 3. Renderizado de Picos de la Onda Sonora (Detalle de alta densidad sin solapamiento)
+    if (wavePeaks.length > 0) {
+      const step = availableW / wavePeaks.length;
+      // barWidth: nunca mayor que step * 0.75 para que SIEMPRE exista separación visual limpia entre barras
+      const barWidth = Math.max(1, Math.min(5, Math.floor(step * 0.75)));
 
-    for (let i = 0; i < peaks.length; i++) {
-      const peakVal = peaks[i];
-      const barX = PIN_RADIUS + i * step;
-      const barHeight = Math.max(3, peakVal * (height * 0.82));
-      const topY = centerY - barHeight / 2;
+      for (let i = 0; i < wavePeaks.length; i++) {
+        const peakVal = wavePeaks[i];
+        const barX = PIN_RADIUS + i * step;
+        const barHeight = Math.max(2, peakVal * (height * 0.82));
+        const topY = centerY - barHeight / 2;
 
-      // Color dinámico según si ya ha sido reproducido o está por sonar
-      const isPast = barX <= playheadPx;
-      ctx.fillStyle = isPast ? '#00F5FF' : 'rgba(161, 161, 170, 0.35)';
+        // Color dinámico según si ya ha sido reproducido o está por sonar
+        const isPast = barX <= playheadPx;
+        ctx.fillStyle = isPast ? '#00F5FF' : 'rgba(161, 161, 170, 0.35)';
 
-      ctx.beginPath();
-      roundRectPath(ctx, barX, topY, barWidth, barHeight, 1);
-      ctx.fill();
+        ctx.beginPath();
+        roundRectPath(ctx, barX, topY, barWidth, barHeight, 1);
+        ctx.fill();
+      }
     }
 
     // 4. Marcadores de Nodos Coreográficos (Líneas verticales del Scrubber)

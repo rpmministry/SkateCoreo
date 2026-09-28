@@ -1033,23 +1033,29 @@ export class AudioEngine {
     buffer: AudioBuffer,
     fileName?: string | null,
     preservePosition: boolean = false,
-    sourceKind: 'file' | 'studio-mix' = 'file'
+    sourceKind: 'file' | 'studio-mix' = 'file',
+    targetDomain?: AudioPlaybackDomain
   ) {
+    const domain = targetDomain || this.playbackDomain;
     const previousPosition = this.pausedAtTime;
-    this.stop();
-    this.audioBuffer = buffer;
-    this.durationMs = Math.round(buffer.duration * 1000);
-    this.sourceKind = sourceKind;
-    if (fileName !== undefined) {
-      this.fileName = fileName;
+    if (this.playbackDomain === domain) {
+      this.stop();
     }
-    this.pausedAtTime = preservePosition
-      ? Math.max(0, Math.min(previousPosition, this.durationMs))
-      : 0;
-    // Re-sanea el bucle contra la nueva duración (si estaba activo).
-    if (this.loop) this.loop = normalizeLoop(this.loop, buffer.duration);
-    this.mediaSession.updateMetadata(this.fileName || 'Pista de Audio');
-    this.emitStateChange();
+    this.buffers[domain] = buffer;
+    this.durations[domain] = Math.round(buffer.duration * 1000);
+    this.sourceKinds[domain] = sourceKind;
+    if (fileName !== undefined) {
+      this.fileNames[domain] = fileName;
+    }
+    if (domain === this.playbackDomain) {
+      this.pausedAtTime = preservePosition
+        ? Math.max(0, Math.min(previousPosition, this.durationMs))
+        : 0;
+      // Re-sanea el bucle contra la nueva duración (si estaba activo).
+      if (this.loop) this.loop = normalizeLoop(this.loop, buffer.duration);
+      this.mediaSession.updateMetadata(this.fileName || 'Pista de Audio');
+      this.emitStateChange();
+    }
   }
 
   /**
@@ -1294,13 +1300,21 @@ export class AudioEngine {
       const decoded = await this.readAndDecode(file, (percent, label) =>
         loadProgress.report(percent, label)
       );
-      this.audioBuffer = decoded;
-      this.durationMs = Math.round(decoded.duration * 1000);
-      this.pausedAtTime = 0;
+
+      // Publica autoritativamente en la Pista 2D (dominio 'rink'):
+      // Incrementa revisión, genera nuevo id estable, asigna buffers, duraciones y metadatos.
+      this.publishRinkAudio(decoded, this.fileName, 'file');
+
+      // INVARIANTE ARQUITECTÓNICA: Cargar una pista NUNCA activa el metrónomo.
+      // Queda estrictamente en OFF, silenciado y con planificador destruido.
+      this.setMetronomeAudible(false);
+      this.metronome.setEnabled(false);
+      this.metronome.setMuted(true);
+      this.metronome.stop();
 
       // Detectar y ajustar BPM automáticamente si la pista tiene transitorios rítmicos claros
       loadProgress.report(92, 'Analizando tempo (BPM)…');
-      this.detectAndApplyBpm(this.audioBuffer);
+      this.detectAndApplyBpm(decoded);
 
       // Pre-calienta el banco de voz del conteo (una sola voz) mientras el
       // usuario aún está en la pantalla de carga: cero delay al pulsar Play.
@@ -1311,7 +1325,7 @@ export class AudioEngine {
       loadProgress.report(100, 'Listo');
       loadProgress.done();
       this.emitStateChange();
-      return this.audioBuffer;
+      return decoded;
     } catch (err) {
       // Cualquier fallo (formato, tamaño, duración o decodificación) se maneja
       // aquí: se limpia el estado y se propaga un error legible. Sin crash.
@@ -2114,30 +2128,36 @@ export class AudioEngine {
   public swapAudioBuffer(
     buffer: AudioBuffer,
     fileName?: string | null,
-    sourceKind: 'file' | 'studio-mix' = 'studio-mix'
+    sourceKind: 'file' | 'studio-mix' = 'studio-mix',
+    targetDomain?: AudioPlaybackDomain
   ) {
-    const wasPlaying = this.isPlaying;
+    const domain = targetDomain || this.playbackDomain;
+    const wasPlaying = this.isPlaying && this.playbackDomain === domain;
     const positionMs = this.getCurrentTimeMs();
 
-    // Corta SOLO la fuente actual (no resetea isPlaying ni cancela pre-roll).
-    this.stopSource();
-
-    this.audioBuffer = buffer;
-    this.durationMs = Math.round(buffer.duration * 1000);
-    this.sourceKind = sourceKind;
-    if (fileName !== undefined) {
-      this.fileName = fileName;
+    if (this.playbackDomain === domain) {
+      // Corta SOLO la fuente actual (no resetea isPlaying ni cancela pre-roll).
+      this.stopSource();
     }
-    if (this.loop) this.loop = normalizeLoop(this.loop, buffer.duration);
-    this.mediaSession.updateMetadata(this.fileName || 'Pista de Audio');
 
-    const targetMs = Math.max(0, Math.min(positionMs, this.durationMs));
-    if (wasPlaying) {
-      this.executePlay(targetMs);
-    } else {
-      this.pausedAtTime = targetMs;
-      this.emitTimeUpdate(targetMs);
-      this.emitStateChange();
+    this.buffers[domain] = buffer;
+    this.durations[domain] = Math.round(buffer.duration * 1000);
+    this.sourceKinds[domain] = sourceKind;
+    if (fileName !== undefined) {
+      this.fileNames[domain] = fileName;
+    }
+    if (this.playbackDomain === domain) {
+      if (this.loop) this.loop = normalizeLoop(this.loop, buffer.duration);
+      this.mediaSession.updateMetadata(this.fileName || 'Pista de Audio');
+
+      const targetMs = Math.max(0, Math.min(positionMs, this.durationMs));
+      if (wasPlaying) {
+        this.executePlay(targetMs);
+      } else {
+        this.pausedAtTime = targetMs;
+        this.emitTimeUpdate(targetMs);
+        this.emitStateChange();
+      }
     }
   }
 

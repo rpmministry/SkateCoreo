@@ -657,13 +657,8 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         state.totalDurationSec
       );
       if (buffer) {
-        // Preserva el cabezal: si el motor está reproduciendo, sustituye sin cortar la reproducción.
-        // Si está en pausa o detenido, actualiza el buffer preservando posición.
-        if (audioEngine.getIsPlaying()) {
-          audioEngine.swapAudioBuffer(buffer, 'Mezcla_Estudio_Consolidada.wav', 'studio-mix');
-        } else {
-          audioEngine.setAudioBuffer(buffer, 'Mezcla_Estudio_Consolidada.wav', true, 'studio-mix');
-        }
+        // Preserva el cabezal: el llamador decide desde dónde reproducir.
+        audioEngine.setAudioBuffer(buffer, 'Mezcla_Estudio_Consolidada.wav', true);
         pendingConsolidation = false;
         return buffer;
       }
@@ -1908,9 +1903,6 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   },
 
   setMetronomeConfig: (config) => {
-    let shouldUpdateAudible = false;
-    let newAudible = false;
-
     set((state) => {
       const updated = { ...state.metronomeConfig, ...config };
       audioEngine.metronome.setBpm(updated.bpm);
@@ -1918,14 +1910,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
       audioEngine.metronome.setSubdivision(updated.subdivision);
       audioEngine.metronome.setVolume(updated.volume);
       audioEngine.metronome.setConfig({ accentFirstBeat: updated.accentFirstBeat });
-
-      // Solo si la propiedad enabled fue especificada explícitamente en la llamada,
-      // se sincroniza el estado audible del motor. Cambiar compás, BPM o subdivisión
-      // jamás debe encender automáticamente el metrónomo.
-      if (config.enabled !== undefined) {
-        shouldUpdateAudible = true;
-        newAudible = Boolean(updated.enabled) && !state.tracks.metronome.muted;
-      }
+      audioEngine.setMetronomeAudible(updated.enabled && !state.tracks.metronome.muted);
 
       const updatedControls: GlobalAudioControls = {
         ...state.globalControls,
@@ -1953,10 +1938,6 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         mixManifest: buildManifest(state.tracks, state.additionalTracks, updatedControls, state.totalDurationSec),
       };
     });
-
-    if (shouldUpdateAudible) {
-      audioEngine.setMetronomeAudible(newAudible);
-    }
   },
 
   analyzeBpm: async () => {
