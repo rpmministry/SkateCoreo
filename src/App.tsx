@@ -14,7 +14,7 @@ import { useState, useEffect, useCallback, useMemo, useRef, startTransition, laz
 import {
   Music,
   X, ChevronDown, MoreVertical,
-  Upload, Save, HardDrive, Trash2, LogOut, Sparkles
+  Upload, Save, HardDrive, Trash2, LogOut, Sparkles, ShieldCheck
 } from 'lucide-react';
 import { Skater, Program, ElementLog, AudioEngineState } from './types';
 import { SkateCoreoBrand } from './components/brand/SkateCoreoBrand';
@@ -23,7 +23,7 @@ import { audioEngine } from './services/audioEngine';
 import { useChoreographyStore } from './store/useChoreographyStore';
 import { useAudioStudioStore } from './store/useAudioStudioStore';
 import { useRinkAudioStore } from './store/useRinkAudioStore';
-import { useAuthStore } from './store/useAuthStore';
+import { useAuthStore, isOwnerOrAdmin } from './store/useAuthStore';
 import { ACCEPTED_AUDIO_FORMATS, ACCEPTED_PROJECT_FORMATS } from './constants/mediaFormats';
 import { ProtectedLayout } from './components/ProtectedLayout';
 import { ErrorBoundary } from './components/system/ErrorBoundary';
@@ -120,7 +120,12 @@ const PaperToDigitalModalLazy = lazy(() =>
 const PaperToDigitalModal = (props: React.ComponentProps<typeof PaperToDigitalModalLazy>) => (
   <Suspense fallback={null}><PaperToDigitalModalLazy {...props} /></Suspense>
 );
-
+const AdminDashboardModalLazy = lazy(() =>
+  import('./components/admin/AdminDashboardModal').then((m) => ({ default: m.AdminDashboardModal }))
+);
+const AdminDashboardModal = (props: React.ComponentProps<typeof AdminDashboardModalLazy>) => (
+  <Suspense fallback={null}><AdminDashboardModalLazy {...props} /></Suspense>
+);
 
 type AppView = 'home' | 'rink' | 'studio';
 
@@ -131,13 +136,16 @@ export function App() {
   const [activeView, setActiveView] = useState<AppView>('home');
   // Digitalización de la plantilla A4 accesible desde Home y desde la Pista.
   const [paperOpen, setPaperOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
   const unplacedNodes = useChoreographyStore((s) => s.unplacedNodes);
   const studioBpm = useAudioStudioStore((s) => s.globalControls.bpm);
   const logout = useAuthStore((s) => s.logout);
   const authUser = useAuthStore((s) => s.user);
+  const authRole = useAuthStore((s) => s.role);
   const authPlan = useAuthStore((s) => s.subscription_plan);
   const getDaysRemaining = useAuthStore((s) => s.getDaysRemaining);
   const getFormattedExpiration = useAuthStore((s) => s.getFormattedExpiration);
+  const isUserAdmin = Boolean(authUser && (authRole === 'superadmin' || isOwnerOrAdmin(authUser.email)));
 
   /**
    * Propiedad de los datos locales: si se entra con una cuenta distinta a la que
@@ -851,6 +859,19 @@ export function App() {
               </span>
             </div>
           )}
+
+          {/* Botón Acceso Panel Admin */}
+          {isUserAdmin && (
+            <button
+              type="button"
+              onClick={() => setAdminOpen(true)}
+              className="ml-2 flex items-center gap-1.5 rounded-xl border border-cyan/40 bg-cyan/15 px-3 py-1 text-xs font-black text-cyan hover:bg-cyan/25 hover:shadow-glow-cyan transition-all interactive-tap"
+              title="Abrir Panel Administrativo Comercial y de Licencias"
+            >
+              <ShieldCheck className="h-3.5 w-3.5 text-cyan animate-pulse" />
+              <span className="text-[11px] uppercase tracking-wide">Panel Admin</span>
+            </button>
+          )}
         </div>
 
         {/* ── CENTRO: Navegación principal de escritorio ── */}
@@ -1064,6 +1085,8 @@ export function App() {
             onExportCoreo={handleExportCoreo}
             onSaveOffline={handleSaveOffline}
             onOpenPaperToDigital={() => setPaperOpen(true)}
+            isAdmin={isUserAdmin}
+            onOpenAdmin={() => setAdminOpen(true)}
           />
         ) : activeView === 'studio' ? (
           <div className="flex-1 min-h-0 flex flex-col overflow-hidden relative">
@@ -1423,6 +1446,12 @@ export function App() {
         snapshot={pendingSnapshot}
         onContinueSession={handleRecoverSession}
         onStartCleanSession={handleDiscardSession}
+      />
+
+      {/* Panel Administrativo Comercial y de Licencias */}
+      <AdminDashboardModal
+        isOpen={adminOpen}
+        onClose={() => setAdminOpen(false)}
       />
       </div>
     </ProtectedLayout>

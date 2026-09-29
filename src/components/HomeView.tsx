@@ -1,5 +1,5 @@
 import React from 'react';
-import { Compass, AudioLines, FolderOpen, ScanLine, ArrowRight } from 'lucide-react';
+import { Compass, AudioLines, FolderOpen, ScanLine, ArrowRight, ShieldCheck } from 'lucide-react';
 import { SkateCoreoBrand } from './brand/SkateCoreoBrand';
 import { Button } from './ui/Button';
 
@@ -30,6 +30,9 @@ export interface HomeViewProps {
   onSaveOffline: () => void;
   /** Abre la digitalización de la plantilla A4 (Paper-to-Digital). */
   onOpenPaperToDigital?: () => void;
+  /** Acceso al Panel de Administración si el usuario es superadmin / admin */
+  isAdmin?: boolean;
+  onOpenAdmin?: () => void;
 }
 
 /* ── Glifos abstractos (decorativos, minimalistas) ──────────────── */
@@ -179,13 +182,15 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onOpenStudio,
   onImportCoreo,
   onOpenPaperToDigital,
+  isAdmin,
+  onOpenAdmin,
 }) => {
   return (
     <section
       aria-label="Inicio"
       className="relative flex-1 min-h-0 overflow-y-auto scroll-touch bg-neon-canvas"
     >
-      <div className="home-shell relative mx-auto min-h-full w-full max-w-5xl px-4 animate-fade-in sm:px-6 lg:px-8">
+      <div className="home-shell relative mx-auto min-h-full w-full max-w-5xl px-4 animate-fade-in sm:px-6 lg:px-8 space-y-4 pb-6">
         {/* Ambiente sutil (estático, sin consumo de GPU en bucle) */}
         <span
           aria-hidden="true"
@@ -195,6 +200,33 @@ export const HomeView: React.FC<HomeViewProps> = ({
           aria-hidden="true"
           className="pointer-events-none absolute bottom-0 right-6 h-64 w-64 rounded-full bg-mint/[0.07] blur-[110px]"
         />
+
+        {/* ── Acceso Exclusivo Administradores ── */}
+        {isAdmin && onOpenAdmin && (
+          <div className="relative w-full rounded-2xl border border-cyan/40 bg-gradient-to-r from-cyan/15 via-blue-950/40 to-mint/15 p-4 shadow-soft-elevation flex flex-col sm:flex-row items-center justify-between gap-3 animate-fade-in">
+            <div className="flex items-center gap-3 text-left">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan/20 border border-cyan/40 text-cyan">
+                <ShieldCheck className="h-5 w-5 animate-pulse" />
+              </div>
+              <div>
+                <h3 className="text-xs font-black uppercase tracking-wider text-cyan">
+                  Panel de Administración Comercial
+                </h3>
+                <p className="text-[11px] text-slate-300">
+                  Gestión integral de paquetes de clubes, generación de licencias, auditoría y PDF oficial.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onOpenAdmin}
+              className="press shrink-0 flex items-center gap-2 rounded-xl bg-cyan px-4 py-2 text-xs font-black text-neon-canvas shadow-glow-cyan hover:bg-cyan/90 transition-all"
+            >
+              <span>Abrir Panel de Administración</span>
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         {/* ── Marca + mensaje ── */}
         <header className="relative flex flex-col items-center text-center">

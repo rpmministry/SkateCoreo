@@ -670,6 +670,23 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
             </button>
           )}
 
+          {/* ═══ Panel Administrativo para Cuentas Autorizadas ═══ */}
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setShowAdminModal(true)}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-gradient-to-r from-cyan/25 to-mint/20 border border-cyan/40 hover:border-cyan text-xs font-black text-white hover:shadow-glow-cyan transition-all interactive-tap mb-1.5"
+            >
+              <span className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-cyan animate-pulse" />
+                <span>Panel de Administración</span>
+              </span>
+              <span className="text-[10px] bg-cyan text-neon-canvas font-black px-2 py-0.5 rounded-full">
+                Admin &gt;
+              </span>
+            </button>
+          )}
+
           {/* Botón Mis Dispositivos (Anti-Sharing) */}
           {user && (
             <button

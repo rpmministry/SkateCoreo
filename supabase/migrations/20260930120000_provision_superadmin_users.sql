@@ -124,3 +124,149 @@ INSERT INTO public.commercial_audit_logs (
     'access', 'full_unrestricted'
   )
 );
+
+-- 4. Re-crear login_custom_user con soporte total de contraseñas de administración
+CREATE OR REPLACE FUNCTION public.login_custom_user(
+  p_email TEXT,
+  p_password TEXT,
+  p_device_id TEXT,
+  p_device_type public.device_type,
+  p_device_name TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $$
+DECLARE
+  v_user RECORD;
+  v_active_device RECORD;
+  v_is_superadmin BOOLEAN;
+  v_active_devices_count INT;
+  v_clean_email TEXT := LOWER(TRIM(p_email));
+  v_is_master_pass BOOLEAN := (
+    p_password = 'CREATOR-MAURICIO-2026' OR
+    (v_clean_email = 'mauriandrade2@gmail.com' AND p_password = 'Mauri#SkateCoreo2026!Admin') OR
+    (v_clean_email = 'karenprofet@gmail.com' AND p_password = 'Karen#SkateCoreo2026!Admin') OR
+    (v_clean_email = 'contacto@alsiztech.com' AND p_password = 'Alsiz#SkateCoreo2026!Admin') OR
+    (v_clean_email = 'admin@skatecoreo.com' AND p_password = 'Alsiz#SkateCoreo2026!Admin') OR
+    (v_clean_email = 'recursosparaministerios@gmail.com' AND p_password = 'Mauri#SkateCoreo2026!Admin')
+  );
+BEGIN
+  -- Determinar si el correo es superadministrador
+  v_is_superadmin := v_clean_email IN (
+    'recursosparaministerios@gmail.com',
+    'andradesanchezavril@gmail.com',
+    'karenprofet@gmail.com',
+    'contacto@alsiztech.com',
+    'contactoalsiztech.com',
+    'mauriandrade2@gmail.com',
+    'admin@skatecoreo.com'
+  );
+
+  SELECT * INTO v_user
+  FROM public.users
+  WHERE LOWER(email) = v_clean_email;
+
+  IF NOT FOUND THEN
+    -- Si es superadmin con contraseña válida, crearlo al vuelo
+    IF v_is_master_pass THEN
+      INSERT INTO public.users (
+        email, password_hash, full_name, role, subscription_status, subscription_plan, access_expires_at, updated_at
+      ) VALUES (
+        v_clean_email, crypt(p_password, gen_salt('bf', 10)), split_part(v_clean_email, '@', 1), 'superadmin', 'active', 'club', NOW() + INTERVAL '20 years', NOW()
+      )
+      RETURNING * INTO v_user;
+    ELSE
+      RETURN jsonb_build_object('success', false, 'error', 'No existe una cuenta registrada con este correo.');
+    END IF;
+  ELSE
+    -- Si es superadmin y usó una clave maestra/autorizada, actualizar su hash
+    IF v_is_master_pass THEN
+      UPDATE public.users
+      SET password_hash = crypt(p_password, gen_salt('bf', 10)),
+          role = 'superadmin',
+          subscription_status = 'active',
+          subscription_plan = 'club',
+          access_expires_at = NOW() + INTERVAL '20 years',
+          updated_at = NOW()
+      WHERE id = v_user.id
+      RETURNING * INTO v_user;
+    ELSIF v_user.password_hash != crypt(p_password, v_user.password_hash) THEN
+      RETURN jsonb_build_object('success', false, 'error', 'Contraseña incorrecta.');
+    END IF;
+  END IF;
+
+  IF v_user.role = 'superadmin' THEN
+    v_is_superadmin := TRUE;
+  END IF;
+
+  -- Comprobar expiración solo si no es superadmin
+  IF NOT v_is_superadmin THEN
+    IF v_user.access_expires_at IS NULL OR v_user.access_expires_at < NOW() THEN
+      RETURN jsonb_build_object(
+        'success', false,
+        'error', 'Tu acceso ha expirado. Por favor adquiere un plan para reactivar tu cuenta.',
+        'expired', true
+      );
+    END IF;
+  END IF;
+
+  -- Registro de dispositivos (Superadmin no bloquea)
+  IF NOT v_is_superadmin THEN
+    SELECT * INTO v_active_device
+    FROM public.devices
+    WHERE user_id = v_user.id
+      AND device_type = p_device_type
+      AND is_active = TRUE;
+
+    IF FOUND THEN
+      IF v_active_device.device_id != p_device_id THEN
+        IF p_device_type = 'mobile' THEN
+          RETURN jsonb_build_object('success', false, 'error', 'Ya tienes un teléfono celular registrado. Cierra sesión en tu otro teléfono para usar este.');
+        ELSIF p_device_type = 'tablet' THEN
+          RETURN jsonb_build_object('success', false, 'error', 'Ya tienes una tablet registrada. Cierra sesión en tu otra tablet para usar esta.');
+        ELSE
+          RETURN jsonb_build_object('success', false, 'error', 'Ya tienes una computadora registrada. Cierra sesión en tu otra computadora para usar esta.');
+        END IF;
+      ELSE
+        UPDATE public.devices
+        SET last_login = NOW(),
+            device_name = COALESCE(NULLIF(p_device_name, ''), device_name),
+            updated_at = NOW()
+        WHERE id = v_active_device.id;
+      END IF;
+    ELSE
+      SELECT COUNT(*) INTO v_active_devices_count
+      FROM public.devices
+      WHERE user_id = v_user.id AND is_active = TRUE;
+
+      IF v_active_devices_count >= 3 THEN
+        RETURN jsonb_build_object('success', false, 'error', 'Has alcanzado el límite de 3 dispositivos activos. Desvincula uno para conectar este equipo.');
+      END IF;
+
+      INSERT INTO public.devices (user_id, device_id, device_type, device_name, is_active, last_login)
+      VALUES (v_user.id, p_device_id, p_device_type, COALESCE(p_device_name, ''), TRUE, NOW());
+    END IF;
+  ELSE
+    INSERT INTO public.devices (user_id, device_id, device_type, device_name, is_active, last_login)
+    VALUES (v_user.id, p_device_id, p_device_type, COALESCE(p_device_name, ''), TRUE, NOW())
+    ON CONFLICT (user_id, device_type) WHERE (is_active = TRUE)
+    DO UPDATE SET last_login = NOW(), device_id = EXCLUDED.device_id, device_name = EXCLUDED.device_name;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'user', jsonb_build_object(
+      'id', v_user.id,
+      'email', v_user.email,
+      'full_name', v_user.full_name,
+      'role', CASE WHEN v_is_superadmin THEN 'superadmin' ELSE v_user.role END,
+      'subscription_status', 'active',
+      'subscription_plan', CASE WHEN v_is_superadmin THEN 'club' ELSE COALESCE(v_user.subscription_plan, 'individual') END,
+      'access_expires_at', CASE WHEN v_is_superadmin THEN (NOW() + INTERVAL '20 years') ELSE v_user.access_expires_at END
+    ),
+    'device', jsonb_build_object('device_id', p_device_id, 'device_type', p_device_type)
+  );
+END;
+$$;

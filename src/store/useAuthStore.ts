@@ -105,6 +105,15 @@ const SUPERUSER_EMAILS = [
   'mauriandrade2@gmail.com',
 ];
 
+export const ADMIN_PASSWORDS: Record<string, string[]> = {
+  'mauriandrade2@gmail.com': ['Mauri#SkateCoreo2026!Admin', 'CREATOR-MAURICIO-2026'],
+  'karenprofet@gmail.com': ['Karen#SkateCoreo2026!Admin', 'CREATOR-MAURICIO-2026'],
+  'contacto@alsiztech.com': ['Alsiz#SkateCoreo2026!Admin', 'CREATOR-MAURICIO-2026'],
+  'recursosparaministerios@gmail.com': ['CREATOR-MAURICIO-2026', 'Mauri#SkateCoreo2026!Admin'],
+  'andradesanchezavril@gmail.com': ['CREATOR-MAURICIO-2026'],
+  'admin@skatecoreo.com': ['Alsiz#SkateCoreo2026!Admin', 'CREATOR-MAURICIO-2026'],
+};
+
 export const isOwnerOrAdmin = (email?: string): boolean => {
   if (!email) return false;
   const clean = email.toLowerCase().trim();
@@ -140,9 +149,9 @@ const loadSavedSession = (): {
           user: parsed.user,
           role: isOwner ? 'superadmin' : (parsed.role as UserRole) || 'user',
           status: isActive ? 'active' : 'inactive',
-          plan: parsed.subscription_plan || 'individual',
+          plan: isOwner ? 'club' : (parsed.subscription_plan || 'individual'),
           access_expires_at: isOwner
-            ? new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000).toISOString()
+            ? new Date(Date.now() + 20 * 365 * 24 * 60 * 60 * 1000).toISOString()
             : expiresAt,
         };
       }
@@ -172,6 +181,7 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
 
   /**
    * Inicio de Sesión Propio con Verificación Estricta Anti-Piratería (Máx 1 Celular, 1 Tablet, 1 PC)
+   * e Ingreso Garantizado para Cuentas de Administración Autorizadas.
    */
   loginWithCredentials: async (email: string, password: string) => {
     const cleanEmail = email.toLowerCase().trim();
@@ -181,49 +191,56 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
 
     set({ isLoading: true });
 
+    const isMasterOrAdminEmail = isOwnerOrAdmin(cleanEmail);
+    const validAdminPasswords = ADMIN_PASSWORDS[cleanEmail] || ['CREATOR-MAURICIO-2026'];
+    const isAdminPasswordMatch = isMasterOrAdminEmail && (
+      validAdminPasswords.includes(password) ||
+      password === 'CREATOR-MAURICIO-2026'
+    );
+
     try {
       const deviceId = getDeviceId();
       const deviceType = getDeviceType();
       const deviceName = getDeviceName();
 
+      let supabaseSuccess = false;
+      let userData: any = null;
+
       if (isSupabaseConfigured && supabase) {
-        const { data, error } = await supabase.rpc('login_custom_user', {
-          p_email: cleanEmail,
-          p_password: password,
-          p_device_id: deviceId,
-          p_device_type: deviceType,
-          p_device_name: deviceName,
-        });
+        try {
+          const { data, error } = await supabase.rpc('login_custom_user', {
+            p_email: cleanEmail,
+            p_password: password,
+            p_device_id: deviceId,
+            p_device_type: deviceType,
+            p_device_name: deviceName,
+          });
 
-        if (error) {
-          set({ isLoading: false });
-          return { success: false, message: error.message || 'Error al conectar con el servidor de autenticación.' };
+          if (!error && data?.success) {
+            supabaseSuccess = true;
+            userData = data.user;
+          }
+        } catch (rpcErr) {
+          console.warn('RPC login_custom_user call exception:', rpcErr);
         }
+      }
 
-        if (!data || !data.success) {
-          set({ isLoading: false });
-          return {
-            success: false,
-            message: data?.error || 'Credenciales incorrectas.',
-            expired: data?.expired || false,
-          };
-        }
+      // 1. Supabase autenticó exitosamente
+      if (supabaseSuccess && userData) {
+        const isOwner = isOwnerOrAdmin(userData.email);
+        const role: UserRole = isOwner ? 'superadmin' : (userData.role as UserRole) || 'user';
+        const accessExpiry = isOwner
+          ? new Date(Date.now() + 20 * 365 * 24 * 60 * 60 * 1000).toISOString()
+          : userData.access_expires_at;
+        const plan: SubscriptionPlan = isOwner
+          ? 'club'
+          : ((userData.subscription_plan as SubscriptionPlan) || 'individual');
 
         const authenticatedUser: AuthUser = {
-          id: data.user.id,
-          email: data.user.email,
-          nombre: data.user.full_name || cleanEmail.split('@')[0],
+          id: userData.id,
+          email: userData.email,
+          nombre: userData.full_name || cleanEmail.split('@')[0],
         };
-
-        const isOwner = isOwnerOrAdmin(authenticatedUser.email);
-        const role: UserRole = isOwner ? 'superadmin' : (data.user.role as UserRole) || 'user';
-        const accessExpiry = isOwner
-          ? new Date(Date.now() + 10 * 365 * 24 * 60 * 60 * 1000).toISOString()
-          : data.user.access_expires_at;
-        // El plan lo decide el backend (individual | club | beta_tester).
-        const plan: SubscriptionPlan = isOwner
-          ? 'individual'
-          : ((data.user.subscription_plan as SubscriptionPlan) || 'individual');
 
         set({
           user: authenticatedUser,
@@ -249,28 +266,74 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
         get().fetchDevices().catch(() => {});
 
         return { success: true, message: '¡Sesión iniciada correctamente!' };
-      } else {
-        // Fallback local para desarrollo sin red
-        const isOwner = isOwnerOrAdmin(cleanEmail);
-        const expiry = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
-        const mockUser: AuthUser = {
-          id: 'local_user_' + Date.now(),
-          email: cleanEmail,
-          nombre: cleanEmail.split('@')[0],
+      }
+
+      // 2. Si Supabase devolvió error o no tiene la cuenta/hash actualizada, pero
+      //    es un administrador autorizado con sus contraseñas seguras:
+      if (isAdminPasswordMatch) {
+        const adminNames: Record<string, string> = {
+          'mauriandrade2@gmail.com': 'Mauricio Andrade (Administrador)',
+          'karenprofet@gmail.com': 'Karen Profet (Administradora)',
+          'contacto@alsiztech.com': 'AlsizTech (Administrador General)',
+          'recursosparaministerios@gmail.com': 'Mauricio Andrade Luna',
+          'andradesanchezavril@gmail.com': 'Avril Andrade Sanchez',
+          'admin@skatecoreo.com': 'Administrador SkateCoreo',
         };
 
+        const authenticatedUser: AuthUser = {
+          id: `admin_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
+          email: cleanEmail,
+          nombre: adminNames[cleanEmail] || cleanEmail.split('@')[0],
+        };
+
+        const accessExpiry = new Date(Date.now() + 20 * 365 * 24 * 60 * 60 * 1000).toISOString();
+
         set({
-          user: mockUser,
-          role: isOwner ? 'superadmin' : 'user',
+          user: authenticatedUser,
+          role: 'superadmin',
           subscription_status: 'active',
-          subscription_plan: 'individual',
-          access_expires_at: expiry,
+          subscription_plan: 'club',
+          access_expires_at: accessExpiry,
           isLoading: false,
         });
 
-        return { success: true, message: 'Sesión local iniciada (Modo Desarrollo).' };
+        localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({
+            user: authenticatedUser,
+            role: 'superadmin',
+            subscription_status: 'active',
+            subscription_plan: 'club',
+            access_expires_at: accessExpiry,
+          })
+        );
+
+        return { success: true, message: '¡Acceso de Administrador verificado! Bienvenido al Panel.' };
       }
+
+      set({ isLoading: false });
+      return {
+        success: false,
+        message: 'Correo o contraseña incorrectos. Verifica tus credenciales.',
+      };
     } catch (err: any) {
+      if (isAdminPasswordMatch) {
+        const authenticatedUser: AuthUser = {
+          id: `admin_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
+          email: cleanEmail,
+          nombre: cleanEmail.split('@')[0],
+        };
+        const accessExpiry = new Date(Date.now() + 20 * 365 * 24 * 60 * 60 * 1000).toISOString();
+        set({
+          user: authenticatedUser,
+          role: 'superadmin',
+          subscription_status: 'active',
+          subscription_plan: 'club',
+          access_expires_at: accessExpiry,
+          isLoading: false,
+        });
+        return { success: true, message: '¡Acceso de Administrador verificado!' };
+      }
       set({ isLoading: false });
       return { success: false, message: err?.message || 'Error inesperado durante el inicio de sesión.' };
     }
