@@ -58,7 +58,6 @@ assert(store().additionalTracks.length === 1, 'Pista adicional 1 eliminada de ad
 assert(store().additionalTracks[0]?.id === track2.id, 'Solo queda la Pista 3');
 
 // 4. Activar pista de grabación simulando una toma
-const voiceBuf = createMockBuffer(5);
 useAudioStudioStore.setState({ isRecordingTrackVisible: true });
 assert(store().isRecordingTrackVisible === true, 'Pista de grabación visible al activarse');
 
@@ -103,18 +102,20 @@ useChoreographyStore.setState({
       id: 'pt-1',
       x: 100,
       y: 150,
+      time_ms: 2500,
       timestamp: 2500,
       type: 'Jump',
-      name: 'Axel Doble',
-    } as any,
+      label: 'Axel Doble',
+    },
     {
       id: 'pt-2',
       x: 200,
       y: 250,
+      time_ms: 5000,
       timestamp: 5000,
       type: 'Spin',
-      name: 'Trompo Bajo',
-    } as any,
+      label: 'Trompo Bajo',
+    },
   ],
 });
 
@@ -135,8 +136,8 @@ useRinkAudioStore.getState().clear();
 assert(audioEngine.getState().hasAudioLoaded === false, 'Audio descargado de AudioEngine');
 assert(useRinkAudioStore.getState().publishedAudio === null, 'RinkAudioStore limpio');
 assert(useChoreographyStore.getState().points.length === 2, 'CRÍTICO: Los puntos de coreografía siguen 100% intactos');
-assert(useChoreographyStore.getState().points[0]?.name === 'Axel Doble', 'Datos de nodos intactos');
-assert(useChoreographyStore.getState().points[1]?.name === 'Trompo Bajo', 'Datos de nodos intactos');
+assert(useChoreographyStore.getState().points[0]?.label === 'Axel Doble', 'Datos de nodos intactos');
+assert(useChoreographyStore.getState().points[1]?.label === 'Trompo Bajo', 'Datos de nodos intactos');
 
 if (failures > 0) {
   console.error(`\n❌ ${failures} pruebas fallaron.`);
