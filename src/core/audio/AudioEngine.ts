@@ -727,6 +727,10 @@ export class AudioEngine {
     this.emitStateChange();
   }
 
+  public getChannelMode(): ChannelRoutingMode {
+    return this.channelMode;
+  }
+
   /* ── Silenciadores absolutos por sub-bus ─────────────────────────
      Cada canal tiene su propio GainNode antes del bus de coach/música.
      Se usa `setValueAtTime` (cambio ABSOLUTO e inmediato) en lugar de
@@ -970,6 +974,10 @@ export class AudioEngine {
    */
   public setNodes(nodes: ChoreographyPathPoint[]) {
     this.voiceCueEngine.loadNodes(nodes);
+  }
+
+  public getNodes(): ChoreographyPathPoint[] {
+    return this.voiceCueEngine.getNodes();
   }
 
   public getAudioBuffer(domain?: AudioPlaybackDomain): AudioBuffer | null {

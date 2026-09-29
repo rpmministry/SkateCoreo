@@ -889,6 +889,11 @@ export class VoiceCueEngine {
     return [...this.cues];
   }
 
+  public getNodes(): ChoreographyPathPoint[] {
+    return this.lastNodes;
+  }
+
+
   /**
    * PRERENDERIZADO DE LA VOZ GUÍA (Pre-fetching).
    *
