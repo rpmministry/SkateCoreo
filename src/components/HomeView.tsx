@@ -42,19 +42,19 @@ const RinkGlyph: React.FC = () => (
       width="210"
       height="54"
       rx="18"
-      stroke="rgba(16,244,156,0.30)"
+      stroke="rgba(0,210,255,0.30)"
       strokeWidth="1.5"
     />
     <path
       d="M24 54 C 62 18, 96 66, 134 28 S 186 50, 196 24"
-      stroke="#10F49C"
+      stroke="#00D2FF"
       strokeWidth="2"
       strokeLinecap="round"
       opacity="0.9"
     />
-    <circle cx="24" cy="54" r="4.5" fill="#F59E0B" stroke="#FFFFFF" strokeWidth="1" />
-    <circle cx="134" cy="28" r="4.5" fill="#F59E0B" stroke="#FFFFFF" strokeWidth="1" />
-    <circle cx="196" cy="24" r="4.5" fill="#F59E0B" stroke="#FFFFFF" strokeWidth="1" />
+    <circle cx="24" cy="54" r="4" fill="#10F49C" />
+    <circle cx="134" cy="28" r="4" fill="#FFFFFF" />
+    <circle cx="196" cy="24" r="4" fill="#FF4C79" />
   </svg>
 );
 
@@ -70,11 +70,11 @@ const WaveGlyph: React.FC = () => (
         width="4"
         height={h}
         rx="2"
-        fill="#00D2FF"
+        fill="#10F49C"
         opacity={0.35 + (i % 4) * 0.16}
       />
     ))}
-    <line x1="6" y1="39" x2="214" y2="39" stroke="rgba(0,210,255,0.4)" strokeWidth="1" />
+    <line x1="6" y1="39" x2="214" y2="39" stroke="rgba(16,244,156,0.35)" strokeWidth="1" />
   </svg>
 );
 
@@ -214,7 +214,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         {/* ── Los dos accesos principales ── */}
         <div className="relative grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-[1.35fr_1fr]">
           <AccessModule
-            tone="mint"
+            tone="cyan"
             tag="Editor principal"
             icon={<Compass className="h-6 w-6" />}
             eyebrow="Coreografía"
@@ -226,7 +226,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           />
 
           <AccessModule
-            tone="cyan"
+            tone="mint"
             tag="Segundo pilar"
             icon={<AudioLines className="h-6 w-6" />}
             eyebrow="Audio"

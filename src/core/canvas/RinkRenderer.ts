@@ -625,26 +625,26 @@ export class RinkRenderer {
         ctx.restore();
       }
 
-      // 1. Halo luminoso exterior si está seleccionado (Oro/Ámbar de coreografía #F59E0B)
+      // 1. Halo luminoso exterior si está seleccionado (Neón Menta #10F49C)
       if (isSelected) {
-        ctx.fillStyle = 'rgba(245, 158, 11, 0.3)';
+        ctx.fillStyle = 'rgba(16, 244, 156, 0.25)';
         ctx.beginPath();
-        ctx.arc(px, py, nodeRadius + 6, 0, Math.PI * 2);
+        ctx.arc(px, py, nodeRadius + 5, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.strokeStyle = 'rgba(251, 191, 36, 0.9)';
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgba(16, 244, 156, 0.75)';
+        ctx.lineWidth = 1.5;
         ctx.stroke();
       }
 
-      // 1.b Feedback de ARRASTRE: anillo ámbar punteado con resplandor para que
+      // 1.b Feedback de ARRASTRE: anillo cian punteado con resplandor para que
       //     quede inequívoco que el nodo se está MOVIENDO bajo el dedo/cursor.
       if (isDraggingNode) {
         ctx.save();
         ctx.setLineDash([4, 3]);
-        ctx.strokeStyle = 'rgba(245, 158, 11, 0.95)';
-        ctx.lineWidth = 2.5;
-        ctx.shadowColor = 'rgba(245, 158, 11, 0.9)';
+        ctx.strokeStyle = 'rgba(0, 210, 255, 0.95)';
+        ctx.lineWidth = 2;
+        ctx.shadowColor = 'rgba(0, 210, 255, 0.9)';
         ctx.shadowBlur = 14;
         ctx.beginPath();
         ctx.arc(px, py, nodeRadius + 9, 0, Math.PI * 2);
@@ -655,19 +655,19 @@ export class RinkRenderer {
       // 2. Círculo del ancla de alto contraste (radio adaptativo).
       ctx.beginPath();
       ctx.arc(px, py, nodeRadius, 0, Math.PI * 2);
-      ctx.fillStyle = isPending ? '#7C2D12' : isSelected ? '#F59E0B' : '#0F172A';
+      ctx.fillStyle = isPending ? '#7C2D12' : isSelected ? '#10F49C' : '#0F172A';
       ctx.fill();
 
-      ctx.lineWidth = isSelected ? 2.5 : 2;
+      ctx.lineWidth = isSelected ? 2.5 : 1.8;
       // Nodo pendiente: se conserva el COLOR de tinta con el que se dibujó (rojo/azul)
       // para que el usuario reconozca el trazo original aunque falte el número.
       const pendingStroke = p.inkColor === 'blue' ? '#60A5FA' : p.inkColor === 'red' ? '#F87171' : '#FB923C';
-      ctx.strokeStyle = isPending ? pendingStroke : isSelected ? '#FFFFFF' : '#F59E0B';
+      ctx.strokeStyle = isPending ? pendingStroke : isSelected ? '#FFFFFF' : '#38BDF8';
       ctx.stroke();
 
       // 3. Número de orden del nodo centrado en el interior (legible).
       //    Los nodos pendientes muestran "?" en naranja hasta editarse a mano.
-      ctx.fillStyle = isPending ? '#FDBA74' : isSelected ? '#0B0F19' : '#FBBF24';
+      ctx.fillStyle = isPending ? '#FDBA74' : isSelected ? '#000000' : '#FFFFFF';
       ctx.font = `900 ${Math.max(10, Math.round(nodeRadius * 0.95))}px JetBrains Mono, system-ui, monospace`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -695,16 +695,16 @@ export class RinkRenderer {
         const maxY = metrics.offsetY + metrics.renderedH - badgeH - 2;
         const badgeY = Math.max(minY, Math.min(maxY, py + nodeRadius + 5));
 
-        ctx.fillStyle = isSelected ? 'rgba(245, 158, 11, 0.25)' : 'rgba(18, 24, 38, 0.9)';
+        ctx.fillStyle = isSelected ? 'rgba(16, 244, 156, 0.2)' : 'rgba(18, 24, 38, 0.85)';
         ctx.beginPath();
         roundRectPath(ctx, badgeX, badgeY, badgeW, badgeH, 4);
         ctx.fill();
 
-        ctx.strokeStyle = isSelected ? 'rgba(251, 191, 36, 0.85)' : 'rgba(245, 158, 11, 0.4)';
+        ctx.strokeStyle = isSelected ? 'rgba(16, 244, 156, 0.7)' : 'rgba(71, 85, 105, 0.4)';
         ctx.lineWidth = 1;
         ctx.stroke();
 
-        ctx.fillStyle = isSelected ? '#FDE047' : '#FBBF24';
+        ctx.fillStyle = isSelected ? '#10F49C' : '#94A3B8';
         ctx.fillText(labelText, badgeX + badgeW / 2, badgeY + 2.5);
       }
 

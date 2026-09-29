@@ -36,7 +36,6 @@ interface InteractiveWaveformProps {
   onOpenStudio?: () => void;
   /** Deshacer la coreografía (misma acción que tenía la columna izquierda). */
   onUndo?: () => void;
-  /** Cargar archivo de audio */
   onLoadAudio?: () => void;
 }
 
@@ -48,7 +47,6 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
   fileName,
   onOpenStudio,
   onUndo,
-  onLoadAudio,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -571,21 +569,11 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
                 </span>
               )}
             </span>
-            {!fileName && onLoadAudio ? (
-              <button
-                type="button"
-                onClick={onLoadAudio}
-                className="text-left font-bold text-cyan hover:underline text-xs"
-              >
-                Cargar música...
-              </button>
-            ) : (
-              <span className="truncate font-semibold text-text-primary max-w-[130px] sm:max-w-[190px] xl:max-w-[240px]">
-                {fileName || 'Sin música publicada'}
-              </span>
-            )}
+            <span className="truncate font-semibold text-text-primary max-w-[130px] sm:max-w-[190px] xl:max-w-[240px]">
+              {fileName || 'Sin música publicada'}
+            </span>
             <span className="hidden text-[9px] font-mono uppercase tracking-wider text-text-tertiary lg:inline">
-              Música publicada · <strong className="text-amber-400 font-bold">{timelineNodes.length}</strong> nodos
+              Música publicada · {timelineNodes.length} nodos
             </span>
           </div>
         </div>

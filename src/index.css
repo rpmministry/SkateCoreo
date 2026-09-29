@@ -31,58 +31,11 @@
     --color-accent-mint-hover: #0DE08E;
     --color-accent-amber: #F59E0B;
 
-    /* ── Colors: Semantic Central Design System ── */
-    /* 1. Marca y Acción Primaria (Cyan / Ice Neón) */
-    --color-brand-primary: #00D2FF;
-    --color-brand-hover: #00B8E6;
-    --color-brand-glow: rgba(0, 210, 255, 0.45);
-    --color-brand-contrast: #0B0F19;
-
-    /* 2. Nodos de Coreografía (Familia Ámbar / Oro Deportivo)
-       Identidad cromática cálida exclusiva, 100% diferenciada de las pistas de audio */
-    --color-node-base: #F59E0B;
-    --color-node-hover: #FBBF24;
-    --color-node-active: #F59E0B;
-    --color-node-selected: #FDE047;
-    --color-node-dark: #78350F;
-    --color-node-surface: rgba(245, 158, 11, 0.12);
-    --color-node-border: rgba(245, 158, 11, 0.45);
-    --color-node-glow: rgba(245, 158, 11, 0.45);
-    --color-node-glow-strong: rgba(251, 191, 36, 0.75);
-
-    /* 3. Pistas de Audio (Familia Tecnológica Fría DAW) */
-    --color-audio-track-primary: #00D2FF;
-    --color-audio-track-sky: #38BDF8;
-    --color-audio-track-indigo: #818CF8;
-    --color-audio-track-purple: #8B5CF6;
-    --color-audio-track-magenta: #D946EF;
-    --color-audio-wave-played: #00D2FF;
-    --color-audio-wave-unplayed: rgba(148, 163, 184, 0.35);
-
-    /* 4. Estado de Reproducción & Playhead */
-    --color-playback-needle: #FFFFFF;
-    --color-playback-glow: rgba(0, 210, 255, 0.75);
-    --color-playback-active: #10F49C;
-
-    /* 5. Selección */
-    --color-selection: #10F49C;
-    --color-selection-glow: rgba(16, 244, 156, 0.6);
-
-    /* 6. Estados de Sistema (Éxito, Alerta, Destructivo) */
-    --color-success: #10F49C;
-    --color-success-surface: rgba(16, 244, 156, 0.12);
-    --color-warning: #F59E0B;
-    --color-warning-surface: rgba(245, 158, 11, 0.12);
+    /* ── Colors: Semantic ── */
     --color-danger: #EF4444;
     --color-danger-hover: #DC2626;
-    --color-danger-surface: rgba(239, 68, 68, 0.12);
-    --color-danger-border: rgba(239, 68, 68, 0.35);
-
-    /* 7. Identidad de Secciones */
-    --color-section-rink: #10F49C;
-    --color-section-rink-glow: rgba(16, 244, 156, 0.35);
-    --color-section-studio: #00D2FF;
-    --color-section-studio-glow: rgba(0, 210, 255, 0.35);
+    --color-success: #10F49C;
+    --color-warning: #F59E0B;
 
     /* ── Border radius scale ── */
     --radius-xs: 6px;

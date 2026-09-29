@@ -8,6 +8,7 @@ import {
 import { AudioStudioTrack } from '../../types/audioStudio';
 import { useAudioStudioStore } from '../../store/useAudioStudioStore';
 import { usePressAction } from '../../hooks/usePressAction';
+import { audioEngine } from '../../services/audioEngine';
 
 interface BandLabMixerDrawerProps {
   isOpen: boolean;
@@ -30,6 +31,20 @@ export const BandLabMixerDrawer: React.FC<BandLabMixerDrawerProps> = ({
   const toggleVoiceGuideMute = useAudioStudioStore((s) => s.toggleVoiceGuideMute);
   const press = usePressAction();
   const setVoiceGuideVolume = useAudioStudioStore((s) => s.setVoiceGuideVolume);
+
+  const [channelMode, setChannelMode] = React.useState(() => audioEngine.getChannelMode());
+
+  React.useEffect(() => {
+    const unsubscribe = audioEngine.onStateChange((state) => {
+      setChannelMode(state.channelMode);
+    });
+    return unsubscribe;
+  }, []);
+
+  const handleSetChannelMode = (mode: 'stereo' | 'split-coach') => {
+    audioEngine.setChannelMode(mode);
+    setChannelMode(mode);
+  };
 
   if (!isOpen) return null;
 
@@ -58,6 +73,46 @@ export const BandLabMixerDrawer: React.FC<BandLabMixerDrawerProps> = ({
           >
             <X className="w-5 h-5" />
           </button>
+        </div>
+
+        {/* Selector de Modo de Salida (Stereo vs Split L/R) */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 p-3 rounded-2xl bg-zinc-900/90 border border-white/10 shrink-0">
+          <div className="flex flex-col text-left w-full sm:w-auto">
+            <span className="text-xs font-black uppercase tracking-wider text-slate-200">
+              Modo de Salida
+            </span>
+            <span className="text-[11px] text-slate-400 font-medium">
+              {channelMode === 'split-coach'
+                ? 'L: 100% Música (pista limpia) · R: 100% Metrónomo + Voz Guía (0% Música)'
+                : 'L + R: Mezcla estéreo balanceada completa en ambos canales'}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 w-full sm:w-auto sm:flex sm:items-center">
+            <button
+              type="button"
+              aria-pressed={channelMode === 'stereo'}
+              onClick={() => handleSetChannelMode('stereo')}
+              className={`py-2 px-3.5 rounded-xl text-center text-xs font-bold transition-all border active:scale-[0.97] ${
+                channelMode === 'stereo'
+                  ? 'bg-teal-400 text-zinc-950 font-black border-teal-300 shadow-md shadow-teal-400/25'
+                  : 'bg-zinc-800/80 border-white/5 text-zinc-300 hover:bg-zinc-700 hover:text-white'
+              }`}
+            >
+              🔊 Stereo
+            </button>
+            <button
+              type="button"
+              aria-pressed={channelMode === 'split-coach'}
+              onClick={() => handleSetChannelMode('split-coach')}
+              className={`py-2 px-3.5 rounded-xl text-center text-xs font-bold transition-all border active:scale-[0.97] ${
+                channelMode === 'split-coach'
+                  ? 'bg-teal-400 text-zinc-950 font-black border-teal-300 shadow-md shadow-teal-400/25'
+                  : 'bg-zinc-800/80 border-white/5 text-zinc-300 hover:bg-zinc-700 hover:text-white'
+              }`}
+            >
+              🎧 Split L/R
+            </button>
+          </div>
         </div>
 
         {/* Canales Verticales (Estilo Consola de Mezclas BandLab) */}

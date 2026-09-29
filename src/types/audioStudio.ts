@@ -16,13 +16,13 @@ export type StudioTool = 'select' | 'split' | 'delete';
 
 export const CARBON_TRACK_COLORS = [
   '#00F0FF', // Cyan Eléctrico (Pista 1 - Música Principal)
-  '#38BDF8', // Azul Cielo (Pista 2 - Secundaria 1)
-  '#818CF8', // Índigo Suave (Pista 3 - Secundaria 2)
-  '#8B5CF6', // Púrpura Eléctrico (Pista 4 - Secundaria 3)
-  '#D946EF', // Magenta Neón (Pista 5 - Secundaria 4)
-  '#2DD4BF', // Turquesa Neón (Pista 6 - Secundaria 5)
-  '#60A5FA', // Azul Cobalto (Pista 7 - Secundaria 6)
-  '#10F49C', // Verde Menta Neón (Pista 8 - Secundaria 7)
+  '#D946EF', // Magenta Neón (Pista 2 - Secundaria 1)
+  '#10F49C', // Verde Menta Neón (Pista 3 - Secundaria 2)
+  '#F59E0B', // Ámbar Cálido (Pista 4 - Secundaria 3)
+  '#8B5CF6', // Púrpura Eléctrico (Pista 5 - Secundaria 4)
+  '#38BDF8', // Azul Cielo
+  '#F43F5E', // Coral Neón
+  '#A3E635', // Lima Neón
 ];
 
 export interface AudioClip {

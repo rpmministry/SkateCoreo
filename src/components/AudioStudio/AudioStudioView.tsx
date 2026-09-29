@@ -115,9 +115,16 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   const [confirmReplaceOpen, setConfirmReplaceOpen] = useState(false);
   const [loopEnabled, setLoopEnabled] = useState<boolean>(() => !!audioEngine.getLoop());
   const [showMixerDrawer, setShowMixerDrawer] = useState(false);
+  const [channelMode, setChannelMode] = useState(() => audioEngine.getChannelMode());
   // Estado real del motor: permite que el transporte funcione aunque la pista se
   // haya cargado en la Pista 2D (fuera del store del Estudio).
   const [engineHasAudio, setEngineHasAudio] = useState<boolean>(() => audioEngine.getState().hasAudioLoaded);
+
+  const handleToggleChannelMode = () => {
+    const nextMode = channelMode === 'split-coach' ? 'stereo' : 'split-coach';
+    audioEngine.setChannelMode(nextMode);
+    setChannelMode(nextMode);
+  };
 
   // Activación táctil inmediata sin doble disparo (evita el Play/Pausa fantasma)
   const press = usePressAction();
@@ -711,6 +718,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
       // aunque el buffer aún no suene: es la misma semántica que usa la Pista 2D.
       setIsPlaying(state.isPlaying || state.isPreRollActive);
       setEngineHasAudio(state.hasAudioLoaded);
+      setChannelMode(state.channelMode);
       if (!state.isPlaying) {
         // La reproducción terminó: aplicar cambios de mezcla diferidos
         flushPendingConsolidation();
@@ -1087,7 +1095,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
                 className={[
                   'px-1.5 py-0.5 rounded-full border text-[9px] font-bold',
                   audioNodes.length > 0
-                    ? 'bg-amber-500/15 text-amber-300 border-amber-400/40 shadow-sm shadow-amber-500/10'
+                    ? 'bg-cyan/15 text-cyan border-cyan/30'
                     : 'bg-white/5 text-slate-500 border-white/10',
                 ].join(' ')}
               >
@@ -1154,23 +1162,19 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
                     node.timestampSec
                   )}px) translateX(-50%)`,
                 }}
-                title={`Nodo coreográfico ${node.numeroSecuencial} · ${node.timestampSec.toFixed(3)}s`}
+                title={`Nodo ${node.numeroSecuencial} · ${node.timestampSec.toFixed(3)}s`}
               >
                 <span
                   className={[
-                    'flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-mono text-[9px] font-black border shadow-md',
-                    isSelectedNode 
-                      ? 'bg-amber-400 text-slate-950 border-amber-200 shadow-glow-amber ring-2 ring-amber-300/40' 
-                      : 'bg-amber-950/90 text-amber-300 border-amber-400/60 shadow-sm shadow-amber-500/20',
+                    'flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-mono text-[9px] font-black',
+                    isSelectedNode ? 'bg-cyan text-slate-950' : 'bg-cyan/25 text-cyan',
                   ].join(' ')}
                 >
                   {node.numeroSecuencial}
                 </span>
                 <div
                   className={
-                    isSelectedNode 
-                      ? 'w-[2px] flex-1 bg-amber-400 shadow-glow-amber' 
-                      : 'w-px flex-1 bg-amber-400/50'
+                    isSelectedNode ? 'w-[2px] flex-1 bg-cyan' : 'w-px flex-1 bg-cyan/45'
                   }
                 />
               </div>
@@ -1322,10 +1326,36 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             type="button"
             onClick={() => setShowMixerDrawer(true)}
             className="w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white transition-all active:scale-95 shadow-sm"
-            title="Abrir Mezclador de Pistas (Volumen, Mute, Solo)"
+            title="Abrir Mezclador de Pistas (Volumen, Mute, Solo, Modo de Salida)"
             aria-label="Abrir mezclador de pistas"
           >
             <Sliders className="w-5 h-5 text-cyan" />
+          </button>
+
+          {/* Selector rápido Stereo / Split L/R */}
+          <button
+            type="button"
+            onClick={handleToggleChannelMode}
+            className={`w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex flex-col items-center justify-center transition-all active:scale-95 shadow-sm border ${
+              channelMode === 'split-coach'
+                ? 'bg-teal-400 text-zinc-950 font-black border-teal-300 shadow-teal-400/25'
+                : 'bg-white/10 hover:bg-white/20 border-white/10 text-slate-200 hover:text-white'
+            }`}
+            title={
+              channelMode === 'split-coach'
+                ? 'Split L/R activo (L: Música, R: Metrónomo + Voz Guía). Clic para volver a Stereo.'
+                : 'Stereo activo (Mezcla estéreo completa en ambos oídos). Clic para cambiar a Split L/R.'
+            }
+            aria-label={
+              channelMode === 'split-coach' ? 'Cambiar a modo Estéreo' : 'Cambiar a modo Split L/R'
+            }
+          >
+            <span className="text-[10px] font-black leading-none tracking-tight">
+              {channelMode === 'split-coach' ? 'SPLIT' : 'STEREO'}
+            </span>
+            <span className="text-[8px] font-mono leading-none mt-0.5 opacity-80">
+              {channelMode === 'split-coach' ? 'L / R' : '2-CH'}
+            </span>
           </button>
 
           {/* Stop / Detener — detiene todo (fuente, pre-roll, metrónomo y voz)
@@ -1499,15 +1529,15 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             <Repeat className="w-5 h-5" />
           </button>
 
-          {/* + Marcador temporal coreográfico */}
+          {/* + Marcador temporal */}
           <button
             type="button"
             onClick={handleAddTimeNode}
-            className="press flex h-11 sm:h-12 shrink-0 items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/15 px-2.5 text-xs font-bold text-amber-300 hover:bg-amber-500/25 hover:border-amber-400/60 shadow-sm shadow-amber-500/10 sm:px-3"
-            title="Añadir marcador de nodo coreográfico"
+            className="press flex h-11 sm:h-12 shrink-0 items-center gap-1.5 rounded-full border border-cyan/30 bg-cyan/15 px-2.5 text-xs font-bold text-cyan hover:bg-cyan/25 sm:px-3"
+            title="Añadir marcador temporal"
             aria-label="Añadir marcador temporal"
           >
-            <MapPin className="w-4 h-4 shrink-0 text-amber-400" />
+            <MapPin className="w-4 h-4 shrink-0" />
             <span className="hidden sm:inline">Nodo</span>
             <span className="font-mono">({audioNodes.length})</span>
           </button>

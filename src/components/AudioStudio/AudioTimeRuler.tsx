@@ -331,19 +331,19 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
           );
         })}
 
-        {/* Aguja del Playhead (Línea de Tiempo Blanca de Alto Contraste con Aura Cyan).
+        {/* Aguja del Playhead (Línea Amarilla de Tiempo).
             Posicionada con transform (composición GPU) desde el reloj de hardware. */}
         {!hidePlayhead && (
           <div
             ref={playheadRef}
-            className="absolute top-0 bottom-0 left-0 w-[2px] bg-white shadow-glow-cyan pointer-events-none z-30 will-change-transform"
+            className="absolute top-0 bottom-0 left-0 w-[2px] bg-amber-400 shadow-glow-amber pointer-events-none z-30 will-change-transform"
             style={{ transform: 'translateX(0px)' }}
           >
-            <div className="w-3 h-3 bg-white rotate-45 -translate-x-1.5 -translate-y-1 rounded-sm shadow-md ring-1 ring-cyan-400" />
+            <div className="w-3 h-3 bg-amber-400 rotate-45 -translate-x-1.5 -translate-y-1 rounded-sm shadow-md" />
           </div>
         )}
 
-        {/* Marcadores de Nodos Coreográficos (Chips rígidos numerados en Familia Ámbar/Oro Deportivo) */}
+        {/* Marcadores de Nodos Temporales (Chips rígidos numerados 1, 2, 3... Sin deformación) */}
         {audioNodes.map((node) => {
           const leftPx = geometry.timeToPixel(node.timestampSec);
           const isSelected = selectedNodeId === node.id;
@@ -364,20 +364,13 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
                 'sm:max-w-none sm:gap-1 sm:px-2',
                 isDragging ? 'scale-110 z-40' : '',
                 isSelected
-                  ? 'bg-amber-400 text-slate-950 font-black border-amber-200 shadow-glow-amber shadow-amber-400/50 ring-2 ring-amber-300/40'
-                  : 'bg-slate-950/95 text-amber-300 border-amber-400/50 hover:border-amber-300 hover:text-amber-200 shadow-sm shadow-amber-500/10',
+                  ? 'bg-cyan text-slate-950 font-black border-white shadow-cyan/40 shadow-glow-cyan'
+                  : 'bg-slate-900/95 text-cyan border-cyan/40 hover:border-cyan',
               ].join(' ')}
               style={{ left: `${leftPx}px`, touchAction: 'none' }}
-              title={`Nodo coreográfico ${node.numeroSecuencial} · ${node.timestampSec.toFixed(3)}s (Arrastra para mover)`}
+              title={`Nodo ${node.numeroSecuencial} · ${node.timestampSec.toFixed(3)}s (Arrastra para mover)`}
             >
-              <span
-                className={[
-                  'w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-black shrink-0 sm:w-4 sm:h-4 sm:text-[10px]',
-                  isSelected
-                    ? 'bg-slate-950 text-amber-300'
-                    : 'bg-amber-500/20 text-amber-300 border border-amber-500/30',
-                ].join(' ')}
-              >
+              <span className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-black bg-cyan-950/60 text-cyan shrink-0 sm:w-4 sm:h-4 sm:text-[10px]">
                 {node.numeroSecuencial}
               </span>
               <span className="truncate text-[9px] font-mono font-bold whitespace-nowrap sm:text-[10px]">

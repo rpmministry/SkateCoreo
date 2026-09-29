@@ -21,6 +21,7 @@ import { useRinkAudioStore } from '../../store/useRinkAudioStore';
 import { ACCEPTED_AUDIO_FORMATS } from '../../constants/mediaFormats';
 import { usePressAction } from '../../hooks/usePressAction';
 import { useIosFileCapture } from '../../hooks/useIosFileCapture';
+import { audioEngine } from '../../services/audioEngine';
 
 interface TopTransportBarProps {
   onBackToRink?: () => void;
@@ -72,6 +73,20 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
   const hasPublishedAudio = useRinkAudioStore((s) => !!s.publishedAudio);
   const snapEnabled = useAudioStudioStore((s) => s.snapEnabled);
   const setSnapEnabled = useAudioStudioStore((s) => s.setSnapEnabled);
+
+  const [channelMode, setChannelMode] = useState(() => audioEngine.getChannelMode());
+
+  React.useEffect(() => {
+    const unsubscribe = audioEngine.onStateChange((state) => {
+      setChannelMode(state.channelMode);
+    });
+    return unsubscribe;
+  }, []);
+
+  const handleSetChannelMode = (mode: 'stereo' | 'split-coach') => {
+    audioEngine.setChannelMode(mode);
+    setChannelMode(mode);
+  };
 
   // Tap tempo
   const tapTimesRef = useRef<number[]>([]);
@@ -429,6 +444,47 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
                 onChange={(e) => setVoiceGuideVolume(parseFloat(e.target.value))}
                 className="w-full accent-fuchsia-400 h-1.5 bg-white/10 rounded cursor-pointer"
               />
+            </div>
+
+            {/* Modo de Salida (Stereo vs Split L/R) */}
+            <div className="pt-2 border-t border-white/10 flex flex-col gap-2">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-200">
+                <span>Modo de Salida</span>
+                <span className="text-[10px] text-zinc-400 font-mono">
+                  {channelMode === 'split-coach' ? 'Split L/R' : 'Stereo'}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  type="button"
+                  aria-pressed={channelMode === 'stereo'}
+                  onClick={() => handleSetChannelMode('stereo')}
+                  className={`py-1.5 px-2 rounded-xl text-center text-xs font-bold transition-all border active:scale-[0.96] ${
+                    channelMode === 'stereo'
+                      ? 'bg-teal-400 text-zinc-950 font-black border-teal-300 shadow-md shadow-teal-400/25'
+                      : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700 hover:text-white'
+                  }`}
+                >
+                  🔊 Stereo
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={channelMode === 'split-coach'}
+                  onClick={() => handleSetChannelMode('split-coach')}
+                  className={`py-1.5 px-2 rounded-xl text-center text-xs font-bold transition-all border active:scale-[0.96] ${
+                    channelMode === 'split-coach'
+                      ? 'bg-teal-400 text-zinc-950 font-black border-teal-300 shadow-md shadow-teal-400/25'
+                      : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700 hover:text-white'
+                  }`}
+                >
+                  🎧 Split L/R
+                </button>
+              </div>
+              <p className="text-[10px] text-zinc-400 font-medium">
+                {channelMode === 'split-coach'
+                  ? 'L: 100% Música · R: 100% Metrónomo + Voz Guía (0% música)'
+                  : 'L + R: Mezcla estéreo balanceada en ambos oídos'}
+              </p>
             </div>
           </div>
         </div>

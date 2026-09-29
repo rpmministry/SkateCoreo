@@ -77,6 +77,20 @@ class MockAudioContext {
       copyToChannel: () => {},
     } as unknown as AudioBuffer;
   }
+  public createChannelSplitter(outputs = 2) {
+    return {
+      numberOfOutputs: outputs,
+      connect: () => {},
+      disconnect: () => {},
+    };
+  }
+  public createChannelMerger(inputs = 2) {
+    return {
+      numberOfInputs: inputs,
+      connect: () => {},
+      disconnect: () => {},
+    };
+  }
   public resume() {
     return Promise.resolve();
   }

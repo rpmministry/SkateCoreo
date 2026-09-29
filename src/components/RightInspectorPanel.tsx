@@ -193,7 +193,7 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
               <span>Herramienta Activa</span>
-              <span className="font-mono text-amber-400 font-bold">{points.length} {points.length === 1 ? 'nodo' : 'nodos'}</span>
+              <span className="font-mono text-cyan">{points.length} {points.length === 1 ? 'nodo' : 'nodos'}</span>
             </div>
 
             <div className="grid grid-cols-3 gap-2">
@@ -350,9 +350,9 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
         {selectedPoint && (
           <div className="px-4 py-3.5 space-y-4">
 
-            {/* Identidad del nodo con halo Ámbar/Oro Coreografía */}
-            <div className="flex items-center gap-3 bg-neon-card p-3 rounded-2xl shadow-soft-elevation border border-amber-500/20">
-              <span className="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 shadow-glow-amber flex items-center justify-center text-xs font-mono font-black shrink-0">
+            {/* Identidad del nodo con halo Menta */}
+            <div className="flex items-center gap-3 bg-neon-card p-3 rounded-2xl shadow-soft-elevation">
+              <span className="w-8 h-8 rounded-xl bg-mint text-neon-canvas shadow-glow-mint flex items-center justify-center text-xs font-mono font-black shrink-0">
                 {displayNumber === '?' ? '?' : `#${displayNumber}`}
               </span>
               <div className="min-w-0 flex-1">
@@ -361,7 +361,7 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                     ? 'Nodo pendiente de numerar'
                     : selectedPoint.label || 'Nodo sin asignar'}
                 </p>
-                <p className="text-[10px] font-mono text-amber-300/80">
+                <p className="text-[10px] font-mono text-slate-400">
                   X: {selectedPoint.x.toFixed(1)}m · Y: {selectedPoint.y.toFixed(1)}m
                 </p>
                 {hasConfidence && (
@@ -378,7 +378,7 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
             {/* Número del nodo (leído por el escáner o escrito a mano) */}
             <div className="space-y-1.5">
               <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                <Hash className="w-3.5 h-3.5 text-amber-400" />
+                <Hash className="w-3.5 h-3.5 text-cyan" />
                 Número de nodo
               </label>
               <input
@@ -392,7 +392,7 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                   if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
                 }}
                 placeholder="1, 2, 3…"
-                className="w-full rounded-xl bg-neon-card px-3 py-2.5 font-mono text-sm text-slate-100 outline-none shadow-soft-elevation focus:bg-neon-hover focus:ring-1 focus:ring-amber-400/50"
+                className="w-full rounded-xl bg-neon-card px-3 py-2.5 font-mono text-sm text-slate-100 outline-none shadow-soft-elevation focus:bg-neon-hover"
               />
               <p className="text-[10px] text-slate-500 leading-snug">
                 Si el número ya existe en otro nodo, se <strong className="text-slate-300">intercambian</strong>.
@@ -439,10 +439,10 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                 <span className="flex items-center gap-1.5">
-                  <Tag className="w-3.5 h-3.5 text-amber-400" />
+                  <Tag className="w-3.5 h-3.5 text-mint" />
                   Figura Reglamentaria
                 </span>
-                <span className="text-[9px] font-mono text-amber-300 normal-case font-bold">
+                <span className="text-[9px] font-mono text-cyan normal-case font-bold">
                   {eficiencia} · {categoria}
                 </span>
               </div>
@@ -520,10 +520,10 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                 <span className="flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-cyan" />
+                  <Clock className="w-3.5 h-3.5 text-mint" />
                   Sincronización
                 </span>
-                <span className="font-mono text-cyan-300 font-bold normal-case">
+                <span className="font-mono text-mint font-bold normal-case">
                   {formatTime(selectedPoint.time_ms)}
                 </span>
               </div>
@@ -537,13 +537,13 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                     const sec = parseFloat(e.target.value) || 0;
                     handleUpdateTime(selectedPoint.id, Math.round(sec * 1000));
                   }}
-                  className="w-20 bg-neon-card rounded-xl px-2 py-2 text-center font-mono text-cyan-300 font-black text-xs outline-none shadow-soft-elevation focus:ring-1 focus:ring-cyan-400/50"
+                  className="w-20 bg-neon-card rounded-xl px-2 py-2 text-center font-mono text-mint font-black text-xs outline-none shadow-soft-elevation"
                 />
                 <span className="font-mono text-slate-500 text-xs">seg</span>
                 <button
                   type="button"
                   onClick={() => audio.seek(selectedPoint.time_ms)}
-                  className="flex-1 px-3 py-2 rounded-xl bg-cyan-950/30 hover:bg-cyan-900/50 border border-cyan-800/40 text-cyan-300 hover:text-white text-xs font-bold shadow-soft-elevation interactive-tap"
+                  className="flex-1 px-3 py-2 rounded-xl bg-neon-card hover:bg-neon-hover text-slate-200 hover:text-white text-xs font-bold shadow-soft-elevation interactive-tap"
                 >
                   Escuchar
                 </button>
@@ -552,10 +552,10 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
 
             {/* Secuencia Vocal Preview */}
             {collectNodeFigures(selectedPoint).length > 0 && (
-                <div className="bg-neon-card shadow-soft-elevation rounded-2xl p-3 space-y-1.5 border border-amber-500/20">
+                <div className="bg-neon-card shadow-soft-elevation rounded-2xl p-3 space-y-1.5">
                   <div className="flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wide">
+                    <Sparkles className="w-3.5 h-3.5 text-mint shrink-0" />
+                    <span className="text-[10px] font-bold text-mint uppercase tracking-wide">
                       Guía en Pista:
                     </span>
                   </div>
