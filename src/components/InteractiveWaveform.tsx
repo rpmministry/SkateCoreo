@@ -14,8 +14,6 @@ import {
   Sliders,
   Undo2,
   SkipBack,
-  Trash2,
-  Upload,
 } from 'lucide-react';
 import { useAudioZoomPan } from '../hooks/useAudioZoomPan';
 import { usePlayheadSync } from '../hooks/usePlayheadSync';
@@ -27,8 +25,6 @@ import {
   BEAT_SNAP_PX,
 } from '../core/audio/timeline/snap';
 import { useViewportSize } from '../hooks/useViewportSize';
-import { useIosFileCapture } from '../hooks/useIosFileCapture';
-import { ACCEPTED_AUDIO_FORMATS } from '../constants/mediaFormats';
 import { RinkAudioMixerDrawer } from './RinkAudioMixerDrawer';
 
 interface InteractiveWaveformProps {
@@ -40,7 +36,7 @@ interface InteractiveWaveformProps {
   onOpenStudio?: () => void;
   /** Deshacer la coreografía (misma acción que tenía la columna izquierda). */
   onUndo?: () => void;
-  /** Cargar una pista de audio (invoca el selector de archivo principal). */
+  /** Cargar archivo de audio */
   onLoadAudio?: () => void;
 }
 
@@ -102,22 +98,6 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     [timelineNodes]
   );
 
-  const activeTimelinePointId = useMemo(() => {
-    if (!sortedTimelineNodes || sortedTimelineNodes.length === 0) return null;
-    if (currentTimeMs <= sortedTimelineNodes[0].timestamp) {
-      return sortedTimelineNodes[0].id;
-    }
-    if (currentTimeMs >= sortedTimelineNodes[sortedTimelineNodes.length - 1].timestamp) {
-      return sortedTimelineNodes[sortedTimelineNodes.length - 1].id;
-    }
-    for (let i = 0; i < sortedTimelineNodes.length - 1; i++) {
-      if (currentTimeMs >= sortedTimelineNodes[i].timestamp && currentTimeMs < sortedTimelineNodes[i + 1].timestamp) {
-        return sortedTimelineNodes[i].id;
-      }
-    }
-    return sortedTimelineNodes[0].id;
-  }, [sortedTimelineNodes, currentTimeMs]);
-
   const isDraggingPinRef = useRef<boolean>(false);
   const dragStartPointRef = useRef<{ id: string; originalMs: number } | null>(null);
   const hasMovedRef = useRef<boolean>(false);
@@ -138,25 +118,25 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     enableWheelPan: true,
   });
 
-  // Paleta de colores temáticos por figura técnica
+  // Paleta de colores temáticos para nodos coreográficos (Familia Ámbar / Oro)
   const getMarkerTheme = (type?: string, isSelected = false, isDragged = false) => {
     if (isDragged) {
-      return { stroke: '#00D2FF', glow: 'rgba(0, 210, 255, 0.7)' };
+      return { stroke: '#FBBF24', glow: 'rgba(251, 191, 36, 0.85)' }; // Radiant Amber-Gold drag
     }
     if (isSelected) {
-      return { stroke: '#10F49C', glow: 'rgba(16, 244, 156, 0.65)' };
+      return { stroke: '#FDE047', glow: 'rgba(253, 224, 71, 0.75)' }; // Bright Luminous Gold selection
     }
     switch (type) {
       case 'Jump':
-        return { stroke: '#F59E0B', glow: 'rgba(245, 158, 11, 0.5)' };
+        return { stroke: '#F59E0B', glow: 'rgba(245, 158, 11, 0.6)' }; // Amber Gold
       case 'Spin':
-        return { stroke: '#06B6D4', glow: 'rgba(6, 182, 212, 0.5)' };
+        return { stroke: '#F97316', glow: 'rgba(249, 115, 22, 0.6)' }; // Warm Orange
       case 'Step':
-        return { stroke: '#10B981', glow: 'rgba(16, 185, 129, 0.5)' };
+        return { stroke: '#EAB308', glow: 'rgba(234, 179, 8, 0.6)' };  // Warm Yellow Gold
       case 'Choreo':
-        return { stroke: '#EC4899', glow: 'rgba(236, 72, 153, 0.5)' };
+        return { stroke: '#FB7185', glow: 'rgba(251, 113, 133, 0.6)' }; // Rose Coral Accent
       default:
-        return { stroke: '#38BDF8', glow: 'rgba(56, 189, 248, 0.5)' };
+        return { stroke: '#F59E0B', glow: 'rgba(245, 158, 11, 0.6)' }; // Choreo Amber
     }
   };
 
@@ -194,31 +174,9 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
   // Disponibilidad AUTORITATIVA del audio publicado. El motor es la fuente de
   // verdad; el espejo reactivo (`publishedAudio`) puede ir por detrás (p. ej. en
   // móvil tras cargar/restaurar). Gatear la única entrada al Estudio solo por el
+  // espejo dejaba el botón `disabled` (pointer-events:none) y el toque "no hacía
+  // nada". Se combinan ambos para no depender de un único origen.
   const canOpenStudio = !!publishedAudio || !!audioEngine.getPublishedAudio().buffer;
-  const hasAudioLoaded = !!publishedAudio || !!audioEngine.getPublishedAudio().buffer || (durationMs > 0 && !!fileName);
-
-  const localAudioInputRef = useRef<HTMLInputElement | null>(null);
-
-  const handleClearRinkAudio = () => {
-    audioEngine.clearRinkAudio();
-    useRinkAudioStore.getState().clear();
-    setWavePeaks([]);
-    onSeek(0);
-  };
-
-  const handleLocalFileSelected = useCallback(async (file: File) => {
-    try {
-      await audioEngine.loadAudioFile(file, file.name);
-      useRinkAudioStore.getState().syncFromEngine();
-    } catch (err: any) {
-      alert('Error al cargar audio: ' + (err?.message || 'Archivo no compatible'));
-    }
-  }, []);
-
-  const { handleChange: handleLocalFileInputChange } = useIosFileCapture(
-    localAudioInputRef,
-    handleLocalFileSelected
-  );
 
   useEffect(() => {
     const updatePeaks = () => {
@@ -346,21 +304,19 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
       const pinX = timelineGeometry.timeToPx(point.timestamp / 1000, true);
       const isSelected = point.id === selectedPointId;
       const isDragged = point.id === draggedPinId;
-      const isActive = point.id === activeTimelinePointId;
       const theme = getMarkerTheme(point.type, isSelected, isDragged);
 
       // Línea vertical marcadora (Scrubber Line atravesando el Waveform)
       ctx.save();
-      ctx.strokeStyle = isActive ? '#00F0FF' : theme.stroke;
-      ctx.lineWidth = isDragged ? 2.5 : (isSelected || isActive ? 2 : 1.2);
-      if (!isSelected && !isDragged && !isActive) {
+      ctx.strokeStyle = theme.stroke;
+      ctx.lineWidth = isDragged ? 2.5 : (isSelected ? 2 : 1.2);
+      if (!isSelected && !isDragged) {
         ctx.setLineDash([3, 2]);
         ctx.globalAlpha = 0.45;
       } else {
         ctx.setLineDash([]);
-        ctx.shadowColor = isActive ? '#00F0FF' : theme.stroke;
-        ctx.shadowBlur = isDragged ? 14 : (isActive ? 10 : 8);
-        ctx.globalAlpha = isActive ? 0.95 : 1;
+        ctx.shadowColor = theme.stroke;
+        ctx.shadowBlur = isDragged ? 14 : 8;
       }
 
       ctx.beginPath();
@@ -433,7 +389,6 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     wavePeaks,
     sortedTimelineNodes,
     selectedPointId,
-    activeTimelinePointId,
     hoverX,
     hoverTimeMs,
     draggedPinId,
@@ -616,11 +571,21 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
                 </span>
               )}
             </span>
-            <span className="truncate font-semibold text-text-primary max-w-[130px] sm:max-w-[190px] xl:max-w-[240px]">
-              {fileName || 'Sin música publicada'}
-            </span>
+            {!fileName && onLoadAudio ? (
+              <button
+                type="button"
+                onClick={onLoadAudio}
+                className="text-left font-bold text-cyan hover:underline text-xs"
+              >
+                Cargar música...
+              </button>
+            ) : (
+              <span className="truncate font-semibold text-text-primary max-w-[130px] sm:max-w-[190px] xl:max-w-[240px]">
+                {fileName || 'Sin música publicada'}
+              </span>
+            )}
             <span className="hidden text-[9px] font-mono uppercase tracking-wider text-text-tertiary lg:inline">
-              Música publicada · {timelineNodes.length} nodos
+              Música publicada · <strong className="text-amber-400 font-bold">{timelineNodes.length}</strong> nodos
             </span>
           </div>
         </div>
@@ -651,38 +616,6 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
             <SkipBack className="h-3.5 w-3.5 shrink-0" />
             <span className="hidden sm:inline">Volver al inicio</span>
           </button>
-
-          {/* ── BORRAR PISTA / CARGAR CANCIÓN (Pista 2D) ── */}
-          {hasAudioLoaded ? (
-            <button
-              type="button"
-              onClick={handleClearRinkAudio}
-              className="press flex min-h-touch items-center justify-center gap-1.5 rounded-subtle border border-rose-500/30 bg-rose-500/10 px-2.5 font-sans text-[11px] font-bold text-rose-400 hover:bg-rose-500/20 hover:text-rose-300 sm:px-3 transition-colors"
-              title="Borrar pista de audio de la Pista 2D (no borra los nodos ni la coreografía)"
-              aria-label="Borrar pista"
-            >
-              <Trash2 className="h-3.5 w-3.5 shrink-0" />
-              <span className="hidden sm:inline">Borrar pista</span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                if (onLoadAudio) {
-                  onLoadAudio();
-                } else {
-                  localAudioInputRef.current?.click();
-                }
-              }}
-              className="press flex min-h-touch items-center justify-center gap-1.5 rounded-subtle border border-cyan/30 bg-cyan/15 px-2.5 font-sans text-[11px] font-bold text-cyan hover:bg-cyan/25 sm:px-3 transition-colors"
-              title="Cargar o subir una pista de audio a la Pista 2D"
-              aria-label="Cargar pista de audio"
-            >
-              <Upload className="h-3.5 w-3.5 shrink-0" />
-              <span className="hidden sm:inline">Cargar canción</span>
-            </button>
-          )}
-
           <span className="hidden h-5 w-px bg-white/10 sm:block" aria-hidden="true" />
 
           {/* ── ENTRADA ÚNICA AL AUDIO STUDIO (Pista 2D) ──
@@ -820,7 +753,6 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
             const isSelected = point.id === selectedPointId;
             const isDragged = point.id === draggedPinId;
             const isHovered = point.id === hoveredPinId;
-            const isActive = point.id === activeTimelinePointId;
             const theme = getMarkerTheme(point.type, isSelected, isDragged);
             const nodeNum = index + 1;
 
@@ -832,7 +764,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
                   left: `${pinLeftPx}px`,
                   transform: 'translateX(-50%)',
                   flexShrink: 0,
-                  zIndex: isDragged ? 40 : (isSelected ? 30 : (isActive ? 25 : 20)),
+                  zIndex: isDragged ? 40 : (isSelected ? 30 : 20),
                   touchAction: 'none',
                 }}
                 onPointerDown={(e) => handlePinPointerDown(e, point)}
@@ -868,22 +800,24 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
                 <div
                   className={`
                     w-7 h-7 sm:w-9 sm:h-9 rounded-full shrink-0
-                    bg-slate-950 flex items-center justify-center
+                    flex items-center justify-center
                     border-2 select-none transition-transform duration-100 ease-out
                     ${isDragged 
-                      ? 'scale-110 shadow-2xl ring-2 ring-cyan-400/50' 
-                      : (isSelected ? 'scale-105 shadow-xl ring-1 ring-white/20' : (isActive ? 'scale-105 shadow-xl ring-2 ring-[#00F0FF]' : 'shadow-lg'))}
+                      ? 'scale-110 shadow-2xl ring-2 ring-amber-300 bg-amber-400 text-slate-950 border-white' 
+                      : (isSelected 
+                        ? 'scale-105 shadow-xl ring-2 ring-amber-400/60 bg-amber-400 text-slate-950 border-amber-100' 
+                        : 'bg-slate-950 text-amber-300 border-amber-400/70 shadow-lg hover:border-amber-300')}
                   `}
                   style={{
                     flexShrink: 0,
-                    borderColor: isActive ? '#00F0FF' : theme.stroke,
+                    borderColor: isSelected || isDragged ? undefined : theme.stroke,
                     boxShadow: isDragged 
                       ? `0 0 16px ${theme.glow}, 0 3px 10px rgba(0,0,0,0.9)` 
-                      : (isSelected ? `0 0 12px ${theme.glow}, 0 2px 8px rgba(0,0,0,0.8)` : (isActive ? '0 0 14px rgba(0,240,255,0.7), 0 2px 8px rgba(0,0,0,0.8)' : '0 2px 6px rgba(0,0,0,0.6)')),
+                      : (isSelected ? `0 0 12px ${theme.glow}, 0 2px 8px rgba(0,0,0,0.8)` : `0 2px 6px rgba(0,0,0,0.6)`),
                   }}
                   title={`Nodo #${nodeNum}: ${(point.timestamp / 1000).toFixed(1)}s. Arrastra para sincronizar con la música.`}
                 >
-                  <span className={`text-[10px] sm:text-xs font-black font-mono leading-none tracking-tight ${isActive ? 'text-cyan-300' : 'text-white'}`}>
+                  <span className={`text-[10px] sm:text-xs font-black font-mono leading-none tracking-tight ${isSelected || isDragged ? 'text-slate-950' : 'text-amber-300'}`}>
                     {nodeNum}
                   </span>
                 </div>
@@ -892,9 +826,9 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
                 <div
                   className="w-0.5 flex-1 min-h-[6px] transition-opacity duration-150"
                   style={{
-                    backgroundColor: isActive ? '#00F0FF' : theme.stroke,
-                    opacity: isDragged ? 1 : (isSelected ? 0.9 : (isActive ? 0.85 : 0.4)),
-                    boxShadow: (isDragged || isSelected || isActive) ? `0 0 6px ${isActive ? '#00F0FF' : theme.glow}` : 'none',
+                    backgroundColor: theme.stroke,
+                    opacity: isDragged ? 1 : (isSelected ? 0.9 : 0.4),
+                    boxShadow: (isDragged || isSelected) ? `0 0 6px ${theme.glow}` : 'none',
                   }}
                 />
 
@@ -922,15 +856,6 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
       <RinkAudioMixerDrawer
         isOpen={isMiniMixerOpen}
         onClose={() => setIsMiniMixerOpen(false)}
-      />
-
-      {/* Input de archivo de audio local accesible como fallback */}
-      <input
-        ref={localAudioInputRef}
-        type="file"
-        accept={ACCEPTED_AUDIO_FORMATS}
-        className="hidden"
-        onChange={handleLocalFileInputChange}
       />
     </div>
   );

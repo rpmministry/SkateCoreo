@@ -82,7 +82,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => setActiveTab('rink')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-[0.96] touch-target ${
                 activeTab === 'rink'
-                  ? 'bg-teal-400 text-zinc-950 shadow-md shadow-teal-400/25 border border-teal-300 font-black'
+                  ? 'bg-emerald-400 text-slate-950 shadow-md shadow-emerald-400/25 border border-emerald-300 font-black'
                   : 'text-zinc-400 hover:text-white hover:bg-zinc-800/70'
               }`}
             >
@@ -94,7 +94,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => setActiveTab('audio')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-[0.96] touch-target ${
                 activeTab === 'audio'
-                  ? 'bg-teal-400 text-zinc-950 shadow-md shadow-teal-400/25 border border-teal-300 font-black'
+                  ? 'bg-cyan text-neon-canvas shadow-glow-cyan border border-cyan/40 font-black'
                   : 'text-zinc-400 hover:text-white hover:bg-zinc-800/70'
               }`}
             >
@@ -106,7 +106,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => setActiveTab('panel')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-[0.96] touch-target ${
                 activeTab === 'panel'
-                  ? 'bg-teal-400 text-zinc-950 shadow-md shadow-teal-400/25 border border-teal-300 font-black'
+                  ? 'bg-slate-200 text-slate-950 shadow-md border border-slate-100 font-black'
                   : 'text-zinc-400 hover:text-white hover:bg-zinc-800/70'
               }`}
             >
@@ -118,7 +118,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => setActiveTab('skaters')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-[0.96] touch-target ${
                 activeTab === 'skaters'
-                  ? 'bg-teal-400 text-zinc-950 shadow-md shadow-teal-400/25 border border-teal-300 font-black'
+                  ? 'bg-slate-200 text-slate-950 shadow-md border border-slate-100 font-black'
                   : 'text-zinc-400 hover:text-white hover:bg-zinc-800/70'
               }`}
             >

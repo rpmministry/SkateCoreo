@@ -23,8 +23,6 @@ export interface RenderOptions {
   paperTraceImageElement?: HTMLImageElement | null;
   /** Nodo objetivo del "snap" durante el trazado (se resalta para feedback). */
   snapTargetId?: string | null;
-  /** Nodo actualmente activo según la reproducción o línea de tiempo. */
-  activePointId?: string | null;
 }
 
 // Pre-carga de imágenes de los patinadores artísticos (SVG de alta resolución)
@@ -309,10 +307,10 @@ export class RinkRenderer {
       return;
     }
 
-    // CAPA 2 — REPRODUCCIÓN / PAUSA: se dibuja la ruta base completa como guía
-    // suave y el segmento activo se resalta progresivamente con la música/playhead.
+    // CAPA 2 — SEGMENTO PROGRESIVO: durante PLAY/PAUSA se dibuja ÚNICAMENTE el
+    // segmento activo, progresando con `currentTimeMs`. Es INDEPENDIENTE del
+    // avatar: funciona igual con la patinadora visible u oculta.
     if (playbackActive) {
-      this.drawTracedPath(ctx, metrics, sorted, options, false);
       this.drawProgressiveSegment(ctx, metrics, sorted, options);
       return;
     }
@@ -322,9 +320,8 @@ export class RinkRenderer {
   }
 
   /**
-   * Dibuja la trayectoria de la coreografía conectando los nodos consecutivos.
-   * Si el usuario dibujó una huella libre o esculpió curvas Bézier, las respeta;
-   * de lo contrario, traza la ruta directa/armónica entre nodos.
+   * Dibuja la trayectoria real trazada por el usuario (solo segmentos creados
+   * explícitamente con Trazar). Capa independiente del avatar.
    */
   private static drawTracedPath(
     ctx: CanvasRenderingContext2D,
@@ -357,6 +354,10 @@ export class RinkRenderer {
       const hasCustomCps =
         p0.curveShaped === true && p0.cp1x !== undefined && p0.cp2x !== undefined;
 
+      // Sin trazo explícito no hay recorrido: los nodos permanecen independientes
+      // (ninguna conexión automática por el simple hecho de existir 2+ nodos).
+      if (!hasSplinePath && !hasCustomCps) continue;
+
       ctx.save();
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
@@ -365,18 +366,13 @@ export class RinkRenderer {
         ctx.beginPath();
         if (hasSplinePath) {
           RinkRenderer.traceSplinePath(ctx, p0.path!, metrics);
-        } else if (hasCustomCps) {
+        } else {
           const pt0 = RinkMath.metersToPixels(p0.x, p0.y, metrics);
           const pt1 = RinkMath.metersToPixels(p1.x, p1.y, metrics);
           const cp1 = RinkMath.metersToPixels(p0.cp1x!, p0.cp1y ?? p0.y, metrics);
           const cp2 = RinkMath.metersToPixels(p0.cp2x!, p0.cp2y ?? p1.y, metrics);
           ctx.moveTo(pt0.px, pt0.py);
           ctx.bezierCurveTo(cp1.px, cp1.py, cp2.px, cp2.py, pt1.px, pt1.py);
-        } else {
-          const pt0 = RinkMath.metersToPixels(p0.x, p0.y, metrics);
-          const pt1 = RinkMath.metersToPixels(p1.x, p1.y, metrics);
-          ctx.moveTo(pt0.px, pt0.py);
-          ctx.lineTo(pt1.px, pt1.py);
         }
         ctx.stroke();
       };
@@ -508,6 +504,8 @@ export class RinkRenderer {
     const hasSplinePath = Boolean(p0.path && p0.path.length >= 2);
     const hasCustomCps =
       p0.curveShaped === true && p0.cp1x !== undefined && p0.cp2x !== undefined;
+    // Sin trazo explícito no hay recorrido que dibujar (nunca una línea automática).
+    if (!hasSplinePath && !hasCustomCps) return;
 
     const { offsetX, offsetY, renderedW, renderedH, scale } = metrics;
     const cornerRadiusPx = 3.5 * scale;
@@ -530,7 +528,7 @@ export class RinkRenderer {
         const hp = RinkMath.evaluateSplinePath(p0.path!, t);
         headX = hp.x;
         headY = hp.y;
-      } else if (hasCustomCps) {
+      } else {
         // Sub-curva Bézier exacta de p0 al punto t (subdivisión de De Casteljau).
         const cp1 = { x: p0.cp1x!, y: p0.cp1y ?? p0.y };
         const cp2 = { x: p0.cp2x!, y: p0.cp2y ?? p1.y };
@@ -547,13 +545,6 @@ export class RinkRenderer {
         const headPx = RinkMath.metersToPixels(headX, headY, metrics);
         ctx.moveTo(pt0.px, pt0.py);
         ctx.bezierCurveTo(subCp1.px, subCp1.py, subCp2.px, subCp2.py, headPx.px, headPx.py);
-      } else {
-        headX = (1 - t) * p0.x + t * p1.x;
-        headY = (1 - t) * p0.y + t * p1.y;
-        const pt0 = RinkMath.metersToPixels(p0.x, p0.y, metrics);
-        const headPx = RinkMath.metersToPixels(headX, headY, metrics);
-        ctx.moveTo(pt0.px, pt0.py);
-        ctx.lineTo(headPx.px, headPx.py);
       }
       ctx.stroke();
     };
@@ -588,8 +579,7 @@ export class RinkRenderer {
     points: ChoreographyPathPoint[],
     selectedPointId: string | null,
     draggingPointId: string | null = null,
-    snapTargetId: string | null = null,
-    activePointId: string | null = null
+    snapTargetId: string | null = null
   ) {
     let visibleIndex = 0;
 
@@ -597,7 +587,6 @@ export class RinkRenderer {
       const isSelected = selectedPointId === p.id;
       const isDraggingNode = draggingPointId === p.id;
       const isSnapTarget = snapTargetId === p.id;
-      const isActive = activePointId === p.id;
       // Nodo pendiente: detectado por el escáner pero sin número reconocido.
       const isPending = p.unrecognized === true;
 
@@ -620,7 +609,7 @@ export class RinkRenderer {
       //   · Acotado [min,max] para que nunca sea diminuto ni gigante.
       //   · NO altera la posición lógica (x/y) ni el hit real (44px en pantalla).
       const nodeBase = Math.max(11, Math.min(19, metrics.scale * 0.62));
-      const nodeRadius = nodeBase + (isDraggingNode ? 3 : isSelected ? 2 : isActive ? 2 : 0);
+      const nodeRadius = nodeBase + (isDraggingNode ? 3 : isSelected ? 2 : 0);
 
       // 0. Feedback de SNAP: el nodo objetivo del trazado se resalta con un anillo
       //    ámbar para que el usuario sepa que la línea se conectará ahí.
@@ -636,42 +625,26 @@ export class RinkRenderer {
         ctx.restore();
       }
 
-      // 1. Halo luminoso exterior si está seleccionado (Neón Menta #10F49C)
+      // 1. Halo luminoso exterior si está seleccionado (Oro/Ámbar de coreografía #F59E0B)
       if (isSelected) {
-        ctx.fillStyle = 'rgba(16, 244, 156, 0.25)';
-        ctx.beginPath();
-        ctx.arc(px, py, nodeRadius + 5, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.strokeStyle = 'rgba(16, 244, 156, 0.75)';
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-      } else if (isActive) {
-        // Resplandor del nodo ACTIVO en el instante musical
-        ctx.save();
-        ctx.fillStyle = 'rgba(0, 240, 255, 0.25)';
+        ctx.fillStyle = 'rgba(245, 158, 11, 0.3)';
         ctx.beginPath();
         ctx.arc(px, py, nodeRadius + 6, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.strokeStyle = '#00F0FF';
-        ctx.lineWidth = 2.5;
-        ctx.shadowColor = '#00F0FF';
-        ctx.shadowBlur = 14;
-        ctx.beginPath();
-        ctx.arc(px, py, nodeRadius + 3, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.9)';
+        ctx.lineWidth = 2;
         ctx.stroke();
-        ctx.restore();
       }
 
-      // 1.b Feedback de ARRASTRE: anillo cian punteado con resplandor para que
+      // 1.b Feedback de ARRASTRE: anillo ámbar punteado con resplandor para que
       //     quede inequívoco que el nodo se está MOVIENDO bajo el dedo/cursor.
       if (isDraggingNode) {
         ctx.save();
         ctx.setLineDash([4, 3]);
-        ctx.strokeStyle = 'rgba(0, 210, 255, 0.95)';
-        ctx.lineWidth = 2;
-        ctx.shadowColor = 'rgba(0, 210, 255, 0.9)';
+        ctx.strokeStyle = 'rgba(245, 158, 11, 0.95)';
+        ctx.lineWidth = 2.5;
+        ctx.shadowColor = 'rgba(245, 158, 11, 0.9)';
         ctx.shadowBlur = 14;
         ctx.beginPath();
         ctx.arc(px, py, nodeRadius + 9, 0, Math.PI * 2);
@@ -682,19 +655,19 @@ export class RinkRenderer {
       // 2. Círculo del ancla de alto contraste (radio adaptativo).
       ctx.beginPath();
       ctx.arc(px, py, nodeRadius, 0, Math.PI * 2);
-      ctx.fillStyle = isPending ? '#7C2D12' : isSelected ? '#10F49C' : isActive ? '#083344' : '#0F172A';
+      ctx.fillStyle = isPending ? '#7C2D12' : isSelected ? '#F59E0B' : '#0F172A';
       ctx.fill();
 
-      ctx.lineWidth = isSelected ? 2.5 : isActive ? 2.5 : 1.8;
+      ctx.lineWidth = isSelected ? 2.5 : 2;
       // Nodo pendiente: se conserva el COLOR de tinta con el que se dibujó (rojo/azul)
       // para que el usuario reconozca el trazo original aunque falte el número.
       const pendingStroke = p.inkColor === 'blue' ? '#60A5FA' : p.inkColor === 'red' ? '#F87171' : '#FB923C';
-      ctx.strokeStyle = isPending ? pendingStroke : isSelected ? '#FFFFFF' : isActive ? '#00F0FF' : '#38BDF8';
+      ctx.strokeStyle = isPending ? pendingStroke : isSelected ? '#FFFFFF' : '#F59E0B';
       ctx.stroke();
 
       // 3. Número de orden del nodo centrado en el interior (legible).
       //    Los nodos pendientes muestran "?" en naranja hasta editarse a mano.
-      ctx.fillStyle = isPending ? '#FDBA74' : isSelected ? '#000000' : isActive ? '#00F0FF' : '#FFFFFF';
+      ctx.fillStyle = isPending ? '#FDBA74' : isSelected ? '#0B0F19' : '#FBBF24';
       ctx.font = `900 ${Math.max(10, Math.round(nodeRadius * 0.95))}px JetBrains Mono, system-ui, monospace`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -704,7 +677,7 @@ export class RinkRenderer {
       //    RESPONSIVE: se trunca a un ancho máximo y se LIMITA a los bordes del
       //    rink renderizado, de modo que nunca se corta ni invade otras zonas.
       if (p.label) {
-        ctx.font = isSelected || isActive ? 'bold 10px Inter, sans-serif' : '500 9px Inter, sans-serif';
+        ctx.font = isSelected ? 'bold 10px Inter, sans-serif' : '500 9px Inter, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
 
@@ -722,24 +695,16 @@ export class RinkRenderer {
         const maxY = metrics.offsetY + metrics.renderedH - badgeH - 2;
         const badgeY = Math.max(minY, Math.min(maxY, py + nodeRadius + 5));
 
-        ctx.fillStyle = isSelected
-          ? 'rgba(16, 244, 156, 0.2)'
-          : isActive
-          ? 'rgba(0, 240, 255, 0.25)'
-          : 'rgba(18, 24, 38, 0.85)';
+        ctx.fillStyle = isSelected ? 'rgba(245, 158, 11, 0.25)' : 'rgba(18, 24, 38, 0.9)';
         ctx.beginPath();
         roundRectPath(ctx, badgeX, badgeY, badgeW, badgeH, 4);
         ctx.fill();
 
-        ctx.strokeStyle = isSelected
-          ? 'rgba(16, 244, 156, 0.7)'
-          : isActive
-          ? '#00F0FF'
-          : 'rgba(71, 85, 105, 0.4)';
-        ctx.lineWidth = isActive ? 1.5 : 1;
+        ctx.strokeStyle = isSelected ? 'rgba(251, 191, 36, 0.85)' : 'rgba(245, 158, 11, 0.4)';
+        ctx.lineWidth = 1;
         ctx.stroke();
 
-        ctx.fillStyle = isSelected ? '#10F49C' : isActive ? '#00F0FF' : '#94A3B8';
+        ctx.fillStyle = isSelected ? '#FDE047' : '#FBBF24';
         ctx.fillText(labelText, badgeX + badgeW / 2, badgeY + 2.5);
       }
 
@@ -961,10 +926,7 @@ export class RinkRenderer {
 
     // 4. Micro-badge flotante horizontal sobre la patinadora (Inconfundible para el usuario)
     ctx.rotate(-avatar.angleRad); // Deshacer rotación para legibilidad horizontal perfecta
-    const figureName = avatar.activeFigureName || avatar.activeElement?.name;
-    const labelText = figureName
-      ? `${isFemale ? '♀' : '♂'} ${figureName}`
-      : (isFemale ? '♀ Patinadora' : '♂ Patinador');
+    const labelText = isFemale ? '♀ Patinadora' : '♂ Patinador';
     ctx.font = 'bold 9px JetBrains Mono, system-ui, sans-serif';
     const textMetrics = ctx.measureText(labelText);
     const badgeW = textMetrics.width + 12;

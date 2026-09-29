@@ -40,7 +40,6 @@ import { InteractiveWaveform } from './InteractiveWaveform';
 import { useCanvasCamera } from '../hooks/useCanvasCamera';
 import type { CameraBounds } from '../core/canvas/cameraBounds';
 import { FreehandPathEngine, Point2D } from '../core/math/FreehandPathEngine';
-import { playbackClock } from '../core/audio/PlaybackClock';
 
 /**
  * Tolerancia de SNAP del trazado, en PÍXELES de pantalla (independiente del zoom).
@@ -533,7 +532,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
   const skaterState = isPathGenerated ? RinkMath.interpolateSkaterPosition(points, audio.currentTimeMs) : null;
 
   // Render Frame Unificado de Canvas 2D con Cámara Virtual y Retina Display (devicePixelRatio)
-  const renderFrame = useCallback((explicitTimeMs?: number) => {
+  const renderFrame = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -588,32 +587,21 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     const currentPaperOverlay = useChoreographyStore.getState().paperTraceOverlay;
     const currentFullTrail = useChoreographyStore.getState().showFullTrailOverride;
 
-    const currentPlayTime = typeof explicitTimeMs === 'number'
-      ? explicitTimeMs
-      : (audio.isPlaying ? audioEngine.getCurrentTimeMs() : audio.currentTimeMs);
+    const currentPlayTime = audio.isPlaying ? audioEngine.getCurrentTimeMs() : audio.currentTimeMs;
 
-    // Determinar el nodo activo según el tiempo de reproducción actual (sincronizado con música y voces)
-    let activePointId: string | null = null;
-    if (currentPoints.length > 0) {
-      const sorted = [...currentPoints].sort((a, b) => a.time_ms - b.time_ms);
-      if (currentPlayTime <= sorted[0].time_ms) {
-        activePointId = sorted[0].id;
-      } else if (currentPlayTime >= sorted[sorted.length - 1].time_ms) {
-        activePointId = sorted[sorted.length - 1].id;
-      } else {
-        for (let i = 0; i < sorted.length - 1; i++) {
-          if (currentPlayTime >= sorted[i].time_ms && currentPlayTime < sorted[i + 1].time_ms) {
-            activePointId = sorted[i].id;
-            break;
-          }
-        }
-      }
-    }
+    // ¿Existe algún tramo realmente trazado por el usuario? Sin trazo no hay
+    // recorrido: no se dibuja avatar (nunca se inventa una ruta entre nodos).
+    const hasTracedPath = currentPoints.some(
+      (p) =>
+        Boolean(p.path && p.path.length >= 2) ||
+        (p.curveShaped === true && p.cp1x !== undefined && p.cp2x !== undefined)
+    );
 
-    // El patinador aparece durante la reproducción o pausa si hay nodos
-    const showSkater = showSkaterDuringPlayback && (playbackEngaged || audio.isPlaying || currentPlayTime > 0) && currentPoints.length > 0;
+    // El patinador sólo aparece durante la reproducción, si el usuario lo
+    // permite y hay un trazado que seguir. En edición (o sin trazo) queda oculto.
+    const showSkater = showSkaterDuringPlayback && playbackEngaged && hasTracedPath;
     const currentAvatar = showSkater
-      ? RinkMath.interpolateSkaterPosition(currentPoints, currentPlayTime)
+      ? RinkMath.interpolateSkaterPosition(currentPoints, currentPlayTime, { onlyTracedPaths: true })
       : null;
 
     // `try/finally` mantiene SIEMPRE equilibrada la pila de estados del contexto:
@@ -630,7 +618,6 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
         showRinkGrid: currentShowGrid,
         showControlHandles: currentShowHandles,
         selectedPointId: currentSelectedId,
-        activePointId,
         activeSegmentIndex: currentAvatar?.activePointIndex ?? null,
         // Nodo en arrastre activo → feedback visual reforzado en el render.
         draggingPointId:
@@ -639,7 +626,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
         phase,
         // Contexto de reproducción (PLAY o pausa congelada): activa el TRAZADO
         // PROGRESIVO del segmento actual. Independiente del avatar.
-        isPlaying: playbackEngaged || audio.isPlaying,
+        isPlaying: playbackEngaged,
         showFullTrailOverride: currentFullTrail,
         currentTimeMs: currentPlayTime,
         avatar: currentAvatar,
@@ -714,8 +701,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
         currentPoints,
         currentSelectedId,
         renderOpts.draggingPointId ?? null,
-        snapTargetRef.current,
-        activePointId
+        snapTargetRef.current
       );
 
       // Capa 5: Elementos técnicos RollArt
@@ -790,18 +776,24 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     showSkaterDuringPlayback,
   ]);
 
-  // Loop de Renderizado Fluido sincronizado con el reloj maestro unificado de reproducción
+  // Loop de Renderizado Fluido a 60fps con requestAnimationFrame durante reproducción
   useEffect(() => {
-    // Sincroniza a 60fps durante reproducción (alineado al Hardware Audio Clock)
-    // y responde de forma reactiva inmediata ante cualquier seek, scrub o pause.
-    const unsubscribe = playbackClock.subscribe((timeMs) => {
-      renderFrame(timeMs);
-    });
+    if (!audio.isPlaying) {
+      renderFrame();
+      return;
+    }
+
+    let animId: number;
+    const loop = () => {
+      renderFrame();
+      animId = requestAnimationFrame(loop);
+    };
+    animId = requestAnimationFrame(loop);
 
     return () => {
-      unsubscribe();
+      cancelAnimationFrame(animId);
     };
-  }, [renderFrame]);
+  }, [audio.isPlaying, renderFrame]);
 
   // Carga reactiva de la imagen de fondo de calco de papel (Paper Trace Overlay)
   useEffect(() => {
@@ -2454,7 +2446,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       <div className="w-full flex flex-wrap items-center justify-between text-[11px] font-mono border-t border-zinc-800/80 pt-2 px-1 gap-2 text-zinc-400">
         <div className="flex items-center gap-3">
           <span>Pista Oficial: <strong className="text-zinc-200 font-bold">50m × 25m</strong></span>
-          <span>Nodos: <strong className="text-teal-400 font-bold">{points.length}</strong></span>
+          <span>Nodos: <strong className="text-amber-400 font-bold">{points.length}</strong></span>
           <span>
             Avatar:{' '}
             <strong className="text-zinc-200 font-bold">
@@ -2471,12 +2463,12 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
             </span>
           )}
           <span className="flex items-center gap-1.5">
-            <Clock className="w-3.5 h-3.5 text-teal-400" />
-            Tiempo Audio: <strong className="text-teal-300 font-bold">{formatTime(audio.currentTimeMs)}</strong>
+            <Clock className="w-3.5 h-3.5 text-cyan-400" />
+            Tiempo Audio: <strong className="text-cyan-300 font-bold">{formatTime(audio.currentTimeMs)}</strong>
           </span>
           {selectedPoint && (
             <span className="text-zinc-300 font-semibold flex items-center gap-1">
-              <Move className="w-3 h-3 text-teal-400" />
+              <Move className="w-3 h-3 text-amber-400" />
               Nodo #{selectedPointIndex + 1}: X={selectedPoint.x.toFixed(1)}m, Y={selectedPoint.y.toFixed(1)}m
             </span>
           )}
@@ -2486,17 +2478,17 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       {/* 5. BARRA DE INSPECCIÓN DESACOPLADA (FUERA DEL CANVAS)
           Se muestra únicamente cuando hay un nodo seleccionado Y el usuario NO está arrastrando (isDragging === false) */}
       {selectedPoint && !isDragging && (
-        <div className="w-full bg-zinc-950 border border-zinc-800 rounded-2xl p-4 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-150">
+        <div className="w-full bg-zinc-950 border border-amber-500/30 rounded-2xl p-4 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-150">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800/80 pb-3 mb-3">
             <div className="flex items-center gap-3">
-              <span className="w-8 h-8 rounded-xl bg-zinc-900 text-teal-400 flex items-center justify-center text-xs font-bold font-mono border border-zinc-800 shadow-inner">
+              <span className="w-8 h-8 rounded-xl bg-amber-500/15 text-amber-300 flex items-center justify-center text-xs font-black font-mono border border-amber-500/30 shadow-inner">
                 #{selectedPointIndex + 1}
               </span>
               <div>
                 <h3 className="text-sm font-extrabold text-white uppercase tracking-wide flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-teal-400" />
+                  <Sparkles className="w-4 h-4 text-amber-400" />
                   <span>{selectedPoint.label ? selectedPoint.label : 'Configuración de Elemento Técnico'}</span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-zinc-900 text-zinc-300 border border-zinc-800">
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-zinc-900 text-amber-300 border border-amber-500/30">
                     X: {selectedPoint.x.toFixed(1)}m · Y: {selectedPoint.y.toFixed(1)}m
                   </span>
                 </h3>
@@ -2512,7 +2504,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white text-xs font-bold transition-all active:scale-[0.96]"
                 title="Enderezar tramo Bézier"
               >
-                <MinusCircle className="w-3.5 h-3.5 text-teal-400" />
+                <MinusCircle className="w-3.5 h-3.5 text-amber-400" />
                 <span>Enderezar Curva</span>
               </button>
 
@@ -2540,7 +2532,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
             {/* Columna 1: Selector Figura Estándar */}
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1">
-                <Tag className="w-3 h-3 text-teal-400" />
+                <Tag className="w-3 h-3 text-amber-400" />
                 Figura Técnica:
               </label>
               <select
@@ -2549,7 +2541,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
                   const val = e.target.value === 'custom' ? (selectedPoint.label || '') : e.target.value;
                   handleUpdatePointLabel(selectedPoint.id, val);
                 }}
-                className="w-full bg-zinc-900 border border-zinc-800 text-white rounded-xl px-3 py-2 text-xs focus:border-teal-400 outline-none font-medium cursor-pointer"
+                className="w-full bg-zinc-900 border border-zinc-800 text-white rounded-xl px-3 py-2 text-xs focus:border-amber-400 outline-none font-medium cursor-pointer"
               >
                 <option value="">-- Seleccionar Figura Estándar --</option>
                 {STANDARD_FIGURES.map(fig => (
@@ -2569,7 +2561,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
                 placeholder="Ej: Salchow, Secuencia Pasos, etc."
                 value={selectedPoint.label || ''}
                 onChange={(e) => handleUpdatePointLabel(selectedPoint.id, e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-100 placeholder:text-zinc-600 focus:border-teal-400 outline-none font-mono"
+                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-100 placeholder:text-zinc-600 focus:border-amber-400 outline-none font-mono"
               />
             </div>
 
@@ -2577,10 +2569,10 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider flex items-center justify-between">
                 <span className="flex items-center gap-1">
-                  <Clock className="w-3 h-3 text-teal-400" />
+                  <Clock className="w-3 h-3 text-cyan-400" />
                   Momento en Audio:
                 </span>
-                <span className="font-mono text-teal-300 font-bold">
+                <span className="font-mono text-cyan-300 font-bold">
                   {formatTime(selectedPoint.time_ms)}
                 </span>
               </label>
@@ -2594,13 +2586,13 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
                     const sec = parseFloat(e.target.value) || 0;
                     handleUpdatePointTime(selectedPoint.id, Math.round(sec * 1000));
                   }}
-                  className="w-24 bg-zinc-900 border border-zinc-800 rounded-xl px-2.5 py-1.5 text-center font-mono text-teal-300 font-bold text-xs outline-none focus:border-teal-400"
+                  className="w-24 bg-zinc-900 border border-zinc-800 rounded-xl px-2.5 py-1.5 text-center font-mono text-cyan-300 font-bold text-xs outline-none focus:border-cyan-400"
                 />
                 <span className="font-mono text-zinc-400 text-xs">segundos</span>
 
                 <button
                   onClick={() => audio.seek(selectedPoint.time_ms)}
-                  className="px-2.5 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white text-xs font-bold transition-all active:scale-[0.96]"
+                  className="px-2.5 py-1.5 rounded-xl bg-cyan-950/40 hover:bg-cyan-900/60 border border-cyan-800/60 text-cyan-300 hover:text-white text-xs font-bold transition-all active:scale-[0.96]"
                   title="Mover reproducción a este punto"
                 >
                   Escuchar
@@ -2611,11 +2603,11 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
 
           {/* Banner de Alerta Anticipada Sincronizada (Nombre de figura primero + cuenta atrás) */}
           {collectNodeFigures(selectedPoint).length > 0 && (
-            <div className="mt-3 bg-zinc-900/90 border border-zinc-800 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs font-mono text-zinc-200">
+            <div className="mt-3 bg-zinc-900/90 border border-amber-500/20 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs font-mono text-zinc-200">
               <div className="flex items-center gap-2.5">
-                <Sparkles className="w-4 h-4 text-teal-400 flex-shrink-0" />
+                <Sparkles className="w-4 h-4 text-amber-400 flex-shrink-0" />
                 <div>
-                  <span className="font-extrabold text-teal-400 uppercase tracking-wide text-[11px] block">
+                  <span className="font-extrabold text-amber-400 uppercase tracking-wide text-[11px] block">
                     Secuencia Vocal Sincronizada:
                   </span>
                   <p className="text-xs text-white font-semibold mt-0.5">
@@ -2626,7 +2618,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
                   </span>
                 </div>
               </div>
-              <span className="text-[10px] text-teal-300 bg-zinc-800 px-2.5 py-1 rounded-lg font-bold border border-zinc-700 shrink-0">
+              <span className="text-[10px] text-cyan-300 bg-cyan-950/40 px-2.5 py-1 rounded-lg font-bold border border-cyan-800/60 shrink-0">
                 {audio.channelMode === 'split-coach' ? 'Canal R (Coach)' : 'Canales L + R'}
               </span>
             </div>

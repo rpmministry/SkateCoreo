@@ -72,6 +72,26 @@ export default {
           hover: '#0DE08E',
           glow: 'rgba(16, 244, 156, 0.45)',
         },
+        // Nodos de Coreografía (Familia Ámbar / Oro Deportivo)
+        choreo: {
+          DEFAULT: '#F59E0B',
+          hover: '#FBBF24',
+          active: '#F59E0B',
+          selected: '#FDE047',
+          surface: 'rgba(245, 158, 11, 0.12)',
+          border: 'rgba(245, 158, 11, 0.45)',
+          glow: 'rgba(245, 158, 11, 0.45)',
+          dark: '#78350F',
+        },
+        // Pistas de Audio (Familia Tecnológica Fría DAW)
+        audio: {
+          DEFAULT: '#00D2FF',
+          sky: '#38BDF8',
+          indigo: '#818CF8',
+          purple: '#8B5CF6',
+          magenta: '#D946EF',
+          wave: '#00D2FF',
+        },
         // Compatibilidad semántica previa
         surface: {
           canvas: '#0B0F19',
@@ -120,6 +140,8 @@ export default {
         'glow-coral': '0 0 24px -2px rgba(255, 76, 121, 0.45), 0 4px 12px -2px rgba(255, 76, 121, 0.3)',
         'glow-cyan': '0 0 24px -2px rgba(0, 210, 255, 0.45), 0 4px 12px -2px rgba(0, 210, 255, 0.3)',
         'glow-mint': '0 0 24px -2px rgba(16, 244, 156, 0.45), 0 4px 12px -2px rgba(16, 244, 156, 0.3)',
+        'glow-amber': '0 0 24px -2px rgba(245, 158, 11, 0.5), 0 4px 12px -2px rgba(245, 158, 11, 0.3)',
+        'glow-choreo': '0 0 20px -2px rgba(245, 158, 11, 0.6)',
         'accent-glow': '0 0 24px -2px rgba(0, 210, 255, 0.45)',
       },
       transitionTimingFunction: {
