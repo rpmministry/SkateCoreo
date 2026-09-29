@@ -25,14 +25,16 @@ interface PayPalSuccessData {
 }
 
 interface PayPalButtonProps {
-  amount?: string; // '20.00'
+  amount?: string; // '48.00' | '5.00'
+  plan?: 'annual' | 'monthly';
   buyerEmail: string;
   onSuccess: (data: PayPalSuccessData) => void;
   onError: (errorMsg: string) => void;
 }
 
 export const PayPalButton: React.FC<PayPalButtonProps> = ({
-  amount = '20.00',
+  amount = '48.00',
+  plan = 'annual',
   buyerEmail,
   onSuccess,
   onError,
@@ -82,11 +84,15 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
 
           createOrder: (_data: any, actions: any) => {
             const cleanEmail = buyerEmail.trim().toLowerCase();
+            const description = plan === 'monthly'
+              ? 'SkateCoreo Pro - Suscripción Mensual ($5/mes recurrente)'
+              : 'SkateCoreo Pro - Suscripción Anual ($48/año con 20% descuento)';
+
             return actions.order.create({
               purchase_units: [
                 {
                   custom_id: cleanEmail,
-                  description: 'SkateCoreo Pro - Licencia Anual 2026 (1 Año / 365 días)',
+                  description,
                   amount: {
                     currency_code: currency,
                     value: amount,
@@ -99,7 +105,7 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
           onApprove: async (data: any) => {
             setIsProcessing(true);
             try {
-              const result: PayPalCaptureResult = await paypalService.captureOrder(data.orderID);
+              const result: PayPalCaptureResult = await paypalService.captureOrder(data.orderID, plan);
 
               if (result.success) {
                 onSuccess({

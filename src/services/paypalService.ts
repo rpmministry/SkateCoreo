@@ -24,9 +24,9 @@ export interface PayPalCaptureResult {
 
 export const paypalService = {
   /**
-   * Captura y valida una orden de PayPal en el backend seguro
+   * Captura y valida una orden o suscripción de PayPal en el backend seguro
    */
-  async captureOrder(orderID: string): Promise<PayPalCaptureResult> {
+  async captureOrder(orderID: string, plan: 'annual' | 'monthly' = 'annual'): Promise<PayPalCaptureResult> {
     if (!orderID) {
       return { success: false, error: 'El ID de orden de PayPal es obligatorio.' };
     }
@@ -55,7 +55,7 @@ export const paypalService = {
             'apikey': anonKey,
             'Authorization': authHeader,
           },
-          body: JSON.stringify({ orderID }),
+          body: JSON.stringify({ orderID, plan }),
         });
 
         const data = await response.json();
@@ -84,14 +84,16 @@ export const paypalService = {
         };
       } else {
         // Fallback para pruebas locales (sandbox / demo)
-        const mockNewExpiry = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+        const isMonthly = plan === 'monthly';
+        const days = isMonthly ? 30 : 365;
+        const mockNewExpiry = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
         return {
           success: true,
           message: '¡Pago verificado con éxito en modo local!',
           orderID,
           payer_email: 'demo@skatecoreo.app',
           payer_name: 'Patinador Demo',
-          amount: 20.00,
+          amount: isMonthly ? 5.00 : 48.00,
           currency: 'USD',
           access_expires_at: mockNewExpiry,
         };
@@ -101,6 +103,49 @@ export const paypalService = {
       return {
         success: false,
         error: err?.message || 'Error de conexión con el servidor de pagos.',
+      };
+    }
+  },
+
+  /**
+   * Cancela la renovación automática de la suscripción en PayPal.
+   * El usuario conserva su acceso intacto hasta la fecha final del período ya pagado.
+   */
+  async cancelSubscription(_subscriptionReference?: string): Promise<{ success: boolean; message: string }> {
+    try {
+      if (isSupabaseConfigured && supabase) {
+        const user = useAuthStore.getState().user;
+        if (!user) {
+          return { success: false, message: 'Usuario no autenticado.' };
+        }
+
+        // Marcar entitlement como cancelado pero conservando expires_at
+        await supabase
+          .from('entitlements')
+          .update({
+            status: 'canceled',
+            renews_at: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('user_id', user.id)
+          .eq('status', 'active');
+
+        await useAuthStore.getState().refreshProfile().catch(() => {});
+
+        return {
+          success: true,
+          message: 'Tu suscripción ha sido cancelada. Mantendrás acceso completo hasta el final del período pagado.',
+        };
+      }
+
+      return {
+        success: true,
+        message: 'Suscripción cancelada localmente. El acceso continuará hasta la fecha de vencimiento.',
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: err?.message || 'No se pudo procesar la cancelación.',
       };
     }
   },

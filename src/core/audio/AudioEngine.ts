@@ -577,70 +577,75 @@ export class AudioEngine {
       }
 
       // Master Gain
-      const masterGain = ctx.createGain();
-      this.masterGainNode = masterGain;
+      const masterGainNode = ctx.createGain();
+      this.masterGainNode = masterGainNode;
 
       // Sub-busses lógicos independientes
-      const musicGain = ctx.createGain();       // musicBus: contiene exclusivamente música
-      this.musicGainNode = musicGain;
-      const metronomeGain = ctx.createGain();
-      this.metronomeGainNode = metronomeGain;
-      const voiceCueGain = ctx.createGain();
-      this.voiceCueGainNode = voiceCueGain;
-      const coachBusGain = ctx.createGain();    // guideBus: contiene metrónomo + voz guía
-      this.coachBusGainNode = coachBusGain;
+      const musicGainNode = ctx.createGain();       // musicBus: contiene exclusivamente música
+      this.musicGainNode = musicGainNode;
+
+      const metronomeGainNode = ctx.createGain();
+      this.metronomeGainNode = metronomeGainNode;
+
+      const voiceCueGainNode = ctx.createGain();
+      this.voiceCueGainNode = voiceCueGainNode;
+
+      const coachBusGainNode = ctx.createGain();    // guideBus: contiene metrónomo + voz guía
+      this.coachBusGainNode = coachBusGainNode;
 
       // Metrónomo y voz guía se conectan exclusivamente a guideBus
-      metronomeGain.connect(coachBusGain);
-      voiceCueGain.connect(coachBusGain);
+      metronomeGainNode.connect(coachBusGainNode);
+      voiceCueGainNode.connect(coachBusGainNode);
 
       // Splitters físicos de canales para desacoplar completamente L y R de cada sub-bus
-      const musicSplitter = ctx.createChannelSplitter(2);
-      this.musicSplitterNode = musicSplitter;
-      musicGain.connect(musicSplitter);
+      const musicSplitterNode = ctx.createChannelSplitter(2);
+      this.musicSplitterNode = musicSplitterNode;
+      musicGainNode.connect(musicSplitterNode);
 
-      const guideSplitter = ctx.createChannelSplitter(2);
-      this.guideSplitterNode = guideSplitter;
-      coachBusGain.connect(guideSplitter);
+      const guideSplitterNode = ctx.createChannelSplitter(2);
+      this.guideSplitterNode = guideSplitterNode;
+      coachBusGainNode.connect(guideSplitterNode);
 
       // Crear nodos dedicados de la matriz de enrutamiento
-      const musicLToL = ctx.createGain();
-      const musicRToL = ctx.createGain();
-      const musicLToR = ctx.createGain();
-      const musicRToR = ctx.createGain();
-      this.musicLeftToLeftGain = musicLToL;
-      this.musicRightToLeftGain = musicRToL;
-      this.musicLeftToRightGain = musicLToR;
-      this.musicRightToRightGain = musicRToR;
+      const musicLeftToLeftGain = ctx.createGain();
+      const musicRightToLeftGain = ctx.createGain();
+      const musicLeftToRightGain = ctx.createGain();
+      const musicRightToRightGain = ctx.createGain();
 
-      const coachLToL = ctx.createGain();
-      const coachRToL = ctx.createGain();
-      const coachLToR = ctx.createGain();
-      const coachRToR = ctx.createGain();
-      this.coachLeftToLeftGain = coachLToL;
-      this.coachRightToLeftGain = coachRToL;
-      this.coachLeftToRightGain = coachLToR;
-      this.coachRightToRightGain = coachRToR;
+      this.musicLeftToLeftGain = musicLeftToLeftGain;
+      this.musicRightToLeftGain = musicRightToLeftGain;
+      this.musicLeftToRightGain = musicLeftToRightGain;
+      this.musicRightToRightGain = musicRightToRightGain;
+
+      const coachLeftToLeftGain = ctx.createGain();
+      const coachRightToLeftGain = ctx.createGain();
+      const coachLeftToRightGain = ctx.createGain();
+      const coachRightToRightGain = ctx.createGain();
+
+      this.coachLeftToLeftGain = coachLeftToLeftGain;
+      this.coachRightToLeftGain = coachRightToLeftGain;
+      this.coachLeftToRightGain = coachLeftToRightGain;
+      this.coachRightToRightGain = coachRightToRightGain;
 
       // Conectar Splitter de música a los GainNodes de la matriz
       // Splitter de música: salida 0 = L, salida 1 = R
-      musicSplitter.connect(musicLToL, 0);
-      musicSplitter.connect(musicLToR, 0);
-      musicSplitter.connect(musicRToL, 1);
-      musicSplitter.connect(musicRToR, 1);
+      musicSplitterNode.connect(musicLeftToLeftGain, 0);
+      musicSplitterNode.connect(musicLeftToRightGain, 0);
+      musicSplitterNode.connect(musicRightToLeftGain, 1);
+      musicSplitterNode.connect(musicRightToRightGain, 1);
 
       // Conectar Splitter de guía a los GainNodes de la matriz
       // Splitter de guía: salida 0 = L, salida 1 = R
-      guideSplitter.connect(coachLToL, 0);
-      guideSplitter.connect(coachLToR, 0);
-      guideSplitter.connect(coachRToL, 1);
-      guideSplitter.connect(coachRToR, 1);
+      guideSplitterNode.connect(coachLeftToLeftGain, 0);
+      guideSplitterNode.connect(coachLeftToRightGain, 0);
+      guideSplitterNode.connect(coachRightToLeftGain, 1);
+      guideSplitterNode.connect(coachRightToRightGain, 1);
 
       // Merger de 2 canales hacia master
-      const merger = ctx.createChannelMerger(2);
-      this.mergerNode = merger;
-      merger.connect(masterGain);
-      masterGain.connect(ctx.destination);
+      const mergerNode = ctx.createChannelMerger(2);
+      this.mergerNode = mergerNode;
+      mergerNode.connect(masterGainNode);
+      masterGainNode.connect(ctx.destination);
 
       // Resetear banderas de conexión física
       this.isMusicLToLeftConnected = false;
@@ -653,13 +658,13 @@ export class AudioEngine {
       this.isCoachRToRightConnected = false;
 
       // Initialize sub-modules with AudioContext & nodes
-      this.metronome.init(ctx, metronomeGain);
+      this.metronome.init(ctx, metronomeGainNode);
       // Aquí SOLO se aplica el estado del bus (mute). El estado lógico
       // (`enabled`) pertenece al store: antes `setEnabled(!muted)` podía
       // encender el metrónomo al reconstruirse el AudioContext (fuente fantasma
       // que la UI mostraba como OFF).
       this.metronome.setMuted(this.metronomeMuted);
-      this.voiceCueEngine.init(ctx, voiceCueGain);
+      this.voiceCueEngine.init(ctx, voiceCueGainNode);
 
       recordAudioCounter('audioContextsCreated');
       logAudioDiagnostic('AUDIO_CONTEXT_CREATED', {

@@ -1,17 +1,20 @@
 import React from 'react';
 
-export type ButtonVariant = 'primary' | 'mint' | 'secondary';
+export type ButtonVariant = 'primary' | 'mint' | 'secondary' | 'ghost';
 
-export type ButtonSize = 'md' | 'lg';
+export type ButtonSize = 'sm' | 'md' | 'lg';
 
 const VARIANT: Record<ButtonVariant, string> = {
   primary: 'bg-cyan text-neon-canvas font-black shadow-glow-cyan hover:brightness-110',
   mint: 'bg-mint text-neon-canvas font-black shadow-glow-mint hover:brightness-110',
   secondary:
     'border border-white/15 bg-white/[0.06] text-slate-100 font-bold hover:bg-white/[0.12]',
+  ghost:
+    'text-slate-300 hover:text-white hover:bg-white/10 font-semibold',
 };
 
 const SIZE: Record<ButtonSize, string> = {
+  sm: 'min-h-[36px] px-3 text-xs',
   md: 'min-h-touch px-4 text-xs sm:text-[13px]',
   lg: 'min-h-[52px] px-5 text-sm',
 };

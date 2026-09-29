@@ -96,12 +96,17 @@ serve(async (req) => {
     // 4. Extraer metadata de la transacción
     const purchaseUnit = captureData.purchase_units?.[0];
     const capture = purchaseUnit?.payments?.captures?.[0];
-    const amountPaid = parseFloat(capture?.amount?.value || '20.00');
+    const amountPaid = parseFloat(capture?.amount?.value || '48.00');
     const currencyPaid = capture?.amount?.currency_code || 'USD';
     const captureId = capture?.id || captureData.id;
     const payerEmail = captureData.payer?.email_address || '';
     const payerName = `${captureData.payer?.name?.given_name || ''} ${captureData.payer?.name?.surname || ''}`.trim();
     const payerId = captureData.payer?.payer_id || null;
+
+    // Detectar plan individual según monto ($5 mensual o $48 anual)
+    const isMonthly = amountPaid <= 15.0;
+    const planType = isMonthly ? 'monthly' : 'individual';
+    const accessDays = isMonthly ? 30 : 365;
 
     // 5. Registrar en pending_payments para habilitar la creación o recuperación de cuenta
     await supabase.from('pending_payments').upsert({
@@ -127,7 +132,7 @@ serve(async (req) => {
       amount: amountPaid,
       currency: currencyPaid,
       status: 'COMPLETED',
-      access_extended_days: 365,
+      access_extended_days: accessDays,
       raw_response: captureData,
     }, { onConflict: 'paypal_order_id' }).catch((e: any) => console.warn('Audit insert notice:', e));
 
@@ -146,20 +151,37 @@ serve(async (req) => {
         : 0;
 
       const baseTimeMs = Math.max(now, currentExpiryMs);
-      newExpiryDate = new Date(baseTimeMs + (365 * 24 * 60 * 60 * 1000)).toISOString();
+      newExpiryDate = new Date(baseTimeMs + (accessDays * 24 * 60 * 60 * 1000)).toISOString();
 
       await supabase.from('profiles').update({
         access_expires_at: newExpiryDate,
         subscription_status: 'active',
-        subscription_plan: 'individual',
+        subscription_plan: planType,
         updated_at: new Date().toISOString(),
       }).eq('id', currentUser.id);
 
       await supabase.from('users').update({
         access_expires_at: newExpiryDate,
         subscription_status: 'active',
+        subscription_plan: planType,
         updated_at: new Date().toISOString(),
       }).eq('id', currentUser.id).catch(() => {});
+
+      // Crear Entitlement formal
+      await supabase.from('entitlements').insert({
+        user_id: currentUser.id,
+        access_source: 'individual_subscription',
+        plan: planType,
+        status: 'active',
+        starts_at: new Date().toISOString(),
+        expires_at: newExpiryDate,
+        payment_reference: orderID,
+        metadata: {
+          paypal_capture_id: captureId,
+          amount: amountPaid,
+          currency: currencyPaid,
+        },
+      }).catch((e: any) => console.warn('Entitlement insert notice:', e));
     }
 
     return new Response(

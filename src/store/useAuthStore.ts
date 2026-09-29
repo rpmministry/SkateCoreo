@@ -9,8 +9,6 @@
 import { create } from 'zustand';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 import { getDeviceId, getDeviceType, getDeviceName, DeviceType } from '../utils/deviceDetector';
-import { terminateSession } from '../services/sessionLifecycle';
-import { setDataOwnerId, getDataOwnerId } from '../services/workingSession';
 
 export type UserRole = 'user' | 'tester' | 'club_admin' | 'superadmin';
 export type SubscriptionStatus = 'active' | 'inactive' | 'trial';
@@ -76,6 +74,8 @@ export interface AuthStoreState {
    * (`redeem_promo_code`). El cliente solo envía los datos, nunca la duración.
    */
   redeemPromoCode: (email: string, password: string, fullName: string, code: string) => Promise<{ success: boolean; message: string; daysGranted?: number; accessExpiresAt?: string }>;
+  /** Canje seguro de código de licencia individual o de club (SKC-XXXX-XXXX). */
+  redeemClubLicense: (email: string, password: string, fullName: string, code: string) => Promise<{ success: boolean; message: string; accessExpiresAt?: string; plan?: string }>;
   /** Listado de códigos/canjes de una campaña (solo superadmin). */
   listPromoCodes: (campaign?: string) => Promise<{ success: boolean; message?: string; codes?: PromoCodeRecord[] }>;
   recoverPaymentLookup: (query: string) => Promise<{ found: boolean; error?: string; paypal_order_id?: string; payer_email?: string; payer_name?: string; amount?: number; currency?: string; created_at?: string }>;
@@ -151,9 +151,6 @@ const loadSavedSession = (): {
 };
 
 const initialSession = loadSavedSession();
-if (initialSession.user?.id && !getDataOwnerId()) {
-  setDataOwnerId(initialSession.user.id);
-}
 const initialDeviceId = getDeviceId();
 const initialDeviceType = getDeviceType();
 
@@ -225,9 +222,6 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
           ? 'individual'
           : ((data.user.subscription_plan as SubscriptionPlan) || 'individual');
 
-        // Purga absoluta de sesiones y audios previos de otro usuario
-        await terminateSession();
-
         set({
           user: authenticatedUser,
           role,
@@ -247,9 +241,6 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
             access_expires_at: accessExpiry,
           })
         );
-
-        // Establecer la propiedad del usuario autenticado
-        setDataOwnerId(authenticatedUser.id);
 
         // Cargar lista de dispositivos
         get().fetchDevices().catch(() => {});
@@ -329,8 +320,6 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
           nombre: data.user.full_name,
         };
 
-        await terminateSession();
-
         set({
           user: newUser,
           role: 'user',
@@ -351,7 +340,6 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
           })
         );
 
-        setDataOwnerId(newUser.id);
         get().fetchDevices().catch(() => {});
 
         return { success: true, message: '¡Cuenta creada y activada por 1 año con éxito!' };
@@ -414,8 +402,6 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
           nombre: data.user.full_name,
         };
 
-        await terminateSession();
-
         set({
           user: newUser,
           role: 'user',
@@ -436,7 +422,6 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
           })
         );
 
-        setDataOwnerId(newUser.id);
         get().fetchDevices().catch(() => {});
 
         return { success: true, message: '¡Código de regalo canjeado con éxito! Tienes 1 año de acceso.' };
@@ -503,8 +488,6 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
         };
         const plan: SubscriptionPlan = (data.subscription_plan as SubscriptionPlan) || 'beta_tester';
 
-        await terminateSession();
-
         set({
           user: newUser,
           role: (data.user.role as UserRole) || 'tester',
@@ -525,7 +508,6 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
           })
         );
 
-        setDataOwnerId(newUser.id);
         get().fetchDevices().catch(() => {});
 
         return {
@@ -542,6 +524,93 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
     } catch (err: any) {
       set({ isLoading: false });
       return { success: false, message: err?.message || 'Error inesperado al canjear el código.' };
+    }
+  },
+
+  /**
+   * Canje SEGURO de código de licencia comercial / de club (formato SKC-XXXX-XXXX).
+   * Valida en backend con FOR UPDATE pesimista, asocia el entitlement y registra dispositivo.
+   */
+  redeemClubLicense: async (email: string, password: string, fullName: string, code: string) => {
+    const cleanEmail = email.toLowerCase().trim();
+    const cleanCode = code.toUpperCase().trim();
+
+    if (!cleanEmail || !password || !cleanCode) {
+      return { success: false, message: 'Por favor completa todos los campos requeridos.' };
+    }
+    if (password.length < 6) {
+      return { success: false, message: 'La contraseña debe tener al menos 6 caracteres.' };
+    }
+
+    set({ isLoading: true });
+
+    try {
+      const deviceId = getDeviceId();
+      const deviceType = getDeviceType();
+      const deviceName = getDeviceName();
+
+      if (isSupabaseConfigured && supabase) {
+        const { data, error } = await supabase.rpc('redeem_club_license_code', {
+          p_code: cleanCode,
+          p_email: cleanEmail,
+          p_password: password,
+          p_full_name: fullName.trim(),
+          p_device_id: deviceId,
+          p_device_type: deviceType,
+          p_device_name: deviceName,
+        });
+
+        if (error) {
+          set({ isLoading: false });
+          return { success: false, message: error.message || 'Error al validar la licencia.' };
+        }
+        if (!data || !data.success) {
+          set({ isLoading: false });
+          return { success: false, message: data?.error || 'Código de licencia inválido o ya utilizado.' };
+        }
+
+        const newUser: AuthUser = {
+          id: data.user.id,
+          email: data.user.email,
+          nombre: data.user.full_name,
+        };
+
+        set({
+          user: newUser,
+          role: 'user',
+          subscription_status: 'active',
+          subscription_plan: 'club',
+          access_expires_at: data.access_expires_at,
+          isLoading: false,
+        });
+
+        localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({
+            user: newUser,
+            role: 'user',
+            subscription_status: 'active',
+            subscription_plan: 'club',
+            access_expires_at: data.access_expires_at,
+          })
+        );
+
+        get().fetchDevices().catch(() => {});
+
+        return {
+          success: true,
+          message: data.message || '¡Licencia activada con éxito!',
+          accessExpiresAt: data.access_expires_at,
+          plan: data.plan,
+        };
+      }
+
+      // Modo local/offline de desarrollo
+      set({ isLoading: false });
+      return { success: false, message: 'La activación de licencias requiere conexión con el servidor.' };
+    } catch (err: any) {
+      set({ isLoading: false });
+      return { success: false, message: err?.message || 'Error inesperado al canjear la licencia.' };
     }
   },
 
@@ -669,9 +738,7 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
   },
 
   logout: () => {
-    void terminateSession();
     localStorage.removeItem(STORAGE_KEY);
-    setDataOwnerId(null);
     set({
       user: null,
       role: 'user',

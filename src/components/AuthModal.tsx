@@ -65,11 +65,13 @@ export const AuthModal: React.FC = () => {
     registerWithPayment,
     registerWithCode,
     redeemPromoCode,
+    redeemClubLicense,
     recoverPaymentLookup,
     isLoading,
   } = useAuthStore();
 
-  // ── Tarjeta 1: Email Pre-Pago PayPal ────────────────────────────────
+  // ── Tarjeta 1: Plan y Email Pre-Pago PayPal ─────────────────────────
+  const [selectedPlan, setSelectedPlan] = useState<'annual' | 'monthly'>('annual');
   const [buyerEmail, setBuyerEmail] = useState('');
   const [paymentFeedback, setPaymentFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
@@ -143,13 +145,22 @@ export const AuthModal: React.FC = () => {
     }
 
     setCodeLoading(true);
-    // Los códigos de campaña (SC-BETA-… / CREATOR-…) los valida el backend y
-    // conceden su propia duración/plan; el resto usa el registro de regalo anual.
     const normalizedCode = activationCode.trim().toUpperCase();
-    const isCampaignCode = normalizedCode.startsWith('SC-BETA-') || normalizedCode.startsWith('CREATOR-');
-    const res = isCampaignCode
-      ? await redeemPromoCode(codeEmail, codePassword, codeName, activationCode)
-      : await registerWithCode(codeEmail, codePassword, codeName, activationCode);
+
+    let res;
+    if (normalizedCode.startsWith('SKC-')) {
+      // Código de licencia individual o de club
+      res = await redeemClubLicense(codeEmail, codePassword, codeName, normalizedCode);
+    } else if (normalizedCode.startsWith('SC-BETA-') || normalizedCode.startsWith('CREATOR-')) {
+      // Códigos promocionales de campaña
+      res = await redeemPromoCode(codeEmail, codePassword, codeName, normalizedCode);
+    } else {
+      // Intentar primero como licencia de club y fallback a código de regalo
+      res = await redeemClubLicense(codeEmail, codePassword, codeName, normalizedCode);
+      if (!res.success && (res.message?.includes('no existe') || res.message?.includes('inválido'))) {
+        res = await registerWithCode(codeEmail, codePassword, codeName, normalizedCode);
+      }
+    }
     setCodeLoading(false);
 
     if (!res.success) {
@@ -276,34 +287,95 @@ export const AuthModal: React.FC = () => {
 
           {/* ── Dos caminos ── */}
           <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-2 lg:items-stretch">
-            {/* ══════════ CAMINO 1: ADQUIRIR LICENCIA ══════════ */}
+            {/* ══════════ CAMINO 1: ADQUIRIR SUSCRIPCIÓN ══════════ */}
             <section
-              aria-label="Adquirir licencia"
+              aria-label="Adquirir suscripción"
               className={panelClass('buy', authTab)}
             >
-              <div className="mb-4 flex items-center justify-between gap-2 border-b border-white/5 pb-3">
+              <div className="mb-3 flex items-center justify-between gap-2 border-b border-white/5 pb-2.5">
                 <span className="font-mono text-[10px] font-black uppercase tracking-wider text-cyan">
-                  Adquirir licencia
+                  Suscripción SkateCoreo
                 </span>
                 <span className="rounded-full border border-cyan/30 bg-cyan/15 px-2.5 py-0.5 text-[10px] font-black uppercase text-cyan">
-                  1 año completo
+                  {selectedPlan === 'annual' ? 'Ahorro 20%' : 'Plan Mensual'}
                 </span>
               </div>
 
-              <div className="flex items-baseline justify-between gap-3">
-                <div className="min-w-0">
-                  <h2 className="font-display text-lg font-black text-white sm:text-xl">
-                    Patinadora Individual
-                  </h2>
-                  <p className="mt-0.5 text-xs text-slate-400">
-                    Acceso profesional para 1 atleta o entrenador
-                  </p>
-                </div>
-                <div className="shrink-0 text-right">
-                  <span className="text-2xl font-black text-white sm:text-3xl">$20</span>
-                  <span className="ml-1 text-xs text-slate-400">USD / año</span>
-                </div>
+              {/* Selector de Plan Individual: Anual vs Mensual */}
+              <div className="mb-4 grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-1.5">
+                <button
+                  type="button"
+                  onClick={() => setSelectedPlan('annual')}
+                  className={`press flex flex-col items-center justify-center rounded-xl py-2 px-2 transition-all ${
+                    selectedPlan === 'annual'
+                      ? 'bg-cyan text-neon-canvas shadow-glow-cyan font-black'
+                      : 'text-slate-300 hover:bg-white/[0.06] font-semibold'
+                  }`}
+                >
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs">Anual</span>
+                    <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-black ${
+                      selectedPlan === 'annual' ? 'bg-slate-950 text-cyan' : 'bg-mint/20 text-mint'
+                    }`}>
+                      -20%
+                    </span>
+                  </div>
+                  <span className="text-sm font-black">$48 / año</span>
+                  <span className="text-[10px] opacity-80">(Solo $4/mes)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedPlan('monthly')}
+                  className={`press flex flex-col items-center justify-center rounded-xl py-2 px-2 transition-all ${
+                    selectedPlan === 'monthly'
+                      ? 'bg-cyan text-neon-canvas shadow-glow-cyan font-black'
+                      : 'text-slate-300 hover:bg-white/[0.06] font-semibold'
+                  }`}
+                >
+                  <span className="text-xs">Mensual</span>
+                  <span className="text-sm font-black">$5 / mes</span>
+                  <span className="text-[10px] opacity-80">Flexibilidad total</span>
+                </button>
               </div>
+
+              {/* Tarjeta de Precios Dinámica */}
+              {selectedPlan === 'annual' ? (
+                <div className="flex items-baseline justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="font-display text-lg font-black text-white sm:text-xl">
+                      Plan Anual Pro
+                    </h2>
+                    <p className="mt-0.5 text-xs text-slate-400">
+                      Acceso profesional por 365 días con máxima economía
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <span className="text-xs text-slate-500 line-through">$60</span>
+                      <span className="text-2xl font-black text-white sm:text-3xl">$48</span>
+                    </div>
+                    <span className="block text-[10px] font-bold text-mint">
+                      Ahorras $12/año (20% descuento)
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-baseline justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="font-display text-lg font-black text-white sm:text-xl">
+                      Plan Mensual Pro
+                    </h2>
+                    <p className="mt-0.5 text-xs text-slate-400">
+                      Suscripción recurrente mes a mes
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <span className="text-2xl font-black text-white sm:text-3xl">$5</span>
+                    <span className="ml-1 text-xs text-slate-400">USD / mes</span>
+                  </div>
+                </div>
+              )}
 
               <ul className="mt-4 space-y-2 text-xs text-slate-300">
                 <li className="flex items-start gap-2">
@@ -326,14 +398,14 @@ export const AuthModal: React.FC = () => {
                 </li>
               </ul>
 
-              <div className="mt-5 space-y-2 border-t border-white/10 pt-4">
+              <div className="mt-4 space-y-2 border-t border-white/10 pt-3">
                 <Field
                   id="buyer-email"
                   type="email"
                   required
                   label={
                     <>
-                      <span className="text-cyan">*</span> Correo para vincular tu licencia
+                      <span className="text-cyan">*</span> Correo para vincular tu suscripción
                     </>
                   }
                   icon={<Mail className="h-4 w-4" />}
@@ -346,7 +418,8 @@ export const AuthModal: React.FC = () => {
 
               <div className="mt-3">
                 <PayPalButton
-                  amount="20.00"
+                  amount={selectedPlan === 'monthly' ? '5.00' : '48.00'}
+                  plan={selectedPlan}
                   buyerEmail={buyerEmail}
                   onSuccess={(data) => {
                     setPostPaymentData({
@@ -361,6 +434,10 @@ export const AuthModal: React.FC = () => {
                   }}
                 />
               </div>
+
+              <p className="mt-2 text-center text-[10px] leading-tight text-slate-400">
+                Cobro recurrente seguro con PayPal. Puedes cancelar tu suscripción en cualquier momento; conservarás tu acceso hasta el final del período pagado.
+              </p>
 
               {paymentFeedback && (
                 <div className="mt-2.5 rounded-xl border border-coral/30 bg-coral/15 p-2.5 text-center text-xs font-bold text-coral">
@@ -432,7 +509,7 @@ export const AuthModal: React.FC = () => {
                 </Button>
               </form>
 
-              {/* ── Sección secundaria expandible: código de regalo/Beta ── */}
+              {/* ── Sección secundaria expandible: código de licencia / club / promo ── */}
               <div className="mt-5 border-t border-white/5 pt-4">
                 {!showCodeRegister ? (
                   <button
@@ -445,7 +522,7 @@ export const AuthModal: React.FC = () => {
                   >
                     <span className="flex items-center gap-2">
                       <Ticket className="h-4 w-4 shrink-0" />
-                      ¿Tienes un código? Actívalo aquí
+                      ¿Tienes un código de licencia o de club? Actívalo aquí
                     </span>
                     <ChevronDown className="h-4 w-4 shrink-0" />
                   </button>
@@ -457,7 +534,7 @@ export const AuthModal: React.FC = () => {
                     <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-2 text-xs">
                       <span className="flex items-center gap-1.5 font-bold text-white">
                         <Ticket className="h-3.5 w-3.5 text-mint" />
-                        Canjear código y crear cuenta
+                        Activa tu licencia de SkateCoreo
                       </span>
                       <button
                         type="button"
@@ -515,12 +592,11 @@ export const AuthModal: React.FC = () => {
                       tone="mint"
                       value={activationCode}
                       onChange={(e) => setActivationCode(e.target.value.toUpperCase())}
-                      placeholder="SC-BETA-XXXX-XXXX-XXXX"
+                      placeholder="SKC-XXXX-XXXX"
                       className="font-mono font-bold uppercase tracking-wider"
                     />
-                    <p className="text-[10px] leading-snug text-slate-500">
-                      Código Beta Tester: activa 30 días de acceso gratuito (un solo uso). Si tu
-                      correo ya existe, se verificará tu contraseña y se ampliará tu acceso.
+                    <p className="text-[10px] leading-snug text-slate-400">
+                      Ingresa tu código único de activación individual o de club (ej: SKC-XXXX-XXXX o código de campaña). Se vinculará de forma segura a tu cuenta y activará tu acceso de inmediato.
                     </p>
 
                     {codeFeedback && (
@@ -530,7 +606,7 @@ export const AuthModal: React.FC = () => {
                     )}
 
                     <Button type="submit" variant="mint" block disabled={codeLoading}>
-                      {codeLoading ? 'Activando...' : 'Activar código y entrar'}
+                      {codeLoading ? 'Activando...' : 'Activar licencia y entrar'}
                     </Button>
                   </form>
                 )}

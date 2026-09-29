@@ -21,6 +21,7 @@ import {
   Footprints,
   FileDown,
   CheckCircle2,
+  Building2,
 } from 'lucide-react';
 import { audioEngine } from '../services/audioEngine';
 import { getBuildLabel } from '../core/audio/buildInfo';
@@ -28,7 +29,7 @@ import { tabAudioCoordinator } from '../core/audio/tabAudioCoordinator';
 import { TIME_SIGNATURES, METRONOME_SUBDIVISIONS } from '../core/audio/Metronome';
 import { useAudioEngine } from '../hooks/useAudioEngine';
 import { useChoreographyStore } from '../store/useChoreographyStore';
-import { useAuthStore } from '../store/useAuthStore';
+import { useAuthStore, isOwnerOrAdmin } from '../store/useAuthStore';
 import { 
   EFICIENCIAS_DISPONIBLES, 
   getDescripcionCategoria 
@@ -45,11 +46,17 @@ const PaperToDigitalModalLazy = React.lazy(() =>
 const DeviceSecurityModalLazy = React.lazy(() =>
   import('./DeviceSecurityModal').then((m) => ({ default: m.DeviceSecurityModal }))
 );
+const AdminDashboardModalLazy = React.lazy(() =>
+  import('./admin/AdminDashboardModal').then((m) => ({ default: m.AdminDashboardModal }))
+);
 const PaperToDigitalModal = (props: React.ComponentProps<typeof PaperToDigitalModalLazy>) => (
   <React.Suspense fallback={null}><PaperToDigitalModalLazy {...props} /></React.Suspense>
 );
 const DeviceSecurityModal = (props: React.ComponentProps<typeof DeviceSecurityModalLazy>) => (
   <React.Suspense fallback={null}><DeviceSecurityModalLazy {...props} /></React.Suspense>
+);
+const AdminDashboardModal = (props: React.ComponentProps<typeof AdminDashboardModalLazy>) => (
+  <React.Suspense fallback={null}><AdminDashboardModalLazy {...props} /></React.Suspense>
 );
 
 interface LeftSidebarPanelProps {
@@ -102,6 +109,19 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
   const { user, role, subscription_plan, logout } = useAuthStore();
   const [showDeviceModal, setShowDeviceModal] = React.useState(false);
   const [showPaperModal, setShowPaperModal] = React.useState(false);
+  const [showAdminModal, setShowAdminModal] = React.useState(false);
+  const isAdmin = role === 'superadmin' || isOwnerOrAdmin(user?.email);
+
+  React.useEffect(() => {
+    const handleHash = () => {
+      if (window.location.hash === '#admin' && isAdmin) {
+        setShowAdminModal(true);
+      }
+    };
+    handleHash();
+    window.addEventListener('hashchange', handleHash);
+    return () => window.removeEventListener('hashchange', handleHash);
+  }, [isAdmin]);
 
   // Voz Guía ESTÁNDAR: única voz femenina latina para toda la app. No hay
   // selectores de motor/voz/modelo/género (decisión de producto).
@@ -635,6 +655,21 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
             </span>
           </div>
 
+          {/* Botón Panel Administrativo (Clubes & Licencias) */}
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setShowAdminModal(true)}
+              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-cyan/10 hover:bg-cyan/20 border border-cyan/30 text-[11px] font-semibold text-cyan hover:text-white transition-all interactive-tap"
+            >
+              <span className="flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-cyan" />
+                <span>Panel Clubes &amp; Licencias</span>
+              </span>
+              <span className="text-[10px] text-cyan font-bold">Admin &gt;</span>
+            </button>
+          )}
+
           {/* Botón Mis Dispositivos (Anti-Sharing) */}
           {user && (
             <button
@@ -759,6 +794,10 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
           isOpen={showPaperModal}
           onClose={() => setShowPaperModal(false)}
         />
+        <AdminDashboardModal
+          isOpen={showAdminModal}
+          onClose={() => setShowAdminModal(false)}
+        />
       </div>
     );
   }
@@ -814,6 +853,10 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
       <PaperToDigitalModal
         isOpen={showPaperModal}
         onClose={() => setShowPaperModal(false)}
+      />
+      <AdminDashboardModal
+        isOpen={showAdminModal}
+        onClose={() => setShowAdminModal(false)}
       />
     </div>
   );
