@@ -14,6 +14,8 @@ import {
   Sliders,
   Undo2,
   SkipBack,
+  Trash2,
+  Upload,
 } from 'lucide-react';
 import { useAudioZoomPan } from '../hooks/useAudioZoomPan';
 import { usePlayheadSync } from '../hooks/usePlayheadSync';
@@ -25,6 +27,8 @@ import {
   BEAT_SNAP_PX,
 } from '../core/audio/timeline/snap';
 import { useViewportSize } from '../hooks/useViewportSize';
+import { useIosFileCapture } from '../hooks/useIosFileCapture';
+import { ACCEPTED_AUDIO_FORMATS } from '../constants/mediaFormats';
 import { RinkAudioMixerDrawer } from './RinkAudioMixerDrawer';
 
 interface InteractiveWaveformProps {
@@ -36,6 +40,8 @@ interface InteractiveWaveformProps {
   onOpenStudio?: () => void;
   /** Deshacer la coreografía (misma acción que tenía la columna izquierda). */
   onUndo?: () => void;
+  /** Cargar una pista de audio (invoca el selector de archivo principal). */
+  onLoadAudio?: () => void;
 }
 
 export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
@@ -46,12 +52,10 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
   fileName,
   onOpenStudio,
   onUndo,
+  onLoadAudio,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const offscreenUnplayedRef = useRef<HTMLCanvasElement | null>(null);
-  const offscreenPlayedRef = useRef<HTMLCanvasElement | null>(null);
-  const offscreenKeyRef = useRef<string>('');
 
   // Utilidades de edición temporal movidas aquí desde la columna izquierda.
   const canUndo = useChoreographyStore((state) => state.history.length > 0);
@@ -174,9 +178,31 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
   // Disponibilidad AUTORITATIVA del audio publicado. El motor es la fuente de
   // verdad; el espejo reactivo (`publishedAudio`) puede ir por detrás (p. ej. en
   // móvil tras cargar/restaurar). Gatear la única entrada al Estudio solo por el
-  // espejo dejaba el botón `disabled` (pointer-events:none) y el toque "no hacía
-  // nada". Se combinan ambos para no depender de un único origen.
   const canOpenStudio = !!publishedAudio || !!audioEngine.getPublishedAudio().buffer;
+  const hasAudioLoaded = !!publishedAudio || !!audioEngine.getPublishedAudio().buffer || (durationMs > 0 && !!fileName);
+
+  const localAudioInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleClearRinkAudio = () => {
+    audioEngine.clearRinkAudio();
+    useRinkAudioStore.getState().clear();
+    setWavePeaks([]);
+    onSeek(0);
+  };
+
+  const handleLocalFileSelected = useCallback(async (file: File) => {
+    try {
+      await audioEngine.loadAudioFile(file, file.name);
+      useRinkAudioStore.getState().syncFromEngine();
+    } catch (err: any) {
+      alert('Error al cargar audio: ' + (err?.message || 'Archivo no compatible'));
+    }
+  }, []);
+
+  const { handleChange: handleLocalFileInputChange } = useIosFileCapture(
+    localAudioInputRef,
+    handleLocalFileSelected
+  );
 
   useEffect(() => {
     const updatePeaks = () => {
@@ -237,137 +263,65 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     const width = timelineGeometry.contentWidth;
     const height = canvas.clientHeight || 90;
 
-    // GUARDIA ESTRICTO DE DIMENSIONES:
-    // Si el contenedor aún no ha sido medido (width <= 0) o el visor está oculto/minúsculo,
-    // abortamos de inmediato para evitar IndexSizeError en drawImage y fallos de Canvas en Android/iOS.
-    if (!width || width <= 10 || !height || height <= 10 || !Number.isFinite(width) || !Number.isFinite(height)) {
-      return;
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+
+    if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
     }
 
-    try {
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
+    ctx.save();
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, width, height);
 
-      const targetPixelW = Math.round(width * dpr);
-      const targetPixelH = Math.round(height * dpr);
+    const centerY = height / 2;
 
-      if (targetPixelW > 0 && targetPixelH > 0 && (canvas.width !== targetPixelW || canvas.height !== targetPixelH)) {
-        canvas.width = targetPixelW;
-        canvas.height = targetPixelH;
+    // 1. Limpieza de Fondo
+    ctx.fillStyle = '#090D16';
+    ctx.fillRect(0, 0, width, height);
+
+    // Línea base central
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, centerY);
+    ctx.lineTo(width, centerY);
+    ctx.stroke();
+
+    // 2. Proyección de Progreso de Reproducción con zona segura interna
+    //    Coma flotante pura: sin Math.round para no introducir micro-saltos
+    const availableW = timelineGeometry.usableWidth;
+    const playheadPx = timelineGeometry.timeToPx(timeMs / 1000, true);
+
+    // Área reproducida (sombreado sutil cian)
+    const playedGradient = ctx.createLinearGradient(0, 0, playheadPx, 0);
+    playedGradient.addColorStop(0, 'rgba(0, 245, 255, 0.04)');
+    playedGradient.addColorStop(1, 'rgba(0, 245, 255, 0.16)');
+    ctx.fillStyle = playedGradient;
+    ctx.fillRect(0, 0, playheadPx, height);
+
+    // 3. Renderizado de Picos de la Onda Sonora (Detalle de alta densidad sin solapamiento)
+    if (wavePeaks.length > 0) {
+      const step = availableW / wavePeaks.length;
+      // barWidth: nunca mayor que step * 0.75 para que SIEMPRE exista separación visual limpia entre barras
+      const barWidth = Math.max(1, Math.min(5, Math.floor(step * 0.75)));
+
+      for (let i = 0; i < wavePeaks.length; i++) {
+        const peakVal = wavePeaks[i];
+        const barX = PIN_RADIUS + i * step;
+        const barHeight = Math.max(2, peakVal * (height * 0.82));
+        const topY = centerY - barHeight / 2;
+
+        // Color dinámico según si ya ha sido reproducido o está por sonar
+        const isPast = barX <= playheadPx;
+        ctx.fillStyle = isPast ? '#00F5FF' : 'rgba(161, 161, 170, 0.35)';
+
+        ctx.beginPath();
+        roundRectPath(ctx, barX, topY, barWidth, barHeight, 1);
+        ctx.fill();
       }
-
-      ctx.save();
-      ctx.scale(dpr, dpr);
-      ctx.clearRect(0, 0, width, height);
-
-      const centerY = height / 2;
-
-      // 1. Limpieza de Fondo
-      ctx.fillStyle = '#090D16';
-      ctx.fillRect(0, 0, width, height);
-
-      // Línea base central
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(0, centerY);
-      ctx.lineTo(width, centerY);
-      ctx.stroke();
-
-      // 2. Proyección de Progreso de Reproducción con zona segura interna
-      //    Coma flotante pura: sin Math.round para no introducir micro-saltos
-      const availableW = timelineGeometry.usableWidth;
-      const playheadPx = timelineGeometry.timeToPx(timeMs / 1000, true);
-
-      // Área reproducida (sombreado sutil cian)
-      const playedGradient = ctx.createLinearGradient(0, 0, playheadPx, 0);
-      playedGradient.addColorStop(0, 'rgba(0, 245, 255, 0.04)');
-      playedGradient.addColorStop(1, 'rgba(0, 245, 255, 0.16)');
-      ctx.fillStyle = playedGradient;
-      ctx.fillRect(0, 0, playheadPx, height);
-
-      // 3. Renderizado de Picos de la Onda Sonora (Offscreen Canvas acelerado por GPU)
-      if (wavePeaks.length > 0 && availableW > 10) {
-        const step = availableW / wavePeaks.length;
-        const barWidth = Math.max(1, Math.min(5, Math.floor(step * 0.75)));
-        const cacheKey = `${width}|${height}|${dpr}|${wavePeaks.length}|${barWidth}`;
-
-        if (offscreenKeyRef.current !== cacheKey) {
-          offscreenKeyRef.current = cacheKey;
-
-          if (!offscreenUnplayedRef.current) offscreenUnplayedRef.current = document.createElement('canvas');
-          if (!offscreenPlayedRef.current) offscreenPlayedRef.current = document.createElement('canvas');
-
-          const uCan = offscreenUnplayedRef.current;
-          const pCan = offscreenPlayedRef.current;
-
-          const offscreenW = Math.max(1, Math.round(width * dpr));
-          const offscreenH = Math.max(1, Math.round(height * dpr));
-
-          uCan.width = offscreenW;
-          uCan.height = offscreenH;
-          pCan.width = offscreenW;
-          pCan.height = offscreenH;
-
-          const uCtx = uCan.getContext('2d');
-          const pCtx = pCan.getContext('2d');
-
-          if (uCtx && pCtx) {
-            uCtx.save();
-            uCtx.scale(dpr, dpr);
-            pCtx.save();
-            pCtx.scale(dpr, dpr);
-
-            uCtx.fillStyle = 'rgba(161, 161, 170, 0.35)';
-            pCtx.fillStyle = '#00F5FF';
-
-            uCtx.beginPath();
-            pCtx.beginPath();
-
-            for (let i = 0; i < wavePeaks.length; i++) {
-              const peakVal = wavePeaks[i];
-              const barX = PIN_RADIUS + i * step;
-              const barHeight = Math.max(2, peakVal * (height * 0.82));
-              const topY = centerY - barHeight / 2;
-
-              roundRectPath(uCtx, barX, topY, barWidth, barHeight, 1);
-              roundRectPath(pCtx, barX, topY, barWidth, barHeight, 1);
-            }
-
-            uCtx.fill();
-            pCtx.fill();
-            uCtx.restore();
-            pCtx.restore();
-          }
-        }
-
-        // Blit ultra-rápido por GPU con comprobación defensiva contra IndexSizeError:
-        if (
-          offscreenUnplayedRef.current &&
-          offscreenUnplayedRef.current.width > 0 &&
-          offscreenUnplayedRef.current.height > 0 &&
-          width > 0 &&
-          height > 0
-        ) {
-          ctx.drawImage(offscreenUnplayedRef.current, 0, 0, width, height);
-        }
-
-        if (
-          playheadPx > 0 &&
-          offscreenPlayedRef.current &&
-          offscreenPlayedRef.current.width > 0 &&
-          offscreenPlayedRef.current.height > 0 &&
-          width > 0 &&
-          height > 0
-        ) {
-          ctx.save();
-          ctx.beginPath();
-          ctx.rect(0, 0, playheadPx, height);
-          ctx.clip();
-          ctx.drawImage(offscreenPlayedRef.current, 0, 0, width, height);
-          ctx.restore();
-        }
-      }
+    }
 
     // 4. Marcadores de Nodos Coreográficos (Líneas verticales del Scrubber)
     const sortedPoints = sortedTimelineNodes;
@@ -454,10 +408,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
       ctx.restore();
     }
 
-      ctx.restore();
-    } catch (err) {
-      console.warn('[InteractiveWaveform] Render error:', err);
-    }
+    ctx.restore();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     timelineGeometry,
@@ -681,6 +632,38 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
             <SkipBack className="h-3.5 w-3.5 shrink-0" />
             <span className="hidden sm:inline">Volver al inicio</span>
           </button>
+
+          {/* ── BORRAR PISTA / CARGAR CANCIÓN (Pista 2D) ── */}
+          {hasAudioLoaded ? (
+            <button
+              type="button"
+              onClick={handleClearRinkAudio}
+              className="press flex min-h-touch items-center justify-center gap-1.5 rounded-subtle border border-rose-500/30 bg-rose-500/10 px-2.5 font-sans text-[11px] font-bold text-rose-400 hover:bg-rose-500/20 hover:text-rose-300 sm:px-3 transition-colors"
+              title="Borrar pista de audio de la Pista 2D (no borra los nodos ni la coreografía)"
+              aria-label="Borrar pista"
+            >
+              <Trash2 className="h-3.5 w-3.5 shrink-0" />
+              <span className="hidden sm:inline">Borrar pista</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                if (onLoadAudio) {
+                  onLoadAudio();
+                } else {
+                  localAudioInputRef.current?.click();
+                }
+              }}
+              className="press flex min-h-touch items-center justify-center gap-1.5 rounded-subtle border border-cyan/30 bg-cyan/15 px-2.5 font-sans text-[11px] font-bold text-cyan hover:bg-cyan/25 sm:px-3 transition-colors"
+              title="Cargar o subir una pista de audio a la Pista 2D"
+              aria-label="Cargar pista de audio"
+            >
+              <Upload className="h-3.5 w-3.5 shrink-0" />
+              <span className="hidden sm:inline">Cargar canción</span>
+            </button>
+          )}
+
           <span className="hidden h-5 w-px bg-white/10 sm:block" aria-hidden="true" />
 
           {/* ── ENTRADA ÚNICA AL AUDIO STUDIO (Pista 2D) ──
@@ -919,6 +902,15 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
       <RinkAudioMixerDrawer
         isOpen={isMiniMixerOpen}
         onClose={() => setIsMiniMixerOpen(false)}
+      />
+
+      {/* Input de archivo de audio local accesible como fallback */}
+      <input
+        ref={localAudioInputRef}
+        type="file"
+        accept={ACCEPTED_AUDIO_FORMATS}
+        className="hidden"
+        onChange={handleLocalFileInputChange}
       />
     </div>
   );

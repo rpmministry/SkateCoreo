@@ -1146,6 +1146,7 @@ export function App() {
                 fileName={audioState.fileName}
                 onOpenStudio={handleEditMixInStudio}
                 onUndo={handleUndo}
+                onLoadAudio={() => audioInputRef.current?.click()}
               />
             </div>
           </div>

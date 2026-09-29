@@ -18,10 +18,11 @@ export const ARRANGEMENT_PREFIX_TRACKS = 2;
  * `additionalTracks`. Devuelve `null` para Master/Grabación o índices inválidos.
  */
 export function additionalIndexFromArrangementIndex(
-  arrangementIndex: number
+  arrangementIndex: number,
+  prefix: number = ARRANGEMENT_PREFIX_TRACKS
 ): number | null {
   if (!Number.isFinite(arrangementIndex)) return null;
-  const index = Math.trunc(arrangementIndex) - ARRANGEMENT_PREFIX_TRACKS;
+  const index = Math.trunc(arrangementIndex) - prefix;
   return index >= 0 ? index : null;
 }
 
@@ -35,9 +36,10 @@ export type TrackMoveDirection = 'up' | 'down';
 export function moveAdditionalTrack<T>(
   list: readonly T[],
   arrangementIndex: number,
-  direction: TrackMoveDirection
+  direction: TrackMoveDirection,
+  prefix: number = ARRANGEMENT_PREFIX_TRACKS
 ): T[] {
-  const index = additionalIndexFromArrangementIndex(arrangementIndex);
+  const index = additionalIndexFromArrangementIndex(arrangementIndex, prefix);
   if (index === null || index >= list.length) return list as T[];
 
   const target = direction === 'up' ? index - 1 : index + 1;
@@ -54,9 +56,10 @@ export function moveAdditionalTrack<T>(
 export function canMoveAdditionalTrack(
   list: readonly unknown[],
   arrangementIndex: number,
-  direction: TrackMoveDirection
+  direction: TrackMoveDirection,
+  prefix: number = ARRANGEMENT_PREFIX_TRACKS
 ): boolean {
-  const index = additionalIndexFromArrangementIndex(arrangementIndex);
+  const index = additionalIndexFromArrangementIndex(arrangementIndex, prefix);
   if (index === null || index >= list.length) return false;
   const target = direction === 'up' ? index - 1 : index + 1;
   return target >= 0 && target < list.length;

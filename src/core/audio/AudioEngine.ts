@@ -12,7 +12,7 @@ import { VoiceCueEngine } from './VoiceCueEngine';
 import { MediaSessionManager } from './MediaSession';
 import { BpmDetector, BpmDetectionResult } from './BpmDetector';
 import { renderChoreographyMixdown } from './audioMixdown';
-import { readWaveformPeaks, DEFAULT_WAVE_PEAK_STEP } from './timeline/WaveformPeakCache';
+import { readWaveformPeaks } from './timeline/WaveformPeakCache';
 import { adquirirPantallaActiva, liberarPantallaActiva } from '../system/wakeLock';
 import { loadProgress } from '../../store/loadProgressStore';
 import { playbackCore, type PlaybackCoreSnapshot } from './PlaybackCore';
@@ -1039,11 +1039,7 @@ export class AudioEngine {
     const domain = targetDomain || this.playbackDomain;
     const previousPosition = this.pausedAtTime;
     if (this.playbackDomain === domain) {
-      if (preservePosition) {
-        this.stopSource();
-      } else {
-        this.stop();
-      }
+      this.stop();
     }
     this.buffers[domain] = buffer;
     this.durations[domain] = Math.round(buffer.duration * 1000);
@@ -1308,11 +1304,6 @@ export class AudioEngine {
       // Publica autoritativamente en la Pista 2D (dominio 'rink'):
       // Incrementa revisión, genera nuevo id estable, asigna buffers, duraciones y metadatos.
       this.publishRinkAudio(decoded, this.fileName, 'file');
-
-      // Inicializa también el buffer activo para el dominio actual
-      this.audioBuffer = decoded;
-      this.durationMs = Math.round(decoded.duration * 1000);
-      this.pausedAtTime = 0;
 
       // INVARIANTE ARQUITECTÓNICA: Cargar una pista NUNCA activa el metrónomo.
       // Queda estrictamente en OFF, silenciado y con planificador destruido.
@@ -1632,32 +1623,30 @@ export class AudioEngine {
    * Las figuras se siguen agendando por nodos de la Pista 2D contra el reloj del
    * timeline (`startSync`) dentro de `executePlay`.
    */
-  public async play(offsetMs?: number, options?: { countIn?: boolean }): Promise<boolean> {
+  public play(offsetMs?: number, options?: { countIn?: boolean }) {
     const token = ++this.playbackIntentToken;
     // PUERTA DE OWNERSHIP (anti doble metrónomo/reproducción entre pestañas):
     // solo la pestaña propietaria del audio puede iniciar reproducción.
     // Si no lo somos, se intenta el traspaso (inmediato si la otra pestaña está
     // inactiva; denegado si está reproduciendo → nunca dos fuentes a la vez).
     if (!this.ensureAudioOwnership('play')) {
-      const granted = await this.ownership.claim('play');
-      if (token !== this.playbackIntentToken || !granted) {
-        return false;
-      }
+      void this.ownership.claim('play').then((granted) => {
+        if (token === this.playbackIntentToken && granted) {
+          this.playInternal(offsetMs, options);
+        }
+      });
+      return;
     }
-    return this.playInternal(offsetMs, options);
+    this.playInternal(offsetMs, options);
   }
 
-  private async playInternal(offsetMs?: number, options?: { countIn?: boolean }): Promise<boolean> {
-    if (!this.audioBuffer) return false;
+  private playInternal(offsetMs?: number, options?: { countIn?: boolean }) {
+    if (!this.audioBuffer) return;
     this.initAudioContext();
-    if (!this.ctx) return false;
+    if (!this.ctx) return;
 
     if (this.ctx.state === 'suspended') {
-      try {
-        await this.ctx.resume();
-      } catch (err) {
-        console.warn('[AudioEngine] Error al reanudar AudioContext:', err);
-      }
+      void this.ctx.resume();
     }
 
     const currentOffset = offsetMs !== undefined ? offsetMs : this.pausedAtTime;
@@ -1674,16 +1663,15 @@ export class AudioEngine {
       !this.isPreRollActive
     ) {
       this.startPreRoll();
-      return true;
+      return;
     }
 
-    await this.executePlay(currentOffset);
-    return true;
+    this.executePlay(currentOffset);
   }
 
   /** Alias histórico: reproduce con la cuenta atrás hablada configurada. */
-  public playWithPreRoll(offsetMs?: number): Promise<boolean> {
-    return this.play(offsetMs);
+  public playWithPreRoll(offsetMs?: number) {
+    this.play(offsetMs);
   }
 
   /**
@@ -1705,7 +1693,7 @@ export class AudioEngine {
 
     const n = Math.max(0, Math.min(30, Math.round(this.voiceCueEngine.getConfig().introDelaySec)));
     if (n <= 0) {
-      void this.executePlay(this.pausedAtTime);
+      this.executePlay(this.pausedAtTime);
       return;
     }
 
@@ -1724,39 +1712,13 @@ export class AudioEngine {
     this.emitStateChange();
 
     void (async () => {
-      // 0. Asegurar contexto activo antes de calcular tiempos de hardware:
-      if (this.ctx && this.ctx.state === 'suspended') {
-        try {
-          await this.ctx.resume();
-        } catch {
-          /* ignorar */
-        }
-      }
-      if (token !== this.preRollCancelToken || !this.ctx) return;
-
       // 1. Voz pregenerada (una sola voz) lista ANTES de contar.
       await this.voiceCueEngine.prepareCountdownBank();
       if (token !== this.preRollCancelToken || !this.ctx) return;
 
-      // Desbloqueo WebKit: tocar un buffer silencioso si ctx aún no corre
-      if (this.ctx.state !== 'running') {
-        try {
-          const silentBuf = this.ctx.createBuffer(1, 1, 22050);
-          const src = this.ctx.createBufferSource();
-          src.buffer = silentBuf;
-          src.connect(this.ctx.destination);
-          src.start(0);
-          await this.ctx.resume();
-        } catch {
-          /* ignorar */
-        }
-      }
-
       // 2. Instante exacto de arranque de la música (con margen de agendado).
-      const startWallClock = performance.now();
       const lead = 0.12;
-      const ctxStartTime = this.ctx.currentTime;
-      const musicStart = ctxStartTime + lead + n;
+      const musicStart = this.ctx.currentTime + lead + n;
       this.preRollState = 'counting';
 
       // 3. Música agendada para `musicStart` (silenciosa hasta entonces).
@@ -1775,16 +1737,10 @@ export class AudioEngine {
 
       this.preRollState = 'starting';
 
-      // 4. Ticker dual: reloj de audio prioritario + fallback determinista por reloj de pared (performance.now)
+      // 4. Ticker único basado en el reloj de audio (no acumula error).
       const tick = () => {
         if (token !== this.preRollCancelToken || !this.ctx) return;
-
-        // Reloj de audio vs reloj de pared
-        const ctxElapsed = this.ctx.currentTime - ctxStartTime;
-        const wallElapsed = (performance.now() - startWallClock) / 1000;
-        const effectiveElapsed = Math.max(ctxElapsed, wallElapsed);
-        const remaining = Math.max(0, (lead + n) - effectiveElapsed);
-
+        const remaining = musicStart - this.ctx.currentTime;
         // El rótulo visual sigue EXACTAMENTE a la voz: durante el último tramo
         // (duración del "¡Ya!") se muestra 0 → la UI pinta "¡YA!" mientras la
         // voz lo dice, y la música entra justo después.
@@ -1795,7 +1751,7 @@ export class AudioEngine {
         }
         if (remaining <= 0) {
           this.preRollTickerId = null;
-          this.beginPlaybackAt(Math.max(musicStart, this.ctx.currentTime), 0);
+          this.beginPlaybackAt(musicStart, 0);
           return;
         }
         this.preRollTickerId = globalThis.requestAnimationFrame(tick);
@@ -2044,16 +2000,12 @@ export class AudioEngine {
     if (changed && !silent) this.emitStateChange();
   }
 
-  private async executePlay(offsetMs: number): Promise<void> {
+  private executePlay(offsetMs: number) {
     this.initAudioContext();
     if (!this.ctx || !this.musicGainNode) return;
 
     if (this.ctx.state === 'suspended') {
-      try {
-        await this.ctx.resume();
-      } catch (err) {
-        console.warn('[AudioEngine] Error al reanudar AudioContext en executePlay:', err);
-      }
+      void this.ctx.resume();
     }
 
     const when = this.ctx.currentTime;
@@ -2472,8 +2424,7 @@ export class AudioEngine {
     if (!source) return [];
 
     const buckets = Math.max(1, Math.floor(numBuckets));
-    // channel = -1: análisis compuesto de todos los canales (L+R) para no perder música en pistas estéreo
-    const raw = readWaveformPeaks(source, buckets, DEFAULT_WAVE_PEAK_STEP, -1);
+    const raw = readWaveformPeaks(source, buckets);
 
     let globalMax = 0.001;
     for (let i = 0; i < raw.length; i++) {

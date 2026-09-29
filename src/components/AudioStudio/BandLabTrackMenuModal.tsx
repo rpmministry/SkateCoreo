@@ -310,8 +310,8 @@ export const BandLabTrackMenuModal: React.FC<BandLabTrackMenuModalProps> = ({
             </button>
           )}
 
-          {/* Eliminar Pista (Solo secundarias) */}
-          {!isMaster && onRemove && (
+          {/* Eliminar Pista */}
+          {onRemove && (
             <button
               type="button"
               onClick={() => {

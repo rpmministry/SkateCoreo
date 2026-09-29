@@ -39,6 +39,8 @@ export interface StudioEditSnapshot {
   additionalTracks: AudioStudioTrack[];
   audioNodes: AudioTimeNode[];
   totalDurationSec: number;
+  isMusicTrackVisible?: boolean;
+  isRecordingTrackVisible?: boolean;
 }
 
 export interface AudioStudioStoreState {
@@ -52,6 +54,8 @@ export interface AudioStudioStoreState {
     [key: string]: AudioStudioTrack;
   };
   additionalTracks: AudioStudioTrack[]; // Máximo 4 pistas adicionales (1 principal + 4 = 5 en total)
+  isMusicTrackVisible: boolean;
+  isRecordingTrackVisible: boolean;
 
   // Feedback Visual Drag & Drop y Snapping Magnético
   draggingGhost: DraggingGhostState | null;
@@ -443,15 +447,23 @@ const runRecordingCountdown = (
   });
 
 /**
- * Arreglo del Studio: Master (música) + VOZ grabada + pistas adicionales. La pista
- * de grabación entra en reproducción y en la mezcla final, pero NO en la pista de
- * música del Rink (que solo recibe el mix renderizado).
+ * Arreglo del Studio: Master (música) + VOZ grabada (si existe o está visible) + pistas adicionales.
+ * Solo incluye canales que no hayan sido eliminados y que realmente formen parte del arreglo.
  */
-const arrangementOf = (state: AudioStudioStoreState): AudioStudioTrack[] => [
-  state.tracks.music,
-  state.tracks.recording,
-  ...state.additionalTracks,
-];
+const arrangementOf = (state: AudioStudioStoreState): AudioStudioTrack[] => {
+  const list: AudioStudioTrack[] = [];
+  if (state.isMusicTrackVisible !== false) {
+    list.push(state.tracks.music);
+  }
+  if (
+    state.isRecordingTrackVisible ||
+    (state.tracks.recording?.clips && state.tracks.recording.clips.length > 0)
+  ) {
+    list.push(state.tracks.recording);
+  }
+  list.push(...state.additionalTracks);
+  return list;
+};
 
 /** Captura el estado editable para el historial de undo/redo. */
 const captureEdit = (s: AudioStudioStoreState): StudioEditSnapshot => ({
@@ -459,6 +471,8 @@ const captureEdit = (s: AudioStudioStoreState): StudioEditSnapshot => ({
   additionalTracks: s.additionalTracks,
   audioNodes: s.audioNodes,
   totalDurationSec: s.totalDurationSec,
+  isMusicTrackVisible: s.isMusicTrackVisible,
+  isRecordingTrackVisible: s.isRecordingTrackVisible,
 });
 
 /**
@@ -561,6 +575,8 @@ let initialStudioSnapshot: AudioStudioStoreState | null = null;
 export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => ({
   tracks: initialTracks,
   additionalTracks: [],
+  isMusicTrackVisible: true,
+  isRecordingTrackVisible: false,
 
   /**
    * Reset completo del Estudio (cambio de cuenta / logout). Libera los buffers
@@ -657,13 +673,8 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         state.totalDurationSec
       );
       if (buffer) {
-        // Preserva el cabezal: si el motor está reproduciendo, sustituye sin cortar la reproducción.
-        // Si está en pausa o detenido, actualiza el buffer preservando posición.
-        if (audioEngine.getIsPlaying()) {
-          audioEngine.swapAudioBuffer(buffer, 'Mezcla_Estudio_Consolidada.wav', 'studio-mix', 'studio');
-        } else {
-          audioEngine.setAudioBuffer(buffer, 'Mezcla_Estudio_Consolidada.wav', true, 'studio-mix', 'studio');
-        }
+        // Preserva el cabezal: el llamador decide desde dónde reproducir.
+        audioEngine.setAudioBuffer(buffer, 'Mezcla_Estudio_Consolidada.wav', true);
         pendingConsolidation = false;
         return buffer;
       }
@@ -1319,7 +1330,52 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   },
 
   addAudioTrack: (name, buffer, fileName) => {
-    const currentAdditional = get().additionalTracks;
+    const state = get();
+    // Si la pista Master fue eliminada previamente y el arreglo quedó sin master,
+    // re-activamos la pista Master con el nuevo contenido.
+    if (!state.isMusicTrackVisible) {
+      get().pushStudioEdit();
+      const initialClips: AudioClip[] = buffer
+        ? [{
+            id: `clip-music-init-${Date.now()}`,
+            name: fileName || name || 'Pista Master',
+            buffer,
+            startOffsetSec: 0,
+            trimStartSec: 0,
+            trimEndSec: buffer.duration,
+            fadeInSec: 0,
+            fadeOutSec: 0,
+          }]
+        : [];
+
+      const restoredMaster: AudioStudioTrack = {
+        ...state.tracks.music,
+        name: name || 'Pista Master',
+        buffer: buffer || null,
+        clips: initialClips,
+        trimEndSec: buffer ? buffer.duration : 0,
+        fileName: fileName || null,
+      };
+
+      set((s) => ({
+        isMusicTrackVisible: true,
+        tracks: { ...s.tracks, music: restoredMaster },
+        totalDurationSec: buffer ? Math.max(s.totalDurationSec, Math.ceil(buffer.duration)) : s.totalDurationSec,
+        mixManifest: buildManifest({ ...s.tracks, music: restoredMaster }, s.additionalTracks, s.globalControls, s.totalDurationSec),
+      }));
+
+      if (buffer) {
+        get().setTrackBuffer('music', buffer, fileName);
+      }
+
+      logAudioDiagnostic('TRACK_CREATED', {
+        details: `track=music name=${restoredMaster.name} hasAudio=${Boolean(buffer)} restoredMaster=true`
+      });
+
+      return restoredMaster;
+    }
+
+    const currentAdditional = state.additionalTracks;
     // Límite estricto de arquitectura: máximo 4 pistas adicionales (1 master + 4 = 5 pistas en total)
     if (currentAdditional.length >= 4) {
       console.warn('[AudioStudioStore] Límite alcanzado: Máximo 4 pistas adicionales permitidas (5 pistas en total).');
@@ -1362,11 +1418,11 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
       fileName: fileName || null,
     };
 
-    set((state) => {
-      const updatedAdditional = [...state.additionalTracks, newTrack];
+    set((s) => {
+      const updatedAdditional = [...s.additionalTracks, newTrack];
       return {
         additionalTracks: updatedAdditional,
-        mixManifest: buildManifest(state.tracks, updatedAdditional, state.globalControls, state.totalDurationSec),
+        mixManifest: buildManifest(s.tracks, updatedAdditional, s.globalControls, s.totalDurationSec),
       };
     });
 
@@ -1386,12 +1442,55 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   removeAudioTrack: (id) => {
     get().pushStudioEdit();
     set((state) => {
-      const updatedAdditional = state.additionalTracks.filter((t) => t.id !== id);
+      const isMusic = id === 'track-music' || id === 'music' || id === 'master';
+      const isRecording = id === 'track-recording' || id === 'recording';
+
+      let updatedTracks = { ...state.tracks };
+      let updatedAdditional = state.additionalTracks.filter((t) => t.id !== id);
+      let updatedIsMusicVisible = state.isMusicTrackVisible;
+      let updatedIsRecordingVisible = state.isRecordingTrackVisible;
+
+      if (isMusic) {
+        releaseClipBuffers(state.tracks.music?.clips || []);
+        updatedTracks.music = {
+          ...state.tracks.music,
+          buffer: null,
+          clips: [],
+          fileName: null,
+          trimEndSec: 0,
+        };
+        updatedIsMusicVisible = false;
+      } else if (isRecording) {
+        releaseClipBuffers(state.tracks.recording?.clips || []);
+        updatedTracks.recording = {
+          ...state.tracks.recording,
+          buffer: null,
+          clips: [],
+          fileName: null,
+          trimEndSec: 0,
+        };
+        updatedIsRecordingVisible = false;
+      } else {
+        const target = state.additionalTracks.find((t) => t.id === id);
+        if (target) {
+          releaseClipBuffers(target.clips || []);
+        }
+      }
+
+      const newActiveTrackId = state.activeTrackId === id ? 'music' : state.activeTrackId;
+
       return {
+        tracks: updatedTracks,
         additionalTracks: updatedAdditional,
-        mixManifest: buildManifest(state.tracks, updatedAdditional, state.globalControls, state.totalDurationSec),
+        isMusicTrackVisible: updatedIsMusicVisible,
+        isRecordingTrackVisible: updatedIsRecordingVisible,
+        activeTrackId: newActiveTrackId,
+        selectedClipId: null,
+        mixManifest: buildManifest(updatedTracks, updatedAdditional, state.globalControls, state.totalDurationSec),
       };
     });
+
+    triggerStudioConsolidation();
     logAudioDiagnostic('TRACK_DESTROYED', { details: `track=${id}` });
   },
 
@@ -1463,6 +1562,8 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         studioFuture: [captureEdit(s), ...s.studioFuture].slice(0, 50),
         tracks: previous.tracks,
         additionalTracks: previous.additionalTracks,
+        isMusicTrackVisible: previous.isMusicTrackVisible ?? true,
+        isRecordingTrackVisible: previous.isRecordingTrackVisible ?? false,
         audioNodes: previous.audioNodes,
         totalDurationSec: previous.totalDurationSec,
       };
@@ -1478,6 +1579,8 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         studioHistory: [...s.studioHistory, captureEdit(s)],
         tracks: next.tracks,
         additionalTracks: next.additionalTracks,
+        isMusicTrackVisible: next.isMusicTrackVisible ?? true,
+        isRecordingTrackVisible: next.isRecordingTrackVisible ?? false,
         audioNodes: next.audioNodes,
         totalDurationSec: next.totalDurationSec,
       };
@@ -1544,6 +1647,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
       return {
         tracks: updatedTracks,
         additionalTracks: updatedAdditional,
+        isMusicTrackVisible: resolvedKey === 'music' ? true : state.isMusicTrackVisible,
         totalDurationSec: newTotalDuration,
         mixManifest: buildManifest(updatedTracks, updatedAdditional, state.globalControls, newTotalDuration),
       };
@@ -1908,9 +2012,6 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   },
 
   setMetronomeConfig: (config) => {
-    let shouldUpdateAudible = false;
-    let newAudible = false;
-
     set((state) => {
       const updated = { ...state.metronomeConfig, ...config };
       audioEngine.metronome.setBpm(updated.bpm);
@@ -1918,14 +2019,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
       audioEngine.metronome.setSubdivision(updated.subdivision);
       audioEngine.metronome.setVolume(updated.volume);
       audioEngine.metronome.setConfig({ accentFirstBeat: updated.accentFirstBeat });
-
-      // Solo si la propiedad enabled fue especificada explícitamente en la llamada,
-      // se sincroniza el estado audible del motor. Cambiar compás, BPM o subdivisión
-      // jamás debe encender automáticamente el metrónomo.
-      if (config.enabled !== undefined) {
-        shouldUpdateAudible = true;
-        newAudible = Boolean(updated.enabled) && !state.tracks.metronome.muted;
-      }
+      audioEngine.setMetronomeAudible(updated.enabled && !state.tracks.metronome.muted);
 
       const updatedControls: GlobalAudioControls = {
         ...state.globalControls,
@@ -1953,10 +2047,6 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         mixManifest: buildManifest(state.tracks, state.additionalTracks, updatedControls, state.totalDurationSec),
       };
     });
-
-    if (shouldUpdateAudible) {
-      audioEngine.setMetronomeAudible(newAudible);
-    }
   },
 
   analyzeBpm: async () => {
@@ -2026,6 +2116,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
 
       set({
         isRecording: true,
+        isRecordingTrackVisible: true,
         recordingError: null,
         recordingStartSec: get().currentTimeSec,
         recordingElapsedSec: 0,
@@ -2100,6 +2191,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
     get().pushStudioEdit();
     set({
       isRecording: false,
+      isRecordingTrackVisible: true,
       recordingElapsedSec: 0,
       totalDurationSec: Math.max(state.totalDurationSec, startSec + buffer.duration),
       tracks: {

@@ -5,7 +5,7 @@ import { useAudioStudioStore } from '../store/useAudioStudioStore';
 import { usePressAction } from '../hooks/usePressAction';
 
 interface RinkAudioPlayerProps {
-  currentTimeMs?: number;
+  currentTimeMs: number;
   durationMs: number;
   isPlaying: boolean;
   hasAudioLoaded: boolean;
@@ -41,20 +41,6 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
   sourceKind = 'file',
   variant = 'header',
 }) => {
-  const [internalTimeMs, setInternalTimeMs] = React.useState<number>(() => currentTimeMs ?? audioEngine.getCurrentTimeMs());
-
-  React.useEffect(() => {
-    if (currentTimeMs !== undefined) {
-      setInternalTimeMs(currentTimeMs);
-      return;
-    }
-    const unsub = audioEngine.onTimeUpdate((ms) => {
-      setInternalTimeMs(ms);
-    });
-    return unsub;
-  }, [currentTimeMs]);
-
-  const activeTimeMs = currentTimeMs !== undefined ? currentTimeMs : internalTimeMs;
   const tracks = useAudioStudioStore((s) => s.tracks);
   const globalControls = useAudioStudioStore((s) => s.globalControls);
   const toggleMetronomeMute = useAudioStudioStore((s) => s.toggleMetronomeMute);
@@ -88,7 +74,7 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
     } else {
       // La Pista 2D reproduce en su propio dominio: metrónomo + voces guía activos.
       audioEngine.setPlaybackDomain('rink');
-      void audioEngine.play();
+      audioEngine.play();
     }
   };
 
@@ -100,7 +86,7 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
   };
 
   const effectiveDuration = durationMs > 0 ? durationMs : 120000;
-  const progressRatio = Math.max(0, Math.min(1, activeTimeMs / effectiveDuration));
+  const progressRatio = Math.max(0, Math.min(1, currentTimeMs / effectiveDuration));
   // Sin audio no se muestra "00:00 / 00:00" (ambigua): la duración se marca como
   // desconocida hasta que exista audio real cargado/publicado.
   const durationLabel = hasAudioLoaded && durationMs > 0 ? fmtTime(durationMs) : '--:--';
@@ -204,7 +190,7 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
               )}
             </span>
             <span className="shrink-0 text-slate-400">
-              {fmtTime(activeTimeMs)}
+              {fmtTime(currentTimeMs)}
               <span className="text-slate-600"> / </span>
               {durationLabel}
             </span>
@@ -238,7 +224,7 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
 
       <div className="flex min-w-[82px] flex-col justify-center px-1">
         <div className="flex items-center gap-1 font-mono text-xs font-black leading-none">
-          <span className="text-cyan">{fmtTime(activeTimeMs)}</span>
+          <span className="text-cyan">{fmtTime(currentTimeMs)}</span>
           <span className="text-slate-600">/</span>
           <span className="font-medium text-slate-400">{durationLabel}</span>
         </div>

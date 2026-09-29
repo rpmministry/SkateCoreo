@@ -88,6 +88,8 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   const stopVoiceRecording = useAudioStudioStore((s) => s.stopVoiceRecording);
   const undoStudio = useAudioStudioStore((s) => s.undoStudio);
   const redoStudio = useAudioStudioStore((s) => s.redoStudio);
+  const isMusicTrackVisible = useAudioStudioStore((s) => s.isMusicTrackVisible);
+  const isRecordingTrackVisible = useAudioStudioStore((s) => s.isRecordingTrackVisible);
   const recordingMonitorEnabled = useAudioStudioStore((s) => s.recordingMonitorEnabled);
   const setRecordingMonitor = useAudioStudioStore((s) => s.setRecordingMonitor);
   const recordingCountdownEnabled = useAudioStudioStore((s) => s.recordingCountdownEnabled);
@@ -156,7 +158,11 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     const id = window.setTimeout(() => setLastCutSec(null), 1800);
     return () => window.clearTimeout(id);
   }, [lastCutSec, setLastCutSec]);
+  const RULER_HEIGHT = 48;
   const playheadLineRef = useRef<HTMLDivElement | null>(null);
+  const playheadNeedleRef = useRef<HTMLDivElement | null>(null);
+  const tracksContainerRef = useRef<HTMLDivElement | null>(null);
+  const updatePlayheadVerticalRef = useRef<() => void>(() => {});
   // La aguja es SOLO visual (pointer-events: none): nunca intercepta rueda, pan,
   // drag de clips ni scroll. Este ref permite reapuntarla desde `onScroll`.
   const applyPlayheadRef = useRef<(timeMs: number) => void>(() => {});
@@ -189,8 +195,11 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     // rueda requiere Shift; solo Ctrl/⌘+rueda hace zoom.
     wheelPanRequiresShift: true,
     onZoomChange: (z) => useAudioStudioStore.getState().setZoom(z),
-    // Al hacer scroll horizontal, la aguja (anclada al viewport) se reposiciona.
-    onScroll: () => applyPlayheadRef.current(audioEngine.getCurrentTimeMs()),
+    // Al hacer scroll horizontal o vertical, la aguja se reposiciona y su límite vertical se actualiza.
+    onScroll: () => {
+      applyPlayheadRef.current(audioEngine.getCurrentTimeMs());
+      updatePlayheadVerticalRef.current();
+    },
   });
 
   /**
@@ -345,10 +354,23 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     refreshKey: `${contentWidth}|${totalDurationSec}|${headerWidth}|${zoom}`,
   });
 
-  // 1 Pista Principal (Música) + VOZ grabada + hasta 4 Pistas Adicionales
+  // Pistas en el arreglo: Master (si no ha sido eliminada) + Grabación (si tiene tomas o se está grabando) + Adicionales.
+  // Al eliminar cualquier pista, su canal visual se remueve por completo del DOM.
   const arrangementTracks: AudioStudioTrack[] = useMemo(() => {
-    return [tracks.music, tracks.recording, ...additionalTracks];
-  }, [tracks.music, tracks.recording, additionalTracks]);
+    const list: AudioStudioTrack[] = [];
+    if (isMusicTrackVisible) {
+      list.push(tracks.music);
+    }
+    if (
+      isRecordingTrackVisible ||
+      (tracks.recording?.clips && tracks.recording.clips.length > 0) ||
+      isRecording
+    ) {
+      list.push(tracks.recording);
+    }
+    list.push(...additionalTracks);
+    return list;
+  }, [isMusicTrackVisible, isRecordingTrackVisible, tracks.music, tracks.recording, isRecording, additionalTracks]);
 
   /**
    * ¿Existe audio real en el Estudio para reproducir y manipular?
@@ -600,18 +622,24 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   };
 
   // Reordenar pistas adicionales.
-  // El índice recibido es el VISUAL del arreglo [Master(0), Grabación(1), ...adicionales(2..)]
-  // y se convierte con `moveAdditionalTrack` (fuente única, con test de regresión).
+  // El índice recibido es el VISUAL del arreglo [Master(si visible), Grabación(si visible), ...adicionales]
+  // y se convierte con `moveAdditionalTrack` usando el prefijo dinámico.
   const handleMoveTrackUp = (index: number) => {
+    const prefix = arrangementTracks.filter(
+      (t) => t.id === 'track-music' || t.id === 'track-recording'
+    ).length;
     useAudioStudioStore.setState((state) => ({
-      additionalTracks: moveAdditionalTrack(state.additionalTracks, index, 'up'),
+      additionalTracks: moveAdditionalTrack(state.additionalTracks, index, 'up', prefix),
     }));
     logAudioDiagnostic('TRACK_DRAG_END', { details: `reorder-up index=${index}` });
   };
 
   const handleMoveTrackDown = (index: number) => {
+    const prefix = arrangementTracks.filter(
+      (t) => t.id === 'track-music' || t.id === 'track-recording'
+    ).length;
     useAudioStudioStore.setState((state) => ({
-      additionalTracks: moveAdditionalTrack(state.additionalTracks, index, 'down'),
+      additionalTracks: moveAdditionalTrack(state.additionalTracks, index, 'down', prefix),
     }));
     logAudioDiagnostic('TRACK_DRAG_END', { details: `reorder-down index=${index}` });
   };
@@ -732,7 +760,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
   // Play / Pause Toggle instantáneo sin latencia (Web Audio API)
   // Lee el estado REAL del motor (no la clausura de React) para que un toque
   // nunca invierta el sentido equivocado por un render pendiente.
-  const handlePlayToggle = async () => {
+  const handlePlayToggle = () => {
     if (!hasStudioAudio || isRecording) {
       setIsPlaying(false);
       return;
@@ -757,10 +785,10 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     // El offset de arranque se toma del motor (offset de pausa/seek exacto),
     // nunca del estado de React: así la reanudación no da saltos visuales.
     const resumeFromMs = audioEngine.getCurrentTimeMs();
-    await consolidateStudioAudio();
+    void consolidateStudioAudio();
     // El Estudio arranca DIRECTO (sin cuenta atrás de entrada a pista): el
     // count-in hablado es exclusivo de la Pista 2D.
-    await audioEngine.play(resumeFromMs, { countIn: false });
+    audioEngine.play(resumeFromMs, { countIn: false });
     setIsPlaying(true);
   };
 
@@ -954,6 +982,58 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     [timelineViewport.height, timelineViewport.width, arrangementTracks.length]
   );
 
+  // Altura base calculada de la aguja: parte de la regla (48px) y cubre exactamente
+  // los canales de audio existentes. Si no existen pistas, se limita estrictamente a la regla (48px).
+  const playheadHeight = useMemo(() => {
+    if (arrangementTracks.length === 0) return RULER_HEIGHT;
+    return Math.max(RULER_HEIGHT, RULER_HEIGHT + arrangementTracks.length * trackLaneHeight);
+  }, [arrangementTracks.length, trackLaneHeight]);
+
+  // Actualización milimétrica del límite vertical de la aguja:
+  // Se confina estrictamente al área donde realmente existen canales de audio.
+  // Termina exactamente en el límite inferior del último canal visible, sin
+  // continuar por debajo ni invadir "+ Añadir Pista", controles o pestañas.
+  const updatePlayheadVerticalExtent = useCallback(() => {
+    const container = timelineContainerRef.current;
+    const needle = playheadNeedleRef.current;
+    if (!container || !needle) return;
+
+    if (arrangementTracks.length === 0) {
+      needle.style.height = `${RULER_HEIGHT}px`;
+      return;
+    }
+
+    const containerRect = container.getBoundingClientRect();
+    const tracksContainer = tracksContainerRef.current;
+    if (tracksContainer) {
+      const tracksRect = tracksContainer.getBoundingClientRect();
+      const visibleBottom = tracksRect.bottom - containerRect.top;
+      needle.style.height = `${Math.max(RULER_HEIGHT, Math.round(visibleBottom))}px`;
+    } else {
+      const calc = Math.max(
+        RULER_HEIGHT,
+        Math.round(RULER_HEIGHT + arrangementTracks.length * trackLaneHeight - container.scrollTop)
+      );
+      needle.style.height = `${calc}px`;
+    }
+  }, [arrangementTracks.length, trackLaneHeight]);
+
+  updatePlayheadVerticalRef.current = updatePlayheadVerticalExtent;
+
+  useLayoutEffect(() => {
+    updatePlayheadVerticalExtent();
+  }, [updatePlayheadVerticalExtent, arrangementTracks.length, trackLaneHeight]);
+
+  useEffect(() => {
+    updatePlayheadVerticalExtent();
+    window.addEventListener('resize', updatePlayheadVerticalExtent);
+    window.addEventListener('orientationchange', updatePlayheadVerticalExtent);
+    return () => {
+      window.removeEventListener('resize', updatePlayheadVerticalExtent);
+      window.removeEventListener('orientationchange', updatePlayheadVerticalExtent);
+    };
+  }, [updatePlayheadVerticalExtent]);
+
   return (
     <div 
       className="audio-studio-shell fixed inset-0 z-50 flex flex-col bg-black text-slate-100 overflow-hidden select-none font-sans"
@@ -1030,7 +1110,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           </div>
 
           {/* Carriles de Pistas (Arrangement Track Rows con Overscroll y Drop Zone) */}
-          <div className="flex flex-col">
+          <div ref={tracksContainerRef} className="flex flex-col">
             {arrangementTracks.map((track, index) => (
               <MultitrackTrackRow
                 key={track.id}
@@ -1193,10 +1273,14 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
       >
         <div
           ref={playheadLineRef}
-          className="absolute top-0 bottom-0 w-8 pointer-events-none flex justify-center select-none"
+          className="absolute top-0 w-8 pointer-events-none flex justify-center select-none"
           style={{ left: 0, transform: `translateX(0px) translateX(-50%)` }}
         >
-          <div className="w-[2px] h-full bg-white shadow-glow-cyan relative flex justify-center">
+          <div
+            ref={playheadNeedleRef}
+            className="w-[2px] bg-white shadow-glow-cyan relative flex justify-center"
+            style={{ height: `${playheadHeight}px` }}
+          >
             {/* HIT AREA DEL PLAYHEAD — independiente del marker. Es un blanco
                 cómodo (~36px) sobre la aguja que SOLO modifica `currentTimeSec`.
                 `touch-action:none`: el navegador no lo interpreta como scroll ni
