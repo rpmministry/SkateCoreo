@@ -156,7 +156,12 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
   const [localFadeIn, setLocalFadeIn] = useState(clip.fadeInSec || 0);
   const [localFadeOut, setLocalFadeOut] = useState(clip.fadeOutSec || 0);
 
+  const latestFadeInRef = useRef(clip.fadeInSec || 0);
+  const latestFadeOutRef = useRef(clip.fadeOutSec || 0);
+
   useEffect(() => {
+    latestFadeInRef.current = clip.fadeInSec || 0;
+    latestFadeOutRef.current = clip.fadeOutSec || 0;
     setLocalFadeIn(clip.fadeInSec || 0);
     setLocalFadeOut(clip.fadeOutSec || 0);
   }, [clip.fadeInSec, clip.fadeOutSec]);
@@ -502,50 +507,85 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
 
   const handleFadeInPointerDown = (e: React.PointerEvent) => {
     e.stopPropagation();
+    e.preventDefault();
     setIsAdjustingFadeIn(true);
     const startX = e.clientX;
-    const initialFade = localFadeIn;
+    const initialFade = latestFadeInRef.current;
+    const currentFadeOut = latestFadeOutRef.current;
+    // Límite: no superar el espacio disponible ni generar superposición incoherente con Fade Out
+    const maxAvailable = Math.max(0, clipDurationSec - currentFadeOut);
 
-    const handlePointerMove = (ev: PointerEvent) => {
+    const targetEl = e.currentTarget as HTMLElement;
+    try {
+      targetEl.setPointerCapture(e.pointerId);
+    } catch (_) {}
+
+    const onPointerMove = (ev: PointerEvent) => {
+      ev.stopPropagation();
       const deltaPx = ev.clientX - startX;
       const deltaSec = deltaPx / pxPerSec;
-      const newFade = Math.max(0, Math.min(clipDurationSec * 0.8, initialFade + deltaSec));
+      const newFade = Math.max(0, Math.min(maxAvailable, initialFade + deltaSec));
+      latestFadeInRef.current = newFade;
       setLocalFadeIn(newFade);
     };
 
-    const handlePointerUp = () => {
+    const onPointerUp = (ev: PointerEvent) => {
+      ev.stopPropagation();
       setIsAdjustingFadeIn(false);
-      setClipFades(trackId, clip.id, localFadeIn, localFadeOut);
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
+      try {
+        targetEl.releasePointerCapture(ev.pointerId);
+      } catch (_) {}
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+      setClipFades(trackId, clip.id, latestFadeInRef.current, latestFadeOutRef.current);
     };
 
-    window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
   };
 
   const handleFadeOutPointerDown = (e: React.PointerEvent) => {
     e.stopPropagation();
+    e.preventDefault();
     setIsAdjustingFadeOut(true);
     const startX = e.clientX;
-    const initialFade = localFadeOut;
+    const initialFade = latestFadeOutRef.current;
+    const currentFadeIn = latestFadeInRef.current;
+    // Límite: no superar el espacio disponible ni generar superposición incoherente con Fade In
+    const maxAvailable = Math.max(0, clipDurationSec - currentFadeIn);
 
-    const handlePointerMove = (ev: PointerEvent) => {
+    const targetEl = e.currentTarget as HTMLElement;
+    try {
+      targetEl.setPointerCapture(e.pointerId);
+    } catch (_) {}
+
+    const onPointerMove = (ev: PointerEvent) => {
+      ev.stopPropagation();
+      // Arrastrar hacia la izquierda (deltaPx < 0) aumenta la duración del fade out
       const deltaPx = startX - ev.clientX;
       const deltaSec = deltaPx / pxPerSec;
-      const newFade = Math.max(0, Math.min(clipDurationSec * 0.8, initialFade + deltaSec));
+      const newFade = Math.max(0, Math.min(maxAvailable, initialFade + deltaSec));
+      latestFadeOutRef.current = newFade;
       setLocalFadeOut(newFade);
     };
 
-    const handlePointerUp = () => {
+    const onPointerUp = (ev: PointerEvent) => {
+      ev.stopPropagation();
       setIsAdjustingFadeOut(false);
-      setClipFades(trackId, clip.id, localFadeIn, localFadeOut);
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
+      try {
+        targetEl.releasePointerCapture(ev.pointerId);
+      } catch (_) {}
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
+      setClipFades(trackId, clip.id, latestFadeInRef.current, latestFadeOutRef.current);
     };
 
-    window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
   };
 
   return (
@@ -610,22 +650,52 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
         </span>
       </div>
 
-      {/* Tirador Fade In (Superior Izquierda) */}
+      {/* Tirador Fade In (Ubicado en el ápice de la rampa de entrada) */}
       <div
         onPointerDown={handleFadeInPointerDown}
-        className="absolute top-0 left-0 w-5 h-5 cursor-ew-resize z-20 flex items-start justify-start group p-0.5"
-        title="Arrastra para Fade In"
+        className="absolute top-0 w-7 h-7 -ml-2 cursor-ew-resize z-20 flex items-start justify-center group p-1 select-none touch-none"
+        style={{ left: `${Math.max(0, Math.min(widthPx - 16, (localFadeIn / clipDurationSec) * widthPx))}px` }}
+        title={`Fade In: ${localFadeIn.toFixed(2)}s (Arrastra hacia la derecha para aumentar)`}
+        aria-label={`Fade In: ${localFadeIn.toFixed(1)}s`}
       >
-        <div className="w-2 h-2 bg-white group-hover:scale-125 rounded-xs shadow transition-transform" />
+        <div
+          className={`w-2.5 h-2.5 bg-white rounded-xs shadow-md border border-black/40 transition-transform ${
+            isAdjustingFadeIn ? 'scale-125 ring-2 ring-cyan bg-cyan-200' : 'group-hover:scale-125'
+          }`}
+        />
+        {(isAdjustingFadeIn || localFadeIn > 0) && (
+          <span
+            className={`absolute top-4 left-1/2 -translate-x-1/2 px-1 py-0.5 rounded text-[8px] font-mono font-bold text-white bg-black/85 border border-white/20 pointer-events-none shadow-sm whitespace-nowrap z-30 ${
+              isAdjustingFadeIn ? 'opacity-100 ring-1 ring-cyan' : 'opacity-0 group-hover:opacity-100 transition-opacity'
+            }`}
+          >
+            {localFadeIn.toFixed(1)}s
+          </span>
+        )}
       </div>
 
-      {/* Tirador Fade Out (Superior Derecha) */}
+      {/* Tirador Fade Out (Ubicado en el ápice de la rampa de salida) */}
       <div
         onPointerDown={handleFadeOutPointerDown}
-        className="absolute top-0 right-0 w-5 h-5 cursor-ew-resize z-20 flex items-start justify-end group p-0.5"
-        title="Arrastra para Fade Out"
+        className="absolute top-0 w-7 h-7 -mr-2 cursor-ew-resize z-20 flex items-start justify-center group p-1 select-none touch-none"
+        style={{ right: `${Math.max(0, Math.min(widthPx - 16, (localFadeOut / clipDurationSec) * widthPx))}px` }}
+        title={`Fade Out: ${localFadeOut.toFixed(2)}s (Arrastra hacia la izquierda para aumentar)`}
+        aria-label={`Fade Out: ${localFadeOut.toFixed(1)}s`}
       >
-        <div className="w-2 h-2 bg-white group-hover:scale-125 rounded-xs shadow transition-transform" />
+        <div
+          className={`w-2.5 h-2.5 bg-white rounded-xs shadow-md border border-black/40 transition-transform ${
+            isAdjustingFadeOut ? 'scale-125 ring-2 ring-cyan bg-cyan-200' : 'group-hover:scale-125'
+          }`}
+        />
+        {(isAdjustingFadeOut || localFadeOut > 0) && (
+          <span
+            className={`absolute top-4 left-1/2 -translate-x-1/2 px-1 py-0.5 rounded text-[8px] font-mono font-bold text-white bg-black/85 border border-white/20 pointer-events-none shadow-sm whitespace-nowrap z-30 ${
+              isAdjustingFadeOut ? 'opacity-100 ring-1 ring-cyan' : 'opacity-0 group-hover:opacity-100 transition-opacity'
+            }`}
+          >
+            {localFadeOut.toFixed(1)}s
+          </span>
+        )}
       </div>
     </div>
   );

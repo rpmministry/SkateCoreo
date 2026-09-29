@@ -274,15 +274,27 @@ export function bounceStudioClipsToBuffer(
       const { startFrame, srcStartFrame: trimStartFrame, frameCount } = placement;
       const clipDur = clip.trimEndSec - clip.trimStartSec;
 
-      const fadeInFrames = Math.round(Math.min((clip.fadeInSec || 0), clipDur * 0.5) * sampleRate);
-      const fadeOutFrames = Math.round(Math.min((clip.fadeOutSec || 0), clipDur * 0.5) * sampleRate);
+      const rawFadeIn = Math.max(0, clip.fadeInSec || 0);
+      const rawFadeOut = Math.max(0, clip.fadeOutSec || 0);
+      const totalFade = rawFadeIn + rawFadeOut;
+      let effectiveFadeIn = rawFadeIn;
+      let effectiveFadeOut = rawFadeOut;
+
+      if (totalFade > clipDur && totalFade > 0) {
+        const scale = clipDur / totalFade;
+        effectiveFadeIn = rawFadeIn * scale;
+        effectiveFadeOut = rawFadeOut * scale;
+      }
+
+      const fadeInFrames = Math.round(effectiveFadeIn * sampleRate);
+      const fadeOutFrames = Math.round(effectiveFadeOut * sampleRate);
       const bodyStart = fadeInFrames;
-      const bodyEnd = frameCount - fadeOutFrames;
+      const bodyEnd = Math.max(bodyStart, frameCount - fadeOutFrames);
       const bodyFrames = Math.max(0, bodyEnd - bodyStart);
 
       const srcStride = srcSampleRate === sampleRate ? 1 : (srcSampleRate / sampleRate);
 
-      /* ── Fade-in: per-sample loop (solo en la zona de transición, típicamente < 20ms) ── */
+      /* ── Fade-in: per-sample loop (silencio al inicio -> rampa progresiva a volumen normal) ── */
       for (let i = 0; i < Math.min(fadeInFrames, frameCount); i++) {
         const destIdx = startFrame + i;
         const srcIdx = trimStartFrame + Math.floor(i * srcStride);
@@ -315,13 +327,14 @@ export function bounceStudioClipsToBuffer(
         }
       }
 
-      /* ── Fade-out: per-sample loop (solo en la zona de transición) ── */
+      /* ── Fade-out: per-sample loop (volumen normal -> reducción progresiva -> silencio al final) ── */
       if (fadeOutFrames > 0) {
-        for (let i = Math.max(bodyEnd, 0); i < frameCount; i++) {
+        const fadeOutStartFrame = frameCount - fadeOutFrames;
+        for (let i = Math.max(fadeOutStartFrame, 0); i < frameCount; i++) {
           const destIdx = startFrame + i;
           const srcIdx = trimStartFrame + Math.floor(i * srcStride);
           if (srcIdx >= srcL.length) break;
-          const fadeGain = trackGain * Math.max(0, (frameCount - i) / Math.max(1, fadeOutFrames));
+          const fadeGain = trackGain * Math.max(0, (frameCount - 1 - i) / Math.max(1, fadeOutFrames));
           outL[destIdx] += srcL[srcIdx] * fadeGain;
           outR[destIdx] += srcR[srcIdx] * fadeGain;
         }
@@ -419,9 +432,17 @@ export async function renderStudioMixdown(
 
       const clipGain = offlineCtx.createGain();
 
-      // Envolvente de Fade In y Fade Out
-      const fadeIn = Math.min(clip.fadeInSec || 0, effectiveDuration / 2);
-      const fadeOut = Math.min(clip.fadeOutSec || 0, effectiveDuration / 2);
+      // Envolvente de Fade In y Fade Out con coexistencia proporcional
+      const rawFadeIn = Math.max(0, clip.fadeInSec || 0);
+      const rawFadeOut = Math.max(0, clip.fadeOutSec || 0);
+      const totalFade = rawFadeIn + rawFadeOut;
+      let fadeIn = rawFadeIn;
+      let fadeOut = rawFadeOut;
+      if (totalFade > effectiveDuration && totalFade > 0) {
+        const scale = effectiveDuration / totalFade;
+        fadeIn = rawFadeIn * scale;
+        fadeOut = rawFadeOut * scale;
+      }
 
       if (fadeIn > 0) {
         clipGain.gain.setValueAtTime(0.0001, when);

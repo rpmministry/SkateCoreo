@@ -394,6 +394,59 @@ async function runMixdownTest() {
     ) === null,
     'computeClipTiming descarta clips fuera del timeline'
   );
+
+  // ── Test 10: Verificación rigurosa de Fade In y Fade Out en bounceStudioClipsToBuffer ──
+  const fadeBuffer = makeFilledBuffer(4, 1.0); // 4 segundos de señal constante a 1.0
+  const fadeTrack: AudioStudioTrack = {
+    id: 'fade-trk',
+    name: 'Fade Track',
+    type: 'music',
+    buffer: fadeBuffer,
+    volume: 1.0,
+    muted: false,
+    solo: false,
+    color: '#00F0FF',
+    trimStartSec: 0,
+    trimEndSec: 4.0,
+    fadeInSec: 1.0,  // 1 segundo de Fade In
+    fadeOutSec: 1.0, // 1 segundo de Fade Out
+    clips: [
+      {
+        id: 'clip-fade',
+        name: 'Clip Fade',
+        buffer: fadeBuffer,
+        startOffsetSec: 0.0,
+        trimStartSec: 0.0,
+        trimEndSec: 4.0,
+        fadeInSec: 1.0,
+        fadeOutSec: 1.0,
+      },
+    ],
+  };
+
+  const fadeMix = bounceStudioClipsToBuffer([fadeTrack], 4.0);
+  assert(fadeMix !== null, 'bounce genera buffer con fades activos');
+  const fadeData = fadeMix!.getChannelData(0);
+
+  // Muestra inicial: t = 0 (inicio del clip) -> debe ser exactamente 0 o prácticamente silencio absoluto
+  assert(fadeData[0] === 0, `Fade In inicia en silencio absoluto: fadeData[0] = ${fadeData[0]}`);
+
+  // Muestra intermedia del fade-in (t = 0.5s): debe ser ~0.5
+  const halfFadeInVal = fadeData[Math.round(0.5 * 44100)];
+  assert(Math.abs(halfFadeInVal - 0.5) < 0.02, `Fade In a la mitad (0.5s) tiene ganancia aproximada de 0.5 (obtenido: ${halfFadeInVal.toFixed(3)})`);
+
+  // Muestra post fade-in / zona plena (t = 2.0s): debe ser 1.0
+  const bodyVal = fadeData[Math.round(2.0 * 44100)];
+  assert(Math.abs(bodyVal - 1.0) < 1e-4, `Zona central mantiene volumen completo (1.0), obtenido: ${bodyVal}`);
+
+  // Muestra intermedia del fade-out (t = 3.5s): debe ser ~0.5
+  const halfFadeOutVal = fadeData[Math.round(3.5 * 44100)];
+  assert(Math.abs(halfFadeOutVal - 0.5) < 0.02, `Fade Out a la mitad (3.5s) reduce a ~0.5 (obtenido: ${halfFadeOutVal.toFixed(3)})`);
+
+  // Muestra final del clip (último frame): debe alcanzar silencio total (0.0)
+  const lastFrameIdx = fadeData.length - 1;
+  const lastSample = fadeData[lastFrameIdx];
+  assert(lastSample === 0, `Fade Out llega a silencio absoluto en el último frame: ${lastSample}`);
 }
 
 runMixdownTest().then(() => {

@@ -14,7 +14,9 @@ import {
   Sliders,
   Undo2,
   SkipBack,
+  Trash2,
 } from 'lucide-react';
+import { ModalShell } from './ui/ModalShell';
 import { useAudioZoomPan } from '../hooks/useAudioZoomPan';
 import { usePlayheadSync } from '../hooks/usePlayheadSync';
 import { createTimelineGeometry } from '../core/audio/timeline/AudioTimelineGeometry';
@@ -71,6 +73,13 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
   const [draggedPinId, setDraggedPinId] = useState<string | null>(null);
   const [hoveredPinId, setHoveredPinId] = useState<string | null>(null);
   const [isMiniMixerOpen, setIsMiniMixerOpen] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+
+  const handleConfirmDeleteRinkAudio = () => {
+    audioEngine.clearRinkAudio();
+    useRinkAudioStore.getState().syncFromEngine();
+    setShowDeleteModal(false);
+  };
 
   // Store de Audio Studio: volumen master para el badge resumido de mezcla
   const tracks = useAudioStudioStore((s) => s.tracks);
@@ -631,6 +640,20 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
             </button>
           )}
 
+          {/* Botón Eliminar Pista del Visor (Desktop / Tablet / Móvil) */}
+          {(canOpenStudio || Boolean(fileName)) && (
+            <button
+              type="button"
+              onClick={() => setShowDeleteModal(true)}
+              className="press flex min-h-touch items-center justify-center gap-1.5 rounded-subtle border border-rose-500/25 bg-rose-500/10 px-2.5 font-sans text-[11px] font-bold text-rose-400 hover:bg-rose-500/20 hover:text-rose-300 transition-colors sm:px-3"
+              title="Eliminar la pista de audio cargada en el Visor de la Pista 2D"
+              aria-label="Eliminar pista"
+            >
+              <Trash2 className="h-3.5 w-3.5 shrink-0 text-rose-400" />
+              <span className="hidden sm:inline">Eliminar pista</span>
+            </button>
+          )}
+
           {/* Botón Desplegable Mini-Mezclador (volúmenes de la Pista 2D) */}
           <button
             type="button"
@@ -845,6 +868,40 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
         isOpen={isMiniMixerOpen}
         onClose={() => setIsMiniMixerOpen(false)}
       />
+
+      {/* ── Modal de Confirmación: Eliminar pista del Visor de la Pista 2D ── */}
+      <ModalShell
+        open={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        title="Eliminar pista del Visor"
+        icon={<Trash2 className="h-5 w-5 text-rose-400" />}
+      >
+        <div className="p-4 space-y-4">
+          <p className="text-sm text-slate-300 leading-relaxed">
+            ¿Estás seguro de que deseas eliminar la pista de audio del <strong className="text-white">Visor de la Pista 2D</strong>?
+          </p>
+          <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-200">
+            Esta acción detendrá la reproducción y quitará la música del Visor. Los puntos de coreografía, las figuras y los proyectos del Estudio de Audio permanecerán completamente intactos.
+          </div>
+          <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
+            <button
+              type="button"
+              onClick={() => setShowDeleteModal(false)}
+              className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white font-medium text-xs press transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmDeleteRinkAudio}
+              className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs press flex items-center gap-1.5 shadow-md shadow-rose-900/30 transition-colors"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Eliminar pista
+            </button>
+          </div>
+        </div>
+      </ModalShell>
     </div>
   );
 };

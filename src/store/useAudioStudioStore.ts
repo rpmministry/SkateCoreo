@@ -959,11 +959,15 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         const stamp = Date.now();
         const secondClipId = `clip-${stamp}-b`;
 
+        const firstClipDur = Math.max(0, bufferSplitPoint - clip.trimStartSec);
+        const secondClipDur = Math.max(0, clip.trimEndSec - bufferSplitPoint);
+
         const firstClip: AudioClip = {
           ...clip,
           id: `clip-${stamp}-a`,
           trimEndSec: bufferSplitPoint,
-          fadeOutSec: Math.min(clip.fadeOutSec, 0.2),
+          fadeInSec: Math.min(clip.fadeInSec || 0, firstClipDur),
+          fadeOutSec: 0,
         };
 
         const secondClip: AudioClip = {
@@ -971,7 +975,8 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
           id: secondClipId,
           startOffsetSec: splitOffsetSec,
           trimStartSec: bufferSplitPoint,
-          fadeInSec: Math.min(clip.fadeInSec, 0.2),
+          fadeInSec: 0,
+          fadeOutSec: Math.min(clip.fadeOutSec || 0, secondClipDur),
         };
 
         const newClips = [...track.clips];
@@ -1312,6 +1317,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   },
 
   setClipFades: (trackId, clipId, fadeInSec, fadeOutSec) => {
+    get().pushStudioEdit();
     set((state) => {
       const updateClips = (track: AudioStudioTrack): AudioStudioTrack => ({
         ...track,
@@ -1337,6 +1343,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         mixManifest: buildManifest(updatedTracks, updatedAdditional, state.globalControls, state.totalDurationSec),
       };
     });
+    triggerStudioConsolidation();
   },
 
   addAudioTrack: (name, buffer, fileName) => {
@@ -1579,6 +1586,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
       };
     });
     useRinkAudioStore.getState().markStudioDirty(true);
+    triggerStudioConsolidation();
   },
   redoStudio: () => {
     set((s) => {
@@ -1596,6 +1604,7 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
       };
     });
     useRinkAudioStore.getState().markStudioDirty(true);
+    triggerStudioConsolidation();
   },
 
   setTrackBuffer: (trackKey, buffer, fileName) => {
