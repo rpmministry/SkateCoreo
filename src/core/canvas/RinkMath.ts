@@ -345,6 +345,20 @@ export class RinkMath {
   ): SkaterAvatarState | null {
     if (!points || points.length === 0) return null;
 
+    const getFigureName = (pt: ChoreographyPathPoint): string | undefined => {
+      if (pt.label && pt.label.trim() !== '') return pt.label.trim();
+      if (pt.manual_figures && pt.manual_figures.length > 0 && pt.manual_figures[0].trim() !== '') {
+        return pt.manual_figures[0].trim();
+      }
+      if (pt.figures_manuales && pt.figures_manuales.length > 0 && pt.figures_manuales[0].trim() !== '') {
+        return pt.figures_manuales[0].trim();
+      }
+      if (pt.type && pt.type !== 'Marker' && pt.type !== 'Point') {
+        return pt.type;
+      }
+      return undefined;
+    };
+
     const onlyTracedPaths = options?.onlyTracedPaths ?? false;
     const sorted = [...points].sort((a, b) => a.time_ms - b.time_ms);
 
@@ -355,7 +369,9 @@ export class RinkMath {
         angleRad: 0,
         speedMps: 0,
         activeElement: null,
-        activePointIndex: 0
+        activePointIndex: 0,
+        activeFigureName: getFigureName(sorted[0]),
+        activePointId: sorted[0].id
       };
     }
 
@@ -367,7 +383,9 @@ export class RinkMath {
         angleRad: 0,
         speedMps: 0,
         activeElement: null,
-        activePointIndex: sorted.length - 1
+        activePointIndex: sorted.length - 1,
+        activeFigureName: getFigureName(last),
+        activePointId: last.id
       };
     }
 
@@ -378,6 +396,7 @@ export class RinkMath {
       if (currentTimeMs >= p0.time_ms && currentTimeMs <= p1.time_ms) {
         const timeSpanMs = p1.time_ms - p0.time_ms;
         const t = timeSpanMs > 0 ? (currentTimeMs - p0.time_ms) / timeSpanMs : 0;
+        const figureName = getFigureName(p0);
 
         const hasSplinePath = Boolean(p0.path && p0.path.length >= 2);
         const hasCustomCps =
@@ -392,7 +411,9 @@ export class RinkMath {
             angleRad: 0,
             speedMps: 0,
             activeElement: null,
-            activePointIndex: i
+            activePointIndex: i,
+            activeFigureName: figureName,
+            activePointId: p0.id
           };
         }
 
@@ -408,7 +429,9 @@ export class RinkMath {
             angleRad: splinePt.angleRad,
             speedMps: Math.round(speedMps * 10) / 10,
             activeElement: null,
-            activePointIndex: i
+            activePointIndex: i,
+            activeFigureName: figureName,
+            activePointId: p0.id
           };
         }
 
@@ -427,7 +450,9 @@ export class RinkMath {
             angleRad,
             speedMps: Math.round(speedMps * 10) / 10,
             activeElement: null,
-            activePointIndex: i
+            activePointIndex: i,
+            activeFigureName: figureName,
+            activePointId: p0.id
           };
         }
 
@@ -444,7 +469,9 @@ export class RinkMath {
           angleRad,
           speedMps: Math.round(speedMps * 10) / 10,
           activeElement: null,
-          activePointIndex: i
+          activePointIndex: i,
+          activeFigureName: figureName,
+          activePointId: p0.id
         };
       }
     }
@@ -455,7 +482,9 @@ export class RinkMath {
       angleRad: 0,
       speedMps: 0,
       activeElement: null,
-      activePointIndex: 0
+      activePointIndex: 0,
+      activeFigureName: getFigureName(sorted[0]),
+      activePointId: sorted[0].id
     };
   }
 

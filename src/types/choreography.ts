@@ -151,6 +151,8 @@ export interface SkaterAvatarState {
   speedMps: number; // Meters per second
   activeElement: ElementLog | null;
   activePointIndex: number;
+  activeFigureName?: string;
+  activePointId?: string;
 }
 
 export interface RinkDimensions {

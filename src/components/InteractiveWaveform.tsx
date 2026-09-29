@@ -102,6 +102,22 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     [timelineNodes]
   );
 
+  const activeTimelinePointId = useMemo(() => {
+    if (!sortedTimelineNodes || sortedTimelineNodes.length === 0) return null;
+    if (currentTimeMs <= sortedTimelineNodes[0].timestamp) {
+      return sortedTimelineNodes[0].id;
+    }
+    if (currentTimeMs >= sortedTimelineNodes[sortedTimelineNodes.length - 1].timestamp) {
+      return sortedTimelineNodes[sortedTimelineNodes.length - 1].id;
+    }
+    for (let i = 0; i < sortedTimelineNodes.length - 1; i++) {
+      if (currentTimeMs >= sortedTimelineNodes[i].timestamp && currentTimeMs < sortedTimelineNodes[i + 1].timestamp) {
+        return sortedTimelineNodes[i].id;
+      }
+    }
+    return sortedTimelineNodes[0].id;
+  }, [sortedTimelineNodes, currentTimeMs]);
+
   const isDraggingPinRef = useRef<boolean>(false);
   const dragStartPointRef = useRef<{ id: string; originalMs: number } | null>(null);
   const hasMovedRef = useRef<boolean>(false);
@@ -330,19 +346,21 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
       const pinX = timelineGeometry.timeToPx(point.timestamp / 1000, true);
       const isSelected = point.id === selectedPointId;
       const isDragged = point.id === draggedPinId;
+      const isActive = point.id === activeTimelinePointId;
       const theme = getMarkerTheme(point.type, isSelected, isDragged);
 
       // Línea vertical marcadora (Scrubber Line atravesando el Waveform)
       ctx.save();
-      ctx.strokeStyle = theme.stroke;
-      ctx.lineWidth = isDragged ? 2.5 : (isSelected ? 2 : 1.2);
-      if (!isSelected && !isDragged) {
+      ctx.strokeStyle = isActive ? '#00F0FF' : theme.stroke;
+      ctx.lineWidth = isDragged ? 2.5 : (isSelected || isActive ? 2 : 1.2);
+      if (!isSelected && !isDragged && !isActive) {
         ctx.setLineDash([3, 2]);
         ctx.globalAlpha = 0.45;
       } else {
         ctx.setLineDash([]);
-        ctx.shadowColor = theme.stroke;
-        ctx.shadowBlur = isDragged ? 14 : 8;
+        ctx.shadowColor = isActive ? '#00F0FF' : theme.stroke;
+        ctx.shadowBlur = isDragged ? 14 : (isActive ? 10 : 8);
+        ctx.globalAlpha = isActive ? 0.95 : 1;
       }
 
       ctx.beginPath();
@@ -415,6 +433,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     wavePeaks,
     sortedTimelineNodes,
     selectedPointId,
+    activeTimelinePointId,
     hoverX,
     hoverTimeMs,
     draggedPinId,
@@ -801,6 +820,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
             const isSelected = point.id === selectedPointId;
             const isDragged = point.id === draggedPinId;
             const isHovered = point.id === hoveredPinId;
+            const isActive = point.id === activeTimelinePointId;
             const theme = getMarkerTheme(point.type, isSelected, isDragged);
             const nodeNum = index + 1;
 
@@ -812,7 +832,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
                   left: `${pinLeftPx}px`,
                   transform: 'translateX(-50%)',
                   flexShrink: 0,
-                  zIndex: isDragged ? 40 : (isSelected ? 30 : 20),
+                  zIndex: isDragged ? 40 : (isSelected ? 30 : (isActive ? 25 : 20)),
                   touchAction: 'none',
                 }}
                 onPointerDown={(e) => handlePinPointerDown(e, point)}
@@ -852,18 +872,18 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
                     border-2 select-none transition-transform duration-100 ease-out
                     ${isDragged 
                       ? 'scale-110 shadow-2xl ring-2 ring-cyan-400/50' 
-                      : (isSelected ? 'scale-105 shadow-xl ring-1 ring-white/20' : 'shadow-lg')}
+                      : (isSelected ? 'scale-105 shadow-xl ring-1 ring-white/20' : (isActive ? 'scale-105 shadow-xl ring-2 ring-[#00F0FF]' : 'shadow-lg'))}
                   `}
                   style={{
                     flexShrink: 0,
-                    borderColor: theme.stroke,
+                    borderColor: isActive ? '#00F0FF' : theme.stroke,
                     boxShadow: isDragged 
                       ? `0 0 16px ${theme.glow}, 0 3px 10px rgba(0,0,0,0.9)` 
-                      : (isSelected ? `0 0 12px ${theme.glow}, 0 2px 8px rgba(0,0,0,0.8)` : `0 2px 6px rgba(0,0,0,0.6)`),
+                      : (isSelected ? `0 0 12px ${theme.glow}, 0 2px 8px rgba(0,0,0,0.8)` : (isActive ? '0 0 14px rgba(0,240,255,0.7), 0 2px 8px rgba(0,0,0,0.8)' : '0 2px 6px rgba(0,0,0,0.6)')),
                   }}
                   title={`Nodo #${nodeNum}: ${(point.timestamp / 1000).toFixed(1)}s. Arrastra para sincronizar con la música.`}
                 >
-                  <span className="text-[10px] sm:text-xs font-black font-mono text-white leading-none tracking-tight">
+                  <span className={`text-[10px] sm:text-xs font-black font-mono leading-none tracking-tight ${isActive ? 'text-cyan-300' : 'text-white'}`}>
                     {nodeNum}
                   </span>
                 </div>
@@ -872,9 +892,9 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
                 <div
                   className="w-0.5 flex-1 min-h-[6px] transition-opacity duration-150"
                   style={{
-                    backgroundColor: theme.stroke,
-                    opacity: isDragged ? 1 : (isSelected ? 0.9 : 0.4),
-                    boxShadow: (isDragged || isSelected) ? `0 0 6px ${theme.glow}` : 'none',
+                    backgroundColor: isActive ? '#00F0FF' : theme.stroke,
+                    opacity: isDragged ? 1 : (isSelected ? 0.9 : (isActive ? 0.85 : 0.4)),
+                    boxShadow: (isDragged || isSelected || isActive) ? `0 0 6px ${isActive ? '#00F0FF' : theme.glow}` : 'none',
                   }}
                 />
 

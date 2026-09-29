@@ -40,6 +40,7 @@ import { InteractiveWaveform } from './InteractiveWaveform';
 import { useCanvasCamera } from '../hooks/useCanvasCamera';
 import type { CameraBounds } from '../core/canvas/cameraBounds';
 import { FreehandPathEngine, Point2D } from '../core/math/FreehandPathEngine';
+import { playbackClock } from '../core/audio/PlaybackClock';
 
 /**
  * Tolerancia de SNAP del trazado, en PÍXELES de pantalla (independiente del zoom).
@@ -532,7 +533,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
   const skaterState = isPathGenerated ? RinkMath.interpolateSkaterPosition(points, audio.currentTimeMs) : null;
 
   // Render Frame Unificado de Canvas 2D con Cámara Virtual y Retina Display (devicePixelRatio)
-  const renderFrame = useCallback(() => {
+  const renderFrame = useCallback((explicitTimeMs?: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -587,21 +588,32 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     const currentPaperOverlay = useChoreographyStore.getState().paperTraceOverlay;
     const currentFullTrail = useChoreographyStore.getState().showFullTrailOverride;
 
-    const currentPlayTime = audio.isPlaying ? audioEngine.getCurrentTimeMs() : audio.currentTimeMs;
+    const currentPlayTime = typeof explicitTimeMs === 'number'
+      ? explicitTimeMs
+      : (audio.isPlaying ? audioEngine.getCurrentTimeMs() : audio.currentTimeMs);
 
-    // ¿Existe algún tramo realmente trazado por el usuario? Sin trazo no hay
-    // recorrido: no se dibuja avatar (nunca se inventa una ruta entre nodos).
-    const hasTracedPath = currentPoints.some(
-      (p) =>
-        Boolean(p.path && p.path.length >= 2) ||
-        (p.curveShaped === true && p.cp1x !== undefined && p.cp2x !== undefined)
-    );
+    // Determinar el nodo activo según el tiempo de reproducción actual (sincronizado con música y voces)
+    let activePointId: string | null = null;
+    if (currentPoints.length > 0) {
+      const sorted = [...currentPoints].sort((a, b) => a.time_ms - b.time_ms);
+      if (currentPlayTime <= sorted[0].time_ms) {
+        activePointId = sorted[0].id;
+      } else if (currentPlayTime >= sorted[sorted.length - 1].time_ms) {
+        activePointId = sorted[sorted.length - 1].id;
+      } else {
+        for (let i = 0; i < sorted.length - 1; i++) {
+          if (currentPlayTime >= sorted[i].time_ms && currentPlayTime < sorted[i + 1].time_ms) {
+            activePointId = sorted[i].id;
+            break;
+          }
+        }
+      }
+    }
 
-    // El patinador sólo aparece durante la reproducción, si el usuario lo
-    // permite y hay un trazado que seguir. En edición (o sin trazo) queda oculto.
-    const showSkater = showSkaterDuringPlayback && playbackEngaged && hasTracedPath;
+    // El patinador aparece durante la reproducción o pausa si hay nodos
+    const showSkater = showSkaterDuringPlayback && (playbackEngaged || audio.isPlaying || currentPlayTime > 0) && currentPoints.length > 0;
     const currentAvatar = showSkater
-      ? RinkMath.interpolateSkaterPosition(currentPoints, currentPlayTime, { onlyTracedPaths: true })
+      ? RinkMath.interpolateSkaterPosition(currentPoints, currentPlayTime)
       : null;
 
     // `try/finally` mantiene SIEMPRE equilibrada la pila de estados del contexto:
@@ -618,6 +630,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
         showRinkGrid: currentShowGrid,
         showControlHandles: currentShowHandles,
         selectedPointId: currentSelectedId,
+        activePointId,
         activeSegmentIndex: currentAvatar?.activePointIndex ?? null,
         // Nodo en arrastre activo → feedback visual reforzado en el render.
         draggingPointId:
@@ -626,7 +639,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
         phase,
         // Contexto de reproducción (PLAY o pausa congelada): activa el TRAZADO
         // PROGRESIVO del segmento actual. Independiente del avatar.
-        isPlaying: playbackEngaged,
+        isPlaying: playbackEngaged || audio.isPlaying,
         showFullTrailOverride: currentFullTrail,
         currentTimeMs: currentPlayTime,
         avatar: currentAvatar,
@@ -701,7 +714,8 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
         currentPoints,
         currentSelectedId,
         renderOpts.draggingPointId ?? null,
-        snapTargetRef.current
+        snapTargetRef.current,
+        activePointId
       );
 
       // Capa 5: Elementos técnicos RollArt
@@ -776,24 +790,18 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
     showSkaterDuringPlayback,
   ]);
 
-  // Loop de Renderizado Fluido a 60fps con requestAnimationFrame durante reproducción
+  // Loop de Renderizado Fluido sincronizado con el reloj maestro unificado de reproducción
   useEffect(() => {
-    if (!audio.isPlaying) {
-      renderFrame();
-      return;
-    }
-
-    let animId: number;
-    const loop = () => {
-      renderFrame();
-      animId = requestAnimationFrame(loop);
-    };
-    animId = requestAnimationFrame(loop);
+    // Sincroniza a 60fps durante reproducción (alineado al Hardware Audio Clock)
+    // y responde de forma reactiva inmediata ante cualquier seek, scrub o pause.
+    const unsubscribe = playbackClock.subscribe((timeMs) => {
+      renderFrame(timeMs);
+    });
 
     return () => {
-      cancelAnimationFrame(animId);
+      unsubscribe();
     };
-  }, [audio.isPlaying, renderFrame]);
+  }, [renderFrame]);
 
   // Carga reactiva de la imagen de fondo de calco de papel (Paper Trace Overlay)
   useEffect(() => {

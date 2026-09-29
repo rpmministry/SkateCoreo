@@ -33,6 +33,24 @@ class PlaybackClock {
   private rafId: number | null = null;
   private lastFrameTimeMs = 0;
 
+  constructor() {
+    if (typeof window !== 'undefined' && audioEngine) {
+      audioEngine.onStateChange((state) => {
+        if (state.isPlaying) {
+          this.ensureRunning();
+        } else {
+          this.stop();
+          this.tickOnce(state.currentTimeMs);
+        }
+      });
+      audioEngine.onTimeUpdate((timeMs) => {
+        if (this.rafId === null) {
+          this.tickOnce(timeMs);
+        }
+      });
+    }
+  }
+
   /**
    * Lectura puntual y exacta del tiempo de reproducción.
    * Es la fuente de verdad para cualquier operación lógica (cortar, marcar,
@@ -46,8 +64,28 @@ class PlaybackClock {
     return audioEngine.getState().isPlaying;
   }
 
+  /**
+   * Emite un frame puntual a todos los suscriptores (seek, pause, step, scrub).
+   */
+  public tickOnce(timeMs?: number): void {
+    const t = timeMs !== undefined ? timeMs : this.now();
+    this.lastFrameTimeMs = t;
+    const playing = this.isPlaying();
+    for (const callback of Array.from(this.callbacks)) {
+      try {
+        callback(t, playing);
+      } catch (err) {
+        console.warn('[PlaybackClock] Error en suscriptor puntual:', err);
+      }
+    }
+  }
+
   public subscribe(callback: PlaybackFrameCallback): () => void {
     this.callbacks.add(callback);
+    // Notificación inicial inmediata
+    try {
+      callback(this.now(), this.isPlaying());
+    } catch (e) {}
     this.ensureRunning();
     return () => {
       this.callbacks.delete(callback);
@@ -60,8 +98,9 @@ class PlaybackClock {
     return this.lastFrameTimeMs;
   }
 
-  private ensureRunning(): void {
+  public ensureRunning(): void {
     if (this.rafId !== null || typeof requestAnimationFrame === 'undefined') return;
+    if (!this.isPlaying()) return;
 
     const loop = () => {
       const timeMs = this.now();
@@ -77,13 +116,17 @@ class PlaybackClock {
         }
       }
 
-      this.rafId = requestAnimationFrame(loop);
+      if (this.isPlaying() && this.callbacks.size > 0) {
+        this.rafId = requestAnimationFrame(loop);
+      } else {
+        this.stop();
+      }
     };
 
     this.rafId = requestAnimationFrame(loop);
   }
 
-  private stop(): void {
+  public stop(): void {
     if (this.rafId !== null) {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;

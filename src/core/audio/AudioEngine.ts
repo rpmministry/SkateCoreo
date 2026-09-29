@@ -965,11 +965,22 @@ export class AudioEngine {
     return this.voiceCueEngine.getVoiceGender();
   }
 
+  private currentNodes: ChoreographyPathPoint[] = [];
+
   /**
    * Sincroniza los puntos y figuras de la pista 2D con el secuenciador de alertas vocales (3, 2, 1, ¡Ya!)
    */
   public setNodes(nodes: ChoreographyPathPoint[]) {
+    this.currentNodes = nodes;
     this.voiceCueEngine.loadNodes(nodes);
+  }
+
+  public getNodes(): ChoreographyPathPoint[] {
+    return [...this.currentNodes];
+  }
+
+  public getVoiceCues() {
+    return this.voiceCueEngine.getCues();
   }
 
   public getAudioBuffer(domain?: AudioPlaybackDomain): AudioBuffer | null {
@@ -1089,6 +1100,7 @@ export class AudioEngine {
     this.loop = null;
     this.rinkRevision = 0;
     this.rinkAudioId = 'rink-audio-0';
+    this.currentNodes = [];
     this.voiceCueEngine.loadNodes([]);
     this.mediaSession.updateMetadata('Sin pista');
     this.emitTimeUpdate(0);
@@ -2077,6 +2089,9 @@ export class AudioEngine {
       // Cualquier seek (incluido volver a 0:00) cancela un pre-roll pendiente:
       // nunca quedan voces ni música agendada de un conteo abandonado.
       this.cancelPreRoll();
+      if (this.playbackDomain === 'rink') {
+        this.metronome.sync(clamped / 1000, this.playbackRate);
+      }
       this.emitTimeUpdate(clamped);
       this.mediaSession.updatePositionState(this.durationMs / 1000, clamped / 1000, this.playbackRate);
       this.emitStateChange();

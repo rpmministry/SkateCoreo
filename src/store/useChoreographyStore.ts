@@ -3,6 +3,7 @@ import { ChoreographyPoint, ChoreographyPathPoint, ControlPoint, SkaterGender } 
 import { ChoreographyPhase } from '../core/canvas/RinkRenderer';
 import { CategoriaReglamento, EficienciaReglamento, getCategoriaByEdad } from '../constants/reglamento';
 import { AudioTimeNode } from '../types/audioStudio';
+import { audioEngine } from '../core/audio/AudioEngine';
 
 export interface ChoreographyStoreState {
   // Bandeja de Nodos de Audio (UI Tray recibida desde el Estudio de Audio)
@@ -762,7 +763,7 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
 
     let pointsChanged = false;
     const updatedPoints = points.map((p) => {
-      const marker = incomingById.get(p.id);
+      const marker = incomingById.get(p.sourceStudioMarkerId || p.id);
       if (!marker) return p; // marcador eliminado en el Studio: se conserva el nodo
       const newMs = Math.round(marker.timestampSec * 1000);
       const userTouchedTime =
@@ -787,7 +788,7 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
       return { ...p, studioTimeConflict: true, pendingStudioTimestampMs: newMs };
     });
 
-    const placedIds = new Set(points.map((p) => p.id));
+    const placedIds = new Set(points.flatMap((p) => [p.id, p.sourceStudioMarkerId].filter((id): id is string => Boolean(id))));
     const reconciled = nodes
       .filter((n) => !placedIds.has(n.id))
       .sort((a, b) => a.timestampSec - b.timestampSec);
@@ -860,4 +861,11 @@ export const useChoreographyStore = create<ChoreographyStoreState>((set, get) =>
     set({ unplacedNodes: [], activeTrayNodeIndex: 0 });
   },
 }));
+
+// Sincronización continua y atómica de los nodos con el motor de audio y VoiceCueEngine
+useChoreographyStore.subscribe((state, prev) => {
+  if (state.points !== prev?.points) {
+    audioEngine.setNodes(state.points);
+  }
+});
 

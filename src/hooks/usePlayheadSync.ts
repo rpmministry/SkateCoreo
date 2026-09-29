@@ -32,17 +32,16 @@ export function usePlayheadSync(
   const updateRef = useRef(update);
   updateRef.current = update;
 
-  // Bucle de frames compartido mientras hay reproducción
+  // Suscripción al reloj compartido: recibe frames continuos en reproducción
+  // y ticks puntuales al pausar, hacer seek, scrub o avanzar/retroceder.
   useEffect(() => {
-    if (!active) return;
     return playbackClock.subscribe((timeMs, isPlaying) => {
       updateRef.current(timeMs, isPlaying);
     });
-  }, [active]);
+  }, []);
 
-  // Escritura puntual al pausar, al hacer seek y al cambiar la geometría
+  // Escritura puntual al cambiar la geometría o alternar el estado
   useEffect(() => {
-    if (active) return;
     updateRef.current(playbackClock.now(), playbackClock.isPlaying());
   }, [active, refreshKey]);
 }

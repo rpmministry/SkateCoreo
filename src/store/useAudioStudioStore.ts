@@ -21,6 +21,8 @@ import { audioEngine } from '../core/audio/AudioEngine';
 import { useRinkAudioStore } from './useRinkAudioStore';
 import { ttsService } from '../services/ttsService';
 import { useChoreographyStore } from './useChoreographyStore';
+import type { ChoreographyPoint } from '../types';
+import { playbackClock } from '../core/audio/PlaybackClock';
 import { renderStudioMixdown, bounceStudioClipsToBuffer } from '../core/audio/studioMixdown';
 import { VoiceRecorder, normalizeAudioBufferPeak } from '../core/audio/VoiceRecorder';
 import {
@@ -2228,8 +2230,15 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
 
   // ── PUENTE Rink → Studio: "Editar en Estudio" (snapshot del audio publicado) ──
   loadPublishedIntoStudio: () => {
+    // Detener cualquier reproducción activa para aislamiento completo
+    audioEngine.pause();
+    get().setIsPlaying(false);
+
     const published = audioEngine.getPublishedAudio();
-    if (!published.buffer) return false;
+    if (!published.buffer) {
+      get().syncMarkersFromRink();
+      return false;
+    }
 
     // Se comparte la REFERENCIA del buffer publicado (eficiencia): todas las
     // operaciones del Studio son no destructivas (crean buffers nuevos) y nunca
@@ -2242,56 +2251,75 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   /**
    * Reconciliación IDEMPOTENTE de marcadores Rink → Studio.
    *
-   * Los nodos ya colocados en la Pista 2D conservan su identidad estable en
-   * `sourceStudioMarkerId` (que coincide con el `id` del marcador original del
-   * Studio). Por cada nodo con esa procedencia:
-   *   - si el marcador YA existe en el Studio → NO se crea otro (evita duplicados);
-   *   - si no existe → se añade con su `timestampSec` redondeado a ms.
+   * Los nodos colocados en la Pista 2D conservan su identidad estable en
+   * `sourceStudioMarkerId || id`. Por cada nodo colocado:
+   *   - si el marcador YA existe en el Studio → se actualiza su timestamp si cambió;
+   *   - si no existe → se añade con su `timestampSec` exacto.
    *
-   * No se transforma la posición espacial X/Y del Rink: en el Studio el único dato
-   * relevante es el tiempo. Tampoco se tocan los marcadores creados en el Studio
-   * que aún no se han colocado en la Pista 2D.
+   * Conserva los marcadores creados en el Studio y garantiza tiempos alineados al ms.
    */
   syncMarkersFromRink: () => {
     const placedPoints = useChoreographyStore.getState().points;
     if (placedPoints.length === 0) return false;
 
     const state = get();
-    const existingIds = new Set(state.audioNodes.map((n) => n.id));
+    const existingMap = new Map<string, AudioTimeNode>();
+    for (const n of state.audioNodes) {
+      existingMap.set(n.id, n);
+    }
 
-    // Duración objetivo: solo cuenta el tiempo de los marcadores AÑADIDOS, para
-    // no crecer el timeline en +1s en cada reapertura sin motivo.
+    let changed = false;
     let maxMarkerSec = 0;
-    const added: AudioTimeNode[] = [];
+    const resultNodes: AudioTimeNode[] = [];
 
     for (const point of placedPoints) {
-      const markerId = point.sourceStudioMarkerId;
-      if (!markerId || existingIds.has(markerId)) continue;
+      const markerId = point.sourceStudioMarkerId || point.id;
       const timeMs = Number.isFinite(point.timestamp) ? point.timestamp : point.time_ms;
       if (!Number.isFinite(timeMs)) continue;
       const timestampSec = Math.max(0, timeMs / 1000);
-      existingIds.add(markerId);
       maxMarkerSec = Math.max(maxMarkerSec, timestampSec);
-      added.push({
-        id: markerId,
-        numeroSecuencial: 0,
-        timestampSec,
-        label: point.label || '',
-      });
+
+      const existing = existingMap.get(markerId);
+      if (existing) {
+        if (Math.abs(existing.timestampSec - timestampSec) > 0.001 || (point.label && point.label !== existing.label)) {
+          changed = true;
+          resultNodes.push({
+            ...existing,
+            timestampSec,
+            label: point.label || existing.label,
+          });
+        } else {
+          resultNodes.push(existing);
+        }
+        existingMap.delete(markerId);
+      } else {
+        changed = true;
+        resultNodes.push({
+          id: markerId,
+          numeroSecuencial: 0,
+          timestampSec,
+          label: point.label || '',
+        });
+      }
     }
 
-    if (added.length === 0) return false;
+    for (const remaining of existingMap.values()) {
+      resultNodes.push(remaining);
+      maxMarkerSec = Math.max(maxMarkerSec, remaining.timestampSec);
+    }
 
-    const merged = [...state.audioNodes, ...added]
+    if (!changed && resultNodes.length === state.audioNodes.length) {
+      return false;
+    }
+
+    const merged = resultNodes
       .sort((a, b) => a.timestampSec - b.timestampSec)
       .map((node, index) => ({ ...node, numeroSecuencial: index + 1 }));
 
     set({
       audioNodes: merged,
-      // Asegura que los marcadores recién traídos caigan dentro del timeline.
       totalDurationSec: Math.max(state.totalDurationSec, Math.ceil(maxMarkerSec + 1)),
     });
-    // Traer nodos del Rink es un cambio del borrador hasta que se envíe de vuelta.
     useRinkAudioStore.getState().markStudioDirty(true);
     return true;
   },
@@ -2322,14 +2350,13 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
     const nodes = state.audioNodes;
 
     // 1. Enviar a la Pista 2D la MEZCLA consolidada (respetando cortes, offsets,
-    //    fades y mutes), NO el buffer original de la pista Master: enviar
-    //    `musicTrack.buffer` reproducía el archivo completo ignorando los clips.
+    //    fades y mutes), NO el buffer original de la pista Master.
     const arrangementTracks = arrangementOf(state);
     const mixed = bounceStudioClipsToBuffer(arrangementTracks, state.totalDurationSec);
     const buffer = mixed ?? state.tracks.music.buffer ?? null;
 
     // PUBLICACIÓN (Studio Draft → Rink Published): ÚNICO punto que reemplaza el
-    // audio publicado del Rink. Si no hay material válido, no se publica nada.
+    // audio publicado del Rink.
     if (buffer && buffer.length > 0) {
       const name = mixed
         ? 'mezcla_estudio.wav'
@@ -2339,9 +2366,12 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
       useRinkAudioStore.getState().markStudioDirty(false);
     }
 
-    // 2. Los NODOS son anotaciones temporales: viajan a la bandeja de la Pista 2D
-    //    con independencia de la publicación del audio.
-    useChoreographyStore.getState().setUnplacedNodes(nodes);
+    // 2. Si ya existen nodos en la Pista 2D, se realiza la sustitución completa y limpia
+    if (useChoreographyStore.getState().points.length > 0) {
+      syncStudioNodesToRink(nodes);
+    } else {
+      useChoreographyStore.getState().setUnplacedNodes(nodes);
+    }
 
     return {
       nodes,
@@ -2352,16 +2382,13 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
   // ── RENDERIZADO MIXDOWN POR HARDWARE: Exportar mezcla combinada a Pista 2D ──
   renderAndExportMixdown: async () => {
     const state = get();
-    // En la nueva arquitectura, las pistas de audio activas son la Principal (Música)
-    // + la VOZ grabada + las pistas adicionales.
     const arrangementTracks: AudioStudioTrack[] = arrangementOf(state);
 
     try {
       const result = await renderStudioMixdown(
         arrangementTracks,
         state.totalDurationSec,
-        // Sin metrónomo horneado: el Rink reproduce su metrónomo EN VIVO. Hornearlo
-        // producía dos clics desfasados (fase/timbre/BPM distintos).
+        // Sin metrónomo horneado: el Rink reproduce su metrónomo EN VIVO.
         { ...state.metronomeConfig, enabled: false }
       );
 
@@ -2371,14 +2398,13 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
         throw new Error('El render de la mezcla resultó vacío o inválido');
       }
 
-      // PUBLICACIÓN ATÓMICA: render → validate → publish. Es el ÚNICO punto que
-      // reemplaza el audio publicado del Rink; el borrador del Studio queda intacto.
+      // PUBLICACIÓN ATÓMICA: render → validate → publish.
       audioEngine.publishRinkAudio(result.buffer, 'Mezcla final (Audio Studio).wav', 'studio-mix');
       useRinkAudioStore.getState().syncFromEngine();
       useRinkAudioStore.getState().markStudioDirty(false);
 
-      // Enviar nodos temporales a la bandeja lateral de la Pista 2D
-      useChoreographyStore.getState().setUnplacedNodes(state.audioNodes);
+      // SUSTITUCIÓN COMPLETA Y LIMPIA DE NODOS EN LA PISTA 2D (Criterio #5)
+      syncStudioNodesToRink(state.audioNodes);
 
       return {
         success: true,
@@ -2386,8 +2412,6 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
       };
     } catch (err) {
       console.error('[AudioStudioStore] Error rendering mixdown with OfflineAudioContext:', err);
-      // FALLO DE PUBLICACIÓN: no se toca el audio publicado anterior ni el borrador;
-      // el Rink conserva íntegra su versión previa.
       return {
         success: false,
         durationSec: state.totalDurationSec,
@@ -2395,6 +2419,109 @@ export const useAudioStudioStore = create<AudioStudioStoreState>((set, get) => (
     }
   },
 }));
+
+/**
+ * Sustitución limpia, atómica y completa del contenido de la Pista 2D a partir
+ * de los nodos del Estudio de Audio (AudioTimeNode[]).
+ *
+ * Cumple con los requisitos de sincronización de SkateCoreo:
+ * 1. Los nodos de la Pista 2D son reemplazados exactamente por los nodos preparados en el Estudio.
+ * 2. Si un nodo ya existía en la Pista 2D (por `sourceStudioMarkerId` o `id`),
+ *    se conservan sus coordenadas espaciales (x, y), figuras manuales y trazados,
+ *    actualizando su tiempo al milisegundo exacto del marcador del Estudio.
+ * 3. Si es un nodo nuevo creado en el Estudio, se interpola su posición espacial
+ *    de forma continua a lo largo del recorrido de la pista.
+ * 4. Los nodos antiguos eliminados en el Estudio se descartan completamente (sustitución limpia).
+ * 5. Se vacía la bandeja `unplacedNodes` para evitar residuos o duplicaciones.
+ * 6. Se reinicia el transporte de audio a 0:00 y se actualiza el motor de voz guía.
+ */
+export function syncStudioNodesToRink(studioNodes: AudioTimeNode[]): ChoreographyPoint[] {
+  const choreoStore = useChoreographyStore.getState();
+  const currentPoints = choreoStore.points;
+
+  // Mapa de puntos previos para preservar coordenadas espaciales, figuras y curvas
+  const prevByMarkerId = new Map<string, ChoreographyPoint>();
+  for (const pt of currentPoints) {
+    if (pt.sourceStudioMarkerId) {
+      prevByMarkerId.set(pt.sourceStudioMarkerId, pt);
+    }
+    prevByMarkerId.set(pt.id, pt);
+  }
+
+  // Ordenar nodos del estudio cronológicamente
+  const sortedStudioNodes = [...studioNodes].sort((a, b) => a.timestampSec - b.timestampSec);
+
+  // Puntos base ya colocados para interpolación espacial si hay nodos nuevos
+  const referencePlaced = currentPoints.filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
+
+  const replacedPoints: ChoreographyPoint[] = sortedStudioNodes.map((sNode, idx) => {
+    const existing = prevByMarkerId.get(sNode.id);
+    const timeMs = Math.max(0, Math.round(sNode.timestampSec * 1000));
+
+    if (existing) {
+      return {
+        ...existing,
+        id: existing.id || sNode.id,
+        sourceStudioMarkerId: sNode.id,
+        time_ms: timeMs,
+        timestamp: timeMs,
+        studioPublishedTimestampMs: timeMs,
+        label: sNode.label?.trim() ? sNode.label : existing.label,
+        isMainNode: true,
+      };
+    }
+
+    // Nodo nuevo procedente de Estudio: interpolar posición (x, y) sobre la pista
+    let x = 10 + (idx * 5) % 30;
+    let y = 12.5;
+
+    if (referencePlaced.length >= 2) {
+      let prevPt = referencePlaced[0];
+      let nextPt = referencePlaced[referencePlaced.length - 1];
+
+      for (let i = 0; i < referencePlaced.length - 1; i++) {
+        if (timeMs >= referencePlaced[i].time_ms && timeMs <= referencePlaced[i + 1].time_ms) {
+          prevPt = referencePlaced[i];
+          nextPt = referencePlaced[i + 1];
+          break;
+        }
+      }
+
+      const span = nextPt.time_ms - prevPt.time_ms;
+      const t = span > 0 ? (timeMs - prevPt.time_ms) / span : 0.5;
+      x = Math.round((prevPt.x + (nextPt.x - prevPt.x) * t) * 10) / 10;
+      y = Math.round((prevPt.y + (nextPt.y - prevPt.y) * t) * 10) / 10;
+    } else if (referencePlaced.length === 1) {
+      x = Math.min(48, Math.max(2, referencePlaced[0].x + 4));
+      y = referencePlaced[0].y;
+    }
+
+    return {
+      id: sNode.id.startsWith('node-') || sNode.id.startsWith('marker-') ? sNode.id : `node-${sNode.id}`,
+      sourceStudioMarkerId: sNode.id,
+      x,
+      y,
+      time_ms: timeMs,
+      timestamp: timeMs,
+      studioPublishedTimestampMs: timeMs,
+      label: sNode.label || '',
+      isMainNode: true,
+    };
+  });
+
+  // Reemplazar completamente en el store de coreografía
+  choreoStore.setPoints(replacedPoints);
+  choreoStore.setUnplacedNodes([]);
+
+  // Detener transporte, reiniciar a 0:00 y sincronizar el motor de audio / voces / metrónomo
+  audioEngine.seek(0);
+  audioEngine.setNodes(replacedPoints);
+
+  // Sincronizar el reloj maestro para que lienzo y timeline despierten en 0:00 sincronizados
+  playbackClock.tickOnce(0);
+
+  return replacedPoints;
+}
 
 
 initialStudioSnapshot = useAudioStudioStore.getState();
