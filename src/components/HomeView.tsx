@@ -1,5 +1,5 @@
 import React from 'react';
-import { Compass, AudioLines, FolderOpen, ScanLine, ArrowRight } from 'lucide-react';
+import { Compass, AudioLines, FolderOpen, ScanLine, ArrowRight, Users } from 'lucide-react';
 import { SkateCoreoBrand } from './brand/SkateCoreoBrand';
 import { Button } from './ui/Button';
 
@@ -30,6 +30,8 @@ export interface HomeViewProps {
   onSaveOffline: () => void;
   /** Abre la digitalización de la plantilla A4 (Paper-to-Digital). */
   onOpenPaperToDigital?: () => void;
+  /** Acceso al Panel de Entrenadores. */
+  onOpenCoach?: () => void;
 }
 
 /* ── Glifos abstractos (decorativos, minimalistas) ──────────────── */
@@ -179,6 +181,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onOpenStudio,
   onImportCoreo,
   onOpenPaperToDigital,
+  onOpenCoach,
 }) => {
   return (
     <section
@@ -258,6 +261,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
               <Button variant="secondary" onClick={onOpenPaperToDigital}>
                 <ScanLine className="h-4 w-4 text-mint" />
                 Digitalizar plantilla A4
+              </Button>
+            )}
+
+            {onOpenCoach && (
+              <Button variant="secondary" onClick={onOpenCoach}>
+                <Users className="h-4 w-4 text-cyan" />
+                Panel de Entrenadores
               </Button>
             )}
           </div>

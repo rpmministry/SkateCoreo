@@ -22,6 +22,7 @@ import {
   FileDown,
   CheckCircle2,
   Building2,
+  Users,
 } from 'lucide-react';
 import { audioEngine } from '../services/audioEngine';
 import { getBuildLabel } from '../core/audio/buildInfo';
@@ -69,6 +70,7 @@ interface LeftSidebarPanelProps {
   onLogout?: () => void;
   showHeader?: boolean;
   isMobileModal?: boolean;
+  onOpenCoachPortal?: () => void;
 }
 
 
@@ -82,6 +84,7 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
   onLogout,
   showHeader = true,
   isMobileModal = false,
+  onOpenCoachPortal,
 }) => {
   const audio = useAudioEngine();
 
@@ -667,6 +670,22 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
                 <span>Panel Clubes &amp; Licencias</span>
               </span>
               <span className="text-[10px] text-cyan font-bold">Admin &gt;</span>
+            </button>
+          )}
+
+          {/* Botón Panel de Entrenadores */}
+          {onOpenCoachPortal && (
+            <button
+              type="button"
+              onClick={onOpenCoachPortal}
+              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-cyan/10 hover:bg-cyan/20 border border-cyan/30 text-[11px] font-semibold text-cyan hover:text-white transition-all interactive-tap"
+              title="Panel de Entrenadores: Atletas, Fichas, Coreografías y Almacenamiento"
+            >
+              <span className="flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-cyan" />
+                <span>Panel de Entrenadores</span>
+              </span>
+              <span className="text-[10px] text-cyan font-bold">Abrir &gt;</span>
             </button>
           )}
 
