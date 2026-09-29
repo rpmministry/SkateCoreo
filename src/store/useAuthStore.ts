@@ -126,6 +126,9 @@ const loadSavedSession = (): {
   access_expires_at: string | null;
 } => {
   try {
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      return { user: null, role: 'user', status: 'inactive', plan: 'individual', access_expires_at: null };
+    }
     const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('skateart_saas_auth_session');
     if (raw) {
       const parsed = JSON.parse(raw);

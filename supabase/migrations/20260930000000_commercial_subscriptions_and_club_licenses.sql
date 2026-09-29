@@ -284,7 +284,7 @@ DECLARE
   v_expires_at TIMESTAMPTZ;
   v_codes TEXT[] := ARRAY[]::TEXT[];
   v_code TEXT;
-  v_chars TEXT := '23456789ABCDEFGHJKMNPQRSTUVWXYZ'; -- Evita caracteres ambiguos (0/O, 1/I, L)
+  v_chars TEXT := '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; -- Evita caracteres ambiguos (0/O, 1/I)
   v_part1 TEXT;
   v_part2 TEXT;
   i INT;

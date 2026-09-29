@@ -16,6 +16,7 @@ import {
   generateSecureCode,
 } from './commercialLicenseService';
 import { LicensePdfService } from './licensePdfService';
+import { isOwnerOrAdmin } from '../store/useAuthStore';
 
 async function runTests() {
   console.log('🧪 Iniciando pruebas del Sistema Comercial y Licencias de SkateCoreo...\n');
@@ -235,6 +236,25 @@ async function runTests() {
     assert.equal(isGrantedD, false, 'Un entitlement revocado NO debe tener acceso.');
 
     console.log('   ✓ Control de entitlements validado: las credenciales solas nunca permiten acceso si la vigencia expiró.');
+  }
+
+  // ── 7. Autorizaciones de Administradores del Panel ───────────────────────
+  console.log('\n7. Verificando autorizaciones de administradores del panel...');
+  {
+    const targetAdmins = [
+      'mauriandrade2@gmail.com',
+      'karenprofet@gmail.com',
+      'contacto@alsiztech.com',
+    ];
+
+    for (const email of targetAdmins) {
+      assert.equal(
+        isOwnerOrAdmin(email),
+        true,
+        `El correo de administrador ${email} debe tener autorización completa (isOwnerOrAdmin = true).`
+      );
+    }
+    console.log('   ✓ Los 3 correos administrativos cuentan con permisos totales de superadministrador.');
   }
 
   console.log('\n🎉 ¡TODAS LAS PRUEBAS COMERCIALES Y DE LICENCIAS PASARON CON ÉXITO!\n');
