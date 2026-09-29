@@ -238,13 +238,52 @@ export class AudioEngine {
   private voiceCueGainNode: GainNode | null = null;
   private coachBusGainNode: GainNode | null = null;
 
-  // Strict L/R Routing Matrix Nodes
-  private musicToLeftGain: GainNode | null = null;
-  private musicToRightGain: GainNode | null = null;
-  private coachToLeftGain: GainNode | null = null;
-  private coachToRightGain: GainNode | null = null;
-  private mergerNode: ChannelMergerNode | null = null;
-  private masterGainNode: GainNode | null = null;
+  // ── Arquitectura de Canales e Interconexión de Buses (Ref. AudioMass / Web Audio API) ──
+  // Splitters dedicados para desacoplar los canales L y R de cada sub-bus
+  public musicSplitterNode: ChannelSplitterNode | null = null;
+  public guideSplitterNode: ChannelSplitterNode | null = null;
+
+  // Matriz de enrutamiento explícito con GainNodes dedicados:
+  // Rutas de Música:
+  public musicLeftToLeftGain: GainNode | null = null;   // Music L -> Hardware Left (Merger in 0)
+  public musicRightToLeftGain: GainNode | null = null;  // Music R -> Hardware Left (Merger in 0)
+  public musicLeftToRightGain: GainNode | null = null;  // Music L -> Hardware Right (Merger in 1)
+  public musicRightToRightGain: GainNode | null = null; // Music R -> Hardware Right (Merger in 1)
+
+  // Rutas de Guía (Coach / Metrónomo / Voz):
+  public coachLeftToLeftGain: GainNode | null = null;   // Guide L -> Hardware Left (Merger in 0)
+  public coachRightToLeftGain: GainNode | null = null;  // Guide R -> Hardware Left (Merger in 0)
+  public coachLeftToRightGain: GainNode | null = null;  // Guide L -> Hardware Right (Merger in 1)
+  public coachRightToRightGain: GainNode | null = null; // Guide R -> Hardware Right (Merger in 1)
+
+  // Banderas de conexión física activa hacia mergerNode para garantizar desconexión real y evitar duplicados
+  private isMusicLToLeftConnected = false;
+  private isMusicRToLeftConnected = false;
+  private isMusicLToRightConnected = false;
+  private isMusicRToRightConnected = false;
+
+  private isCoachLToLeftConnected = false;
+  private isCoachRToLeftConnected = false;
+  private isCoachLToRightConnected = false;
+  private isCoachRToRightConnected = false;
+
+  // Nodo Merger de 2 canales y Master Gain final
+  public mergerNode: ChannelMergerNode | null = null;
+  public masterGainNode: GainNode | null = null;
+
+  // Getters para compatibilidad de introspección / tests
+  public get musicToLeftGain(): GainNode | null {
+    return this.musicLeftToLeftGain;
+  }
+  public get musicToRightGain(): GainNode | null {
+    return this.musicRightToRightGain;
+  }
+  public get coachToLeftGain(): GainNode | null {
+    return this.coachLeftToLeftGain;
+  }
+  public get coachToRightGain(): GainNode | null {
+    return this.coachLeftToRightGain;
+  }
 
   // Sub-modules
   public metronome: Metronome;
@@ -520,8 +559,13 @@ export class AudioEngine {
 
   public initAudioContext() {
     if (!this.ctx) {
-      const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
-      this.ctx = new AudioCtxClass({ latencyHint: 'interactive' });
+      const AudioCtxClass =
+        typeof window !== 'undefined'
+          ? (window.AudioContext || (window as any).webkitAudioContext)
+          : (globalThis as any).AudioContext;
+      if (!AudioCtxClass) return;
+      const ctx = new AudioCtxClass({ latencyHint: 'interactive' });
+      this.ctx = ctx;
 
       // iOS WebKit silent switch bypass
       if ('audioSession' in navigator && (navigator as any).audioSession) {
@@ -533,56 +577,93 @@ export class AudioEngine {
       }
 
       // Master Gain
-      this.masterGainNode = this.ctx.createGain();
+      const masterGain = ctx.createGain();
+      this.masterGainNode = masterGain;
 
-      // Sub-busses
-      this.musicGainNode = this.ctx.createGain();
-      this.metronomeGainNode = this.ctx.createGain();
-      this.voiceCueGainNode = this.ctx.createGain();
-      this.coachBusGainNode = this.ctx.createGain();
+      // Sub-busses lógicos independientes
+      const musicGain = ctx.createGain();       // musicBus: contiene exclusivamente música
+      this.musicGainNode = musicGain;
+      const metronomeGain = ctx.createGain();
+      this.metronomeGainNode = metronomeGain;
+      const voiceCueGain = ctx.createGain();
+      this.voiceCueGainNode = voiceCueGain;
+      const coachBusGain = ctx.createGain();    // guideBus: contiene metrónomo + voz guía
+      this.coachBusGainNode = coachBusGain;
 
-      // Connect metronome and voice cue into coach sub-bus
-      this.metronomeGainNode.connect(this.coachBusGainNode);
-      this.voiceCueGainNode.connect(this.coachBusGainNode);
+      // Metrónomo y voz guía se conectan exclusivamente a guideBus
+      metronomeGain.connect(coachBusGain);
+      voiceCueGain.connect(coachBusGain);
 
-      // Create Strict Matrix Gain Nodes
-      this.musicToLeftGain = this.ctx.createGain();
-      this.musicToRightGain = this.ctx.createGain();
-      this.coachToLeftGain = this.ctx.createGain();
-      this.coachToRightGain = this.ctx.createGain();
+      // Splitters físicos de canales para desacoplar completamente L y R de cada sub-bus
+      const musicSplitter = ctx.createChannelSplitter(2);
+      this.musicSplitterNode = musicSplitter;
+      musicGain.connect(musicSplitter);
 
-      // Connect music to matrix
-      this.musicGainNode.connect(this.musicToLeftGain);
-      this.musicGainNode.connect(this.musicToRightGain);
+      const guideSplitter = ctx.createChannelSplitter(2);
+      this.guideSplitterNode = guideSplitter;
+      coachBusGain.connect(guideSplitter);
 
-      // Connect coach to matrix
-      this.coachBusGainNode.connect(this.coachToLeftGain);
-      this.coachBusGainNode.connect(this.coachToRightGain);
+      // Crear nodos dedicados de la matriz de enrutamiento
+      const musicLToL = ctx.createGain();
+      const musicRToL = ctx.createGain();
+      const musicLToR = ctx.createGain();
+      const musicRToR = ctx.createGain();
+      this.musicLeftToLeftGain = musicLToL;
+      this.musicRightToLeftGain = musicRToL;
+      this.musicLeftToRightGain = musicLToR;
+      this.musicRightToRightGain = musicRToR;
 
-      // Create 2-channel merger (0 = Left, 1 = Right)
-      this.mergerNode = this.ctx.createChannelMerger(2);
+      const coachLToL = ctx.createGain();
+      const coachRToL = ctx.createGain();
+      const coachLToR = ctx.createGain();
+      const coachRToR = ctx.createGain();
+      this.coachLeftToLeftGain = coachLToL;
+      this.coachRightToLeftGain = coachRToL;
+      this.coachLeftToRightGain = coachLToR;
+      this.coachRightToRightGain = coachRToR;
 
-      this.musicToLeftGain.connect(this.mergerNode, 0, 0);
-      this.coachToLeftGain.connect(this.mergerNode, 0, 0);
+      // Conectar Splitter de música a los GainNodes de la matriz
+      // Splitter de música: salida 0 = L, salida 1 = R
+      musicSplitter.connect(musicLToL, 0);
+      musicSplitter.connect(musicLToR, 0);
+      musicSplitter.connect(musicRToL, 1);
+      musicSplitter.connect(musicRToR, 1);
 
-      this.musicToRightGain.connect(this.mergerNode, 0, 1);
-      this.coachToRightGain.connect(this.mergerNode, 0, 1);
+      // Conectar Splitter de guía a los GainNodes de la matriz
+      // Splitter de guía: salida 0 = L, salida 1 = R
+      guideSplitter.connect(coachLToL, 0);
+      guideSplitter.connect(coachLToR, 0);
+      guideSplitter.connect(coachRToL, 1);
+      guideSplitter.connect(coachRToR, 1);
 
-      this.mergerNode.connect(this.masterGainNode);
-      this.masterGainNode.connect(this.ctx.destination);
+      // Merger de 2 canales hacia master
+      const merger = ctx.createChannelMerger(2);
+      this.mergerNode = merger;
+      merger.connect(masterGain);
+      masterGain.connect(ctx.destination);
+
+      // Resetear banderas de conexión física
+      this.isMusicLToLeftConnected = false;
+      this.isMusicRToLeftConnected = false;
+      this.isMusicLToRightConnected = false;
+      this.isMusicRToRightConnected = false;
+      this.isCoachLToLeftConnected = false;
+      this.isCoachRToLeftConnected = false;
+      this.isCoachLToRightConnected = false;
+      this.isCoachRToRightConnected = false;
 
       // Initialize sub-modules with AudioContext & nodes
-      this.metronome.init(this.ctx, this.metronomeGainNode);
+      this.metronome.init(ctx, metronomeGain);
       // Aquí SOLO se aplica el estado del bus (mute). El estado lógico
       // (`enabled`) pertenece al store: antes `setEnabled(!muted)` podía
       // encender el metrónomo al reconstruirse el AudioContext (fuente fantasma
       // que la UI mostraba como OFF).
       this.metronome.setMuted(this.metronomeMuted);
-      this.voiceCueEngine.init(this.ctx, this.voiceCueGainNode);
+      this.voiceCueEngine.init(ctx, voiceCueGain);
 
       recordAudioCounter('audioContextsCreated');
       logAudioDiagnostic('AUDIO_CONTEXT_CREATED', {
-        details: `sampleRate=${this.ctx.sampleRate} state=${this.ctx.state}`
+        details: `sampleRate=${ctx.sampleRate} state=${ctx.state}`
       });
 
       this.updateMatrixGains();
@@ -591,7 +672,7 @@ export class AudioEngine {
       this.applyBusMutes();
     }
 
-    if (this.ctx.state === 'suspended') {
+    if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume().then(() => this.applyBusMutes()).catch(() => {});
     }
   }
@@ -641,84 +722,160 @@ export class AudioEngine {
   }
 
   /**
-   * Actualiza las ganancias de la matriz L/R para garantizar aislamiento estricto
+   * Conecta o desconecta físicamente una ruta de la matriz hacia el ChannelMergerNode,
+   * aplicando simultáneamente la ganancia programada para evitar cualquier fuga o clic.
+   */
+  private setMatrixRoute(
+    gainNode: GainNode | null,
+    targetMergerInput: number, // 0 = Left, 1 = Right
+    shouldConnect: boolean,
+    targetGain: number,
+    now: number,
+    isCurrentlyConnected: boolean
+  ): boolean {
+    if (!gainNode || !this.mergerNode) return false;
+
+    if (shouldConnect) {
+      if (!isCurrentlyConnected) {
+        try {
+          gainNode.connect(this.mergerNode, 0, targetMergerInput);
+        } catch {
+          /* Fallback si ya estuviera conectado */
+        }
+      }
+      try {
+        gainNode.gain.cancelScheduledValues(0);
+      } catch {}
+      gainNode.gain.setValueAtTime(targetGain, now);
+      return true;
+    } else {
+      try {
+        gainNode.gain.cancelScheduledValues(0);
+      } catch {}
+      gainNode.gain.setValueAtTime(0.0, now);
+      if (isCurrentlyConnected) {
+        try {
+          // Desconexión física controlada de la ruta hacia el merger
+          gainNode.disconnect(this.mergerNode, 0, targetMergerInput);
+        } catch {
+          try {
+            gainNode.disconnect();
+          } catch {}
+        }
+      }
+      return false;
+    }
+  }
+
+  /**
+   * Actualiza el enrutamiento y las ganancias de la matriz L/R para garantizar
+   * aislamiento físico absoluto de canales entre música y metrónomo/guía.
    */
   public updateMatrixGains() {
-    if (
-      !this.ctx ||
-      !this.musicToLeftGain ||
-      !this.musicToRightGain ||
-      !this.coachToLeftGain ||
-      !this.coachToRightGain
-    ) {
+    if (!this.ctx || !this.mergerNode) {
       return;
     }
 
     const now = this.ctx.currentTime;
     const mVol = Math.max(0, Math.min(1, this.musicVolume));
     const cVol = Math.max(0, Math.min(1, this.coachVolume));
-
-    let musicL = 0;
-    let musicR = 0;
-    let coachL = 0;
-    let coachR = 0;
+    const isStereoMusic = (this.audioBuffer?.numberOfChannels ?? 2) > 1;
 
     switch (this.channelMode) {
-      case 'split-coach':
-        // Modo Pista + Coach:
-        // Left = 100% Música (Pista/PA). Cero guías.
-        // Right = 100% Coach (Metrónomo + Voz). Cero música.
-        musicL = mVol;
-        musicR = 0.0;
-        coachL = 0.0;
-        coachR = cVol;
-        break;
+      case 'split-coach': {
+        // ── SPLIT L/R: AISLAMIENTO ABSOLUTO DE CANALES ──
+        // CANAL IZQUIERDO (L = Merger Input 0):
+        // 100% de la música (L + R de la pista estéreo sumados para conservar toda la mezcla).
+        // 0% de guía (desconectado físicamente y ganancia 0.0).
+        this.isMusicLToLeftConnected = this.setMatrixRoute(this.musicLeftToLeftGain, 0, true, mVol, now, this.isMusicLToLeftConnected);
+        this.isMusicRToLeftConnected = this.setMatrixRoute(this.musicRightToLeftGain, 0, isStereoMusic, isStereoMusic ? mVol : 0.0, now, this.isMusicRToLeftConnected);
+        this.isCoachLToLeftConnected = this.setMatrixRoute(this.coachLeftToLeftGain, 0, false, 0.0, now, this.isCoachLToLeftConnected);
+        this.isCoachRToLeftConnected = this.setMatrixRoute(this.coachRightToLeftGain, 0, false, 0.0, now, this.isCoachRToLeftConnected);
 
-      case 'stereo':
-        // Ambos canales reciben música y guías completas
-        musicL = mVol;
-        musicR = mVol;
-        coachL = cVol;
-        coachR = cVol;
+        // CANAL DERECHO (R = Merger Input 1):
+        // 100% del coach (metrónomo + voz guía).
+        // 0% de música (desconectado físicamente y ganancia 0.0). ¡CERO bleed garantizado!
+        this.isMusicLToRightConnected = this.setMatrixRoute(this.musicLeftToRightGain, 1, false, 0.0, now, this.isMusicLToRightConnected);
+        this.isMusicRToRightConnected = this.setMatrixRoute(this.musicRightToRightGain, 1, false, 0.0, now, this.isMusicRToRightConnected);
+        this.isCoachLToRightConnected = this.setMatrixRoute(this.coachLeftToRightGain, 1, true, cVol, now, this.isCoachLToRightConnected);
+        this.isCoachRToRightConnected = this.setMatrixRoute(this.coachRightToRightGain, 1, false, 0.0, now, this.isCoachRToRightConnected);
         break;
+      }
 
-      case 'solo-music':
-        // Solo música en ambos canales (modo presentación/competición)
-        musicL = mVol;
-        musicR = mVol;
-        coachL = 0.0;
-        coachR = 0.0;
-        break;
+      case 'stereo': {
+        // ── STEREO: MEZCLA COMPLETA ESTÉREO ──
+        // CANAL IZQUIERDO (L = Merger Input 0):
+        // Música L + Guía L
+        this.isMusicLToLeftConnected = this.setMatrixRoute(this.musicLeftToLeftGain, 0, true, mVol, now, this.isMusicLToLeftConnected);
+        this.isMusicRToLeftConnected = this.setMatrixRoute(this.musicRightToLeftGain, 0, false, 0.0, now, this.isMusicRToLeftConnected);
+        this.isCoachLToLeftConnected = this.setMatrixRoute(this.coachLeftToLeftGain, 0, true, cVol, now, this.isCoachLToLeftConnected);
+        this.isCoachRToLeftConnected = this.setMatrixRoute(this.coachRightToLeftGain, 0, false, 0.0, now, this.isCoachRToLeftConnected);
 
-      case 'solo-coach':
-        // Solo metrónomo y guías vocales (entrenamiento de tiempo puro)
-        musicL = 0.0;
-        musicR = 0.0;
-        coachL = cVol;
-        coachR = cVol;
+        // CANAL DERECHO (R = Merger Input 1):
+        // Música R + Guía R (metrónomo y voz centrados en ambos oídos)
+        this.isMusicLToRightConnected = this.setMatrixRoute(this.musicLeftToRightGain, 1, false, 0.0, now, this.isMusicLToRightConnected);
+        this.isMusicRToRightConnected = this.setMatrixRoute(this.musicRightToRightGain, 1, true, mVol, now, this.isMusicRToRightConnected);
+        this.isCoachLToRightConnected = this.setMatrixRoute(this.coachLeftToRightGain, 1, true, cVol, now, this.isCoachLToRightConnected);
+        this.isCoachRToRightConnected = this.setMatrixRoute(this.coachRightToRightGain, 1, false, 0.0, now, this.isCoachRToRightConnected);
         break;
+      }
 
-      case 'solo-left':
-        // 100% canal izquierdo, 0% canal derecho absoluto
-        musicL = mVol;
-        musicR = 0.0;
-        coachL = cVol;
-        coachR = 0.0;
-        break;
+      case 'solo-music': {
+        // Solo música en ambos canales
+        this.isMusicLToLeftConnected = this.setMatrixRoute(this.musicLeftToLeftGain, 0, true, mVol, now, this.isMusicLToLeftConnected);
+        this.isMusicRToLeftConnected = this.setMatrixRoute(this.musicRightToLeftGain, 0, false, 0.0, now, this.isMusicRToLeftConnected);
+        this.isCoachLToLeftConnected = this.setMatrixRoute(this.coachLeftToLeftGain, 0, false, 0.0, now, this.isCoachLToLeftConnected);
+        this.isCoachRToLeftConnected = this.setMatrixRoute(this.coachRightToLeftGain, 0, false, 0.0, now, this.isCoachRToLeftConnected);
 
-      case 'solo-right':
-        // 100% canal derecho, 0% canal izquierdo absoluto
-        musicL = 0.0;
-        musicR = mVol;
-        coachL = 0.0;
-        coachR = cVol;
+        this.isMusicLToRightConnected = this.setMatrixRoute(this.musicLeftToRightGain, 1, false, 0.0, now, this.isMusicLToRightConnected);
+        this.isMusicRToRightConnected = this.setMatrixRoute(this.musicRightToRightGain, 1, true, mVol, now, this.isMusicRToRightConnected);
+        this.isCoachLToRightConnected = this.setMatrixRoute(this.coachLeftToRightGain, 1, false, 0.0, now, this.isCoachLToRightConnected);
+        this.isCoachRToRightConnected = this.setMatrixRoute(this.coachRightToRightGain, 1, false, 0.0, now, this.isCoachRToRightConnected);
         break;
+      }
+
+      case 'solo-coach': {
+        // Solo metrónomo y guías en ambos canales
+        this.isMusicLToLeftConnected = this.setMatrixRoute(this.musicLeftToLeftGain, 0, false, 0.0, now, this.isMusicLToLeftConnected);
+        this.isMusicRToLeftConnected = this.setMatrixRoute(this.musicRightToLeftGain, 0, false, 0.0, now, this.isMusicRToLeftConnected);
+        this.isCoachLToLeftConnected = this.setMatrixRoute(this.coachLeftToLeftGain, 0, true, cVol, now, this.isCoachLToLeftConnected);
+        this.isCoachRToLeftConnected = this.setMatrixRoute(this.coachRightToLeftGain, 0, false, 0.0, now, this.isCoachRToLeftConnected);
+
+        this.isMusicLToRightConnected = this.setMatrixRoute(this.musicLeftToRightGain, 1, false, 0.0, now, this.isMusicLToRightConnected);
+        this.isMusicRToRightConnected = this.setMatrixRoute(this.musicRightToRightGain, 1, false, 0.0, now, this.isMusicRToRightConnected);
+        this.isCoachLToRightConnected = this.setMatrixRoute(this.coachLeftToRightGain, 1, true, cVol, now, this.isCoachLToRightConnected);
+        this.isCoachRToRightConnected = this.setMatrixRoute(this.coachRightToRightGain, 1, false, 0.0, now, this.isCoachRToRightConnected);
+        break;
+      }
+
+      case 'solo-left': {
+        // Solo canal izquierdo (música y coach a la izquierda, silencio total en la derecha)
+        this.isMusicLToLeftConnected = this.setMatrixRoute(this.musicLeftToLeftGain, 0, true, mVol, now, this.isMusicLToLeftConnected);
+        this.isMusicRToLeftConnected = this.setMatrixRoute(this.musicRightToLeftGain, 0, isStereoMusic, isStereoMusic ? mVol : 0.0, now, this.isMusicRToLeftConnected);
+        this.isCoachLToLeftConnected = this.setMatrixRoute(this.coachLeftToLeftGain, 0, true, cVol, now, this.isCoachLToLeftConnected);
+        this.isCoachRToLeftConnected = this.setMatrixRoute(this.coachRightToLeftGain, 0, false, 0.0, now, this.isCoachRToLeftConnected);
+
+        this.isMusicLToRightConnected = this.setMatrixRoute(this.musicLeftToRightGain, 1, false, 0.0, now, this.isMusicLToRightConnected);
+        this.isMusicRToRightConnected = this.setMatrixRoute(this.musicRightToRightGain, 1, false, 0.0, now, this.isMusicRToRightConnected);
+        this.isCoachLToRightConnected = this.setMatrixRoute(this.coachLeftToRightGain, 1, false, 0.0, now, this.isCoachLToRightConnected);
+        this.isCoachRToRightConnected = this.setMatrixRoute(this.coachRightToRightGain, 1, false, 0.0, now, this.isCoachRToRightConnected);
+        break;
+      }
+
+      case 'solo-right': {
+        // Solo canal derecho (música y coach a la derecha, silencio total en la izquierda)
+        this.isMusicLToLeftConnected = this.setMatrixRoute(this.musicLeftToLeftGain, 0, false, 0.0, now, this.isMusicLToLeftConnected);
+        this.isMusicRToLeftConnected = this.setMatrixRoute(this.musicRightToLeftGain, 0, false, 0.0, now, this.isMusicRToLeftConnected);
+        this.isCoachLToLeftConnected = this.setMatrixRoute(this.coachLeftToLeftGain, 0, false, 0.0, now, this.isCoachLToLeftConnected);
+        this.isCoachRToLeftConnected = this.setMatrixRoute(this.coachRightToLeftGain, 0, false, 0.0, now, this.isCoachRToLeftConnected);
+
+        this.isMusicLToRightConnected = this.setMatrixRoute(this.musicLeftToRightGain, 1, false, 0.0, now, this.isMusicLToRightConnected);
+        this.isMusicRToRightConnected = this.setMatrixRoute(this.musicRightToRightGain, 1, true, mVol, now, this.isMusicRToRightConnected);
+        this.isCoachLToRightConnected = this.setMatrixRoute(this.coachLeftToRightGain, 1, true, cVol, now, this.isCoachLToRightConnected);
+        this.isCoachRToRightConnected = this.setMatrixRoute(this.coachRightToRightGain, 1, false, 0.0, now, this.isCoachRToRightConnected);
+        break;
+      }
     }
-
-    this.musicToLeftGain.gain.setValueAtTime(musicL, now);
-    this.musicToRightGain.gain.setValueAtTime(musicR, now);
-    this.coachToLeftGain.gain.setValueAtTime(coachL, now);
-    this.coachToRightGain.gain.setValueAtTime(coachR, now);
   }
 
   public setChannelMode(mode: ChannelRoutingMode) {

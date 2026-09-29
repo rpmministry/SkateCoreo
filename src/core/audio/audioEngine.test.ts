@@ -16,14 +16,22 @@ class MockGainNode {
   public connect(target?: any, outputIndex?: number, inputIndex?: number) {
     this.connections.push({ target, outputIndex, inputIndex });
   }
-  public disconnect() {
-    this.connections = [];
+  public disconnect(target?: any, _outputIndex?: number, inputIndex?: number) {
+    if (target === undefined) {
+      this.connections = [];
+    } else {
+      this.connections = this.connections.filter(
+        c => c.target !== target || (inputIndex !== undefined && c.inputIndex !== inputIndex)
+      );
+    }
   }
 }
 
 class MockAudioContext {
   public currentTime = 0;
   public state = 'running';
+  public sampleRate = 44100;
+  public destination = new MockGainNode();
   public createGain() { return new MockGainNode(); }
   public createChannelSplitter(outputs = 2) {
     return {
@@ -48,6 +56,10 @@ class MockAudioContext {
       stop: () => {}
     };
   }
+}
+
+if (typeof (globalThis as any).AudioContext === 'undefined') {
+  (globalThis as any).AudioContext = MockAudioContext;
 }
 
 async function runTests() {
@@ -642,13 +654,14 @@ async function runTests() {
     'Sin música real el motor arranca en 0s (lienzo en blanco), sin pista demo'
   );
 
-  // 16. Matriz física de Enrutamiento L/R: Split L/R vs Stereo
+  // 16. Matriz física de Enrutamiento L/R: Split L/R vs Stereo (Arquitectura AudioMass)
   // En Split L/R ('split-coach'):
-  // - Canal Izquierdo: 100% Música
-  // - Canal Derecho: 100% Metrónomo + Voz Guía, 0% Música (desconectado y gain 0)
-  // - Coach izquierdo: 0% (desconectado y gain 0)
+  // - Canal Izquierdo: 100% Música (L+R sumados)
+  // - Canal Derecho: 100% Metrónomo + Voz Guía, 0% Música (desconectado físicamente y gain 0.0)
+  // - Coach izquierdo: 0% (desconectado físicamente y gain 0.0)
   // En Stereo ('stereo'):
   // - L + R: Mezcla completa en ambos oídos
+  engineModule.audioEngine.initAudioContext();
   engineModule.audioEngine.setChannelMode('split-coach');
   assert(
     engineModule.audioEngine.getChannelMode() === 'split-coach',
@@ -670,8 +683,28 @@ async function runTests() {
       'Split L/R: musicRightToRightGain tiene ganancia 0.0 hacia el canal derecho'
     );
     assert(
+      internalEngine.isMusicLToRightConnected === false,
+      'Split L/R: musicLeftToRightGain está físicamente DESCONECTADO del canal derecho'
+    );
+    assert(
+      internalEngine.isMusicRToRightConnected === false,
+      'Split L/R: musicRightToRightGain está físicamente DESCONECTADO del canal derecho'
+    );
+    assert(
       internalEngine.coachToLeftGain.gain.value === 0.0,
       'Split L/R: coachToLeftGain tiene ganancia 0.0 hacia el canal izquierdo'
+    );
+    assert(
+      internalEngine.isCoachLToLeftConnected === false,
+      'Split L/R: coachLeftToLeftGain está físicamente DESCONECTADO del canal izquierdo'
+    );
+    assert(
+      internalEngine.isMusicLToLeftConnected === true,
+      'Split L/R: musicLeftToLeftGain está conectado al canal izquierdo (100% música)'
+    );
+    assert(
+      internalEngine.isCoachLToRightConnected === true,
+      'Split L/R: coachLeftToRightGain está conectado al canal derecho (100% metrónomo + voz)'
     );
   }
 
@@ -695,14 +728,33 @@ async function runTests() {
       internalEngine.coachToRightGain.gain.value > 0.0,
       'Stereo: coachToRightGain tiene ganancia > 0 (coach en oído derecho)'
     );
+    assert(
+      internalEngine.isMusicLToLeftConnected === true,
+      'Stereo: música L conectada a oído izquierdo'
+    );
+    assert(
+      internalEngine.isMusicRToRightConnected === true,
+      'Stereo: música R conectada a oído derecho'
+    );
+    assert(
+      internalEngine.isCoachLToLeftConnected === true,
+      'Stereo: coach L conectado a oído izquierdo'
+    );
+    assert(
+      internalEngine.isCoachLToRightConnected === true,
+      'Stereo: coach R conectado a oído derecho'
+    );
   }
 
   // Conmutaciones múltiples repetidas Stereo -> Split L/R -> Stereo -> Split L/R
   for (let i = 0; i < 5; i++) {
     engineModule.audioEngine.setChannelMode('split-coach');
     assert(engineModule.audioEngine.getChannelMode() === 'split-coach', `Pase ${i + 1}: Split L/R ok`);
+    assert(internalEngine.isMusicLToRightConnected === false, `Pase ${i + 1}: Split L/R sin música en R`);
+    assert(internalEngine.isMusicRToRightConnected === false, `Pase ${i + 1}: Split L/R sin música R en R`);
     engineModule.audioEngine.setChannelMode('stereo');
     assert(engineModule.audioEngine.getChannelMode() === 'stereo', `Pase ${i + 1}: Stereo ok`);
+    assert(internalEngine.isMusicRToRightConnected === true, `Pase ${i + 1}: Stereo con música R en R`);
   }
 
   console.log(`\nResultado Módulo 1: ${passed}/${total} pruebas pasadas con éxito.\n`);
