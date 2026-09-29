@@ -14,16 +14,19 @@ import { useState, useEffect, useCallback, useMemo, useRef, startTransition, laz
 import {
   Music,
   X, ChevronDown, MoreVertical,
-  Upload, Save, HardDrive, Trash2, LogOut, Sparkles, ShieldCheck
+  Upload, Save, HardDrive, Trash2, LogOut, Sparkles, Users
 } from 'lucide-react';
 import { Skater, Program, ElementLog, AudioEngineState } from './types';
+import type { CoachAthlete, CoachChoreography, CoachChoreographyVersion } from './coach/types';
+import { coachDb } from './coach/services/coachDb';
+import { useCoachStore } from './coach/store/useCoachStore';
 import { SkateCoreoBrand } from './components/brand/SkateCoreoBrand';
 import { dbService, OfflineSessionRecord } from './services/db';
 import { audioEngine } from './services/audioEngine';
 import { useChoreographyStore } from './store/useChoreographyStore';
 import { useAudioStudioStore } from './store/useAudioStudioStore';
 import { useRinkAudioStore } from './store/useRinkAudioStore';
-import { useAuthStore, isOwnerOrAdmin } from './store/useAuthStore';
+import { useAuthStore } from './store/useAuthStore';
 import { ACCEPTED_AUDIO_FORMATS, ACCEPTED_PROJECT_FORMATS } from './constants/mediaFormats';
 import { ProtectedLayout } from './components/ProtectedLayout';
 import { ErrorBoundary } from './components/system/ErrorBoundary';
@@ -120,32 +123,49 @@ const PaperToDigitalModalLazy = lazy(() =>
 const PaperToDigitalModal = (props: React.ComponentProps<typeof PaperToDigitalModalLazy>) => (
   <Suspense fallback={null}><PaperToDigitalModalLazy {...props} /></Suspense>
 );
-const AdminDashboardModalLazy = lazy(() =>
-  import('./components/admin/AdminDashboardModal').then((m) => ({ default: m.AdminDashboardModal }))
+
+const CoachPortalLazy = lazy(() =>
+  import('./coach/components/CoachPortal').then((m) => ({ default: m.CoachPortal }))
 );
-const AdminDashboardModal = (props: React.ComponentProps<typeof AdminDashboardModalLazy>) => (
-  <Suspense fallback={null}><AdminDashboardModalLazy {...props} /></Suspense>
+const CoachPortal = (props: React.ComponentProps<typeof CoachPortalLazy>) => (
+  <Suspense
+    fallback={
+      <div className="flex-1 flex items-center justify-center bg-neon-canvas text-white">
+        <span className="text-sm font-bold text-slate-300">Cargando Panel de Entrenadores...</span>
+      </div>
+    }
+  >
+    <CoachPortalLazy {...props} />
+  </Suspense>
 );
 
-type AppView = 'home' | 'rink' | 'studio';
+const CoachSaveChoreographyModalLazy = lazy(() =>
+  import('./coach/components/CoachSaveChoreographyModal').then((m) => ({ default: m.CoachSaveChoreographyModal }))
+);
+const CoachSaveChoreographyModal = (props: React.ComponentProps<typeof CoachSaveChoreographyModalLazy>) => (
+  <Suspense fallback={null}><CoachSaveChoreographyModalLazy {...props} /></Suspense>
+);
+
+
+type AppView = 'home' | 'rink' | 'studio' | 'coach';
 
 // ── Component ──────────────────────────────────────────────────
 export function App() {
 
-  // ── Modos de Vista: Inicio / Pista 2D / Estudio de Audio (DAW Lite) ──
+  // ── Modos de Vista: Inicio / Pista 2D / Estudio de Audio (DAW Lite) / Panel Entrenadores ──
   const [activeView, setActiveView] = useState<AppView>('home');
+  // ── Contexto del Panel de Entrenadores (Atleta Activo y Modal de Guardado) ──
+  const [activeCoachAthlete, setActiveCoachAthlete] = useState<CoachAthlete | null>(null);
+  const [isCoachSaveModalOpen, setIsCoachSaveModalOpen] = useState(false);
   // Digitalización de la plantilla A4 accesible desde Home y desde la Pista.
   const [paperOpen, setPaperOpen] = useState(false);
-  const [adminOpen, setAdminOpen] = useState(false);
   const unplacedNodes = useChoreographyStore((s) => s.unplacedNodes);
   const studioBpm = useAudioStudioStore((s) => s.globalControls.bpm);
   const logout = useAuthStore((s) => s.logout);
   const authUser = useAuthStore((s) => s.user);
-  const authRole = useAuthStore((s) => s.role);
   const authPlan = useAuthStore((s) => s.subscription_plan);
   const getDaysRemaining = useAuthStore((s) => s.getDaysRemaining);
   const getFormattedExpiration = useAuthStore((s) => s.getFormattedExpiration);
-  const isUserAdmin = Boolean(authUser && (authRole === 'superadmin' || isOwnerOrAdmin(authUser.email)));
 
   /**
    * Propiedad de los datos locales: si se entra con una cuenta distinta a la que
@@ -724,6 +744,8 @@ export function App() {
     ? 'skaters'
     : drawerOpen
     ? 'settings'
+    : activeView === 'coach'
+    ? 'home'
     : activeView;
 
   const navBadges = useMemo(() => ({ rink: unplacedNodes.length }), [unplacedNodes.length]);
@@ -779,6 +801,80 @@ export function App() {
     setSheetOpen((open) => !open);
   }, []);
 
+  /**
+   * Abre el editor principal de SkateCoreo (Pista 2D / Audio) vinculado al atleta del entrenador.
+   * Si se pasa una coreografía y versión, carga el archivo .coreo (audio + puntos + subdivisiones).
+   * Si no, prepara una rutina limpia vinculada al atleta.
+   */
+  const handleCoachOpenEditor = useCallback(
+    async (
+      athlete: CoachAthlete,
+      choreo?: CoachChoreography,
+      version?: CoachChoreographyVersion
+    ) => {
+      setActiveCoachAthlete(athlete);
+      setSelectedSkater({
+        id: athlete.id,
+        name: athlete.name,
+        category: athlete.category as any,
+        club: athlete.club,
+        age: athlete.age,
+        created_at: athlete.created_at,
+      });
+      useChoreographyStore.getState().setSkaterGender(athlete.gender === 'male' ? 'male' : 'female');
+
+      if (choreo && version) {
+        try {
+          const fileItem = await coachDb.getBinaryFile(version.coreoBlobId);
+          if (fileItem && fileItem.blob) {
+            const { importCoreoProject } = await import('./services/coreoPackage');
+            const project = await importCoreoProject(fileItem.blob);
+            if (project.audioBlob) {
+              await audioEngine.loadAudioFile(project.audioBlob, project.manifest.audioMeta.fileName);
+              useRinkAudioStore.getState().syncFromEngine();
+            }
+            loadProgramPoints(project.points);
+            audioEngine.setNodes(project.points);
+            const importedSubdivision = project.manifest.audioMeta?.subdivision;
+            if (
+              importedSubdivision === 1 ||
+              importedSubdivision === 2 ||
+              importedSubdivision === 4 ||
+              importedSubdivision === 8
+            ) {
+              useAudioStudioStore.getState().setMetronomeConfig({ subdivision: importedSubdivision });
+            }
+          }
+        } catch (err: any) {
+          console.error('Error al cargar archivo .coreo para edición:', err);
+        }
+        setSelectedProgram({
+          id: choreo.id,
+          skater_id: athlete.id,
+          title: choreo.title,
+          duration_ms: choreo.durationMs || 120000,
+          half_time_ms: Math.floor((choreo.durationMs || 120000) / 2),
+          choreography_path: points,
+          created_at: choreo.created_at,
+        });
+      } else {
+        loadProgramPoints([]);
+        audioEngine.setNodes([]);
+        setSelectedProgram({
+          id: `prog_${Date.now()}`,
+          skater_id: athlete.id,
+          title: `${athlete.name} - Programa Libre ${new Date().getFullYear()}`,
+          duration_ms: 120000,
+          half_time_ms: 60000,
+          choreography_path: [],
+          created_at: Date.now(),
+        });
+      }
+      startTransition(() => setActiveView('rink'));
+    },
+    [loadProgramPoints, points]
+  );
+
   // ── Render ────────────────────────────────────────────
   return (
     <ProtectedLayout>
@@ -819,7 +915,7 @@ export function App() {
           · Teléfono (<768 px): layout móvil (se conserva tal cual).
           La categoría del atleta NO se repite aquí: ya vive en «Reglamento 2026».
           ═══════════════════════════════════════════════ */}
-      {activeView !== 'studio' && (
+      {activeView !== 'studio' && activeView !== 'coach' && (
         <header className="relative z-30 shrink-0 glass-hud border-b border-white/10 pt-safe px-safe">
           <div className="fm-header-grid flex min-h-[54px] items-center justify-between gap-2 px-2 py-1 sm:px-3 lg:grid lg:min-h-[60px] lg:grid-cols-[minmax(0,auto)_minmax(0,1fr)_minmax(0,auto)] lg:items-center lg:px-4">
 
@@ -858,19 +954,6 @@ export function App() {
                 {getDaysRemaining()}d
               </span>
             </div>
-          )}
-
-          {/* Botón Acceso Panel Admin */}
-          {isUserAdmin && (
-            <button
-              type="button"
-              onClick={() => setAdminOpen(true)}
-              className="ml-2 flex items-center gap-1.5 rounded-xl border border-cyan/40 bg-cyan/15 px-3 py-1 text-xs font-black text-cyan hover:bg-cyan/25 hover:shadow-glow-cyan transition-all interactive-tap"
-              title="Abrir Panel Administrativo Comercial y de Licencias"
-            >
-              <ShieldCheck className="h-3.5 w-3.5 text-cyan animate-pulse" />
-              <span className="text-[11px] uppercase tracking-wide">Panel Admin</span>
-            </button>
           )}
         </div>
 
@@ -998,6 +1081,21 @@ export function App() {
                     </span>
                   </button>
 
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowExportMenu(false);
+                      startTransition(() => setActiveView('coach'));
+                    }}
+                    className="press flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-medium text-slate-200 hover:bg-white/5 hover:text-white"
+                  >
+                    <Users className="w-4 h-4 text-cyan shrink-0 stroke-[1.75]" />
+                    <span>
+                      <span className="block font-semibold leading-tight">Panel de Entrenadores</span>
+                      <span className="block text-[10px] font-normal text-slate-400">Atletas, fichas y almacenamiento personal</span>
+                    </span>
+                  </button>
+
                   <span aria-hidden="true" className="my-1 h-px bg-white/5" />
 
                   <button
@@ -1064,7 +1162,12 @@ export function App() {
           ═══════════════════════════════════════════════ */}
       <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden relative">
 
-        {activeView === 'home' ? (
+        {activeView === 'coach' ? (
+          <CoachPortal
+            onOpenEditorForAthlete={handleCoachOpenEditor}
+            onExitCoachPortal={() => startTransition(() => setActiveView('home'))}
+          />
+        ) : activeView === 'home' ? (
           <HomeView
             skaterName={selectedSkater?.name}
             skaterCategory={selectedSkater?.category}
@@ -1085,8 +1188,7 @@ export function App() {
             onExportCoreo={handleExportCoreo}
             onSaveOffline={handleSaveOffline}
             onOpenPaperToDigital={() => setPaperOpen(true)}
-            isAdmin={isUserAdmin}
-            onOpenAdmin={() => setAdminOpen(true)}
+            onOpenCoach={() => startTransition(() => setActiveView('coach'))}
           />
         ) : activeView === 'studio' ? (
           <div className="flex-1 min-h-0 flex flex-col overflow-hidden relative">
@@ -1108,12 +1210,68 @@ export function App() {
                   onPreRollSecChange={handlePreRollSecChange}
                   onClearRink={requestClearRink}
                   onLogout={handleLogout}
+                  onOpenCoachPortal={() => startTransition(() => setActiveView('coach'))}
                 />
               )}
             </aside>
 
         {/* ── CENTER WORKSPACE: 2D Rink Canvas + Waveform Timeline ── */}
         <main className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden bg-neon-canvas relative">
+
+          {/* ═══ Banner de Contexto de Entrenador: Atleta Activo ═══ */}
+          {activeCoachAthlete && (
+            <div className="relative z-20 shrink-0 bg-gradient-to-r from-cyan/20 via-blue-950/70 to-mint/20 border-b border-cyan/40 px-3 py-1.5 flex items-center justify-between gap-2 text-xs backdrop-blur-md shadow-soft-elevation">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-center justify-center w-6 h-6 rounded-lg bg-cyan/25 border border-cyan/40 text-cyan shrink-0">
+                  <Users className="w-3.5 h-3.5" />
+                </div>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-[11px] text-slate-400 hidden sm:inline">Atleta:</span>
+                  <span className="font-bold text-white truncate">{activeCoachAthlete.name}</span>
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan/20 text-cyan border border-cyan/30 shrink-0">
+                    {activeCoachAthlete.category}
+                  </span>
+                  {activeCoachAthlete.club && (
+                    <span className="text-[10px] text-slate-400 hidden md:inline truncate">
+                      · {activeCoachAthlete.club}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsCoachSaveModalOpen(true)}
+                  className="press flex items-center gap-1 px-2.5 py-1 rounded-lg bg-cyan text-neon-canvas text-[11px] font-black shadow-glow-cyan hover:bg-cyan/90 transition-all"
+                  title="Guardar coreografía actual directamente en la ficha del atleta"
+                >
+                  <Save className="w-3 h-3" />
+                  <span>Guardar en Ficha</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    useCoachStore.getState().selectAthlete(activeCoachAthlete);
+                    useCoachStore.getState().setActiveCoachTab('dossier');
+                    startTransition(() => setActiveView('coach'));
+                  }}
+                  className="press flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/15 text-slate-200 text-[11px] font-bold transition-all"
+                  title="Volver a la ficha de este atleta en el Panel de Entrenadores"
+                >
+                  <span>Volver a Ficha</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveCoachAthlete(null)}
+                  className="p-1 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-all ml-0.5"
+                  title="Cerrar contexto de atleta"
+                  aria-label="Cerrar contexto de atleta"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Workspace: Pista 2D + panel de Nodos RESERVADO (NO overlay).
               En desktop/tablet-landscape el panel va a la DERECHA; en portrait va
@@ -1169,7 +1327,6 @@ export function App() {
                 fileName={audioState.fileName}
                 onOpenStudio={handleEditMixInStudio}
                 onUndo={handleUndo}
-                onLoadAudio={() => audioInputRef.current?.click()}
               />
             </div>
           </div>
@@ -1292,7 +1449,7 @@ export function App() {
       {/* ═══════════════════════════════════════════════
           BOTTOM NAVIGATION BAR — Portrait móvil y tablet (< lg)
           ═══════════════════════════════════════════════ */}
-      {activeView !== 'studio' && (
+      {activeView !== 'studio' && activeView !== 'coach' && (
         <BottomNav active={activeTab} onSelect={handleNav} badges={navBadges} />
       )}
 
@@ -1380,6 +1537,10 @@ export function App() {
                 onLogout={handleLogout}
                 showHeader={false}
                 isMobileModal={true}
+                onOpenCoachPortal={() => {
+                  setDrawerOpen(false);
+                  startTransition(() => setActiveView('coach'));
+                }}
               />
             )}
         </div>
@@ -1448,10 +1609,22 @@ export function App() {
         onStartCleanSession={handleDiscardSession}
       />
 
-      {/* Panel Administrativo Comercial y de Licencias */}
-      <AdminDashboardModal
-        isOpen={adminOpen}
-        onClose={() => setAdminOpen(false)}
+      {/* Modal para Guardar Coreografía en la Ficha del Atleta (Panel de Entrenadores) */}
+      <CoachSaveChoreographyModal
+        isOpen={isCoachSaveModalOpen}
+        onClose={() => setIsCoachSaveModalOpen(false)}
+        points={points}
+        audioBlob={audioEngine.getRawAudioBlob()}
+        audioFileName={audioState.fileName}
+        bpm={audioEngine.metronome.getConfig().bpm}
+        beatsPerMeasure={audioEngine.metronome.getConfig().beatsPerMeasure}
+        subdivision={audioEngine.metronome.getConfig().subdivision}
+        playbackRate={1.0}
+        initialAthleteId={activeCoachAthlete?.id}
+        initialTitle={selectedProgram?.title || (activeCoachAthlete ? `${activeCoachAthlete.name} - Programa Libre` : undefined)}
+        onSavedSuccess={(athlete) => {
+          setActiveCoachAthlete(athlete);
+        }}
       />
       </div>
     </ProtectedLayout>

@@ -198,82 +198,34 @@ export const commercialLicenseService = {
   }): Promise<{ success: boolean; package_id?: string; codes?: string[]; error?: string; pricing?: CommercialPricing }> {
     try {
       if (isSupabaseConfigured && supabase) {
-        try {
-          const { data, error } = await supabase.rpc('admin_create_license_package', {
-            p_admin_email: params.adminEmail,
-            p_client_name: params.clientName,
-            p_client_email: params.clientEmail || '',
-            p_total_licenses: params.totalLicenses,
-            p_plan: params.plan,
-            p_negotiated_discount: params.negotiatedDiscount !== undefined ? params.negotiatedDiscount : null,
-            p_payment_reference: params.paymentReference || null,
-            p_notes: params.notes || null,
-          });
+        const { data, error } = await supabase.rpc('admin_create_license_package', {
+          p_admin_email: params.adminEmail,
+          p_client_name: params.clientName,
+          p_client_email: params.clientEmail || '',
+          p_total_licenses: params.totalLicenses,
+          p_plan: params.plan,
+          p_negotiated_discount: params.negotiatedDiscount !== undefined ? params.negotiatedDiscount : null,
+          p_payment_reference: params.paymentReference || null,
+          p_notes: params.notes || null,
+        });
 
-          if (!error && data?.success) {
-            return data;
-          }
-        } catch (rpcErr) {
-          console.warn('admin_create_license_package RPC warning, falling back to local store:', rpcErr);
+        if (error || !data?.success) {
+          return { success: false, error: data?.error || error?.message || 'Error al crear el paquete de licencias.' };
         }
+
+        return data;
       }
 
-      // Modo Local / Fallback Resiliente
+      // Modo Local / Fallback
       const pricing = await this.calculatePricing(params.totalLicenses, params.plan, params.negotiatedDiscount);
       const codes: string[] = [];
-      const codeItems: LicenseCodeItem[] = [];
-      const pkgId = 'pkg_' + Date.now();
-      const expiresAt = new Date(Date.now() + (params.plan === 'annual' ? 365 : 30) * 86400000).toISOString();
-      const nowIso = new Date().toISOString();
-
       for (let i = 0; i < params.totalLicenses; i++) {
-        const codeStr = generateSecureCode();
-        codes.push(codeStr);
-        codeItems.push({
-          id: `code_${pkgId}_${i + 1}`,
-          code: codeStr,
-          status: 'available',
-          assigned_to_user_id: null,
-          assigned_email: null,
-          assigned_name: null,
-          assigned_at: null,
-          expires_at: expiresAt,
-          created_at: nowIso,
-        });
+        codes.push(generateSecureCode());
       }
-
-      const existingPkgs = this.getLocalPackages();
-      const newPkg: LicensePackage = {
-        id: pkgId,
-        package_number: existingPkgs.length + 1,
-        client_name: params.clientName,
-        client_email: params.clientEmail || '',
-        total_licenses: params.totalLicenses,
-        used_licenses: 0,
-        available_licenses: params.totalLicenses,
-        plan: params.plan,
-        unit_base_price: pricing.unit_base_price,
-        discount_percent: pricing.discount_percent,
-        discount_type: pricing.discount_type,
-        subtotal: pricing.subtotal,
-        discount_amount: pricing.discount_amount,
-        total_amount: pricing.total_amount,
-        status: 'active',
-        starts_at: nowIso,
-        expires_at: expiresAt,
-        payment_reference: params.paymentReference || 'N/A',
-        authorized_by: params.adminEmail,
-        notes: params.notes || '',
-        created_at: nowIso,
-      };
-
-      existingPkgs.unshift(newPkg);
-      this.saveLocalPackages(existingPkgs);
-      this.saveLocalCodes(pkgId, codeItems);
 
       return {
         success: true,
-        package_id: pkgId,
+        package_id: 'local_pkg_' + Date.now(),
         codes,
         pricing,
       };
@@ -288,23 +240,20 @@ export const commercialLicenseService = {
   async listPackages(adminEmail: string): Promise<{ success: boolean; packages: LicensePackage[]; error?: string }> {
     try {
       if (isSupabaseConfigured && supabase) {
-        try {
-          const { data, error } = await supabase.rpc('admin_list_license_packages', {
-            p_admin_email: adminEmail,
-          });
+        const { data, error } = await supabase.rpc('admin_list_license_packages', {
+          p_admin_email: adminEmail,
+        });
 
-          if (!error && data?.success) {
-            return { success: true, packages: data.packages || [] };
-          }
-        } catch (rpcErr) {
-          console.warn('admin_list_license_packages RPC warning, returning local packages:', rpcErr);
+        if (error || !data?.success) {
+          return { success: false, packages: [], error: data?.error || error?.message };
         }
+
+        return { success: true, packages: data.packages || [] };
       }
 
-      // Retornar paquetes locales si el backend no tiene la función o está en proceso de migración
-      return { success: true, packages: this.getLocalPackages() };
+      return { success: true, packages: [] };
     } catch (err: any) {
-      return { success: true, packages: this.getLocalPackages() };
+      return { success: false, packages: [], error: err?.message };
     }
   },
 
@@ -317,62 +266,22 @@ export const commercialLicenseService = {
   ): Promise<{ success: boolean; package?: any; codes: LicenseCodeItem[]; error?: string }> {
     try {
       if (isSupabaseConfigured && supabase) {
-        try {
-          const { data, error } = await supabase.rpc('admin_get_package_codes', {
-            p_admin_email: adminEmail,
-            p_package_id: packageId,
-          });
+        const { data, error } = await supabase.rpc('admin_get_package_codes', {
+          p_admin_email: adminEmail,
+          p_package_id: packageId,
+        });
 
-          if (!error && data?.success) {
-            return { success: true, package: data.package, codes: data.codes || [] };
-          }
-        } catch (rpcErr) {
-          console.warn('admin_get_package_codes RPC warning, returning local codes:', rpcErr);
+        if (error || !data?.success) {
+          return { success: false, codes: [], error: data?.error || error?.message };
         }
+
+        return { success: true, package: data.package, codes: data.codes || [] };
       }
 
-      const localCodes = this.getLocalCodes(packageId);
-      const pkg = this.getLocalPackages().find((p) => p.id === packageId);
-      return { success: true, package: pkg, codes: localCodes };
+      return { success: true, codes: [] };
     } catch (err: any) {
-      return { success: true, codes: this.getLocalCodes(packageId) };
+      return { success: false, codes: [], error: err?.message };
     }
-  },
-
-  getLocalPackages(): LicensePackage[] {
-    try {
-      if (typeof window === 'undefined' || typeof localStorage === 'undefined') return [];
-      const raw = localStorage.getItem('skatecoreo_admin_packages_cache');
-      return raw ? JSON.parse(raw) : [];
-    } catch {
-      return [];
-    }
-  },
-
-  saveLocalPackages(pkgs: LicensePackage[]): void {
-    try {
-      if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
-        localStorage.setItem('skatecoreo_admin_packages_cache', JSON.stringify(pkgs));
-      }
-    } catch {}
-  },
-
-  getLocalCodes(packageId: string): LicenseCodeItem[] {
-    try {
-      if (typeof window === 'undefined' || typeof localStorage === 'undefined') return [];
-      const raw = localStorage.getItem(`skatecoreo_admin_codes_${packageId}`);
-      return raw ? JSON.parse(raw) : [];
-    } catch {
-      return [];
-    }
-  },
-
-  saveLocalCodes(packageId: string, codes: LicenseCodeItem[]): void {
-    try {
-      if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
-        localStorage.setItem(`skatecoreo_admin_codes_${packageId}`, JSON.stringify(codes));
-      }
-    } catch {}
   },
 
   /**
