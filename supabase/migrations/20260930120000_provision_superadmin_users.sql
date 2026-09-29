@@ -1,20 +1,113 @@
 -- ==============================================================================
--- SkateCoreo SaaS — Aprovisionamiento de Administradores Autorizados
---
--- Cuentas autorizadas:
---   1. mauriandrade2@gmail.com
---   2. karenprofet@gmail.com
---   3. contacto@alsiztech.com
---
--- Rol: superadmin con vigencia vitalicia / 20 años y entitlements activos.
--- Permite administración total de paquetes, licencias, auditoría y funciones del software.
+-- SkateCoreo SaaS — Aprovisionamiento Autónomo y Resiliente de Administradores
+-- Cuentas: mauriandrade2@gmail.com, karenprofet@gmail.com, contacto@alsiztech.com
 -- ==============================================================================
 
+CREATE SCHEMA IF NOT EXISTS extensions;
 CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
 
 SET search_path = public, extensions;
 
--- 1. Insertar o actualizar credenciales con Bcrypt (pgcrypto) y rol superadmin
+-- 1. Crear tipo de dispositivo si no existe
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'device_type') THEN
+    CREATE TYPE public.device_type AS ENUM ('mobile', 'tablet', 'desktop');
+  END IF;
+END $$;
+
+-- 2. Asegurar que las tablas comerciales existan antes de insertar datos
+CREATE TABLE IF NOT EXISTS public.users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  full_name TEXT,
+  role TEXT NOT NULL DEFAULT 'user',
+  subscription_status TEXT NOT NULL DEFAULT 'active',
+  subscription_plan TEXT NOT NULL DEFAULT 'individual',
+  access_expires_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.discount_tiers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  min_licenses INT NOT NULL CHECK (min_licenses > 0),
+  max_licenses INT DEFAULT NULL,
+  discount_percent NUMERIC(5, 2) NOT NULL CHECK (discount_percent >= 0 AND discount_percent <= 100),
+  plan TEXT NOT NULL DEFAULT 'all',
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.license_packages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  package_number SERIAL,
+  client_name TEXT NOT NULL,
+  client_email TEXT,
+  contact_phone TEXT,
+  total_licenses INT NOT NULL CHECK (total_licenses > 0),
+  used_licenses INT NOT NULL DEFAULT 0,
+  plan TEXT NOT NULL DEFAULT 'annual',
+  billing_period TEXT NOT NULL DEFAULT 'annual',
+  unit_base_price NUMERIC(10, 2) NOT NULL,
+  discount_percent NUMERIC(5, 2) NOT NULL DEFAULT 0.00,
+  discount_type TEXT NOT NULL DEFAULT 'tiered',
+  subtotal NUMERIC(10, 2) NOT NULL,
+  discount_amount NUMERIC(10, 2) NOT NULL,
+  total_amount NUMERIC(10, 2) NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active',
+  starts_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  payment_reference TEXT,
+  authorized_by TEXT NOT NULL,
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.license_codes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  package_id UUID NOT NULL REFERENCES public.license_packages(id) ON DELETE CASCADE,
+  code TEXT UNIQUE NOT NULL,
+  status TEXT NOT NULL DEFAULT 'available',
+  assigned_to_user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  assigned_email TEXT,
+  assigned_name TEXT,
+  assigned_at TIMESTAMPTZ DEFAULT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.entitlements (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  access_source TEXT NOT NULL,
+  plan TEXT NOT NULL DEFAULT 'annual',
+  status TEXT NOT NULL DEFAULT 'active',
+  starts_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  renews_at TIMESTAMPTZ DEFAULT NULL,
+  payment_reference TEXT DEFAULT NULL,
+  package_id UUID REFERENCES public.license_packages(id) ON DELETE SET NULL,
+  license_code_id UUID REFERENCES public.license_codes(id) ON DELETE SET NULL,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.commercial_audit_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  performed_by TEXT NOT NULL,
+  action TEXT NOT NULL,
+  package_id UUID REFERENCES public.license_packages(id) ON DELETE SET NULL,
+  details JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 3. Insertar o actualizar credenciales con Bcrypt (pgcrypto) y rol superadmin
 INSERT INTO public.users (
   email,
   password_hash,
@@ -64,7 +157,7 @@ ON CONFLICT (email) DO UPDATE SET
   access_expires_at = NOW() + INTERVAL '20 years',
   updated_at = NOW();
 
--- 2. Asegurar entitlements activos para cada uno de los 3 administradores
+-- 4. Asegurar entitlements activos para los 3 administradores
 DO $$
 DECLARE
   v_admin RECORD;
@@ -79,12 +172,10 @@ BEGIN
   LOOP
     SELECT * INTO v_user FROM public.users WHERE LOWER(email) = LOWER(v_admin.email);
     IF FOUND THEN
-      -- Actualizar entitlements previos
       UPDATE public.entitlements 
       SET status = 'replaced', updated_at = NOW()
       WHERE user_id = v_user.id AND status = 'active';
 
-      -- Crear entitlement de superadministrador vigente
       INSERT INTO public.entitlements (
         user_id,
         access_source,
@@ -110,7 +201,7 @@ BEGIN
   END LOOP;
 END $$;
 
--- 3. Registrar en log de auditoría comercial
+-- 5. Registrar en auditoría
 INSERT INTO public.commercial_audit_logs (
   performed_by,
   action,
@@ -125,7 +216,7 @@ INSERT INTO public.commercial_audit_logs (
   )
 );
 
--- 4. Re-crear login_custom_user con soporte total de contraseñas de administración
+-- 6. Función login_custom_user con soporte total
 CREATE OR REPLACE FUNCTION public.login_custom_user(
   p_email TEXT,
   p_password TEXT,
@@ -153,7 +244,6 @@ DECLARE
     (v_clean_email = 'recursosparaministerios@gmail.com' AND p_password = 'Mauri#SkateCoreo2026!Admin')
   );
 BEGIN
-  -- Determinar si el correo es superadministrador
   v_is_superadmin := v_clean_email IN (
     'recursosparaministerios@gmail.com',
     'andradesanchezavril@gmail.com',
@@ -169,7 +259,6 @@ BEGIN
   WHERE LOWER(email) = v_clean_email;
 
   IF NOT FOUND THEN
-    -- Si es superadmin con contraseña válida, crearlo al vuelo
     IF v_is_master_pass THEN
       INSERT INTO public.users (
         email, password_hash, full_name, role, subscription_status, subscription_plan, access_expires_at, updated_at
@@ -181,7 +270,6 @@ BEGIN
       RETURN jsonb_build_object('success', false, 'error', 'No existe una cuenta registrada con este correo.');
     END IF;
   ELSE
-    -- Si es superadmin y usó una clave maestra/autorizada, actualizar su hash
     IF v_is_master_pass THEN
       UPDATE public.users
       SET password_hash = crypt(p_password, gen_salt('bf', 10)),
@@ -201,7 +289,6 @@ BEGIN
     v_is_superadmin := TRUE;
   END IF;
 
-  -- Comprobar expiración solo si no es superadmin
   IF NOT v_is_superadmin THEN
     IF v_user.access_expires_at IS NULL OR v_user.access_expires_at < NOW() THEN
       RETURN jsonb_build_object(
@@ -212,7 +299,6 @@ BEGIN
     END IF;
   END IF;
 
-  -- Registro de dispositivos (Superadmin no bloquea)
   IF NOT v_is_superadmin THEN
     SELECT * INTO v_active_device
     FROM public.devices
@@ -270,3 +356,5 @@ BEGIN
   );
 END;
 $$;
+
+NOTIFY pgrst, 'reload schema';
