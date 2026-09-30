@@ -623,7 +623,7 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
         isDraggingClip ? 'z-30 shadow-2xl scale-[1.02] opacity-95' : 'z-10'
       } ${
         isSelected
-          ? 'ring-2 ring-white shadow-xl shadow-cyan/30'
+          ? 'ring-2 ring-[#0f62fe] shadow-xl shadow-[#0f62fe]/20'
           : 'hover:brightness-110 shadow-md'
       }`}
       style={{
@@ -660,13 +660,13 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
       >
         <div
           className={`w-2.5 h-2.5 bg-white rounded-xs shadow-md border border-black/40 transition-transform ${
-            isAdjustingFadeIn ? 'scale-125 ring-2 ring-cyan bg-cyan-200' : 'group-hover:scale-125'
+            isAdjustingFadeIn ? 'scale-125 ring-2 ring-[#0f62fe] bg-blue-100' : 'group-hover:scale-125'
           }`}
         />
         {(isAdjustingFadeIn || localFadeIn > 0) && (
           <span
             className={`absolute top-4 left-1/2 -translate-x-1/2 px-1 py-0.5 rounded text-[8px] font-mono font-bold text-white bg-black/85 border border-white/20 pointer-events-none shadow-sm whitespace-nowrap z-30 ${
-              isAdjustingFadeIn ? 'opacity-100 ring-1 ring-cyan' : 'opacity-0 group-hover:opacity-100 transition-opacity'
+              isAdjustingFadeIn ? 'opacity-100 ring-1 ring-[#0f62fe]' : 'opacity-0 group-hover:opacity-100 transition-opacity'
             }`}
           >
             {localFadeIn.toFixed(1)}s
@@ -684,13 +684,13 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
       >
         <div
           className={`w-2.5 h-2.5 bg-white rounded-xs shadow-md border border-black/40 transition-transform ${
-            isAdjustingFadeOut ? 'scale-125 ring-2 ring-cyan bg-cyan-200' : 'group-hover:scale-125'
+            isAdjustingFadeOut ? 'scale-125 ring-2 ring-[#0f62fe] bg-blue-100' : 'group-hover:scale-125'
           }`}
         />
         {(isAdjustingFadeOut || localFadeOut > 0) && (
           <span
             className={`absolute top-4 left-1/2 -translate-x-1/2 px-1 py-0.5 rounded text-[8px] font-mono font-bold text-white bg-black/85 border border-white/20 pointer-events-none shadow-sm whitespace-nowrap z-30 ${
-              isAdjustingFadeOut ? 'opacity-100 ring-1 ring-cyan' : 'opacity-0 group-hover:opacity-100 transition-opacity'
+              isAdjustingFadeOut ? 'opacity-100 ring-1 ring-[#0f62fe]' : 'opacity-0 group-hover:opacity-100 transition-opacity'
             }`}
           >
             {localFadeOut.toFixed(1)}s

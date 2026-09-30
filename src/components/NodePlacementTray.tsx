@@ -51,7 +51,7 @@ export const NodePlacementTray: React.FC = () => {
       {/* ── Cabecera de la Bandeja ── */}
       <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-white/[0.08] bg-surface-2/80 px-3 py-2.5">
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <span className="h-2 w-2 shrink-0 rounded-full bg-cobalt-400 shadow-glow-cobalt animate-pulse" />
+          <span className="h-2 w-2 shrink-0 rounded-full bg-[#0f62fe] animate-pulse" />
           <span className="min-w-0 text-xs font-bold uppercase tracking-wider text-white">
             Nodos por colocar
           </span>
@@ -139,7 +139,7 @@ export const NodePlacementTray: React.FC = () => {
                     className={[
                       'flex h-10 min-h-[40px] items-center justify-center rounded-xl text-xs font-bold transition-all',
                       isCurrent
-                        ? 'bg-cobalt-500 text-white ring-2 ring-cobalt-300/80 shadow-glow-cobalt active:scale-[0.96]'
+                        ? 'bg-[#0f62fe] text-white ring-2 ring-[#78a9ff]/80 shadow-sm active:scale-[0.96]'
                         : isPlaced
                         ? 'bg-mint-500/15 text-mint-300 border border-mint-500/30'
                         : 'bg-surface-2 text-slate-500 border border-white/[0.04]',

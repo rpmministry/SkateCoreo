@@ -173,10 +173,10 @@ export const AthleteDirectory: React.FC<AthleteDirectoryProps> = ({
                 key={cat}
                 type="button"
                 onClick={() => setCategoryFilter(cat)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 interactive-tap ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 interactive-tap border ${
                   isSelected
-                    ? 'bg-[#0f62fe] text-white font-bold shadow-sm'
-                    : 'bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] hover:text-white'
+                    ? 'bg-[#0f62fe] text-white border-[#78a9ff]/40 shadow-sm ring-1 ring-[#0f62fe]/30 font-bold'
+                    : 'bg-surface-1 border-white/10 text-slate-300 hover:bg-white/[0.08] hover:text-white'
                 }`}
               >
                 {cat === 'ALL' ? 'Todas las Categorías' : cat}
@@ -230,7 +230,7 @@ export const AthleteDirectory: React.FC<AthleteDirectoryProps> = ({
                         {athlete.name}
                       </h3>
                       <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-0.5">
-                        <span className="font-mono text-cyan font-semibold">{athlete.age} años</span>
+                        <span className="font-mono text-[#78a9ff] font-semibold">{athlete.age} años</span>
                         {athlete.club && (
                           <span className="truncate max-w-[120px]" title={athlete.club}>
                             • {athlete.club}

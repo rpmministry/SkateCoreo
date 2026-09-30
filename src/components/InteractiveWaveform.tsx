@@ -558,16 +558,16 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
           Todas las áreas táctiles respetan el mínimo de 48x48px. */}
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 text-xs">
         <div className="flex min-w-0 items-center gap-2">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-subtle border border-cyan/30 bg-cyan/10 text-cyan">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-subtle border border-[#0f62fe]/40 bg-[#0f62fe]/15 text-[#78a9ff]">
             <Waves className="h-4 w-4" />
           </div>
           <div className="flex min-w-0 flex-col leading-tight">
             {/* Identidad inequívoca: esto es el VISOR, no el editor. */}
-            <span className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-cyan">
+            <span className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-[#78a9ff]">
               Visor de audio
               {publishedAudio && (
                 <span
-                  className="rounded px-1 py-0.5 text-[8px] font-black tracking-wide text-neon-canvas bg-cyan/90"
+                  className="rounded px-1.5 py-0.5 text-[8px] font-bold tracking-wide text-white bg-[#0f62fe]"
                   title={
                     publishedAudio.kind === 'studio-mix'
                       ? 'Música publicada desde el Audio Studio'
@@ -627,7 +627,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
               type="button"
               onClick={onOpenStudio}
               disabled={!canOpenStudio}
-              className="press flex min-h-touch items-center justify-center gap-1.5 rounded-subtle border border-white/10 bg-surface-hover/80 px-2.5 font-sans text-[11px] font-semibold text-slate-200 hover:bg-surface-active hover:text-white disabled:pointer-events-none disabled:opacity-40 sm:px-3 transition-colors shadow-sm"
+              className="press flex min-h-touch items-center justify-center gap-1.5 rounded-subtle border border-[#0f62fe]/40 bg-[#0f62fe]/10 px-2.5 font-sans text-[11px] font-bold text-[#78a9ff] hover:bg-[#0f62fe]/20 disabled:pointer-events-none disabled:opacity-40 sm:px-3"
               title={
                 canOpenStudio
                   ? 'Abrir el Audio Studio para cortar, mezclar y preparar la música'
@@ -635,7 +635,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
               }
               aria-label="Editar mezcla en Estudio"
             >
-              <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+              <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" />
               <span>Editar mezcla en Estudio</span>
             </button>
           )}
@@ -645,7 +645,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
             <button
               type="button"
               onClick={() => setShowDeleteModal(true)}
-              className="press flex min-h-touch items-center justify-center gap-1.5 rounded-subtle border border-rose-500/25 bg-rose-500/10 px-2.5 font-sans text-[11px] font-semibold text-rose-300 hover:bg-rose-500/20 hover:text-rose-200 transition-colors sm:px-3"
+              className="press flex min-h-touch items-center justify-center gap-1.5 rounded-subtle border border-rose-500/25 bg-rose-500/10 px-2.5 font-sans text-[11px] font-bold text-rose-400 hover:bg-rose-500/20 hover:text-rose-300 transition-colors sm:px-3"
               title="Eliminar la pista de audio cargada en el Visor de la Pista 2D"
               aria-label="Eliminar pista"
             >
@@ -658,15 +658,15 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
           <button
             type="button"
             onClick={() => setIsMiniMixerOpen((prev) => !prev)}
-            className={`min-h-touch min-w-touch rounded-subtle flex items-center justify-center gap-1.5 border px-2.5 font-sans text-[11px] font-semibold press lg:px-3 transition-all ${
+            className={`min-h-touch min-w-touch rounded-subtle flex items-center justify-center gap-1.5 border px-2.5 font-sans text-[11px] font-bold press lg:px-3 ${
               isMiniMixerOpen
-                ? 'border-[#0f62fe]/50 bg-surface-active text-white shadow-sm'
+                ? 'border-[#0f62fe] bg-[#0f62fe]/15 text-white shadow-sm ring-1 ring-[#0f62fe]/30 font-bold'
                 : 'border-border-subtle bg-surface-hover/80 text-text-secondary hover:bg-surface-active hover:text-text-primary'
             }`}
             title="Ajustar volúmenes independientes (Música Master, Metrónomo, Voces Guía)"
             aria-label="Abrir mezcla de audio"
           >
-            <Sliders className={`h-3.5 w-3.5 ${isMiniMixerOpen ? 'text-[#78a9ff]' : 'text-slate-400'}`} />
+            <Sliders className="h-3.5 w-3.5 text-[#78a9ff]" />
             <span className="hidden lg:inline">Mezcla</span>
             <span className="hidden font-mono text-[9px] text-text-tertiary xl:inline">
               {musicMuted ? 'M' : `${Math.round(musicVolume * 100)}%`}
@@ -687,7 +687,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
             </button>
 
             <span
-              className="hidden min-w-[34px] px-1 text-center font-mono text-[10px] font-bold text-slate-300 lg:inline"
+              className="hidden min-w-[34px] px-1 text-center font-mono text-[10px] font-bold text-accent lg:inline"
               title="Factor de zoom horizontal actual"
             >
               {zoom.toFixed(1)}x

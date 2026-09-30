@@ -65,7 +65,7 @@ export const ModalShell: React.FC<ModalShellProps> = ({
       >
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-5 py-3.5">
           <div className="flex min-w-0 items-center gap-2.5">
-            {icon && <span className="shrink-0 text-cyan">{icon}</span>}
+            {icon && <span className="shrink-0 text-[#78a9ff]">{icon}</span>}
             <h2 className="truncate font-display text-base font-black text-white">{title}</h2>
           </div>
           {dismissible && (

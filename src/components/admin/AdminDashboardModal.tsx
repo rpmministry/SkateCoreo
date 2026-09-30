@@ -345,7 +345,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
         {/* ── Cabecera Superior del Panel ── */}
         <header className="flex items-center justify-between border-b border-white/10 px-5 py-4 bg-slate-900/60">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan/30 bg-cyan/15 text-cyan">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-[#0f62fe]/40 bg-[#0f62fe]/15 text-[#78a9ff]">
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div>
@@ -379,8 +379,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
             onClick={() => setActiveTab('packages')}
             className={`press flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
               activeTab === 'packages'
-                ? 'bg-cyan text-neon-canvas shadow-glow-cyan'
-                : 'text-slate-300 hover:bg-white/5'
+                ? 'bg-[#0f62fe] text-white border border-[#78a9ff]/40 shadow-sm ring-1 ring-[#0f62fe]/30'
+                : 'text-slate-300 hover:bg-white/[0.08] hover:text-white border border-transparent'
             }`}
           >
             <Building2 className="h-4 w-4" />
@@ -398,8 +398,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
             }}
             className={`press flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
               activeTab === 'new-package'
-                ? 'bg-cyan text-neon-canvas shadow-glow-cyan'
-                : 'text-slate-300 hover:bg-white/5'
+                ? 'bg-[#0f62fe] text-white border border-[#78a9ff]/40 shadow-sm ring-1 ring-[#0f62fe]/30'
+                : 'text-slate-300 hover:bg-white/[0.08] hover:text-white border border-transparent'
             }`}
           >
             <Plus className="h-4 w-4" />
@@ -412,8 +412,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
               onClick={() => setActiveTab('codes')}
               className={`press flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
                 activeTab === 'codes'
-                  ? 'bg-mint text-neon-canvas shadow-glow-mint'
-                  : 'text-mint hover:bg-mint/10'
+                  ? 'bg-[#0f62fe] text-white border border-[#78a9ff]/40 shadow-sm ring-1 ring-[#0f62fe]/30'
+                  : 'text-slate-300 hover:bg-white/[0.08] hover:text-white border border-transparent'
               }`}
             >
               <Ticket className="h-4 w-4" />
@@ -428,15 +428,15 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
             }}
             className={`press flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
               activeTab === 'tiers'
-                ? 'bg-cyan text-neon-canvas shadow-glow-cyan'
-                : 'text-slate-300 hover:bg-white/5'
+                ? 'bg-[#0f62fe] text-white border border-[#78a9ff]/40 shadow-sm ring-1 ring-[#0f62fe]/30'
+                : 'text-slate-300 hover:bg-white/[0.08] hover:text-white border border-transparent'
             }`}
           >
             <Percent className="h-4 w-4" />
             <span>Escala de Descuentos</span>
           </button>
 
-                    <button
+          <button
             type="button"
             onClick={() => {
               setActiveTab('users');
@@ -444,13 +444,14 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
             }}
             className={`press flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
               activeTab === 'users'
-                ? 'bg-cyan text-neon-canvas shadow-glow-cyan'
-                : 'text-slate-300 hover:bg-white/5'
+                ? 'bg-[#0f62fe] text-white border border-[#78a9ff]/40 shadow-sm ring-1 ring-[#0f62fe]/30'
+                : 'text-slate-300 hover:bg-white/[0.08] hover:text-white border border-transparent'
             }`}
           >
             <Users className="h-4 w-4" />
             <span>Usuarios & Roles</span>
           </button>
+
           <button
             type="button"
             onClick={() => {
@@ -459,8 +460,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
             }}
             className={`press flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
               activeTab === 'audit'
-                ? 'bg-cyan text-neon-canvas shadow-glow-cyan'
-                : 'text-slate-300 hover:bg-white/5'
+                ? 'bg-[#0f62fe] text-white border border-[#78a9ff]/40 shadow-sm ring-1 ring-[#0f62fe]/30'
+                : 'text-slate-300 hover:bg-white/[0.08] hover:text-white border border-transparent'
             }`}
           >
             <History className="h-4 w-4" />
@@ -474,8 +475,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
             }}
             className={`press flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
               activeTab === 'plans'
-                ? 'bg-cyan text-neon-canvas shadow-glow-cyan'
-                : 'text-slate-300 hover:bg-white/5'
+                ? 'bg-[#0f62fe] text-white border border-[#78a9ff]/40 shadow-sm ring-1 ring-[#0f62fe]/30'
+                : 'text-slate-300 hover:bg-white/[0.08] hover:text-white border border-transparent'
             }`}
           >
             <CreditCard className="h-4 w-4" />
@@ -497,7 +498,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Buscar club, cliente o número de paquete..."
-                    className="w-full rounded-xl border border-white/10 bg-slate-900/80 py-2.5 pl-10 pr-4 text-xs text-white placeholder-slate-500 focus:border-cyan focus:outline-none"
+                    className="w-full rounded-xl border border-white/10 bg-slate-900/80 py-2.5 pl-10 pr-4 text-xs text-white placeholder-slate-500 focus:border-[#0f62fe] focus:outline-none"
                   />
                 </div>
 
@@ -523,7 +524,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
               {/* Tabla / Tarjetas de Paquetes */}
               {isLoadingPackages ? (
                 <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-                  <RefreshCw className="h-8 w-8 animate-spin text-cyan mb-2" />
+                  <RefreshCw className="h-8 w-8 animate-spin text-[#78a9ff] mb-2" />
                   <p className="text-xs">Cargando paquetes comerciales...</p>
                 </div>
               ) : filteredPackages.length === 0 ? (
@@ -551,7 +552,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
                     >
                       <div className="min-w-0 flex-1 space-y-1">
                         <div className="flex items-center gap-2">
-                          <span className="rounded-lg bg-slate-800 px-2 py-0.5 font-mono text-[10px] font-bold text-cyan">
+                          <span className="rounded-lg bg-slate-800 px-2 py-0.5 font-mono text-[10px] font-bold text-[#78a9ff]">
                             PKG-{String(pkg.package_number).padStart(4, '0')}
                           </span>
                           <h3 className="text-sm font-black text-white truncate">{pkg.client_name}</h3>
@@ -587,7 +588,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
                         </div>
                         <div className="h-6 w-px bg-white/10" />
                         <div className="text-center">
-                          <div className="text-sm font-black text-cyan">
+                          <div className="text-sm font-black text-[#78a9ff]">
                             {pkg.total_licenses - pkg.used_licenses}
                           </div>
                           <div className="text-[9px] uppercase font-bold text-slate-400">Disponibles</div>
@@ -630,7 +631,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
                           }}
                           title="Generar y descargar documento PDF oficial"
                         >
-                          <FileText className="h-4 w-4 text-cyan" />
+                          <FileText className="h-4 w-4 text-[#78a9ff]" />
                           <span className="hidden sm:inline">PDF</span>
                         </Button>
 
@@ -693,7 +694,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
                         onClick={() => setNewPlan('annual')}
                         className={`rounded-xl border py-2 text-xs font-bold transition-all ${
                           newPlan === 'annual'
-                            ? 'border-cyan bg-cyan/20 text-cyan'
+                            ? 'border-[#0f62fe] bg-[#0f62fe]/15 text-[#78a9ff] ring-1 ring-[#0f62fe]/30'
                             : 'border-white/10 bg-slate-900 text-slate-400 hover:text-white'
                         }`}
                       >
@@ -704,7 +705,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
                         onClick={() => setNewPlan('monthly')}
                         className={`rounded-xl border py-2 text-xs font-bold transition-all ${
                           newPlan === 'monthly'
-                            ? 'border-cyan bg-cyan/20 text-cyan'
+                            ? 'border-[#0f62fe] bg-[#0f62fe]/15 text-[#78a9ff] ring-1 ring-[#0f62fe]/30'
                             : 'border-white/10 bg-slate-900 text-slate-400 hover:text-white'
                         }`}
                       >
@@ -724,7 +725,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
                       required
                       value={newTotalLicenses}
                       onChange={(e) => setNewTotalLicenses(Math.max(1, parseInt(e.target.value) || 1))}
-                      className="w-full rounded-xl border border-white/10 bg-slate-900/90 py-2.5 px-3 text-xs text-white focus:border-cyan focus:outline-none"
+                      className="w-full rounded-xl border border-white/10 bg-slate-900/90 py-2.5 px-3 text-xs text-white focus:border-[#0f62fe] focus:outline-none"
                     />
                   </div>
                 </div>
@@ -733,7 +734,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
                 <div className="rounded-2xl border border-white/10 bg-slate-900/50 p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-white flex items-center gap-2">
-                      <Tag className="h-4 w-4 text-cyan" />
+                      <Tag className="h-4 w-4 text-[#78a9ff]" />
                       Modalidad de Descuento
                     </label>
                     <div className="flex rounded-xl bg-slate-950 p-1 border border-white/10">
@@ -741,7 +742,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
                         type="button"
                         onClick={() => setDiscountMode('tiered')}
                         className={`rounded-lg px-2.5 py-1 text-[10px] font-bold ${
-                          discountMode === 'tiered' ? 'bg-cyan text-neon-canvas' : 'text-slate-400'
+                          discountMode === 'tiered' ? 'bg-[#0f62fe] text-white shadow-sm ring-1 ring-[#0f62fe]/30' : 'text-slate-400 hover:text-white'
                         }`}
                       >
                         Escala por Volumen
@@ -750,7 +751,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
                         type="button"
                         onClick={() => setDiscountMode('negotiated')}
                         className={`rounded-lg px-2.5 py-1 text-[10px] font-bold ${
-                          discountMode === 'negotiated' ? 'bg-cyan text-neon-canvas' : 'text-slate-400'
+                          discountMode === 'negotiated' ? 'bg-[#0f62fe] text-white shadow-sm ring-1 ring-[#0f62fe]/30' : 'text-slate-400 hover:text-white'
                         }`}
                       >
                         Negociado / Manual
@@ -772,7 +773,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
                         onChange={(e) =>
                           setNegotiatedDiscountPercent(Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)))
                         }
-                        className="w-full rounded-xl border border-cyan/40 bg-slate-950 py-2 px-3 text-xs text-white focus:border-cyan focus:outline-none"
+                        className="w-full rounded-xl border border-[#0f62fe]/40 bg-slate-950 py-2 px-3 text-xs text-white focus:border-[#0f62fe] focus:outline-none"
                       />
                       <p className="text-[10px] text-slate-500 mt-1">
                         Ejemplo: 50% de descuento directo para compras especiales de clubes.
@@ -806,7 +807,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
 
                 {/* Previsualización Financiera Oficial */}
                 {previewPricing && (
-                  <div className="rounded-2xl border border-cyan/30 bg-cyan/10 p-4 space-y-2">
+                  <div className="rounded-2xl border border-[#0f62fe]/30 bg-[#0f62fe]/10 p-4 space-y-2">
                     <div className="flex justify-between text-xs text-slate-300">
                       <span>Subtotal ({previewPricing.total_licenses} × ${previewPricing.unit_base_price.toFixed(2)}):</span>
                       <span>${previewPricing.subtotal.toFixed(2)} USD</span>
@@ -817,9 +818,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
                         <span>-${previewPricing.discount_amount.toFixed(2)} USD</span>
                       </div>
                     )}
-                    <div className="border-t border-cyan/20 pt-2 flex justify-between text-sm font-black text-white">
+                    <div className="border-t border-[#0f62fe]/20 pt-2 flex justify-between text-sm font-black text-white">
                       <span>Total Final del Paquete:</span>
-                      <span className="text-cyan text-base">${previewPricing.total_amount.toFixed(2)} USD</span>
+                      <span className="text-[#78a9ff] text-base">${previewPricing.total_amount.toFixed(2)} USD</span>
                     </div>
                     <div className="text-[10px] text-slate-400 text-right">
                       Ahorro para el cliente: ${previewPricing.savings_amount.toFixed(2)} USD
@@ -858,7 +859,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
               <div className="glass-panel flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-2xl border border-white/10 bg-slate-900/60 p-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-cyan">
+                    <span className="font-mono text-xs font-bold text-[#78a9ff]">
                       PKG-{String(selectedPackage.package_number).padStart(4, '0')}
                     </span>
                     <h2 className="text-base font-black text-white">{selectedPackage.client_name}</h2>
@@ -889,7 +890,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
               {/* Lista de Códigos */}
               {isLoadingCodes ? (
                 <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-                  <RefreshCw className="h-8 w-8 animate-spin text-cyan mb-2" />
+                  <RefreshCw className="h-8 w-8 animate-spin text-[#78a9ff] mb-2" />
                   <p className="text-xs">Cargando códigos...</p>
                 </div>
               ) : packageCodes.length === 0 ? (
@@ -901,7 +902,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
                   {packageCodes.map((codeItem, index) => (
                     <div
                       key={codeItem.id}
-                      className="glass-panel flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-slate-900/70 p-3 hover:border-cyan/30 transition-all"
+                      className="glass-panel flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-slate-900/70 p-3 hover:border-[#0f62fe]/30 transition-all"
                     >
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
@@ -914,7 +915,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
                         </div>
                         <div className="mt-0.5 text-[10px] truncate text-slate-400">
                           {codeItem.status === 'assigned' ? (
-                            <span className="text-cyan">Asignado: {codeItem.assigned_email}</span>
+                            <span className="text-[#78a9ff]">Asignado: {codeItem.assigned_email}</span>
                           ) : codeItem.status === 'revoked' ? (
                             <span className="text-coral">Revocado</span>
                           ) : (
@@ -1043,7 +1044,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
                   placeholder="Buscar por email, nombre o rol..."
                   value={userSearchQuery}
                   onChange={(e) => setUserSearchQuery(e.target.value)}
-                  className="w-full bg-slate-900 border border-white/10 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-cyan"
+                  className="w-full bg-slate-900 border border-white/10 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-[#0f62fe]"
                 />
               </div>
 
@@ -1084,7 +1085,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
                             ? 'bg-mint/20 text-mint border-mint/30'
                             : isCoach
                             ? 'bg-coral/20 text-coral border-coral/30'
-                            : 'bg-cyan/20 text-cyan border-cyan/30';
+                            : 'bg-[#0f62fe]/20 text-[#78a9ff] border-[#0f62fe]/30';
 
                           return (
                             <tr key={u.id} className="hover:bg-white/[0.02]">
@@ -1112,7 +1113,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
                                 <select
                                   value={u.role || 'skater'}
                                   onChange={(e) => handleChangeRole(u.id, e.target.value)}
-                                  className="bg-slate-800 border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none focus:border-cyan"
+                                  className="bg-slate-800 border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none focus:border-[#0f62fe]"
                                 >
                                   <option value="skater">Patinador (Skater)</option>
                                   <option value="coach">Entrenador (Coach)</option>
@@ -1147,7 +1148,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
 
               {isLoadingAudit ? (
                 <div className="flex justify-center py-16 text-slate-400">
-                  <RefreshCw className="h-8 w-8 animate-spin text-cyan" />
+                  <RefreshCw className="h-8 w-8 animate-spin text-[#78a9ff]" />
                 </div>
               ) : auditLogs.length === 0 ? (
                 <div className="text-center py-12 text-slate-500 text-xs">
@@ -1162,7 +1163,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
                     >
                       <div className="space-y-0.5">
                         <div className="flex items-center gap-2">
-                          <span className="font-bold text-cyan uppercase text-[10px] tracking-wider">
+                          <span className="font-bold text-[#78a9ff] uppercase text-[10px] tracking-wider">
                             {log.action}
                           </span>
                           <span className="text-slate-400 text-[10px]">por {log.performed_by}</span>
@@ -1188,7 +1189,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="rounded-lg bg-cyan/20 px-2 py-0.5 font-mono text-[10px] font-bold text-cyan uppercase tracking-wider">
+                    <span className="rounded-lg bg-[#0f62fe]/20 px-2 py-0.5 font-mono text-[10px] font-bold text-[#78a9ff] uppercase tracking-wider">
                       Fuente Única de Verdad
                     </span>
                     <span className="rounded-lg bg-slate-800 px-2 py-0.5 font-mono text-[10px] text-slate-400">
@@ -1240,14 +1241,14 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
                       </div>
 
                       <div className="border-l border-white/10 pl-3">
-                        <span className="block text-[10px] font-mono uppercase text-cyan">Plan Anual (-{SKATER_PLAN.annualDiscountPercent}%)</span>
+                        <span className="block text-[10px] font-mono uppercase text-[#78a9ff]">Plan Anual (-{SKATER_PLAN.annualDiscountPercent}%)</span>
                         <div className="flex items-baseline gap-1 mt-0.5">
                           <span className="text-lg font-black font-mono text-white">
                             ${SKATER_PLAN.annualPrice.toFixed(2)}
                           </span>
                           <span className="text-[10px] text-slate-400">USD/año</span>
                         </div>
-                        <span className="text-[10px] text-cyan block font-semibold mt-0.5">
+                        <span className="text-[10px] text-[#78a9ff] block font-semibold mt-0.5">
                           Ahorras ${SKATER_PLAN.annualSavings.toFixed(2)}/año
                         </span>
                       </div>
@@ -1259,7 +1260,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
                         <span>Base 12 meses ({SKATER_PLAN.monthlyPrice.toFixed(2)} × 12):</span>
                         <span className="text-slate-300">${SKATER_PLAN.baseAnnualPrice.toFixed(2)} USD</span>
                       </div>
-                      <div className="flex justify-between text-cyan">
+                      <div className="flex justify-between text-[#78a9ff]">
                         <span>Descuento aplicado ({SKATER_PLAN.annualDiscountPercent}%):</span>
                         <span>-${SKATER_PLAN.annualSavings.toFixed(2)} USD</span>
                       </div>
@@ -1280,7 +1281,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
                       </span>
                       {SKATER_PLAN.features.map((feat, idx) => (
                         <div key={idx} className="flex items-center gap-2">
-                          <Check className="h-3 w-3 text-cyan shrink-0" />
+                          <Check className="h-3 w-3 text-[#78a9ff] shrink-0" />
                           <span>{feat}</span>
                         </div>
                       ))}
@@ -1374,7 +1375,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
               {/* Matriz de Reglas Comerciales de Auditoría */}
               <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-5 space-y-3">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4 text-cyan" />
+                  <ShieldCheck className="h-4 w-4 text-[#78a9ff]" />
                   Reglas de Facturación, Separación de Roles y Pasarela PayPal
                 </h3>
                 <div className="overflow-x-auto">
@@ -1394,7 +1395,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
                         <td className="py-2 font-bold text-white">Patinador Mensual</td>
                         <td className="py-2 text-blue-400">skater</td>
                         <td className="py-2">monthly</td>
-                        <td className="py-2 font-bold text-cyan">$4.99 USD</td>
+                        <td className="py-2 font-bold text-[#78a9ff]">$4.99 USD</td>
                         <td className="py-2">30 días</td>
                         <td className="py-2 text-mint">Verificado por monto PayPal</td>
                       </tr>
@@ -1402,7 +1403,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
                         <td className="py-2 font-bold text-white">Patinador Anual</td>
                         <td className="py-2 text-blue-400">skater</td>
                         <td className="py-2">annual</td>
-                        <td className="py-2 font-bold text-cyan">$47.90 USD</td>
+                        <td className="py-2 font-bold text-[#78a9ff]">$47.90 USD</td>
                         <td className="py-2">365 días</td>
                         <td className="py-2 text-mint">Verificado (-20% sobre $59.88)</td>
                       </tr>
@@ -1410,7 +1411,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
                         <td className="py-2 font-bold text-white">Entrenador Mensual</td>
                         <td className="py-2 text-pink-400">coach</td>
                         <td className="py-2">monthly</td>
-                        <td className="py-2 font-bold text-cyan">$9.99 USD</td>
+                        <td className="py-2 font-bold text-[#78a9ff]">$9.99 USD</td>
                         <td className="py-2">30 días</td>
                         <td className="py-2 text-mint">Verificado por monto PayPal</td>
                       </tr>
@@ -1418,7 +1419,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
                         <td className="py-2 font-bold text-white">Entrenador Anual</td>
                         <td className="py-2 text-pink-400">coach</td>
                         <td className="py-2">annual</td>
-                        <td className="py-2 font-bold text-cyan">$83.92 USD</td>
+                        <td className="py-2 font-bold text-[#78a9ff]">$83.92 USD</td>
                         <td className="py-2">365 días</td>
                         <td className="py-2 text-mint">Verificado (-30% sobre $119.88)</td>
                       </tr>

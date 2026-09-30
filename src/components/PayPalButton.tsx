@@ -186,15 +186,15 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
       {isLoadingSdk && (
         <div className="flex h-12 w-full items-center justify-center rounded-xl border border-white/5 bg-slate-800/80 text-xs font-medium text-slate-400 animate-pulse">
           <span className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-cyan animate-ping" />
+            <span className="h-2 w-2 rounded-full bg-[#0f62fe] animate-ping" />
             Cargando pasarela de pago segura...
           </span>
         </div>
       )}
 
       {isProcessing && (
-        <div className="flex w-full items-center justify-center gap-2 rounded-xl border border-cyan/30 bg-cyan/15 p-3 text-xs font-bold text-cyan animate-pulse">
-          <ShieldCheck className="h-4 w-4 shrink-0 text-cyan" />
+        <div className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#0f62fe]/30 bg-[#0f62fe]/15 p-3 text-xs font-bold text-[#78a9ff] animate-pulse">
+          <ShieldCheck className="h-4 w-4 shrink-0 text-[#78a9ff]" />
           <span>Confirmando pago y generando recibo seguro...</span>
         </div>
       )}

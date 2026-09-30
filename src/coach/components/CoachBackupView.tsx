@@ -22,6 +22,7 @@ import {
 import { useCoachStore } from '../store/useCoachStore';
 import { coachBackupService } from '../services/coachBackupService';
 import { storageManager } from '../services/storage/StorageManager';
+import { Button } from '../../components/ui';
 
 export const CoachBackupView: React.FC = () => {
   const { profile, loadInitialData } = useCoachStore();
@@ -119,14 +120,14 @@ export const CoachBackupView: React.FC = () => {
       )}
 
       {/* Tarjeta de Respaldo Actual */}
-      <div className="p-6 rounded-3xl bg-neon-surface border border-white/10 shadow-soft-elevation space-y-4">
+      <div className="p-6 rounded-2xl bg-surface-2 border border-white/[0.08] shadow-elevation-1 space-y-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
               Estado de Respaldo
             </span>
             <div className="text-sm font-bold text-white mt-1 flex items-center gap-2">
-              <Clock className="w-4 h-4 text-cyan" />
+              <Clock className="w-4 h-4 text-[#78a9ff]" />
               <span>
                 Última copia:{' '}
                 {profile?.lastBackupDate
@@ -143,31 +144,31 @@ export const CoachBackupView: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
+            <Button
+              variant="cobalt"
+              size="md"
               onClick={handleExportZip}
               disabled={isExporting}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-cyan text-neon-canvas font-black text-xs shadow-glow-cyan hover:bg-cyan/90 transition-all disabled:opacity-50 interactive-tap"
+              icon={<Download className={`w-4 h-4 ${isExporting ? 'animate-bounce' : ''}`} />}
             >
-              <Download className={`w-4 h-4 ${isExporting ? 'animate-bounce' : ''}`} />
-              <span>{isExporting ? 'Empaquetando...' : 'Descargar Backup (.zip)'}</span>
-            </button>
+              {isExporting ? 'Empaquetando...' : 'Descargar Backup (.zip)'}
+            </Button>
 
             {activeProvider.id !== 'local' && (
-              <button
-                type="button"
+              <Button
+                variant="secondary"
+                size="md"
                 onClick={handleSaveToCloud}
                 disabled={isExporting}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/[0.06] hover:bg-white/10 text-white text-xs font-bold transition-all interactive-tap disabled:opacity-50"
+                icon={<CloudUpload className="w-4 h-4 text-[#78a9ff]" />}
               >
-                <CloudUpload className="w-4 h-4 text-cyan" />
-                <span>Guardar en {activeProvider.name}</span>
-              </button>
+                Guardar en {activeProvider.name}
+              </Button>
             )}
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 text-xs space-y-2">
+        <div className="p-4 rounded-2xl bg-surface-1 border border-white/5 text-xs space-y-2">
           <div className="font-bold text-slate-300">Contenido que incluye el archivo de respaldo:</div>
           <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-400 text-[11px]">
             <li className="flex items-center gap-1.5">
@@ -187,7 +188,7 @@ export const CoachBackupView: React.FC = () => {
       </div>
 
       {/* Restauración de Copia de Seguridad */}
-      <div className="p-6 rounded-3xl bg-neon-surface border border-white/10 space-y-4 shadow-soft-elevation">
+      <div className="p-6 rounded-2xl bg-surface-2 border border-white/[0.08] space-y-4 shadow-elevation-1">
         <div className="flex items-center gap-2">
           <FileArchive className="w-5 h-5 text-mint" />
           <h3 className="text-base font-bold text-white tracking-tight">
@@ -197,7 +198,7 @@ export const CoachBackupView: React.FC = () => {
 
         <p className="text-xs text-slate-300 leading-relaxed max-w-2xl">
           Si te encuentras en otro equipo, navegador o reinstalaste la aplicación, selecciona un archivo{' '}
-          <code className="text-cyan font-mono">SkateCoreo_Backup_*.zip</code> para reconstruir inmediatamente todas tus fichas y coreografías.
+          <code className="text-[#78a9ff] font-mono">SkateCoreo_Backup_*.zip</code> para reconstruir inmediatamente todas tus fichas y coreografías.
         </p>
 
         <div className="pt-2">
@@ -209,15 +210,15 @@ export const CoachBackupView: React.FC = () => {
             className="hidden"
           />
 
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="md"
             onClick={() => fileInputRef.current?.click()}
             disabled={isRestoring}
-            className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-mint text-neon-canvas font-black text-xs shadow-glow-mint hover:bg-mint/90 transition-all disabled:opacity-50 interactive-tap"
+            icon={<Upload className={`w-4 h-4 ${isRestoring ? 'animate-spin' : ''}`} />}
           >
-            <Upload className={`w-4 h-4 ${isRestoring ? 'animate-spin' : ''}`} />
-            <span>{isRestoring ? 'Restaurando datos...' : 'Seleccionar Archivo de Respaldo (.zip)'}</span>
-          </button>
+            {isRestoring ? 'Restaurando datos...' : 'Seleccionar Archivo de Respaldo (.zip)'}
+          </Button>
         </div>
       </div>
     </div>

@@ -667,10 +667,10 @@ export const AuthModal: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setSelectedPlan('annual')}
-                        className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-md transition-colors ${
+                        className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-md transition-all ${
                           selectedPlan === 'annual'
-                            ? 'bg-surface-3 text-[#f4f4f4] border border-white/10 shadow-sm'
-                            : 'text-[#8d8d8d] hover:text-white'
+                            ? 'bg-surface-3 text-white font-bold border border-[#0f62fe] shadow-sm ring-1 ring-[#0f62fe]/40'
+                            : 'text-[#8d8d8d] hover:text-white border border-transparent'
                         }`}
                       >
                         <div className="flex items-center gap-1">
@@ -687,10 +687,10 @@ export const AuthModal: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setSelectedPlan('monthly')}
-                        className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-md transition-colors ${
+                        className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-md transition-all ${
                           selectedPlan === 'monthly'
-                            ? 'bg-surface-3 text-[#f4f4f4] border border-white/10 shadow-sm'
-                            : 'text-[#8d8d8d] hover:text-white'
+                            ? 'bg-surface-3 text-white font-bold border border-[#0f62fe] shadow-sm ring-1 ring-[#0f62fe]/40'
+                            : 'text-[#8d8d8d] hover:text-white border border-transparent'
                         }`}
                       >
                         <span className="text-xs font-semibold">Plan Mensual</span>

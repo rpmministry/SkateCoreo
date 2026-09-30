@@ -19,6 +19,7 @@ import {
   getDescripcionCategoria,
 } from '../constants/reglamento';
 import { dbService } from '../services/db';
+import { Button } from './ui/Button';
 
 interface SkatersManagerProps {
   skaters: Skater[];
@@ -203,36 +204,40 @@ export const SkatersManager: React.FC<SkatersManagerProps> = ({
       )}
 
       {/* Header and Controls */}
-      <div className="bg-zinc-950 border border-sky-900/50 rounded-2xl p-5 shadow-xl flex flex-wrap items-center justify-between gap-4">
+      <div className="bg-surface-2 border border-white/[0.08] rounded-2xl p-5 shadow-soft-elevation flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-lg font-bold text-sky-400 flex items-center gap-2">
-            <Users className="w-5 h-5 text-sky-400" />
+          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <Users className="w-5 h-5 text-[#78a9ff]" />
             Gestión de Atletas y Programas Coreográficos
           </h2>
-          <p className="text-xs text-sky-300/80 mt-0.5">
-            Base de datos local en <code className="text-sky-400 font-mono">IndexedDB</code> estructurada según el PRD con persistencia anti-evicción.
+          <p className="text-xs text-slate-400 mt-0.5">
+            Base de datos local en <code className="text-[#78a9ff] font-mono">IndexedDB</code> estructurada según el PRD con persistencia anti-evicción.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <button
+          <Button
+            variant="cobalt"
+            size="sm"
             onClick={() => setShowNewSkaterModal(true)}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-amber-400 hover:text-zinc-950 active:bg-amber-400 active:text-zinc-950 text-white font-bold text-xs shadow-md border border-sky-500 transition-all touch-target"
+            className="flex items-center gap-2"
           >
             <UserPlus className="w-4 h-4" />
             <span>Nuevo Atleta</span>
-          </button>
+          </Button>
 
-          <button
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={handleExportData}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-sky-950/70 hover:bg-amber-400 hover:text-zinc-950 text-sky-300 border border-sky-800 text-xs font-semibold transition-all"
+            className="flex items-center gap-1.5"
             title="Exportar base de datos a archivo JSON"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Exportar JSON</span>
-          </button>
+          </Button>
 
-          <label className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-sky-950/70 hover:bg-amber-400 hover:text-zinc-950 text-sky-300 border border-sky-800 text-xs font-semibold cursor-pointer transition-all">
+          <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 bg-surface-1 hover:bg-white/[0.08] text-slate-200 text-xs font-semibold cursor-pointer transition-all">
             <Upload className="w-3.5 h-3.5" />
             <span>Importar JSON</span>
             <input type="file" accept=".json" onChange={handleImportData} className="hidden" />
@@ -244,16 +249,16 @@ export const SkatersManager: React.FC<SkatersManagerProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         
         {/* Left Column: Skaters List */}
-        <div className="bg-zinc-950 border border-sky-900/50 rounded-2xl p-4 shadow-xl space-y-3">
-          <div className="flex items-center justify-between border-b border-sky-900/50 pb-3">
-            <h3 className="text-xs font-bold text-sky-400 uppercase tracking-wider">
+        <div className="bg-surface-2 border border-white/[0.08] rounded-2xl p-4 shadow-soft-elevation space-y-3">
+          <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
+            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
               Atletas Registrados ({skaters.length})
             </h3>
           </div>
 
           <div className="space-y-2 max-h-[480px] overflow-y-auto pr-1">
             {skaters.length === 0 ? (
-              <div className="text-center py-10 text-sky-400/50 text-xs">
+              <div className="text-center py-10 text-slate-500 text-xs">
                 No hay atletas registrados. Crea uno nuevo para comenzar.
               </div>
             ) : (
@@ -265,14 +270,14 @@ export const SkatersManager: React.FC<SkatersManagerProps> = ({
                     onClick={() => onSelectSkater(skater)}
                     className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
                       isSelected
-                        ? 'bg-sky-950/80 border-amber-400 shadow-md shadow-amber-400/10'
-                        : 'bg-zinc-900/60 border-sky-950 hover:bg-sky-950/40'
+                        ? 'bg-[#0f62fe]/15 border-[#0f62fe] ring-1 ring-[#0f62fe]/30 shadow-sm'
+                        : 'bg-surface-1 border-white/[0.06] hover:bg-white/[0.04]'
                     }`}
                   >
                     <div>
-                      <h4 className={`font-bold text-sm ${isSelected ? 'text-amber-300' : 'text-sky-300'}`}>{skater.name}</h4>
-                      <div className="flex items-center gap-2 mt-1 text-[11px] text-sky-400/80">
-                        <span className="font-mono text-sky-400 font-semibold">{skater.category}</span>
+                      <h4 className={`font-bold text-sm ${isSelected ? 'text-white' : 'text-slate-200'}`}>{skater.name}</h4>
+                      <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-400">
+                        <span className={`font-mono font-semibold ${isSelected ? 'text-[#78a9ff]' : 'text-slate-300'}`}>{skater.category}</span>
                         {skater.club && <span>• {skater.club}</span>}
                       </div>
                     </div>
@@ -282,7 +287,7 @@ export const SkatersManager: React.FC<SkatersManagerProps> = ({
                         e.stopPropagation();
                         handleDeleteSkater(skater.id, skater.name);
                       }}
-                      className="text-sky-400/50 hover:text-red-400 p-1.5 rounded-lg transition-all"
+                      className="text-slate-500 hover:text-red-400 p-1.5 rounded-lg transition-all"
                       title="Eliminar atleta"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -295,34 +300,36 @@ export const SkatersManager: React.FC<SkatersManagerProps> = ({
         </div>
 
         {/* Right 2 Columns: Programs of Selected Skater */}
-        <div className="md:col-span-2 bg-zinc-950 border border-sky-900/50 rounded-2xl p-5 shadow-xl space-y-4">
-          <div className="flex items-center justify-between border-b border-sky-900/50 pb-3">
+        <div className="md:col-span-2 bg-surface-2 border border-white/[0.08] rounded-2xl p-5 shadow-soft-elevation space-y-4">
+          <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
             <div>
-              <h3 className="text-sm font-bold text-sky-400">
+              <h3 className="text-sm font-bold text-white">
                 Programas de {selectedSkater ? selectedSkater.name : 'Atleta'}
               </h3>
-              <p className="text-xs text-sky-300/80">
+              <p className="text-xs text-slate-400">
                 Coreografías, audio vinculado y puntos de trazado 2D.
               </p>
             </div>
 
             {selectedSkater && (
-              <button
+              <Button
+                variant="cobalt"
+                size="sm"
                 onClick={() => setShowNewProgramModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-950/70 hover:bg-amber-400 hover:text-zinc-950 text-sky-300 border border-sky-800 text-xs font-bold transition-all touch-target shadow-sm"
+                className="flex items-center gap-1.5"
               >
-                <Plus className="w-4 h-4 text-amber-400" />
+                <Plus className="w-4 h-4" />
                 <span>Nuevo Programa</span>
-              </button>
+              </Button>
             )}
           </div>
 
           {!selectedSkater ? (
-            <div className="text-center py-16 text-sky-400/50 text-xs">
+            <div className="text-center py-16 text-slate-500 text-xs">
               Selecciona un atleta en la lista izquierda para ver o crear sus programas.
             </div>
           ) : programs.length === 0 ? (
-            <div className="text-center py-16 text-sky-400/50 text-xs">
+            <div className="text-center py-16 text-slate-500 text-xs">
               Este atleta aún no tiene programas asignados. Crea uno con el botón "Nuevo Programa".
             </div>
           ) : (
@@ -338,13 +345,17 @@ export const SkatersManager: React.FC<SkatersManagerProps> = ({
                     onClick={() => onSelectProgram(prog)}
                     className={`p-4 rounded-xl border transition-all cursor-pointer space-y-2.5 ${
                       isSelected
-                        ? 'bg-sky-950/80 border-amber-400 shadow-md shadow-amber-400/10'
-                        : 'bg-zinc-900/60 border-sky-950 hover:bg-sky-950/40'
+                        ? 'bg-[#0f62fe]/15 border-[#0f62fe] ring-1 ring-[#0f62fe]/30 shadow-sm'
+                        : 'bg-surface-1 border-white/[0.06] hover:bg-white/[0.04]'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <h4 className={`font-bold text-sm truncate ${isSelected ? 'text-amber-300' : 'text-sky-300'}`}>{prog.title}</h4>
-                      {isSelected && <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-400 text-zinc-950 font-black border border-amber-300">ACTIVO</span>}
+                      <h4 className={`font-bold text-sm truncate ${isSelected ? 'text-white' : 'text-slate-200'}`}>{prog.title}</h4>
+                      {isSelected && (
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#0f62fe] text-white font-bold border border-[#78a9ff]/40">
+                          ACTIVO
+                        </span>
+                      )}
                     </div>
 
                     <div className="text-xs font-mono text-slate-400 space-y-1">
@@ -354,11 +365,11 @@ export const SkatersManager: React.FC<SkatersManagerProps> = ({
                       </div>
                       <div className="flex items-center justify-between">
                         <span>Mitad (Factor T):</span>
-                        <strong className="text-amber-400">{(prog.half_time_ms / 1000).toFixed(0)}s</strong>
+                        <strong className="text-amber-300">{(prog.half_time_ms / 1000).toFixed(0)}s</strong>
                       </div>
                       <div className="flex items-center justify-between">
                         <span>Puntos Pista:</span>
-                        <strong className="text-sky-400">{prog.choreography_path.length}</strong>
+                        <strong className="text-[#78a9ff]">{prog.choreography_path.length}</strong>
                       </div>
                     </div>
                   </div>
@@ -373,9 +384,9 @@ export const SkatersManager: React.FC<SkatersManagerProps> = ({
       {/* New Skater Modal */}
       {showNewSkaterModal && (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-          <form onSubmit={handleCreateSkater} className="bg-skate-panel border border-skate-border rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+          <form onSubmit={handleCreateSkater} className="bg-surface-2 border border-white/10 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
             <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <UserPlus className="w-5 h-5 text-sky-400" />
+              <UserPlus className="w-5 h-5 text-[#78a9ff]" />
               Registrar Nuevo Atleta
             </h3>
 
@@ -388,7 +399,7 @@ export const SkatersManager: React.FC<SkatersManagerProps> = ({
                   placeholder="ej. Martina Gómez"
                   value={newSkaterName}
                   onChange={(e) => setNewSkaterName(e.target.value)}
-                  className="w-full bg-skate-bg border border-skate-border rounded-xl px-3 py-2 text-white outline-none focus:border-sky-500"
+                  className="w-full bg-surface-1 border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-[#0f62fe]"
                 />
               </div>
 
@@ -398,7 +409,7 @@ export const SkatersManager: React.FC<SkatersManagerProps> = ({
                   <select
                     value={newSkaterAge}
                     onChange={(e) => handleAgeChange(parseInt(e.target.value, 10))}
-                    className="w-full rounded-xl border border-skate-border bg-skate-bg px-3 py-2 text-white outline-none focus:border-sky-500"
+                    className="w-full rounded-xl border border-white/10 bg-surface-1 px-3 py-2 text-white outline-none focus:border-[#0f62fe]"
                   >
                     {EDADES_DISPONIBLES.map((edad) => (
                       <option key={edad} value={edad}>
@@ -413,7 +424,7 @@ export const SkatersManager: React.FC<SkatersManagerProps> = ({
                   <select
                     value={newSkaterCat}
                     onChange={(e) => handleCategoryChange(e.target.value as SkaterCategoryReglamento)}
-                    className="w-full rounded-xl border border-skate-border bg-skate-bg px-3 py-2 text-white outline-none focus:border-sky-500"
+                    className="w-full rounded-xl border border-white/10 bg-surface-1 px-3 py-2 text-white outline-none focus:border-[#0f62fe]"
                   >
                     {CATEGORIAS_REGLAMENTO.map((c) => (
                       <option key={c} value={c}>
@@ -424,14 +435,14 @@ export const SkatersManager: React.FC<SkatersManagerProps> = ({
                 </div>
               </div>
 
-              <p className="rounded-xl border border-sky-900/60 bg-sky-950/40 px-3 py-2 text-[11px] text-sky-300">
+              <p className="rounded-xl border border-white/10 bg-surface-1/80 px-3 py-2 text-[11px] text-slate-300">
                 Categoría sugerida por Reglamento 2026 para {newSkaterAge} años:{' '}
-                <strong className="font-mono font-black text-amber-300">
+                <strong className="font-mono font-black text-[#78a9ff]">
                   {getCategoriaByEdad(newSkaterAge)}
                 </strong>{' '}
                 ({getDescripcionCategoria(getCategoriaByEdad(newSkaterAge))})
                 {newSkaterCatTouched && newSkaterCat !== getCategoriaByEdad(newSkaterAge) && (
-                  <span className="ml-1 text-amber-400">
+                  <span className="ml-1 text-amber-300">
                     · Ajustada manualmente a {newSkaterCat}
                   </span>
                 )}
@@ -442,7 +453,7 @@ export const SkatersManager: React.FC<SkatersManagerProps> = ({
                 <select
                   value={newSkaterEficiencia}
                   onChange={(e) => setNewSkaterEficiencia(e.target.value as SkaterEficiencia)}
-                  className="w-full rounded-xl border border-skate-border bg-skate-bg px-3 py-2 text-white outline-none focus:border-sky-500"
+                  className="w-full rounded-xl border border-white/10 bg-surface-1 px-3 py-2 text-white outline-none focus:border-[#0f62fe]"
                 >
                   {EFICIENCIAS_DISPONIBLES.map((eff) => (
                     <option key={eff} value={eff}>
@@ -459,25 +470,27 @@ export const SkatersManager: React.FC<SkatersManagerProps> = ({
                   placeholder="ej. CPA Barcelona"
                   value={newSkaterClub}
                   onChange={(e) => setNewSkaterClub(e.target.value)}
-                  className="w-full bg-skate-bg border border-skate-border rounded-xl px-3 py-2 text-white outline-none focus:border-sky-500"
+                  className="w-full bg-surface-1 border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-[#0f62fe]"
                 />
               </div>
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="sm"
                 onClick={() => setShowNewSkaterModal(false)}
-                className="px-4 py-2 rounded-xl bg-skate-card text-slate-300 text-xs font-semibold hover:bg-slate-700"
               >
                 Cancelar
-              </button>
-              <button
+              </Button>
+              <Button
                 type="submit"
-                className="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-bold shadow-md"
+                variant="cobalt"
+                size="sm"
               >
                 Guardar Atleta
-              </button>
+              </Button>
             </div>
           </form>
         </div>
@@ -486,9 +499,9 @@ export const SkatersManager: React.FC<SkatersManagerProps> = ({
       {/* New Program Modal */}
       {showNewProgramModal && (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-          <form onSubmit={handleCreateProgram} className="bg-skate-panel border border-skate-border rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+          <form onSubmit={handleCreateProgram} className="bg-surface-2 border border-white/10 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
             <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <Plus className="w-5 h-5 text-emerald-400" />
+              <Plus className="w-5 h-5 text-[#78a9ff]" />
               Nuevo Programa Coreográfico
             </h3>
 
@@ -501,7 +514,7 @@ export const SkatersManager: React.FC<SkatersManagerProps> = ({
                   placeholder="ej. Programa Corto - O Mio Babbino Caro"
                   value={newProgTitle}
                   onChange={(e) => setNewProgTitle(e.target.value)}
-                  className="w-full bg-skate-bg border border-skate-border rounded-xl px-3 py-2 text-white outline-none focus:border-sky-500"
+                  className="w-full bg-surface-1 border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-[#0f62fe]"
                 />
               </div>
 
@@ -517,7 +530,7 @@ export const SkatersManager: React.FC<SkatersManagerProps> = ({
                     setNewProgCustomDuration(false);
                     setNewProgDurationSec(parseInt(e.target.value, 10));
                   }}
-                  className="w-full rounded-xl border border-skate-border bg-skate-bg px-3 py-2 font-mono text-white outline-none focus:border-sky-500"
+                  className="w-full rounded-xl border border-white/10 bg-surface-1 px-3 py-2 font-mono text-white outline-none focus:border-[#0f62fe]"
                 >
                   {DURACIONES_REGLAMENTO.map((sec) => (
                     <option key={sec} value={sec}>
@@ -535,30 +548,32 @@ export const SkatersManager: React.FC<SkatersManagerProps> = ({
                     max={360}
                     value={newProgDurationSec}
                     onChange={(e) => setNewProgDurationSec(parseInt(e.target.value, 10) || 240)}
-                    className="mt-2 w-full rounded-xl border border-skate-border bg-skate-bg px-3 py-2 font-mono text-white outline-none focus:border-sky-500"
+                    className="mt-2 w-full rounded-xl border border-white/10 bg-surface-1 px-3 py-2 font-mono text-white outline-none focus:border-[#0f62fe]"
                   />
                 )}
 
-                <span className="mt-1 block text-[11px] text-slate-500">
+                <span className="mt-1 block text-[11px] text-slate-400">
                   Cuarto/medio de programa para factor T: {(newProgDurationSec / 2)}s
                 </span>
               </div>
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="sm"
                 onClick={() => setShowNewProgramModal(false)}
-                className="px-4 py-2 rounded-xl bg-skate-card text-slate-300 text-xs font-semibold hover:bg-slate-700"
               >
                 Cancelar
-              </button>
-              <button
+              </Button>
+              <Button
                 type="submit"
-                className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold shadow-md"
+                variant="cobalt"
+                size="sm"
               >
                 Crear Programa
-              </button>
+              </Button>
             </div>
           </form>
         </div>

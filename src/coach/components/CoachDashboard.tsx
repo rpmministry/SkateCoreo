@@ -159,7 +159,7 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({
             type="button"
             onClick={() => syncAllToCloud()}
             disabled={isLoading || storageSummary?.activeProvider === 'local'}
-            className="text-[11px] text-cyan font-bold hover:underline flex items-center gap-1 disabled:opacity-40"
+            className="text-[11px] text-[#78a9ff] font-bold hover:underline flex items-center gap-1 disabled:opacity-40"
           >
             <RefreshCw className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} />
             <span>Sincronizar ahora</span>
@@ -200,7 +200,7 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({
               key={cat}
               className="p-3.5 rounded-xl bg-surface-1 border border-white/[0.06] flex flex-col items-center text-center space-y-1"
             >
-              <span className="font-mono text-xs font-bold text-cyan">{cat}</span>
+              <span className="font-mono text-xs font-bold text-[#78a9ff]">{cat}</span>
               <span className="text-2xl font-black text-white font-mono">{count}</span>
               <span className="text-[10px] text-slate-400">atletas</span>
             </div>
@@ -217,7 +217,7 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({
           <button
             type="button"
             onClick={onNavigateToAthletes}
-            className="text-xs text-cyan font-bold hover:underline"
+            className="text-xs text-[#78a9ff] font-bold hover:underline"
           >
             Ver todos ({athletes.length})
           </button>
@@ -236,7 +236,7 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({
                 className="p-3.5 rounded-2xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/5 flex items-center justify-between cursor-pointer transition-all group"
               >
                 <div>
-                  <h4 className="font-bold text-sm text-white group-hover:text-cyan transition-colors">
+                  <h4 className="font-bold text-sm text-white group-hover:text-[#78a9ff] transition-colors">
                     {athlete.name}
                   </h4>
                   <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
@@ -245,7 +245,7 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({
                   </div>
                 </div>
 
-                <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-cyan transition-colors" />
+                <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-[#78a9ff] transition-colors" />
               </div>
             ))}
           </div>

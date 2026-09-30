@@ -59,8 +59,8 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 
   const confirmClasses =
     tone === 'danger'
-      ? 'bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-500/30'
-      : 'bg-cyan text-neon-canvas hover:brightness-110 shadow-glow-cyan';
+      ? 'bg-red-600 text-white hover:bg-red-700 shadow-sm'
+      : 'bg-[#0f62fe] text-white hover:bg-[#0353e9] shadow-sm';
 
   return (
     <div
@@ -82,7 +82,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
               'flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ring-1',
               tone === 'danger'
                 ? 'bg-red-500/15 text-red-400 ring-red-500/30'
-                : 'bg-cyan/15 text-cyan ring-cyan/30',
+                : 'bg-[#0f62fe]/15 text-[#78a9ff] ring-[#0f62fe]/30',
             ].join(' ')}
           >
             <AlertTriangle className="h-5 w-5" />

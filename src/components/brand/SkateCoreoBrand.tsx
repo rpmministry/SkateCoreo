@@ -62,7 +62,7 @@ export const SkateCoreoBrand: React.FC<SkateCoreoBrandProps> = ({
       <span className="relative inline-flex items-center justify-center shrink-0">
         <span
           aria-hidden="true"
-          className="absolute inset-[-18%] rounded-2xl bg-cyan/12 blur-md"
+          className="absolute inset-[-18%] rounded-2xl bg-[#0f62fe]/15 blur-md"
         />
         <svg
           viewBox="0 0 64 64"

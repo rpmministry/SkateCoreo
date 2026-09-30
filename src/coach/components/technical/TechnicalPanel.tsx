@@ -410,23 +410,23 @@ export const TechnicalPanel: React.FC = () => {
   return (
     <div className="space-y-6 animate-fade-in text-white pb-16">
       {/* ═══ BANNER NORMATIVO OBLIGATORIO ═══ */}
-      <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-slate-900 via-slate-900/90 to-cyan/10 border border-cyan/30 shadow-soft-elevation flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-surface-2 via-surface-2 to-[#0f62fe]/10 border border-[#0f62fe]/30 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-start gap-3">
-          <div className="p-2.5 rounded-2xl bg-cyan/15 text-cyan border border-cyan/30 shrink-0">
+          <div className="p-2.5 rounded-2xl bg-[#0f62fe]/15 text-[#78a9ff] border border-[#0f62fe]/30 shrink-0">
             <Award className="w-6 h-6" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-black tracking-tight uppercase text-cyan">
+              <span className="text-xs font-bold tracking-tight uppercase text-[#78a9ff]">
                 Panel Técnico Profesional · Temporada 2026
               </span>
-              <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-white/10 text-white font-mono">
+              <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-white/10 text-white font-mono">
                 OFICIAL
               </span>
             </div>
             <h2 className="text-lg font-black text-white tracking-tight mt-0.5">
               Evaluación de entrenamiento basada en criterios del reglamento{' '}
-              <span className="text-cyan">
+              <span className="text-[#78a9ff]">
                 {regulationId === 'WORLD_SKATE_ROLLART_2026'
                   ? 'World Skate RollArt (Temporada 2026)'
                   : regulationId === 'FEP_ECUADOR_2026'
@@ -451,7 +451,7 @@ export const TechnicalPanel: React.FC = () => {
             }}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-200 text-xs font-bold transition-all interactive-tap border border-white/10 shrink-0"
           >
-            <User className="w-3.5 h-3.5 text-cyan" />
+            <User className="w-3.5 h-3.5 text-[#78a9ff]" />
             <span>Ver Ficha de {currentAthlete.firstName}</span>
           </button>
         )}
@@ -483,11 +483,11 @@ export const TechnicalPanel: React.FC = () => {
 
       {/* ═══ BARRA FLOTANTE DE PUNTUACIONES RESUMEN (TSS / TES / PCS / DED) ═══ */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sticky top-2 z-20">
-        <div className="p-4 rounded-2xl bg-slate-900/90 backdrop-blur-md border border-cyan/40 shadow-soft-elevation">
+        <div className="p-4 rounded-2xl bg-surface-2/95 backdrop-blur-md border border-[#0f62fe]/30 shadow-sm">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
             {discipline === 'Figuras' ? 'Trazado' : 'Puntaje Técnico (TES)'}
           </span>
-          <div className="text-2xl font-black text-cyan font-mono mt-0.5">
+          <div className="text-2xl font-black text-[#78a9ff] font-mono mt-0.5">
             {discipline === 'Figuras' ? figureMarks.tracing.toFixed(2) : scoresSummary.tes.toFixed(2)}
           </div>
           <span className="text-[10px] text-slate-400">
@@ -495,7 +495,7 @@ export const TechnicalPanel: React.FC = () => {
           </span>
         </div>
 
-        <div className="p-4 rounded-2xl bg-slate-900/90 backdrop-blur-md border border-white/10 shadow-soft-elevation">
+        <div className="p-4 rounded-2xl bg-surface-2/95 backdrop-blur-md border border-white/10 shadow-sm">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
             {discipline === 'Figuras' ? 'Movimiento y Porte' : 'Componentes (PCS)'}
           </span>
@@ -507,7 +507,7 @@ export const TechnicalPanel: React.FC = () => {
           </span>
         </div>
 
-        <div className="p-4 rounded-2xl bg-slate-900/90 backdrop-blur-md border border-white/10 shadow-soft-elevation">
+        <div className="p-4 rounded-2xl bg-surface-2/95 backdrop-blur-md border border-white/10 shadow-sm">
           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Deducciones</span>
           <div className="text-2xl font-black text-rose-400 font-mono mt-0.5">
             -{scoresSummary.deductions.toFixed(2)}
@@ -515,8 +515,8 @@ export const TechnicalPanel: React.FC = () => {
           <span className="text-[10px] text-slate-400">{deductionsSummary.fallsCount} caídas oficiales</span>
         </div>
 
-        <div className="p-4 rounded-2xl bg-gradient-to-br from-cyan/20 to-slate-900/90 backdrop-blur-md border border-cyan shadow-glow-cyan">
-          <span className="text-[10px] font-bold text-cyan uppercase tracking-wider">
+        <div className="p-4 rounded-2xl bg-gradient-to-br from-[#0f62fe]/20 to-surface-1 backdrop-blur-md border border-[#0f62fe]/40 shadow-sm">
+          <span className="text-[10px] font-bold text-[#78a9ff] uppercase tracking-wider">
             TOTAL PROGRAMA ({discipline === 'Figuras' ? 'WHITE' : 'TSS'})
           </span>
           <div className="text-2xl font-black text-white font-mono mt-0.5">
@@ -527,9 +527,9 @@ export const TechnicalPanel: React.FC = () => {
       </div>
 
       {/* ═══ SECCIÓN 1: CONFIGURACIÓN Y CONTEXTO DEL ATLETA ═══ */}
-      <div className="p-5 rounded-3xl bg-slate-900/60 border border-white/10 space-y-4">
+      <div className="p-5 rounded-3xl bg-surface-2 border border-white/10 space-y-4">
         <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-          <Layers className="w-3.5 h-3.5 text-cyan" />
+          <Layers className="w-3.5 h-3.5 text-[#78a9ff]" />
           <span>1. Selección de Atleta, Modalidad y Reglamento</span>
         </h3>
 
@@ -548,7 +548,7 @@ export const TechnicalPanel: React.FC = () => {
                   void useCoachStore.getState().loadChoreographiesForAthlete(ath.id);
                 }
               }}
-              className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-cyan"
+              className="w-full bg-surface-1 border border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-[#0f62fe] focus:ring-1 focus:ring-[#0f62fe]/40"
             >
               {athletes.map((a) => (
                 <option key={a.id} value={a.id}>
@@ -566,7 +566,7 @@ export const TechnicalPanel: React.FC = () => {
             <select
               value={selectedChoreoId}
               onChange={(e) => setSelectedChoreoId(e.target.value)}
-              className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-cyan"
+              className="w-full bg-surface-1 border border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-[#0f62fe] focus:ring-1 focus:ring-[#0f62fe]/40"
             >
               <option value="">Entrenamiento General</option>
               {athleteChoreographies.map((ch) => (
@@ -585,7 +585,7 @@ export const TechnicalPanel: React.FC = () => {
             <select
               value={discipline}
               onChange={(e) => setDiscipline(e.target.value as EvaluationDiscipline)}
-              className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-cyan"
+              className="w-full bg-surface-1 border border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-[#0f62fe] focus:ring-1 focus:ring-[#0f62fe]/40"
             >
               <option value="Libre">Libre Individual (Free Skating)</option>
               <option value="Solo Danza">Solo Danza (Solo Dance)</option>
@@ -603,7 +603,7 @@ export const TechnicalPanel: React.FC = () => {
             <select
               value={programSegment}
               onChange={(e) => setProgramSegment(e.target.value as EvaluationSegment)}
-              className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-cyan"
+              className="w-full bg-surface-1 border border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-[#0f62fe] focus:ring-1 focus:ring-[#0f62fe]/40"
             >
               {discipline === 'Libre' && (
                 <>
@@ -633,7 +633,7 @@ export const TechnicalPanel: React.FC = () => {
             <select
               value={regulationId}
               onChange={(e) => setRegulationId(e.target.value as RegulationSystemId)}
-              className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-cyan"
+              className="w-full bg-surface-1 border border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-[#0f62fe] focus:ring-1 focus:ring-[#0f62fe]/40"
             >
               <option value="WORLD_SKATE_ROLLART_2026">World Skate RollArt 2026</option>
               <option value="FEP_ECUADOR_2026">Reglamento Nacional FEP 2026</option>
@@ -646,10 +646,10 @@ export const TechnicalPanel: React.FC = () => {
       {/* ═══ SECCIÓN 2: EVALUACIÓN TÉCNICA (TES / ROLLART O FIGURAS) ═══ */}
       {discipline === 'Figuras' ? (
         /* Modo Figuras Obligatorias */
-        <div className="p-5 rounded-3xl bg-slate-900/60 border border-white/10 space-y-4">
+        <div className="p-5 rounded-3xl bg-surface-2 border border-white/10 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-              <Compass className="w-3.5 h-3.5 text-cyan" />
+              <Compass className="w-3.5 h-3.5 text-[#78a9ff]" />
               <span>2. Calificación de Figuras Obligatorias (Sistema White 0 a 10)</span>
             </h3>
             <div className="flex items-center gap-2">
@@ -657,7 +657,7 @@ export const TechnicalPanel: React.FC = () => {
               <select
                 value={selectedFigureGroup}
                 onChange={(e) => setSelectedFigureGroup(e.target.value)}
-                className="bg-slate-950 border border-white/10 rounded-xl px-2.5 py-1 text-xs font-semibold text-white focus:outline-none focus:border-cyan"
+                className="bg-surface-1 border border-white/10 rounded-xl px-2.5 py-1 text-xs font-semibold text-white focus:outline-none focus:border-[#0f62fe] focus:ring-1 focus:ring-[#0f62fe]/40"
               >
                 <option value="Grupo 1">Grupo 1 (Reglamento Oficial)</option>
                 <option value="Grupo 2">Grupo 2 (Reglamento Oficial)</option>
@@ -670,7 +670,7 @@ export const TechnicalPanel: React.FC = () => {
               <div key={crit.id} className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-white">{crit.name}</span>
-                  <span className="text-xs font-black text-cyan font-mono">
+                  <span className="text-xs font-black text-[#78a9ff] font-mono">
                     {figureMarks[crit.id].toFixed(2)}
                   </span>
                 </div>
@@ -687,7 +687,7 @@ export const TechnicalPanel: React.FC = () => {
                       [crit.id]: parseFloat(e.target.value),
                     })
                   }
-                  className="w-full accent-cyan cursor-pointer"
+                  className="w-full accent-[#0f62fe] cursor-pointer"
                 />
               </div>
             ))}
@@ -695,10 +695,10 @@ export const TechnicalPanel: React.FC = () => {
         </div>
       ) : (
         /* Modo RollArt Oficial: Llamada de Elementos Técnicos */
-        <div className="p-5 rounded-3xl bg-slate-900/60 border border-white/10 space-y-4">
+        <div className="p-5 rounded-3xl bg-surface-2 border border-white/10 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-              <Award className="w-3.5 h-3.5 text-cyan" />
+              <Award className="w-3.5 h-3.5 text-[#78a9ff]" />
               <span>2. Llamada de Elementos Técnicos (TES RollArt 2026)</span>
             </h3>
             <span className="text-[11px] text-slate-400 font-mono">
@@ -707,7 +707,7 @@ export const TechnicalPanel: React.FC = () => {
           </div>
 
           {/* Constructor de Llamada de Elemento */}
-          <div className="p-4 rounded-2xl bg-slate-950/70 border border-white/10 space-y-4">
+          <div className="p-4 rounded-2xl bg-surface-1 border border-white/10 space-y-4">
             {/* Categorías de Elementos (Tabs rápidas) */}
             <div className="flex items-center gap-1 overflow-x-auto pb-1 scroll-touch">
               {[
@@ -730,8 +730,8 @@ export const TechnicalPanel: React.FC = () => {
                   }}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
                     selectedElementCategory === cat.id
-                      ? 'bg-cyan text-slate-950 shadow-glow-cyan'
-                      : 'bg-white/5 text-slate-300 hover:text-white'
+                      ? 'bg-[#0f62fe] text-white border border-[#78a9ff]/40 shadow-sm ring-1 ring-[#0f62fe]/30'
+                      : 'bg-surface-2 text-slate-300 hover:text-white hover:bg-white/10 border border-white/5'
                   }`}
                 >
                   {cat.label}
@@ -748,7 +748,7 @@ export const TechnicalPanel: React.FC = () => {
                 <select
                   value={elementCode}
                   onChange={(e) => setElementCode(e.target.value)}
-                  className="w-full bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 font-mono text-white focus:outline-none focus:border-cyan"
+                  className="w-full bg-surface-2 border border-white/10 rounded-xl px-2.5 py-1.5 font-mono text-white focus:outline-none focus:border-[#0f62fe] focus:ring-1 focus:ring-[#0f62fe]/40"
                 >
                   {selectedElementCategory === 'Jump' &&
                     Object.values(ROLLART_JUMPS_2026).map((j) => (
@@ -789,7 +789,7 @@ export const TechnicalPanel: React.FC = () => {
                   value={deductionCode || ''}
                   onChange={(e) => setDeductionCode((e.target.value as any) || null)}
                   disabled={selectedElementCategory !== 'Jump' || elementCode === 'NJ'}
-                  className="w-full bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-white disabled:opacity-30 focus:outline-none focus:border-cyan"
+                  className="w-full bg-surface-2 border border-white/10 rounded-xl px-2.5 py-1.5 text-white disabled:opacity-30 focus:outline-none focus:border-[#0f62fe] focus:ring-1 focus:ring-[#0f62fe]/40"
                 >
                   <option value="">Limpio (Sin penalización)</option>
                   <option value="<">&lt; Under-rotated (-30% / -20%)</option>
@@ -807,7 +807,7 @@ export const TechnicalPanel: React.FC = () => {
                   value={edgeIndicator || ''}
                   onChange={(e) => setEdgeIndicator((e.target.value as any) || null)}
                   disabled={selectedElementCategory !== 'Jump'}
-                  className="w-full bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-white disabled:opacity-30 focus:outline-none focus:border-cyan"
+                  className="w-full bg-surface-2 border border-white/10 rounded-xl px-2.5 py-1.5 text-white disabled:opacity-30 focus:outline-none focus:border-[#0f62fe] focus:ring-1 focus:ring-[#0f62fe]/40"
                 >
                   <option value="">Normal</option>
                   <option value="Outside">Outside (Correcto Lutz)</option>
@@ -830,7 +830,7 @@ export const TechnicalPanel: React.FC = () => {
                   value={rotationsCount}
                   onChange={(e) => setRotationsCount(parseFloat(e.target.value) || 0)}
                   disabled={selectedElementCategory !== 'Spin'}
-                  className="w-full bg-slate-900 border border-white/10 rounded-xl px-2.5 py-1.5 text-white disabled:opacity-30 focus:outline-none focus:border-cyan"
+                  className="w-full bg-surface-2 border border-white/10 rounded-xl px-2.5 py-1.5 text-white disabled:opacity-30 focus:outline-none focus:border-[#0f62fe] focus:ring-1 focus:ring-[#0f62fe]/40"
                 />
               </div>
             </div>
@@ -867,7 +867,7 @@ export const TechnicalPanel: React.FC = () => {
                     type="checkbox"
                     checked={isTimeBonus}
                     onChange={(e) => setIsTimeBonus(e.target.checked)}
-                    className="accent-cyan rounded"
+                    className="accent-[#0f62fe] rounded"
                   />
                   <span>Bono 'T' (2da mitad +10%)</span>
                 </label>
@@ -875,7 +875,7 @@ export const TechnicalPanel: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleAddElement}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan text-slate-950 font-black text-xs hover:bg-cyan/90 transition-all shadow-glow-cyan interactive-tap"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0f62fe] text-white font-bold text-xs hover:bg-[#0353e9] transition-all shadow-sm ring-1 ring-[#0f62fe]/30 interactive-tap"
                 >
                   <Plus className="w-4 h-4 stroke-[2.5]" />
                   <span>Llamar Elemento</span>
@@ -906,7 +906,7 @@ export const TechnicalPanel: React.FC = () => {
                     <tr key={el.id} className="hover:bg-white/[0.02] transition-colors">
                       <td className="py-2.5 px-3 font-mono text-slate-400">{idx + 1}</td>
                       <td className="py-2.5 px-3 font-semibold text-white">{el.name}</td>
-                      <td className="py-2.5 px-3 font-mono text-cyan font-bold">{el.code}</td>
+                      <td className="py-2.5 px-3 font-mono text-[#78a9ff] font-bold">{el.code}</td>
                       <td className="py-2.5 px-3 text-right font-mono text-slate-300">
                         {el.baseValue.toFixed(2)}
                       </td>
@@ -951,10 +951,10 @@ export const TechnicalPanel: React.FC = () => {
 
       {/* ═══ SECCIÓN 3: COMPONENTES DEL PROGRAMA (PCS) ═══ */}
       {discipline !== 'Figuras' && (
-        <div className="p-5 rounded-3xl bg-slate-900/60 border border-white/10 space-y-4">
+        <div className="p-5 rounded-3xl bg-surface-2 border border-white/10 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-              <Sliders className="w-3.5 h-3.5 text-cyan" />
+              <Sliders className="w-3.5 h-3.5 text-[#78a9ff]" />
               <span>3. Componentes del Programa (PCS)</span>
             </h3>
             <span className="text-xs text-slate-300 font-mono font-bold">
@@ -972,7 +972,7 @@ export const TechnicalPanel: React.FC = () => {
               <div key={comp.id} className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-white">{comp.label}</span>
-                  <span className="text-xs font-black text-cyan font-mono">
+                  <span className="text-xs font-black text-[#78a9ff] font-mono">
                     {artisticComponents[comp.id as keyof typeof artisticComponents].toFixed(2)}
                   </span>
                 </div>
@@ -989,7 +989,7 @@ export const TechnicalPanel: React.FC = () => {
                       [comp.id]: parseFloat(e.target.value),
                     })
                   }
-                  className="w-full accent-cyan cursor-pointer"
+                  className="w-full accent-[#0f62fe] cursor-pointer"
                 />
               </div>
             ))}
@@ -998,7 +998,7 @@ export const TechnicalPanel: React.FC = () => {
       )}
 
       {/* ═══ SECCIÓN 4: DEDUCCIONES REGLAMENTARIAS ═══ */}
-      <div className="p-5 rounded-3xl bg-slate-900/60 border border-white/10 space-y-4">
+      <div className="p-5 rounded-3xl bg-surface-2 border border-white/10 space-y-4">
         <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
           <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
           <span>4. Deducciones Reglamentarias Oficiales</span>
@@ -1039,7 +1039,7 @@ export const TechnicalPanel: React.FC = () => {
               min="0"
               value={timeViolationSeconds}
               onChange={(e) => setTimeViolationSeconds(parseInt(e.target.value) || 0)}
-              className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-center font-bold"
+              className="w-full bg-surface-1 border border-white/10 rounded-xl px-3 py-2 text-white font-mono text-center font-bold focus:outline-none focus:border-[#0f62fe]"
             />
             <span className="text-[10px] text-slate-500 block text-center">
               Deducción: -{deductionsSummary.timeDeduction.toFixed(2)} pts
@@ -1083,7 +1083,7 @@ export const TechnicalPanel: React.FC = () => {
       </div>
 
       {/* ═══ SECCIÓN 5: FEEDBACK PEDAGÓGICO DEL ENTRENADOR (EVALUACIÓN INTERNA) ═══ */}
-      <div className="p-5 rounded-3xl bg-slate-900/60 border border-white/10 space-y-4">
+      <div className="p-5 rounded-3xl bg-surface-2 border border-white/10 space-y-4">
         <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
           <Sparkles className="w-3.5 h-3.5 text-teal-400" />
           <span>5. Observaciones, Sugerencias Coreográficas y Metas Pedagógicas</span>
@@ -1100,7 +1100,7 @@ export const TechnicalPanel: React.FC = () => {
                 onChange={(e) => setNewStrength(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleAddStrength()}
                 placeholder="Ej. Buena altura en el Axel, excelente filo..."
-                className="flex-1 bg-slate-950 border border-white/10 rounded-xl px-3 py-1.5 text-white focus:outline-none focus:border-cyan text-xs"
+                className="flex-1 bg-surface-1 border border-white/10 rounded-xl px-3 py-1.5 text-white focus:outline-none focus:border-[#0f62fe] focus:ring-1 focus:ring-[#0f62fe]/40 text-xs"
               />
               <button
                 type="button"
@@ -1138,12 +1138,12 @@ export const TechnicalPanel: React.FC = () => {
                 onChange={(e) => setNewCorrection(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleAddCorrection()}
                 placeholder="Ej. Mantener eje en el trompo..."
-                className="flex-1 bg-slate-950 border border-white/10 rounded-xl px-3 py-1.5 text-white focus:outline-none focus:border-cyan text-xs"
+                className="flex-1 bg-surface-1 border border-white/10 rounded-xl px-3 py-1.5 text-white focus:outline-none focus:border-[#0f62fe] focus:ring-1 focus:ring-[#0f62fe]/40 text-xs"
               />
               <select
                 value={newCorrectionPriority}
                 onChange={(e) => setNewCorrectionPriority(e.target.value as any)}
-                className="bg-slate-950 border border-white/10 rounded-xl px-2 py-1.5 text-[11px] text-white"
+                className="bg-surface-1 border border-white/10 rounded-xl px-2 py-1.5 text-[11px] text-white focus:outline-none focus:border-[#0f62fe]"
               >
                 <option value="urgente">Urgente</option>
                 <option value="importante">Importante</option>
@@ -1170,7 +1170,7 @@ export const TechnicalPanel: React.FC = () => {
                           ? 'bg-rose-500/20 text-rose-300'
                           : c.priority === 'importante'
                           ? 'bg-amber-500/20 text-amber-300'
-                          : 'bg-cyan/20 text-cyan'
+                          : 'bg-[#0f62fe]/20 text-[#78a9ff]'
                       }`}
                     >
                       {c.priority}
@@ -1190,13 +1190,13 @@ export const TechnicalPanel: React.FC = () => {
 
           {/* Sugerencias Coreográficas (Pista 2D) */}
           <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-2">
-            <span className="text-[10px] font-bold text-cyan uppercase">Sugerencias Coreográficas (Pista 2D)</span>
+            <span className="text-[10px] font-bold text-[#78a9ff] uppercase">Sugerencias Coreográficas (Pista 2D)</span>
             <textarea
               rows={2}
               value={spatialDistribution}
               onChange={(e) => setSpatialDistribution(e.target.value)}
               placeholder="Ocupación de cabeceras, simetría en curvas Bézier, distribución espacial..."
-              className="w-full bg-slate-950 border border-white/10 rounded-xl p-2.5 text-white focus:outline-none focus:border-cyan text-xs"
+              className="w-full bg-surface-1 border border-white/10 rounded-xl p-2.5 text-white focus:outline-none focus:border-[#0f62fe] focus:ring-1 focus:ring-[#0f62fe]/40 text-xs"
             />
           </div>
 
@@ -1208,7 +1208,7 @@ export const TechnicalPanel: React.FC = () => {
               value={musicalityNotes}
               onChange={(e) => setMusicalityNotes(e.target.value)}
               placeholder="Acentos musicales, transiciones, tempo, matices emotivos y cadencia coreográfica..."
-              className="w-full bg-slate-950 border border-white/10 rounded-xl p-2.5 text-white focus:outline-none focus:border-cyan text-xs"
+              className="w-full bg-surface-1 border border-white/10 rounded-xl p-2.5 text-white focus:outline-none focus:border-[#0f62fe] focus:ring-1 focus:ring-[#0f62fe]/40 text-xs"
             />
           </div>
 
@@ -1222,7 +1222,7 @@ export const TechnicalPanel: React.FC = () => {
                 onChange={(e) => setNewGoal(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleAddGoal()}
                 placeholder="Ej. Consolidar Doble Axel con aterrizaje limpio..."
-                className="flex-1 bg-slate-950 border border-white/10 rounded-xl px-3 py-1.5 text-white focus:outline-none focus:border-cyan text-xs"
+                className="flex-1 bg-surface-1 border border-white/10 rounded-xl px-3 py-1.5 text-white focus:outline-none focus:border-[#0f62fe] focus:ring-1 focus:ring-[#0f62fe]/40 text-xs"
               />
               <button
                 type="button"
@@ -1261,13 +1261,13 @@ export const TechnicalPanel: React.FC = () => {
             value={generalObservations}
             onChange={(e) => setGeneralObservations(e.target.value)}
             placeholder="Comentarios adicionales para el registro deportivo o comunicación con la atleta..."
-            className="w-full bg-slate-950 border border-white/10 rounded-xl p-2.5 text-white focus:outline-none focus:border-cyan text-xs"
+            className="w-full bg-surface-1 border border-white/10 rounded-xl p-2.5 text-white focus:outline-none focus:border-[#0f62fe] focus:ring-1 focus:ring-[#0f62fe]/40 text-xs"
           />
         </div>
       </div>
 
       {/* ═══ ACCIONES FINALES DE GUARDADO Y ENVÍO ═══ */}
-      <div className="flex flex-wrap items-center justify-between gap-4 p-5 rounded-3xl bg-slate-900/90 border border-white/10 shadow-soft-elevation">
+      <div className="flex flex-wrap items-center justify-between gap-4 p-5 rounded-3xl bg-surface-2 border border-white/10 shadow-sm">
         <div className="text-xs text-slate-400">
           <span className="text-white font-bold">{currentAthlete?.name}</span> · {currentAthlete?.category} ({currentAthlete?.eficiencia || 'Básica'})
         </div>
@@ -1279,7 +1279,7 @@ export const TechnicalPanel: React.FC = () => {
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-bold transition-all interactive-tap border border-white/10"
             title="Descarga la ficha oficial A4 de esta evaluación"
           >
-            <FileText className="w-3.5 h-3.5 text-cyan" />
+            <FileText className="w-3.5 h-3.5 text-[#78a9ff]" />
             <span>Descargar Ficha PDF A4</span>
           </button>
 
@@ -1297,7 +1297,7 @@ export const TechnicalPanel: React.FC = () => {
             type="button"
             onClick={() => handleSaveAndSend(true)}
             disabled={isSaving}
-            className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-cyan text-slate-950 font-black text-xs shadow-glow-cyan hover:bg-cyan/90 transition-all interactive-tap disabled:opacity-50"
+            className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#0f62fe] text-white font-bold text-xs shadow-sm ring-1 ring-[#0f62fe]/30 hover:bg-[#0353e9] transition-all interactive-tap disabled:opacity-50"
           >
             <Send className="w-4 h-4 stroke-[2.5]" />
             <span>{isSaving ? 'Guardando...' : 'Guardar y Enviar a Ficha de Atleta'}</span>

@@ -16,23 +16,23 @@ export type ButtonSize = 'sm' | 'md' | 'lg';
 
 const VARIANT_STYLES: Record<ButtonVariant, string> = {
   primary:
-    'bg-[#0f62fe] hover:bg-[#0353e9] active:bg-[#002d9c] text-white font-semibold shadow-sm focus-visible:ring-2 focus-visible:ring-[#0f62fe] focus-visible:ring-offset-2 focus-visible:ring-offset-[#12161f] transition-colors',
+    'bg-[#0f62fe] hover:bg-[#0353e9] active:bg-[#002d9c] text-white font-semibold shadow-sm focus-visible:ring-2 focus-visible:ring-[#0f62fe] focus-visible:ring-offset-2 focus-visible:ring-offset-[#12161f] transition-all',
   cobalt:
-    'bg-[#0f62fe] hover:bg-[#0353e9] active:bg-[#002d9c] text-white font-semibold shadow-sm focus-visible:ring-2 focus-visible:ring-[#0f62fe] focus-visible:ring-offset-2 focus-visible:ring-offset-[#12161f] transition-colors',
+    'bg-[#0f62fe] hover:bg-[#0353e9] active:bg-[#002d9c] text-white font-semibold shadow-sm focus-visible:ring-2 focus-visible:ring-[#0f62fe] focus-visible:ring-offset-2 focus-visible:ring-offset-[#12161f] transition-all',
   mint:
-    'bg-[#009d9a] hover:bg-[#007d79] active:bg-[#005d5d] text-white font-semibold shadow-sm focus-visible:ring-2 focus-visible:ring-[#009d9a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#12161f] transition-colors',
+    'bg-[#009d9a] hover:bg-[#007d79] active:bg-[#005d5d] text-white font-semibold shadow-sm focus-visible:ring-2 focus-visible:ring-[#009d9a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#12161f] transition-all',
   coach:
-    'bg-[#d12771] hover:bg-[#b8195f] active:bg-[#9f1853] text-white font-semibold shadow-sm focus-visible:ring-2 focus-visible:ring-[#d12771] focus-visible:ring-offset-2 focus-visible:ring-offset-[#12161f] transition-colors',
+    'bg-[#d12771] hover:bg-[#b8195f] active:bg-[#9f1853] text-white font-semibold shadow-sm focus-visible:ring-2 focus-visible:ring-[#d12771] focus-visible:ring-offset-2 focus-visible:ring-offset-[#12161f] transition-all',
   secondary:
-    'bg-[#283243] hover:bg-[#323e54] active:bg-[#1e2633] text-[#f4f4f4] font-medium border border-white/10 shadow-sm transition-colors',
+    'bg-surface-2 hover:bg-surface-3 active:bg-surface-1 text-[#f4f4f4] font-medium border border-white/10 hover:border-white/20 shadow-sm focus-visible:ring-2 focus-visible:ring-[#0f62fe] focus-visible:ring-offset-2 focus-visible:ring-offset-[#12161f] transition-all',
   outline:
-    'bg-transparent border border-[#0f62fe] text-[#78a9ff] hover:bg-[#0f62fe] hover:text-white font-medium transition-colors',
+    'bg-transparent border border-white/20 text-[#f4f4f4] hover:border-[#0f62fe] hover:bg-[#0f62fe]/10 hover:text-white font-medium focus-visible:ring-2 focus-visible:ring-[#0f62fe] transition-all',
   tertiary:
-    'bg-transparent border border-[#0f62fe] text-[#78a9ff] hover:bg-[#0f62fe] hover:text-white font-medium transition-colors',
+    'bg-transparent border border-white/15 text-[#c6c6c6] hover:border-white/30 hover:bg-white/[0.04] hover:text-white font-medium focus-visible:ring-2 focus-visible:ring-[#0f62fe] transition-all',
   destructive:
-    'bg-[#da1e28] hover:bg-[#ba1b23] active:bg-[#750e13] text-white font-semibold shadow-sm focus-visible:ring-2 focus-visible:ring-[#da1e28] focus-visible:ring-offset-2 focus-visible:ring-offset-[#12161f] transition-colors',
+    'bg-[#da1e28] hover:bg-[#ba1b23] active:bg-[#750e13] text-white font-semibold shadow-sm focus-visible:ring-2 focus-visible:ring-[#da1e28] focus-visible:ring-offset-2 focus-visible:ring-offset-[#12161f] transition-all',
   ghost:
-    'bg-transparent text-[#f4f4f4] hover:bg-white/[0.08] active:bg-white/[0.12] font-medium transition-colors',
+    'bg-transparent text-[#c6c6c6] hover:text-white hover:bg-white/[0.06] active:bg-white/[0.10] font-medium focus-visible:ring-2 focus-visible:ring-[#0f62fe] transition-all',
 };
 
 const SIZE_STYLES: Record<ButtonSize, string> = {
@@ -46,6 +46,7 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   size?: ButtonSize;
   block?: boolean;
   loading?: boolean;
+  selected?: boolean;
   icon?: React.ReactNode;
   iconPosition?: 'left' | 'right';
 }
@@ -57,6 +58,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       size = 'md',
       block = false,
       loading = false,
+      selected = false,
       icon,
       iconPosition = 'left',
       className = '',
@@ -70,13 +72,20 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const sizeStyle = SIZE_STYLES[size] || SIZE_STYLES.md;
     const isDisabled = disabled || loading;
 
+    const selectedStyle = selected
+      ? variant === 'coach'
+        ? 'border-[#ee5396] bg-[#ee5396]/20 text-white font-bold shadow-sm ring-1 ring-[#ee5396]/60'
+        : 'border-[#0f62fe] bg-[#0f62fe]/20 text-white font-bold shadow-sm ring-1 ring-[#0f62fe]/60'
+      : '';
+
     return (
       <button
         ref={ref}
         disabled={isDisabled}
+        aria-pressed={selected ? true : undefined}
         className={[
           'inline-flex items-center justify-center select-none font-sans outline-none active:scale-[0.98]',
-          variantStyle,
+          selected ? selectedStyle : variantStyle,
           sizeStyle,
           block ? 'w-full' : '',
           isDisabled ? 'opacity-40 cursor-not-allowed pointer-events-none' : 'cursor-pointer',

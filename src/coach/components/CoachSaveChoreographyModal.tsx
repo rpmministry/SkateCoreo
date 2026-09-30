@@ -14,6 +14,7 @@ import { useCoachStore } from '../store/useCoachStore';
 import { CoachAthlete } from '../types';
 import { ChoreographyPathPoint } from '../../types/choreography';
 import { exportCoreoProject } from '../../services/coreoPackage';
+import { Button } from '../../components/ui';
 
 interface CoachSaveChoreographyModalProps {
   isOpen: boolean;
@@ -145,11 +146,11 @@ export const CoachSaveChoreographyModal: React.FC<CoachSaveChoreographyModalProp
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in text-white">
       <form
         onSubmit={handleSave}
-        className="w-full max-w-lg bg-neon-surface border border-white/10 rounded-3xl p-6 shadow-2xl space-y-5"
+        className="w-full max-w-lg bg-surface-2 border border-white/[0.08] rounded-2xl p-6 shadow-elevation-2 space-y-5"
       >
         <div className="flex items-center justify-between pb-3 border-b border-white/10">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-2xl bg-cyan/15 text-cyan ring-1 ring-cyan/30">
+            <div className="p-2 rounded-2xl bg-[#0f62fe]/15 text-[#78a9ff] ring-1 ring-[#0f62fe]/30">
               <Compass className="w-5 h-5" />
             </div>
             <div>
@@ -182,18 +183,18 @@ export const CoachSaveChoreographyModal: React.FC<CoachSaveChoreographyModalProp
           {/* Selector de Atleta */}
           <div>
             <label className="block text-slate-400 font-bold mb-1 flex items-center gap-1.5">
-              <User className="w-3.5 h-3.5 text-cyan" />
+              <User className="w-3.5 h-3.5 text-[#78a9ff]" />
               Atleta Asignado:
             </label>
             {athletes.length === 0 ? (
-              <div className="p-3 rounded-xl bg-white/[0.02] border border-amber-400/30 text-amber-300 text-[11px]">
+              <div className="p-3 rounded-xl bg-surface-1 border border-amber-400/30 text-amber-300 text-[11px]">
                 No tienes atletas registrados en el panel. Por favor crea uno primero en el Panel de Entrenadores.
               </div>
             ) : (
               <select
                 value={selectedAthleteId}
                 onChange={(e) => setSelectedAthleteId(e.target.value)}
-                className="w-full bg-neon-canvas border border-white/10 rounded-xl px-3 py-2.5 text-white outline-none focus:border-cyan font-semibold text-xs"
+                className="w-full bg-surface-1 border border-white/10 rounded-xl px-3 py-2.5 text-white outline-none focus:border-[#0f62fe] font-semibold text-xs"
               >
                 {athletes.map((a) => (
                   <option key={a.id} value={a.id}>
@@ -214,7 +215,7 @@ export const CoachSaveChoreographyModal: React.FC<CoachSaveChoreographyModalProp
                 placeholder="ej. Programa Libre 2026"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full bg-neon-canvas border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-cyan text-xs font-semibold"
+                className="w-full bg-surface-1 border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-[#0f62fe] text-xs font-semibold"
               />
             </div>
 
@@ -223,7 +224,7 @@ export const CoachSaveChoreographyModal: React.FC<CoachSaveChoreographyModalProp
               <select
                 value={programType}
                 onChange={(e) => setProgramType(e.target.value)}
-                className="w-full bg-neon-canvas border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-cyan text-xs"
+                className="w-full bg-surface-1 border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-[#0f62fe] text-xs"
               >
                 <option value="Libre">Programa Libre</option>
                 <option value="Corto">Programa Corto</option>
@@ -243,7 +244,7 @@ export const CoachSaveChoreographyModal: React.FC<CoachSaveChoreographyModalProp
               required
               value={customFileName}
               onChange={(e) => setCustomFileName(e.target.value)}
-              className="w-full bg-neon-canvas border border-white/10 rounded-xl px-3 py-2 text-cyan font-mono outline-none focus:border-cyan text-xs font-bold"
+              className="w-full bg-surface-1 border border-white/10 rounded-xl px-3 py-2 text-[#78a9ff] font-mono outline-none focus:border-[#0f62fe] text-xs font-bold"
             />
             <span className="text-[10px] text-slate-500 mt-1 block">
               Estructurado automáticamente con Atleta + Título + Año para evitar colisiones.
@@ -258,14 +259,14 @@ export const CoachSaveChoreographyModal: React.FC<CoachSaveChoreographyModalProp
               placeholder="ej. Ajuste de curva en el segundo salto y entrada en biellmann"
               value={versionNotes}
               onChange={(e) => setVersionNotes(e.target.value)}
-              className="w-full bg-neon-canvas border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-cyan text-xs"
+              className="w-full bg-surface-1 border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-[#0f62fe] text-xs"
             />
           </div>
 
-          <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 text-[11px] text-slate-300 space-y-1">
+          <div className="p-3 rounded-2xl bg-surface-1 border border-white/5 text-[11px] text-slate-300 space-y-1">
             <div className="flex items-center justify-between">
               <span>Nodos en pista:</span>
-              <strong className="text-cyan font-mono">{points.length} puntos</strong>
+              <strong className="text-[#78a9ff] font-mono">{points.length} puntos</strong>
             </div>
             <div className="flex items-center justify-between">
               <span>Pista de audio:</span>
@@ -275,20 +276,22 @@ export const CoachSaveChoreographyModal: React.FC<CoachSaveChoreographyModalProp
         </div>
 
         <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/10">
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="md"
             onClick={onClose}
-            className="px-4 py-2.5 rounded-xl bg-white/[0.06] hover:bg-white/10 text-slate-300 text-xs font-semibold transition-all"
           >
             Cancelar
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
+            variant="cobalt"
+            size="md"
             disabled={isSaving || !targetAthlete}
-            className="px-5 py-2.5 rounded-xl bg-cyan text-neon-canvas font-black text-xs shadow-glow-cyan hover:bg-cyan/90 transition-all disabled:opacity-50 interactive-tap"
           >
             {isSaving ? 'Guardando...' : 'Guardar en Expediente'}
-          </button>
+          </Button>
         </div>
       </form>
     </div>

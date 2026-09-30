@@ -98,19 +98,19 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
       disabled={!hasAudioLoaded}
       aria-pressed={isPlaying}
       className={[
-        size === 'lg' ? 'h-11 w-11' : 'h-9 w-9 sm:h-10 sm:w-10',
-        'min-w-touch min-h-touch shrink-0 rounded-xl flex items-center justify-center press shadow-sm transition-all disabled:opacity-30 disabled:pointer-events-none',
+        size === 'lg' ? 'h-[52px] w-[52px]' : 'h-12 w-12',
+        'min-w-touch min-h-touch shrink-0 rounded-xl flex items-center justify-center press shadow-md disabled:opacity-30 disabled:pointer-events-none',
         isPlaying
-          ? 'bg-amber-500 hover:bg-amber-400 text-black font-bold'
-          : 'bg-[#0f62fe] hover:bg-[#0353e9] text-white font-bold',
+          ? 'bg-amber-400 text-black shadow-amber-400/25'
+          : 'bg-[#0f62fe] text-white shadow-sm hover:bg-[#0353e9]',
       ].join(' ')}
       aria-label={isPlaying ? 'Pausar' : 'Reproducir'}
       title={isPlaying ? 'Pausar (Espacio)' : 'Reproducir (Espacio)'}
     >
       {isPlaying ? (
-        <Pause className="h-4 w-4 fill-current stroke-none" />
+        <Pause className="h-5 w-5 fill-current stroke-none" />
       ) : (
-        <Play className="ml-0.5 h-4 w-4 fill-current stroke-none" />
+        <Play className="ml-0.5 h-5 w-5 fill-current stroke-none" />
       )}
     </button>
   );
@@ -121,13 +121,13 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
       {...press(handleStop, { enabled: hasAudioLoaded })}
       disabled={!hasAudioLoaded}
       className={[
-        size === 'lg' ? 'h-11 w-11' : 'h-9 w-9 sm:h-10 sm:w-10',
-        'min-w-touch min-h-touch shrink-0 rounded-xl flex items-center justify-center press text-slate-300 hover:bg-white/10 hover:text-white transition-colors disabled:opacity-25 disabled:pointer-events-none',
+        size === 'lg' ? 'h-[52px] w-[52px]' : 'h-12 w-12',
+        'min-w-touch min-h-touch shrink-0 rounded-xl flex items-center justify-center press text-slate-400 hover:bg-white/10 hover:text-white disabled:opacity-25 disabled:pointer-events-none',
       ].join(' ')}
       aria-label="Detener y volver a 0:00"
       title="Detener y volver a 0:00"
     >
-      <Square className="h-3.5 w-3.5 fill-current stroke-none" />
+      <Square className="h-4 w-4 fill-current stroke-none" />
     </button>
   );
 
@@ -138,13 +138,13 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
       {...press(handleRewind, { enabled: hasAudioLoaded })}
       disabled={!hasAudioLoaded}
       className={[
-        size === 'lg' ? 'h-11 w-11' : 'h-9 w-9 sm:h-10 sm:w-10',
-        'min-w-touch min-h-touch shrink-0 rounded-xl flex items-center justify-center press text-slate-300 hover:bg-white/10 hover:text-white transition-colors disabled:opacity-25 disabled:pointer-events-none',
+        size === 'lg' ? 'h-[52px] w-[52px]' : 'h-12 w-12',
+        'min-w-touch min-h-touch shrink-0 rounded-xl flex items-center justify-center press text-slate-400 hover:bg-white/10 hover:text-white disabled:opacity-25 disabled:pointer-events-none',
       ].join(' ')}
       aria-label="Retroceder al inicio"
       title="Retroceder al inicio"
     >
-      <SkipBack className="h-3.5 w-3.5 fill-current stroke-none" />
+      <SkipBack className="h-4 w-4 fill-current stroke-none" />
     </button>
   );
 
@@ -162,7 +162,7 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
           type="button"
           {...press(toggleMetronomeMute)}
           aria-pressed={isMetroActive}
-          className={`h-10 w-10 min-w-touch min-h-touch shrink-0 rounded-xl flex items-center justify-center press transition-colors ${
+          className={`h-12 w-12 min-w-touch min-h-touch shrink-0 rounded-xl flex items-center justify-center press transition-colors ${
             !metronomeEnabled
               ? 'text-slate-500 bg-white/5 hover:text-slate-300'
               : metronomeMuted
@@ -176,13 +176,13 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
         </button>
 
         <div className="flex min-w-0 flex-1 flex-col justify-center">
-          <div className="flex items-center justify-between gap-2 font-mono text-[11px] font-semibold leading-none">
-            <span className="truncate text-slate-200">
-              <span className="text-slate-500">Audio: </span>
+          <div className="flex items-center justify-between gap-2 font-mono text-[11px] font-black leading-none">
+            <span className="truncate text-[#78a9ff]">
+              <span className="text-slate-500">Audio activo · </span>
               {fileName ? fileName.replace(/\.[^/.]+$/, '') : 'Sin pista cargada'}
               {sourceKind === 'studio-mix' && (
                 <span
-                  className="ml-1.5 rounded px-1.5 py-0.5 align-middle text-[9px] font-bold uppercase tracking-wide text-white bg-slate-700 border border-white/10"
+                  className="ml-1.5 rounded px-1.5 py-0.5 align-middle text-[9px] font-bold uppercase tracking-wide text-white bg-[#0f62fe]"
                   title="Mezcla final enviada desde el Audio Studio"
                 >
                   Mezcla Studio
@@ -197,7 +197,7 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
           </div>
           <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
             <div
-              className="h-full rounded-full bg-[#0f62fe] transition-[width] duration-100"
+              className="h-full rounded-full bg-gradient-to-r from-[#0f62fe] to-[#4589ff] transition-[width] duration-100"
               style={{ width: `${progressRatio * 100}%` }}
             />
           </div>
@@ -208,14 +208,14 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
 
   /* ── VARIANTE HEADER: cápsula de escritorio (lg+) ── */
   return (
-    <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-surface-1/90 px-2 py-1 shadow-sm backdrop-blur-md">
+    <div className="flex items-center gap-1.5 rounded-2xl border border-white/10 bg-zinc-950/80 p-1.5 shadow-soft-elevation backdrop-blur-md">
       {rewindButton('md')}
       {playButton('md')}
       {stopButton('md')}
 
       {sourceKind === 'studio-mix' && (
         <span
-          className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white bg-slate-700 border border-white/10"
+          className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white bg-[#0f62fe]"
           title="Mezcla final enviada desde el Audio Studio"
         >
           Mezcla Studio
@@ -223,36 +223,41 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
       )}
 
       <div className="flex min-w-[82px] flex-col justify-center px-1">
-        <div className="flex items-center gap-1 font-mono text-xs leading-none">
-          <span className="font-bold text-white">{fmtTime(currentTimeMs)}</span>
+        <div className="flex items-center gap-1 font-mono text-xs font-black leading-none">
+          <span className="text-[#78a9ff]">{fmtTime(currentTimeMs)}</span>
           <span className="text-slate-600">/</span>
           <span className="font-medium text-slate-400">{durationLabel}</span>
         </div>
         <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-white/10">
           <div
-            className="h-full rounded-full bg-[#0f62fe] transition-[width] duration-100"
+            className="h-full rounded-full bg-gradient-to-r from-[#0f62fe] to-[#4589ff] transition-[width] duration-100"
             style={{ width: `${progressRatio * 100}%` }}
           />
         </div>
       </div>
 
-      {/* ── Grupo AUDIO: indicadores del estado REAL de la sesión del Rink. ── */}
+      {/* ── Grupo AUDIO: indicadores del estado REAL de la sesión del Rink.
+          · Música  → % del gain real (se sincroniza con el motor).
+          · Voz     → Voces Guía (cues).
+          · Campana → Metrónomo.
+          Distingue ENABLED (existe) de MUTED (silenciado): OFF ≠ MUTE ≠ ON.
+          Visible desde `lg` (tablet grande / laptop), no solo en `xl`. */}
       <div className="fm-header-audio-meters hidden items-center gap-2 border-l border-white/10 pl-2.5 font-mono text-[11px] text-slate-400 lg:flex">
         <span
-          className={`flex items-center gap-1 ${musicMuted ? 'text-rose-400' : 'font-medium text-slate-300'}`}
+          className={`flex items-center gap-1 ${musicMuted ? 'text-rose-400' : 'font-semibold text-[#78a9ff]'}`}
           title={`Volumen de la música (Pista 2D): ${musicMuted ? 'silenciada' : `${Math.round(musicVolume * 100)}%`} · ajústalo en «Mezcla»`}
           aria-label={`Volumen de la música: ${musicMuted ? 'silenciada' : `${Math.round(musicVolume * 100)} por ciento`}`}
         >
-          <Music className="h-3.5 w-3.5 text-slate-400" />
+          <Music className="h-3.5 w-3.5" />
           {musicMuted ? 'MUTE' : `${Math.round(musicVolume * 100)}%`}
         </span>
         <span className="text-white/10">·</span>
         <span
-          className={`flex items-center gap-1 ${!voiceEnabled ? 'text-slate-500' : voiceMuted ? 'text-rose-400' : 'font-medium text-slate-300'}`}
+          className={`flex items-center gap-1 ${!voiceEnabled ? 'text-slate-500' : voiceMuted ? 'text-rose-400' : 'font-semibold text-fuchsia-400'}`}
           title={`Voces guía: ${!voiceEnabled ? 'desactivadas' : voiceMuted ? 'silenciadas' : 'activas'}`}
           aria-label={`Voces guía: ${!voiceEnabled ? 'desactivadas' : voiceMuted ? 'silenciadas' : 'activas'}`}
         >
-          <Mic className="h-3.5 w-3.5 text-slate-400" />
+          <Mic className="h-3.5 w-3.5" />
           {!voiceEnabled ? 'OFF' : voiceMuted ? 'MUTE' : 'ON'}
         </span>
         <span className="text-white/10">·</span>
@@ -265,7 +270,7 @@ export const RinkAudioPlayer: React.FC<RinkAudioPlayerProps> = ({
               ? 'text-slate-500 hover:text-slate-300'
               : metronomeMuted
               ? 'text-rose-400 hover:text-rose-300 bg-rose-500/10'
-              : 'font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/30'
+              : 'font-semibold text-amber-400 bg-amber-500/10 ring-1 ring-amber-500/30'
           }`}
           title={`Metrónomo: ${!metronomeEnabled ? 'desactivado (clic para activar)' : metronomeMuted ? 'silenciado (clic para activar)' : 'activo (clic para silenciar)'}`}
           aria-label={`Metrónomo: ${!metronomeEnabled ? 'desactivado' : metronomeMuted ? 'silenciado' : 'activo'}`}

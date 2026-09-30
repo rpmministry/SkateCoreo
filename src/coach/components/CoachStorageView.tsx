@@ -24,6 +24,7 @@ import { useCoachStore } from '../store/useCoachStore';
 import { storageManager } from '../services/storage/StorageManager';
 import { CloudProviderId } from '../types';
 import { dbService } from '../../services/db';
+import { Button } from '../../components/ui';
 
 export const CoachStorageView: React.FC = () => {
   const {
@@ -101,7 +102,7 @@ export const CoachStorageView: React.FC = () => {
     <div className="space-y-6 animate-fade-in text-white pb-12">
       <div>
         <h2 className="text-xl font-black tracking-tight text-white flex items-center gap-2">
-          <HardDrive className="w-6 h-6 text-cyan" />
+          <HardDrive className="w-6 h-6 text-[#78a9ff]" />
           Mi Almacenamiento &amp; Nube Personal
         </h2>
         <p className="text-xs text-slate-400">
@@ -123,7 +124,7 @@ export const CoachStorageView: React.FC = () => {
       )}
 
       {/* Resumen de Almacenamiento */}
-      <div className="p-6 rounded-3xl bg-neon-surface border border-white/10 shadow-soft-elevation space-y-4">
+      <div className="p-6 rounded-2xl bg-surface-2 border border-white/[0.08] shadow-elevation-1 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
@@ -145,39 +146,39 @@ export const CoachStorageView: React.FC = () => {
                 href={currentProvider.getOpenLocationUrl()!}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/[0.06] hover:bg-white/10 text-slate-200 text-xs font-semibold transition-all interactive-tap"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-surface-1 border border-white/10 hover:border-white/20 text-slate-200 text-xs font-semibold transition-all interactive-tap"
               >
-                <ExternalLink className="w-3.5 h-3.5 text-cyan" />
+                <ExternalLink className="w-3.5 h-3.5 text-[#78a9ff]" />
                 <span>Abrir en {currentProvider.name}</span>
               </a>
             )}
 
-            <button
-              type="button"
+            <Button
+              variant="cobalt"
+              size="sm"
               onClick={() => syncAllToCloud()}
               disabled={isLoading || currentProvider.id === 'local'}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan text-neon-canvas font-black text-xs shadow-glow-cyan hover:bg-cyan/90 transition-all disabled:opacity-50 interactive-tap"
+              icon={<RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />}
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-              <span>Sincronizar Nube</span>
-            </button>
+              Sincronizar Nube
+            </Button>
           </div>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-white/5 text-xs font-mono">
-          <div className="p-3 rounded-2xl bg-white/[0.02]">
+          <div className="p-3 rounded-2xl bg-surface-1 border border-white/5">
             <span className="text-[10px] text-slate-500 uppercase block">Espacio Utilizado</span>
             <strong className="text-white text-sm">{formatSize(storageSummary?.totalStorageBytes || 0)}</strong>
           </div>
-          <div className="p-3 rounded-2xl bg-white/[0.02]">
+          <div className="p-3 rounded-2xl bg-surface-1 border border-white/5">
             <span className="text-[10px] text-slate-500 uppercase block">Archivos .coreo &amp; Media</span>
-            <strong className="text-cyan text-sm">{storageSummary?.totalFiles || 0}</strong>
+            <strong className="text-[#78a9ff] text-sm">{storageSummary?.totalFiles || 0}</strong>
           </div>
-          <div className="p-3 rounded-2xl bg-white/[0.02]">
+          <div className="p-3 rounded-2xl bg-surface-1 border border-white/5">
             <span className="text-[10px] text-slate-500 uppercase block">Fichas de Atletas</span>
             <strong className="text-white text-sm">{storageSummary?.totalAthletes || 0}</strong>
           </div>
-          <div className="p-3 rounded-2xl bg-white/[0.02]">
+          <div className="p-3 rounded-2xl bg-surface-1 border border-white/5">
             <span className="text-[10px] text-slate-500 uppercase block">Estado Red</span>
             <strong className={storageSummary?.isOnline ? 'text-mint text-sm' : 'text-amber-400 text-sm'}>
               {storageSummary?.isOnline ? 'Online' : 'Offline'}
@@ -194,10 +195,10 @@ export const CoachStorageView: React.FC = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* 1. Almacenamiento Local (IndexedDB / OPFS) */}
-          <div className="p-5 rounded-3xl bg-neon-surface border border-white/10 space-y-3">
+          <div className="p-5 rounded-2xl bg-surface-2 border border-white/[0.08] space-y-3 shadow-elevation-1">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-2xl bg-cyan/15 text-cyan ring-1 ring-cyan/30">
+                <div className="p-2.5 rounded-2xl bg-[#0f62fe]/15 text-[#78a9ff] ring-1 ring-[#0f62fe]/30">
                   <Database className="w-5 h-5" />
                 </div>
                 <div>
@@ -226,7 +227,7 @@ export const CoachStorageView: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleRequestPersistent}
-                  className="px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/10 text-xs font-semibold text-cyan transition-all"
+                  className="px-3 py-1.5 rounded-xl bg-surface-1 border border-white/10 hover:border-white/20 text-xs font-semibold text-[#78a9ff] transition-all"
                 >
                   Activar persistencia
                 </button>
@@ -235,7 +236,7 @@ export const CoachStorageView: React.FC = () => {
           </div>
 
           {/* 2. Google Drive */}
-          <div className="p-5 rounded-3xl bg-neon-surface border border-white/10 space-y-3">
+          <div className="p-5 rounded-2xl bg-surface-2 border border-white/[0.08] space-y-3 shadow-elevation-1">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-2xl bg-amber-400/15 text-amber-300 ring-1 ring-amber-400/30">
@@ -259,7 +260,7 @@ export const CoachStorageView: React.FC = () => {
             </div>
 
             <p className="text-xs text-slate-300 leading-relaxed">
-              Crea automáticamente la carpeta <code className="text-cyan font-mono">SkateCoreo/Entrenadores/</code> en tu unidad de Google Drive y sincroniza las fichas y coreografías.
+              Crea automáticamente la carpeta <code className="text-[#78a9ff] font-mono">SkateCoreo/Entrenadores/</code> en tu unidad de Google Drive y sincroniza las fichas y coreografías.
             </p>
 
             <div className="pt-2 flex items-center justify-end gap-2 border-t border-white/5">
@@ -284,7 +285,7 @@ export const CoachStorageView: React.FC = () => {
           </div>
 
           {/* 3. Microsoft OneDrive */}
-          <div className="p-5 rounded-3xl bg-neon-surface border border-white/10 space-y-3">
+          <div className="p-5 rounded-2xl bg-surface-2 border border-white/[0.08] space-y-3 shadow-elevation-1">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-2xl bg-blue-500/15 text-blue-400 ring-1 ring-blue-500/30">
@@ -333,7 +334,7 @@ export const CoachStorageView: React.FC = () => {
           </div>
 
           {/* 4. Dropbox */}
-          <div className="p-5 rounded-3xl bg-neon-surface border border-white/10 space-y-3">
+          <div className="p-5 rounded-2xl bg-surface-2 border border-white/[0.08] space-y-3 shadow-elevation-1">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 rounded-2xl bg-indigo-500/15 text-indigo-400 ring-1 ring-indigo-500/30">
@@ -357,7 +358,7 @@ export const CoachStorageView: React.FC = () => {
             </div>
 
             <p className="text-xs text-slate-300 leading-relaxed">
-              Guarda tus fichas deportivas en la carpeta <code className="text-cyan font-mono">/SkateCoreo</code> de tu cuenta Dropbox.
+              Guarda tus fichas deportivas en la carpeta <code className="text-[#78a9ff] font-mono">/SkateCoreo</code> de tu cuenta Dropbox.
             </p>
 
             <div className="pt-2 flex items-center justify-end gap-2 border-t border-white/5">
@@ -384,9 +385,9 @@ export const CoachStorageView: React.FC = () => {
       </div>
 
       {/* Configuración de Client IDs opcionales */}
-      <div className="p-6 rounded-3xl bg-neon-surface border border-white/10 space-y-4">
+      <div className="p-6 rounded-2xl bg-surface-2 border border-white/[0.08] space-y-4 shadow-elevation-1">
         <div className="flex items-center gap-2">
-          <Key className="w-4 h-4 text-cyan" />
+          <Key className="w-4 h-4 text-[#78a9ff]" />
           <h3 className="text-sm font-bold text-white uppercase tracking-wider">
             Credenciales de Aplicación OAuth (Opcional para clubes/entrenadores avanzados)
           </h3>
@@ -404,7 +405,7 @@ export const CoachStorageView: React.FC = () => {
               placeholder="xxxx.apps.googleusercontent.com"
               value={googleClientId}
               onChange={(e) => setGoogleClientId(e.target.value)}
-              className="w-full bg-neon-canvas border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-cyan text-xs font-mono"
+              className="w-full bg-surface-1 border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-[#0f62fe] text-xs font-mono"
             />
           </div>
 
@@ -415,7 +416,7 @@ export const CoachStorageView: React.FC = () => {
               placeholder="Application (client) ID de Azure"
               value={oneDriveClientId}
               onChange={(e) => setOneDriveClientId(e.target.value)}
-              className="w-full bg-neon-canvas border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-cyan text-xs font-mono"
+              className="w-full bg-surface-1 border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-[#0f62fe] text-xs font-mono"
             />
           </div>
 
@@ -426,19 +427,19 @@ export const CoachStorageView: React.FC = () => {
               placeholder="App Key de Dropbox Developer Console"
               value={dropboxClientId}
               onChange={(e) => setDropboxClientId(e.target.value)}
-              className="w-full bg-neon-canvas border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-cyan text-xs font-mono"
+              className="w-full bg-surface-1 border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-[#0f62fe] text-xs font-mono"
             />
           </div>
         </div>
 
         <div className="flex justify-end pt-2">
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={handleSaveClientIds}
-            className="px-4 py-2 rounded-xl bg-white/[0.06] hover:bg-white/10 text-slate-200 text-xs font-bold transition-all interactive-tap"
           >
             Guardar Claves de Cliente
-          </button>
+          </Button>
         </div>
       </div>
     </div>

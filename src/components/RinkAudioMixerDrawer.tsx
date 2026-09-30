@@ -99,14 +99,14 @@ export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
         {/* Cabecera del Mezclador */}
         <div className="flex items-center justify-between pb-4 border-b border-white/10 shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-full bg-cyan/15 border border-cyan/30 flex items-center justify-center text-cyan">
+            <div className="w-9 h-9 rounded-full bg-[#0f62fe]/15 border border-[#0f62fe]/30 flex items-center justify-center text-[#78a9ff]">
               <Sliders className="w-4 h-4" />
             </div>
             <div>
               <h2 id="mixer-title" className="text-base font-black text-white tracking-wide">
                 Mezcla de Audio
               </h2>
-              <span className="text-[11px] font-mono text-cyan">Pista 2D · SkateCoreo</span>
+              <span className="text-[11px] font-mono text-[#78a9ff]">Pista 2D · SkateCoreo</span>
             </div>
           </div>
 
@@ -127,12 +127,12 @@ export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
           <div className="flex flex-col gap-2 p-3.5 rounded-2xl bg-zinc-900/80 border border-white/10">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <Music className="w-4 h-4 text-cyan" />
+                <Music className="w-4 h-4 text-[#78a9ff]" />
                 <span className="text-xs font-black text-white uppercase tracking-wider">
                   Música Master
                 </span>
               </div>
-              <span className={`font-mono text-xs font-bold ${musicMuted ? 'text-rose-400' : 'text-cyan'}`}>
+              <span className={`font-mono text-xs font-bold ${musicMuted ? 'text-rose-400' : 'text-[#78a9ff]'}`}>
                 {musicMuted ? 'SILENCIADO' : `${Math.round(musicVolume * 100)}%`}
               </span>
             </div>
@@ -145,7 +145,7 @@ export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
                 className={`w-12 h-12 min-w-touch min-h-touch rounded-xl flex items-center justify-center transition-all active:scale-95 shadow-sm ${
                   musicMuted 
                     ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40' 
-                    : 'bg-cyan/15 text-cyan border border-cyan/30 hover:bg-cyan/25'
+                    : 'bg-[#0f62fe]/15 text-[#78a9ff] border border-[#0f62fe]/30 hover:bg-[#0f62fe]/25'
                 }`}
                 title={musicMuted ? 'Activar sonido de Música' : 'Silenciar Música'}
                 aria-label={musicMuted ? 'Activar sonido de Música' : 'Silenciar Música'}
@@ -162,7 +162,7 @@ export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
                   step="0.01"
                   value={musicMuted ? 0 : musicVolume}
                   onChange={(e) => handleMusicVolumeChange(parseFloat(e.target.value))}
-                  className="w-full h-2.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-cyan"
+                  className="w-full h-2.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-[#0f62fe]"
                   aria-label="Volumen de Música Master"
                 />
               </div>

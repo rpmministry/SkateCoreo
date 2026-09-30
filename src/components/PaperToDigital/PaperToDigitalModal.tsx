@@ -311,17 +311,17 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
         dinámico (dvh) con áreas seguras, header y footer fijos y SOLO el cuerpo
         con scroll interno. Nada se sale de la pantalla ni tapa el escaneo.
       */}
-      <div className="flex h-full max-h-full w-full max-w-5xl flex-col overflow-hidden border-0 border-cyan/30 bg-[#0D1322] text-slate-100 shadow-2xl pt-safe pb-safe sm:h-[90dvh] sm:max-h-[90dvh] sm:rounded-3xl sm:border">
+      <div className="flex h-full max-h-full w-full max-w-5xl flex-col overflow-hidden border-0 border-[#0f62fe]/30 bg-[#0D1322] text-slate-100 shadow-2xl pt-safe pb-safe sm:h-[90dvh] sm:max-h-[90dvh] sm:rounded-3xl sm:border">
         {/* ── Modal Header ── */}
         <div className="flex h-14 shrink-0 items-center justify-between border-b border-white/10 bg-slate-950/70 px-4 sm:px-5">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-cyan/15 text-cyan flex items-center justify-center border border-cyan/30">
+            <div className="w-8 h-8 rounded-xl bg-[#0f62fe]/15 text-[#78a9ff] flex items-center justify-center border border-[#0f62fe]/30">
               <Camera className="w-4 h-4" />
             </div>
             <div>
               <h2 className="text-sm font-black tracking-wide text-white uppercase flex items-center gap-2">
                 <span>Paper-to-Digital</span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan/15 text-cyan border border-cyan/30 font-bold lowercase">
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#0f62fe]/15 text-[#78a9ff] border border-[#0f62fe]/30 font-bold lowercase">
                   visión artificial
                 </span>
               </h2>
@@ -357,7 +357,7 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
                 {!imageSrc ? (
                   /* Pantalla inicial de selección de imagen */
                   <div className="flex flex-1 min-h-[350px] flex-col items-center justify-center gap-4 rounded-3xl border-2 border-dashed border-white/15 bg-slate-950/40 p-6 text-center">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-cyan/25 bg-cyan/10 text-cyan shadow-glow-cyan">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-[#0f62fe]/30 bg-[#0f62fe]/10 text-[#78a9ff]">
                       <FileText className="h-8 w-8" />
                     </div>
 
@@ -367,7 +367,7 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
                       </h3>
                       <p className="text-xs leading-relaxed text-slate-400">
                         Asegúrate de que la hoja esté bien iluminada y que las{' '}
-                        <strong className="text-cyan">4 marcas fiduciales (⊕)</strong> de las esquinas sean visibles.
+                        <strong className="text-[#78a9ff]">4 marcas fiduciales (⊕)</strong> de las esquinas sean visibles.
                       </p>
                     </div>
 
@@ -376,7 +376,7 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        className="interactive-tap flex items-center gap-2 rounded-2xl bg-cyan px-5 py-2.5 text-xs font-black text-slate-950 shadow-glow-cyan transition-all hover:bg-cyan/90"
+                        className="interactive-tap flex items-center gap-2 rounded-2xl bg-[#0f62fe] px-5 py-2.5 text-xs font-bold text-white shadow-sm transition-all hover:bg-[#0353e9]"
                       >
                         <Camera className="h-4 w-4" />
                         <span>Tomar Foto / Subir Imagen</span>
@@ -425,19 +425,19 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
 
               {/* ░░ COLUMNA 2: PANEL LATERAL (instrucciones, controles y estado) ░░ */}
               <aside className="flex shrink-0 flex-col gap-3 rounded-2xl border border-white/10 bg-slate-950/95 p-4 lg:min-h-0 lg:overflow-y-auto">
-                <h3 className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-cyan">
+                <h3 className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-[#78a9ff]">
                   <CheckCircle2 className="h-4 w-4" />
                   Alineación de la hoja
                 </h3>
 
                 <p className="text-[11px] leading-relaxed text-slate-400">
-                  Arrastra los <span className="font-bold text-cyan">4 pines circulares</span> hasta las marcas
-                  fiduciales (⊕) de las esquinas. Toda la hoja debe quedar dentro del recuadro cian.
+                  Arrastra los <span className="font-bold text-[#78a9ff]">4 pines circulares</span> hasta las marcas
+                  fiduciales (⊕) de las esquinas. Toda la hoja debe quedar dentro del recuadro azul.
                 </p>
 
                 {/* Orientación normalizada (marca de origen asimétrica) */}
                 {imageSrc && corners && !alignmentError && (
-                  <div className="rounded-xl border border-cyan/25 bg-cyan/10 px-3 py-2 text-[10px] font-semibold leading-relaxed text-cyan">
+                  <div className="rounded-xl border border-[#0f62fe]/30 bg-[#0f62fe]/10 px-3 py-2 text-[10px] font-semibold leading-relaxed text-[#78a9ff]">
                     Orientación:{' '}
                     {Math.abs(orientationDeg) < 15
                       ? 'correcta (0°)'
@@ -457,7 +457,7 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
                       className="flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] font-semibold text-slate-200 transition-all hover:bg-white/10"
                       title="Volver a buscar las marcas automáticamente"
                     >
-                      <RefreshCw className="h-3.5 w-3.5 text-cyan" />
+                      <RefreshCw className="h-3.5 w-3.5 text-[#78a9ff]" />
                       <span>Auto-Alinear marcas</span>
                     </button>
 
@@ -474,7 +474,7 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
 
                 {/* Estado del procesamiento (SIEMPRE fuera de la imagen) */}
                 {statusMessage && (
-                  <div className="flex items-center gap-2 rounded-xl border border-cyan/30 bg-cyan/15 px-3 py-2 text-[11px] font-semibold text-cyan">
+                  <div className="flex items-center gap-2 rounded-xl border border-[#0f62fe]/30 bg-[#0f62fe]/15 px-3 py-2 text-[11px] font-semibold text-[#78a9ff]">
                     <RefreshCw className="h-3.5 w-3.5 shrink-0 animate-spin" />
                     <span>{statusMessage}</span>
                   </div>
@@ -493,7 +493,7 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
                     (círculo, con o sin número). El número NO es obligatorio: un nodo sin número sigue siendo válido.
                   </p>
                   <p>
-                    Al pulsar <strong className="text-cyan">Preparar y Detectar</strong> podrás mejorar la imagen,
+                    Al pulsar <strong className="text-[#78a9ff]">Preparar y Detectar</strong> podrás mejorar la imagen,
                     comparar Original/Procesada y revisar las máscaras roja/azul antes de digitalizar.
                   </p>
                 </div>
@@ -528,7 +528,7 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
                   className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/15 text-slate-200 border border-white/10 transition-all interactive-tap disabled:opacity-30"
                   title="Inserta la hoja aplanada como fondo transparente en el lienzo para que puedas calcar por encima"
                 >
-                  <Layers className="w-4 h-4 text-cyan" />
+                  <Layers className="w-4 h-4 text-[#78a9ff]" />
                   <span>Usar como Fondo de Calco</span>
                 </button>
 
@@ -537,7 +537,7 @@ export const PaperToDigitalModal: React.FC<PaperToDigitalModalProps> = ({
                   type="button"
                   onClick={() => setPrepareOpen(true)}
                   disabled={isProcessing || !!alignmentError}
-                  className="flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-black bg-cyan text-slate-950 hover:bg-cyan/90 border border-white/20 shadow-glow-cyan transition-all interactive-tap disabled:opacity-30"
+                  className="flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold bg-[#0f62fe] text-white hover:bg-[#0353e9] border border-[#78a9ff]/40 shadow-sm transition-all interactive-tap disabled:opacity-30"
                   title="Mejora la imagen, revisa las máscaras roja/azul y detecta los nodos"
                 >
                   <Sparkles className="w-4 h-4" />

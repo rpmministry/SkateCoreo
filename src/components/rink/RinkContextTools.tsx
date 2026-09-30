@@ -21,13 +21,13 @@ interface RinkContextToolsProps {
 }
 
 const ACTIVE_STYLES: Record<string, string> = {
-  node: 'bg-surface-3 text-white border border-amber-400/50 shadow-sm',
-  curve: 'bg-surface-3 text-white border border-[#0f62fe]/60 shadow-sm',
-  erase: 'bg-surface-3 text-white border border-red-500/50 shadow-sm',
+  node: 'bg-[#d97706] text-white shadow-sm ring-1 ring-[#f59e0b]/40 font-bold',
+  curve: 'bg-[#0f62fe] text-white shadow-sm ring-1 ring-[#0f62fe]/40 font-bold',
+  erase: 'bg-[#da1e28] text-white shadow-sm ring-1 ring-[#fa4d56]/40 font-bold',
 };
 
 const IDLE_STYLES =
-  'bg-surface-1 text-slate-400 hover:bg-surface-2 hover:text-white border border-white/5';
+  'bg-white/[0.04] text-slate-300 hover:bg-white/[0.09] hover:text-white border border-white/10';
 
 /**
  * RinkContextTools — Única fuente de los controles de edición de pista
@@ -142,7 +142,7 @@ export const RinkContextTools: React.FC<RinkContextToolsProps> = ({
             className={[
               'press flex h-[48px] min-w-[52px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl text-[9px] font-black uppercase tracking-wide',
               inspectorOpen
-                ? 'bg-mint/15 text-mint ring-1 ring-mint/40'
+                ? 'bg-[#0f62fe]/15 text-[#78a9ff] ring-1 ring-[#0f62fe]/40'
                 : IDLE_STYLES,
             ].join(' ')}
           >
@@ -160,7 +160,7 @@ export const RinkContextTools: React.FC<RinkContextToolsProps> = ({
             aria-label="Recentrar la vista de la pista"
             className="press flex h-[48px] min-w-[52px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl bg-white/[0.04] text-[9px] font-black uppercase tracking-wide text-slate-300 hover:bg-white/[0.09] hover:text-white"
           >
-            <Maximize2 className="h-4 w-4 stroke-[2] text-cyan" />
+            <Maximize2 className="h-4 w-4 stroke-[2] text-[#78a9ff]" />
             Vista
           </button>
         )}

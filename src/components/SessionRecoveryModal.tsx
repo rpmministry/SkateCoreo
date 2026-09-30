@@ -25,13 +25,13 @@ export const SessionRecoveryModal: React.FC<SessionRecoveryModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
       <div 
-        className="w-full max-w-md bg-charcoal border border-white/15 rounded-2xl shadow-2xl p-6 text-white select-none space-y-5"
+        className="w-full max-w-md bg-surface-2 border border-white/10 rounded-2xl shadow-2xl p-6 text-white select-none space-y-5"
         role="dialog"
         aria-modal="true"
         aria-labelledby="recovery-modal-title"
       >
         <div className="flex items-start gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-cyan/15 text-cyan flex items-center justify-center shrink-0 border border-cyan/30">
+          <div className="w-10 h-10 rounded-xl bg-[#0f62fe]/15 text-[#78a9ff] flex items-center justify-center shrink-0 border border-[#0f62fe]/30">
             <RotateCcw className="w-5 h-5" />
           </div>
           <div className="space-y-1">
@@ -56,9 +56,9 @@ export const SessionRecoveryModal: React.FC<SessionRecoveryModalProps> = ({
           {snapshot.pointsCount > 0 && (
             <div className="flex items-center justify-between text-slate-300">
               <span className="flex items-center gap-1.5 text-slate-400">
-                <Layers className="w-3.5 h-3.5 text-cyan" /> Nodos de pista
+                <Layers className="w-3.5 h-3.5 text-[#78a9ff]" /> Nodos de pista
               </span>
-              <span className="font-semibold text-cyan">{snapshot.pointsCount} nodos</span>
+              <span className="font-semibold text-[#78a9ff]">{snapshot.pointsCount} nodos</span>
             </div>
           )}
 
@@ -88,7 +88,7 @@ export const SessionRecoveryModal: React.FC<SessionRecoveryModalProps> = ({
           <button
             type="button"
             onClick={onContinueSession}
-            className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-black bg-cyan hover:bg-cyan/90 active:scale-[0.98] shadow-lg shadow-cyan/20 transition-all flex items-center justify-center gap-2"
+            className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-white bg-[#0f62fe] hover:bg-[#0353e9] active:scale-[0.98] shadow-sm transition-all flex items-center justify-center gap-2"
           >
             <RotateCcw className="w-4 h-4" />
             Continuar sesión

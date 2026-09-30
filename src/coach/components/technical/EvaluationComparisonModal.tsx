@@ -54,7 +54,7 @@ export const EvaluationComparisonModal: React.FC<EvaluationComparisonModalProps>
         <div className="p-4 sm:p-6 border-b border-white/10 flex items-center justify-between shrink-0 bg-slate-950/60">
           <div>
             <div className="flex items-center gap-2">
-              <Award className="w-5 h-5 text-cyan" />
+              <Award className="w-5 h-5 text-[#78a9ff]" />
               <h2 className="text-lg font-black tracking-tight text-white">
                 Comparativa de Evaluaciones · {athleteName}
               </h2>
@@ -80,7 +80,7 @@ export const EvaluationComparisonModal: React.FC<EvaluationComparisonModalProps>
             <select
               value={firstId}
               onChange={(e) => setFirstId(e.target.value)}
-              className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-cyan"
+              className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-[#0f62fe]"
             >
               {evaluations.map((ev) => (
                 <option key={ev.id} value={ev.id}>
@@ -97,7 +97,7 @@ export const EvaluationComparisonModal: React.FC<EvaluationComparisonModalProps>
             <select
               value={secondId}
               onChange={(e) => setSecondId(e.target.value)}
-              className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-cyan"
+              className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-[#0f62fe]"
             >
               {evaluations.map((ev) => (
                 <option key={ev.id} value={ev.id}>
@@ -143,7 +143,7 @@ export const EvaluationComparisonModal: React.FC<EvaluationComparisonModalProps>
                 <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 flex flex-col justify-between">
                   <span className="text-[10px] font-bold text-slate-400 uppercase">Técnico (TES)</span>
                   <div className="flex items-baseline gap-2 mt-1">
-                    <span className="text-xl font-black text-cyan font-mono">
+                    <span className="text-xl font-black text-[#78a9ff] font-mono">
                       {evalB.scoresSummary.tes.toFixed(2)}
                     </span>
                     {comparison && (
@@ -271,10 +271,10 @@ export const EvaluationComparisonModal: React.FC<EvaluationComparisonModalProps>
                 </div>
 
                 {/* Evaluación B */}
-                <div className="p-4 rounded-2xl bg-cyan/5 border border-cyan/20 space-y-3">
-                  <div className="flex items-center justify-between pb-2 border-b border-cyan/10">
-                    <span className="text-xs font-bold text-cyan">Actual ({formatDate(evalB.date)})</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan/10 text-cyan font-mono">
+                <div className="p-4 rounded-2xl bg-[#0f62fe]/10 border border-[#0f62fe]/30 space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-[#0f62fe]/20">
+                    <span className="text-xs font-bold text-[#78a9ff]">Actual ({formatDate(evalB.date)})</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#0f62fe]/20 text-[#78a9ff] font-mono">
                       {evalB.regulationTitle}
                     </span>
                   </div>

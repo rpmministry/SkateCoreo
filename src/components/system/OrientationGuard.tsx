@@ -165,7 +165,7 @@ export const OrientationGate: React.FC<OrientationGateProps> = ({ children }) =>
           aria-label="Gira tu dispositivo"
           className="fixed inset-0 z-[999] flex flex-col items-center justify-center gap-6 bg-neon-canvas px-safe pb-safe pt-safe text-center text-white select-none"
         >
-          <div className="relative flex h-24 w-24 items-center justify-center rounded-3xl border border-cyan/30 bg-cyan/10 text-cyan shadow-glow-cyan">
+          <div className="relative flex h-24 w-24 items-center justify-center rounded-3xl border border-[#0f62fe]/40 bg-[#0f62fe]/10 text-[#78a9ff] shadow-sm">
             <RotateCw className="h-12 w-12" />
           </div>
 
@@ -180,7 +180,7 @@ export const OrientationGate: React.FC<OrientationGateProps> = ({ children }) =>
           <button
             type="button"
             onClick={requestPortraitLock}
-            className="interactive-tap rounded-2xl border border-cyan/40 bg-cyan/15 px-5 py-2.5 text-xs font-black uppercase tracking-wide text-cyan transition-colors hover:bg-cyan/25"
+            className="interactive-tap rounded-2xl border border-[#0f62fe]/40 bg-[#0f62fe]/15 px-5 py-2.5 text-xs font-bold uppercase tracking-wide text-[#78a9ff] transition-colors hover:bg-[#0f62fe]/25"
           >
             Fijar vertical
           </button>

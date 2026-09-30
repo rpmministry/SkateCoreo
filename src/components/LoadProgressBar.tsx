@@ -39,7 +39,7 @@ export const LoadProgressBar: React.FC = () => {
       <div className="h-[3px] w-full overflow-hidden bg-white/5">
         <div
           className={[
-            'h-full bg-gradient-to-r from-cyan via-teal-400 to-cyan shadow-[0_0_10px_rgba(0,210,255,0.7)]',
+            'h-full bg-gradient-to-r from-[#0f62fe] via-[#4589ff] to-[#0f62fe] shadow-[0_0_8px_rgba(15,98,254,0.4)]',
             indeterminate ? 'w-full animate-pulse opacity-70' : '',
           ].join(' ')}
           style={
@@ -52,11 +52,11 @@ export const LoadProgressBar: React.FC = () => {
 
       {/* Píldora con fase (y porcentaje solo cuando es real) */}
       {active && label && (
-        <div className="mx-auto mt-1.5 flex w-fit max-w-[92vw] items-center gap-2 rounded-full border border-cyan/30 bg-zinc-950/85 px-3 py-1 shadow-lg backdrop-blur-md">
-          <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-cyan" />
+        <div className="mx-auto mt-1.5 flex w-fit max-w-[92vw] items-center gap-2 rounded-full border border-[#0f62fe]/30 bg-zinc-950/85 px-3 py-1 shadow-lg backdrop-blur-md">
+          <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-[#0f62fe]" />
           <span className="truncate text-[10px] font-bold text-slate-200">{label}</span>
           {!indeterminate && (
-            <span className="shrink-0 font-mono text-[10px] font-black text-cyan">
+            <span className="shrink-0 font-mono text-[10px] font-black text-[#78a9ff]">
               {Math.round(percent)}%
             </span>
           )}

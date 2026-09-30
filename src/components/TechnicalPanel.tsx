@@ -355,7 +355,7 @@ export const TechnicalPanel: React.FC<TechnicalPanelProps> = ({
                               onClick={() => setSelectedJumpCode(code)}
                               className={`py-2 px-1 rounded-lg font-mono text-xs font-black transition-all touch-target ${
                                 isSelected
-                                  ? 'bg-sky-400 text-slate-950 shadow-md shadow-sky-400/40 scale-[1.02]'
+                                  ? 'bg-[#0f62fe] text-white shadow-sm ring-1 ring-[#78a9ff]/40 scale-[1.02]'
                                   : 'bg-slate-800/80 hover:bg-slate-700 text-slate-200'
                               }`}
                             >

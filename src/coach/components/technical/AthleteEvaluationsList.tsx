@@ -27,7 +27,7 @@ import { EvaluationPdfService } from '../../services/evaluationPdfService';
 import { EvaluationComparisonModal } from './EvaluationComparisonModal';
 import { exportCoreoProject } from '../../../services/coreoPackage';
 import { coachDb } from '../../services/coachDb';
-import { Card } from '../../../components/ui';
+import { Card, Button } from '../../../components/ui';
 
 interface AthleteEvaluationsListProps {
   athlete: CoachAthlete;
@@ -167,10 +167,10 @@ export const AthleteEvaluationsList: React.FC<AthleteEvaluationsListProps> = ({
   return (
     <div className="space-y-6">
       {/* Barra de Acciones y Resumen Superior */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-5 rounded-3xl bg-slate-900/60 border border-white/10 shadow-soft-elevation">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-5 rounded-2xl bg-surface-2 border border-white/[0.08] shadow-elevation-1">
         <div>
           <div className="flex items-center gap-2">
-            <Award className="w-5 h-5 text-cyan" />
+            <Award className="w-5 h-5 text-[#78a9ff]" />
             <h3 className="text-base font-black text-white tracking-tight">
               Puntajes y Evaluaciones de Entrenamiento
             </h3>
@@ -182,49 +182,49 @@ export const AthleteEvaluationsList: React.FC<AthleteEvaluationsListProps> = ({
 
         <div className="flex flex-wrap items-center gap-2">
           {sortedEvals.length >= 2 && (
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => setIsCompareModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-bold transition-all interactive-tap border border-white/10"
+              icon={<ArrowRightLeft className="w-3.5 h-3.5 text-[#78a9ff]" />}
             >
-              <ArrowRightLeft className="w-3.5 h-3.5 text-cyan" />
-              <span>Comparar</span>
-            </button>
+              Comparar
+            </Button>
           )}
 
           {sortedEvals.length > 0 && (
             <>
-              <button
-                type="button"
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={handleDownloadHistoryPdf}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white text-xs font-bold transition-all interactive-tap border border-white/10"
+                icon={<FileText className="w-3.5 h-3.5 text-amber-400" />}
                 title="Descarga documento A4 con el historial técnico consolidado"
               >
-                <FileText className="w-3.5 h-3.5 text-amber-400" />
-                <span className="hidden sm:inline">Historial PDF</span>
-              </button>
+                Historial PDF
+              </Button>
 
-              <button
-                type="button"
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={handleDownloadCompleteCoreo}
                 disabled={isExportingCoreo}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-teal-500/15 hover:bg-teal-500/25 text-teal-300 border border-teal-500/30 text-xs font-bold transition-all interactive-tap disabled:opacity-50"
+                icon={<Download className={`w-3.5 h-3.5 ${isExportingCoreo ? 'animate-bounce' : ''}`} />}
                 title="Descarga el archivo .coreo completo con música, pista 2D y evaluaciones integradas"
               >
-                <Download className={`w-3.5 h-3.5 ${isExportingCoreo ? 'animate-bounce' : ''}`} />
-                <span>{isExportingCoreo ? 'Exportando...' : 'Descargar .coreo'}</span>
-              </button>
+                {isExportingCoreo ? 'Exportando...' : 'Descargar .coreo'}
+              </Button>
             </>
           )}
 
-          <button
-            type="button"
+          <Button
+            variant="cobalt"
+            size="sm"
             onClick={onStartNewEvaluation}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan text-slate-950 font-black text-xs shadow-glow-cyan hover:bg-cyan/90 transition-all interactive-tap"
+            icon={<Plus className="w-4 h-4 stroke-[2.5]" />}
           >
-            <Plus className="w-4 h-4 stroke-[2.5]" />
-            <span>Nueva Evaluación</span>
-          </button>
+            Nueva Evaluación
+          </Button>
         </div>
       </div>
 
@@ -252,20 +252,20 @@ export const AthleteEvaluationsList: React.FC<AthleteEvaluationsListProps> = ({
 
       {/* Lista Cronológica de Evaluaciones */}
       {sortedEvals.length === 0 ? (
-        <div className="text-center py-16 px-4 rounded-3xl bg-white/[0.02] border border-dashed border-white/10 space-y-3">
+        <div className="text-center py-16 px-4 rounded-2xl bg-surface-2 border border-white/[0.08] space-y-3 shadow-elevation-1">
           <Award className="w-10 h-10 text-slate-600 mx-auto" />
           <h4 className="text-sm font-bold text-slate-300">Aún no hay evaluaciones registradas</h4>
           <p className="text-xs text-slate-500 max-w-md mx-auto">
             Inicia una evaluación técnica para calificar los elementos de la rutina, registrar componentes y entregar feedback estructurado.
           </p>
-          <button
-            type="button"
+          <Button
+            variant="cobalt"
+            size="sm"
             onClick={onStartNewEvaluation}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/30 text-xs font-bold transition-all interactive-tap"
+            icon={<Plus className="w-4 h-4" />}
           >
-            <Plus className="w-4 h-4" />
-            <span>Iniciar Primera Evaluación</span>
-          </button>
+            Iniciar Primera Evaluación
+          </Button>
         </div>
       ) : (
         <div className="space-y-3">
@@ -286,12 +286,12 @@ export const AthleteEvaluationsList: React.FC<AthleteEvaluationsListProps> = ({
             return (
               <div
                 key={ev.id}
-                className="p-4 sm:p-5 rounded-2xl bg-slate-900/50 border border-white/10 hover:border-cyan/30 transition-all space-y-4"
+                className="p-4 sm:p-5 rounded-2xl bg-surface-2 border border-white/[0.08] hover:border-[#0f62fe]/40 shadow-elevation-1 transition-all space-y-4"
               >
                 {/* Cabecera de la Tarjeta */}
                 <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-white/5">
                   <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded-full bg-cyan/15 text-cyan border border-cyan/30 text-[10px] font-black uppercase">
+                    <span className="px-2 py-0.5 rounded-full bg-[#0f62fe]/15 text-[#78a9ff] border border-[#0f62fe]/30 text-[10px] font-bold uppercase">
                       {ev.discipline} · {ev.programSegment}
                     </span>
                     <span className="text-xs text-slate-300 font-semibold">{ev.choreographyTitle || 'Rutina'}</span>
@@ -308,16 +308,16 @@ export const AthleteEvaluationsList: React.FC<AthleteEvaluationsListProps> = ({
                       type="button"
                       onClick={() => handleDownloadSinglePdf(ev)}
                       disabled={downloadingId === ev.id}
-                      className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-all text-xs"
+                      className="p-1.5 rounded-lg bg-surface-1 hover:bg-white/10 text-slate-300 hover:text-white transition-all text-xs border border-white/5"
                       title="Descargar Ficha PDF A4 Oficial"
                     >
-                      <FileText className="w-4 h-4 text-cyan" />
+                      <FileText className="w-4 h-4 text-[#78a9ff]" />
                     </button>
 
                     <button
                       type="button"
                       onClick={() => handleDelete(ev.id, dateStr)}
-                      className="p-1.5 rounded-lg bg-white/5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition-all text-xs"
+                      className="p-1.5 rounded-lg bg-surface-1 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition-all text-xs border border-white/5"
                       title="Eliminar evaluación"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -327,13 +327,13 @@ export const AthleteEvaluationsList: React.FC<AthleteEvaluationsListProps> = ({
 
                 {/* Grid de Puntuaciones */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                  <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/5">
+                  <div className="p-2.5 rounded-xl bg-surface-1 border border-white/5">
                     <span className="text-[9px] text-slate-400 font-bold uppercase">TES (Técnico)</span>
-                    <div className="text-base font-black text-cyan font-mono">{ev.scoresSummary.tes.toFixed(2)}</div>
+                    <div className="text-base font-black text-[#78a9ff] font-mono">{ev.scoresSummary.tes.toFixed(2)}</div>
                     <span className="text-[9px] text-slate-500">{ev.scoresSummary.elementsCount} elem. válidos</span>
                   </div>
 
-                  <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/5">
+                  <div className="p-2.5 rounded-xl bg-surface-1 border border-white/5">
                     <span className="text-[9px] text-slate-400 font-bold uppercase">PCS (Artístico)</span>
                     <div className="text-base font-black text-slate-200 font-mono">{ev.scoresSummary.pcs.toFixed(2)}</div>
                     <span className="text-[9px] text-slate-500">
@@ -341,7 +341,7 @@ export const AthleteEvaluationsList: React.FC<AthleteEvaluationsListProps> = ({
                     </span>
                   </div>
 
-                  <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/5">
+                  <div className="p-2.5 rounded-xl bg-surface-1 border border-white/5">
                     <span className="text-[9px] text-slate-400 font-bold uppercase">Deducciones</span>
                     <div className="text-base font-black text-rose-400 font-mono">
                       -{ev.scoresSummary.deductions.toFixed(2)}
@@ -349,8 +349,8 @@ export const AthleteEvaluationsList: React.FC<AthleteEvaluationsListProps> = ({
                     <span className="text-[9px] text-slate-500">{ev.deductions.fallsCount} caídas</span>
                   </div>
 
-                  <div className="p-2.5 rounded-xl bg-cyan/10 border border-cyan/20">
-                    <span className="text-[9px] text-cyan font-bold uppercase">TOTAL (TSS)</span>
+                  <div className="p-2.5 rounded-xl bg-[#0f62fe]/10 border border-[#0f62fe]/30">
+                    <span className="text-[9px] text-[#78a9ff] font-bold uppercase">TOTAL (TSS)</span>
                     <div className="flex items-baseline justify-between">
                       <span className="text-base font-black text-white font-mono">
                         {ev.scoresSummary.totalScore.toFixed(2)}
@@ -392,7 +392,7 @@ export const AthleteEvaluationsList: React.FC<AthleteEvaluationsListProps> = ({
 
                   {ev.feedback.nextGoals.length > 0 && (
                     <div className="flex items-start gap-1.5 text-slate-300">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-cyan shrink-0 mt-0.5" />
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#78a9ff] shrink-0 mt-0.5" />
                       <span className="text-slate-400 font-bold shrink-0">Objetivo próximo:</span>
                       <span className="truncate">{ev.feedback.nextGoals.join(' • ')}</span>
                     </div>

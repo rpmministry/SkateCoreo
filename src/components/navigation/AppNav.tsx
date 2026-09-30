@@ -92,26 +92,26 @@ export const BottomNav: React.FC<NavProps> = ({ active, onSelect, badges }) => (
           className={[
             'press relative flex min-h-[52px] flex-1 flex-col items-center justify-center gap-1',
             'rounded-lg px-1 py-1.5 transition-colors',
-            isActive ? 'text-[#78a9ff]' : 'text-[#8d8d8d] hover:text-[#f4f4f4]',
+            isActive ? 'text-white' : 'text-[#8d8d8d] hover:text-[#f4f4f4]',
           ].join(' ')}
         >
           {/* Indicador superior de pestaña activa */}
           <span
             aria-hidden="true"
             className={[
-              'absolute top-0 h-[2px] w-7 rounded-full transition-all duration-150',
-              isActive ? 'bg-[#0f62fe] opacity-100' : 'opacity-0',
+              'absolute top-0 h-[2.5px] w-8 rounded-full transition-all duration-150',
+              isActive ? 'bg-[#0f62fe] shadow-sm shadow-[#0f62fe]/50 opacity-100' : 'opacity-0',
             ].join(' ')}
           />
           <span className="relative flex items-center justify-center">
-            <Icon className={`h-5 w-5 transition-transform ${isActive ? 'stroke-[2.2] scale-105' : 'stroke-[1.8]'}`} />
+            <Icon className={`h-5 w-5 transition-transform ${isActive ? 'stroke-[2.2] scale-105 text-[#78a9ff]' : 'stroke-[1.8]'}`} />
             {badge > 0 && (
               <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#f1c21b] px-1 text-[9px] font-bold text-slate-950">
                 {badge > 9 ? '9+' : badge}
               </span>
             )}
           </span>
-          <span className={`max-w-full truncate text-[10px] leading-none ${isActive ? 'font-semibold text-white' : 'font-medium'}`}>{tab.short}</span>
+          <span className={`max-w-full truncate text-[10px] leading-none ${isActive ? 'font-bold text-white' : 'font-medium'}`}>{tab.short}</span>
         </button>
       );
     })}
@@ -138,13 +138,13 @@ export const DesktopHeaderNav: React.FC<NavProps> = ({ active, onSelect, badges 
           aria-current={isActive ? 'page' : undefined}
           title={tab.hint}
           className={[
-            'press relative flex min-h-[36px] items-center gap-1.5 rounded-md px-3 py-1 text-xs transition-colors select-none',
+            'press relative flex min-h-[36px] items-center gap-1.5 rounded-md px-3 py-1 text-xs transition-all select-none',
             isActive
-              ? 'bg-surface-3 text-[#f4f4f4] font-semibold border border-white/10 shadow-sm'
-              : 'text-[#c6c6c6] hover:bg-white/[0.04] hover:text-white font-medium',
+              ? 'bg-surface-3 text-white font-bold border border-[#0f62fe] shadow-sm ring-1 ring-[#0f62fe]/40'
+              : 'text-[#c6c6c6] hover:bg-white/[0.06] hover:text-white font-medium border border-transparent',
           ].join(' ')}
         >
-          <Icon className={`h-4 w-4 shrink-0 transition-colors ${isActive ? 'text-[#78a9ff] stroke-[2]' : 'text-[#8d8d8d] stroke-[1.8]'}`} />
+          <Icon className={`h-4 w-4 shrink-0 transition-colors ${isActive ? 'text-[#78a9ff] stroke-[2.2]' : 'text-[#8d8d8d] stroke-[1.8]'}`} />
           <span className="fm-nav-label hidden xl:inline whitespace-nowrap">{tab.short}</span>
           {badge > 0 && (
             <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[#f1c21b] px-1 text-[9px] font-bold text-slate-950">

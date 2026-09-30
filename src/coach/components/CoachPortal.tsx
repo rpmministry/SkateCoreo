@@ -104,7 +104,7 @@ export const CoachPortal: React.FC<CoachPortalProps> = ({
           </div>
 
           {/* Centro: Navegación de Pestañas del Entrenador */}
-          <nav className="hidden lg:flex items-center gap-1 bg-white/[0.03] p-1 rounded-xl border border-white/5">
+          <nav className="hidden lg:flex items-center gap-1 bg-surface-1 p-1 rounded-xl border border-white/10">
             {navItems.map((item) => {
               const isActive = activeCoachTab === item.id;
               return (
@@ -113,13 +113,13 @@ export const CoachPortal: React.FC<CoachPortalProps> = ({
                   type="button"
                   disabled={item.disabled}
                   onClick={() => setActiveCoachTab(item.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all disabled:opacity-30 disabled:pointer-events-none interactive-tap ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-30 disabled:pointer-events-none interactive-tap ${
                     isActive
-                      ? 'bg-surface-3 text-[#f4f4f4] font-semibold border border-white/10 shadow-sm'
-                      : 'text-slate-300 hover:text-white hover:bg-white/[0.06]'
+                      ? 'bg-surface-3 text-white font-bold border border-[#ee5396] shadow-sm ring-1 ring-[#ee5396]/40'
+                      : 'text-slate-300 hover:text-white hover:bg-white/[0.06] border border-transparent'
                   }`}
                 >
-                  {item.icon}
+                  <span className={isActive ? 'text-[#ff7eb6]' : 'text-slate-400'}>{item.icon}</span>
                   <span>{item.label}</span>
                 </button>
               );
@@ -135,7 +135,7 @@ export const CoachPortal: React.FC<CoachPortalProps> = ({
             >
               <span
                 className={`w-2 h-2 rounded-full ${
-                  storageSummary?.activeProvider !== 'local' ? 'bg-mint animate-pulse' : 'bg-cyan'
+                  storageSummary?.activeProvider !== 'local' ? 'bg-[#009d9a] animate-pulse' : 'bg-[#0f62fe]'
                 }`}
               />
               <span className="hidden sm:inline capitalize">
@@ -155,13 +155,13 @@ export const CoachPortal: React.FC<CoachPortalProps> = ({
                 type="button"
                 disabled={item.disabled}
                 onClick={() => setActiveCoachTab(item.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 disabled:opacity-30 interactive-tap ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 disabled:opacity-30 interactive-tap ${
                   isActive
-                    ? 'bg-surface-3 text-[#f4f4f4] font-semibold border border-white/10 shadow-sm'
-                    : 'bg-white/[0.04] text-slate-300 hover:text-white'
+                    ? 'bg-surface-3 text-white font-bold border border-[#ee5396] shadow-sm ring-1 ring-[#ee5396]/40'
+                    : 'bg-white/[0.04] text-slate-300 hover:text-white border border-transparent'
                 }`}
               >
-                {item.icon}
+                <span className={isActive ? 'text-[#ff7eb6]' : 'text-slate-400'}>{item.icon}</span>
                 <span>{item.label}</span>
               </button>
             );

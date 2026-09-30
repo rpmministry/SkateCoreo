@@ -79,18 +79,18 @@ export const CornerPinAdjuster: React.FC<CornerPinAdjusterProps> = ({
     ctx.lineTo(pts.bottomLeft.x, pts.bottomLeft.y);
     ctx.closePath();
 
-    ctx.fillStyle = 'rgba(0, 240, 255, 0.12)';
+    ctx.fillStyle = 'rgba(15, 98, 254, 0.12)';
     ctx.fill();
 
-    // Bordes perimétricos con brillo cian
-    ctx.strokeStyle = '#00F0FF';
+    // Bordes perimétricos con tono Carbon Blue
+    ctx.strokeStyle = '#0f62fe';
     ctx.lineWidth = 2;
     ctx.setLineDash([6, 4]);
     ctx.stroke();
 
     // 2. Líneas centrales proyectadas (Guías reglamentarias para verificar alineación)
     ctx.setLineDash([2, 4]);
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.5)';
+    ctx.strokeStyle = 'rgba(120, 169, 255, 0.4)';
     ctx.lineWidth = 1;
 
     // Eje longitudinal medio
@@ -127,20 +127,20 @@ export const CornerPinAdjuster: React.FC<CornerPinAdjusterProps> = ({
 
       ctx.save();
       // Sombra exterior
-      ctx.shadowColor = isActive ? '#00F0FF' : 'rgba(0,0,0,0.8)';
-      ctx.shadowBlur = isActive ? 16 : 8;
+      ctx.shadowColor = isActive ? '#0f62fe' : 'rgba(0,0,0,0.8)';
+      ctx.shadowBlur = isActive ? 12 : 6;
 
       // Anillo exterior
       ctx.beginPath();
       ctx.arc(p.x, p.y, isActive ? 16 : 13, 0, Math.PI * 2);
-      ctx.fillStyle = isActive ? '#00F0FF' : 'rgba(15, 23, 42, 0.9)';
+      ctx.fillStyle = isActive ? '#0f62fe' : 'rgba(15, 23, 42, 0.9)';
       ctx.fill();
       ctx.strokeStyle = '#FFFFFF';
       ctx.lineWidth = 2;
       ctx.stroke();
 
       // Cruz central
-      ctx.strokeStyle = isActive ? '#090D16' : '#00F0FF';
+      ctx.strokeStyle = isActive ? '#FFFFFF' : '#78a9ff';
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.moveTo(p.x - 6, p.y);
@@ -194,7 +194,7 @@ export const CornerPinAdjuster: React.FC<CornerPinAdjusterProps> = ({
         ctx.drawImage(imgElement, cropX, cropY, cropW, cropH, 0, 0, size, size);
 
         // Mirilla de precisión en el centro de la lupa
-        ctx.strokeStyle = '#00F0FF';
+        ctx.strokeStyle = '#0f62fe';
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.arc(size / 2, size / 2, 8, 0, Math.PI * 2);
@@ -319,7 +319,7 @@ export const CornerPinAdjuster: React.FC<CornerPinAdjusterProps> = ({
 
       {/* Lupa flotante de precisión cuando un pin está activo (herramienta, sin textos sobre la hoja) */}
       {activeCorner && (
-        <div className="absolute right-3 top-3 z-30 rounded-2xl border-2 border-cyan bg-slate-900/95 p-1.5 shadow-2xl backdrop-blur-md animate-in fade-in zoom-in-95">
+        <div className="absolute right-3 top-3 z-30 rounded-2xl border-2 border-[#0f62fe] bg-slate-900/95 p-1.5 shadow-2xl backdrop-blur-md animate-in fade-in zoom-in-95">
           <canvas
             ref={magnifierCanvasRef}
             width={120}

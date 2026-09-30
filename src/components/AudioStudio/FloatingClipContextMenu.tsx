@@ -169,7 +169,7 @@ export const FloatingClipContextMenu: React.FC = () => {
   return (
     <div
       ref={menuRef}
-      className="fixed z-50 flex items-center gap-0.5 p-1 rounded-full bg-zinc-950/95 border border-cyan/40 shadow-2xl shadow-cyan/20 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100 max-w-[calc(100vw-1rem)] overflow-x-auto no-scrollbar"
+      className="fixed z-50 flex items-center gap-0.5 p-1 rounded-full bg-zinc-950/95 border border-white/15 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100 max-w-[calc(100vw-1rem)] overflow-x-auto no-scrollbar"
       style={{
         // Antes de medir se mantiene invisible para evitar parpadeo en la esquina
         left: `${pos?.left ?? 0}px`,
@@ -191,7 +191,7 @@ export const FloatingClipContextMenu: React.FC = () => {
         className="h-8 px-2.5 rounded-full flex items-center gap-1 text-[11px] font-bold text-slate-200 hover:text-white hover:bg-white/10 transition-colors"
         title="Seleccionar clip"
       >
-        <Check className="w-3.5 h-3.5 text-cyan" />
+        <Check className="w-3.5 h-3.5 text-[#78a9ff]" />
         <span>Elegir</span>
       </button>
 

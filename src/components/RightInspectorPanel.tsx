@@ -314,7 +314,7 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                   onClick={() => setSelectedPointId(p.id)}
                   className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left shadow-soft-elevation interactive-tap group bg-neon-card hover:bg-neon-hover"
                 >
-                  <span className="w-5 h-5 rounded-lg bg-neon-surface group-hover:bg-mint group-hover:text-neon-canvas flex items-center justify-center text-[10px] font-mono font-bold text-mint shrink-0 transition-colors">
+                  <span className="w-5 h-5 rounded-lg bg-surface-2 group-hover:bg-[#0f62fe] group-hover:text-white flex items-center justify-center text-[10px] font-mono font-bold text-[#78a9ff] shrink-0 transition-colors">
                     {i + 1}
                   </span>
                   <div className="min-w-0 flex-1">
@@ -346,13 +346,13 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
           </div>
         )}
 
-        {/* ── Inspector para Nodos Coreográficos: Acento Menta Neón ─── */}
+        {/* ── Inspector para Nodos Coreográficos: Carbon IBM Blue ─── */}
         {selectedPoint && (
           <div className="px-4 py-3.5 space-y-4">
 
-            {/* Identidad del nodo con halo Menta */}
+            {/* Identidad del nodo con halo Carbon */}
             <div className="flex items-center gap-3 bg-neon-card p-3 rounded-2xl shadow-soft-elevation">
-              <span className="w-8 h-8 rounded-xl bg-mint text-neon-canvas shadow-glow-mint flex items-center justify-center text-xs font-mono font-black shrink-0">
+              <span className="w-8 h-8 rounded-xl bg-[#0f62fe] text-white border border-[#78a9ff]/40 shadow-sm ring-1 ring-[#0f62fe]/30 flex items-center justify-center text-xs font-mono font-bold shrink-0">
                 {displayNumber === '?' ? '?' : `#${displayNumber}`}
               </span>
               <div className="min-w-0 flex-1">
@@ -378,7 +378,7 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
             {/* Número del nodo (leído por el escáner o escrito a mano) */}
             <div className="space-y-1.5">
               <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                <Hash className="w-3.5 h-3.5 text-cyan" />
+                <Hash className="w-3.5 h-3.5 text-[#78a9ff]" />
                 Número de nodo
               </label>
               <input
@@ -439,10 +439,10 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                 <span className="flex items-center gap-1.5">
-                  <Tag className="w-3.5 h-3.5 text-mint" />
+                  <Tag className="w-3.5 h-3.5 text-[#78a9ff]" />
                   Figura Reglamentaria
                 </span>
-                <span className="text-[9px] font-mono text-cyan normal-case font-bold">
+                <span className="text-[9px] font-mono text-[#78a9ff] normal-case font-bold">
                   {eficiencia} · {categoria}
                 </span>
               </div>
@@ -520,10 +520,10 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                 <span className="flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-mint" />
+                  <Clock className="w-3.5 h-3.5 text-[#78a9ff]" />
                   Sincronización
                 </span>
-                <span className="font-mono text-mint font-bold normal-case">
+                <span className="font-mono text-[#78a9ff] font-bold normal-case">
                   {formatTime(selectedPoint.time_ms)}
                 </span>
               </div>
@@ -537,7 +537,7 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                     const sec = parseFloat(e.target.value) || 0;
                     handleUpdateTime(selectedPoint.id, Math.round(sec * 1000));
                   }}
-                  className="w-20 bg-neon-card rounded-xl px-2 py-2 text-center font-mono text-mint font-black text-xs outline-none shadow-soft-elevation"
+                  className="w-20 bg-neon-card rounded-xl px-2 py-2 text-center font-mono text-[#78a9ff] font-bold text-xs outline-none shadow-soft-elevation border border-white/10 focus:border-[#0f62fe]"
                 />
                 <span className="font-mono text-slate-500 text-xs">seg</span>
                 <button
@@ -554,8 +554,8 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
             {collectNodeFigures(selectedPoint).length > 0 && (
                 <div className="bg-neon-card shadow-soft-elevation rounded-2xl p-3 space-y-1.5">
                   <div className="flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-mint shrink-0" />
-                    <span className="text-[10px] font-bold text-mint uppercase tracking-wide">
+                    <Sparkles className="w-3.5 h-3.5 text-[#78a9ff] shrink-0" />
+                    <span className="text-[10px] font-bold text-[#78a9ff] uppercase tracking-wide">
                       Guía en Pista:
                     </span>
                   </div>
@@ -615,7 +615,7 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
             <p
               className={[
                 'text-[10px] font-bold uppercase tracking-widest transition-colors',
-                selectedPoint ? 'text-mint' : 'text-slate-500',
+                selectedPoint ? 'text-[#78a9ff]' : 'text-slate-500',
               ].join(' ')}
             >
               {selectedPoint ? 'Inspector de Nodo' : 'Sin Selección'}
@@ -649,7 +649,7 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
           <p
             className={[
               'text-[10px] font-bold uppercase tracking-widest transition-colors',
-              selectedPoint ? 'text-mint' : 'text-slate-500',
+              selectedPoint ? 'text-[#78a9ff]' : 'text-slate-500',
             ].join(' ')}
           >
             {selectedPoint ? 'Inspector de Nodo' : 'Sin Selección'}

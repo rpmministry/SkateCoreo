@@ -61,7 +61,7 @@ export const BandLabMixerDrawer: React.FC<BandLabMixerDrawerProps> = ({
         {/* Cabecera del Mezclador BandLab */}
         <div className="flex items-center justify-between pb-2 border-b border-white/10">
           <div className="flex items-center gap-2">
-            <Sliders className="w-5 h-5 text-cyan" />
+            <Sliders className="w-5 h-5 text-[#78a9ff]" />
             <h2 className="text-sm font-black uppercase tracking-wider text-white">
               Mezclador Multitrack (Mix Editor)
             </h2>
@@ -94,7 +94,7 @@ export const BandLabMixerDrawer: React.FC<BandLabMixerDrawerProps> = ({
               onClick={() => handleSetChannelMode('stereo')}
               className={`py-2 px-3.5 rounded-xl text-center text-xs font-bold transition-all border active:scale-[0.97] ${
                 channelMode === 'stereo'
-                  ? 'bg-teal-400 text-zinc-950 font-black border-teal-300 shadow-md shadow-teal-400/25'
+                  ? 'bg-[#0f62fe] text-white font-bold border-[#78a9ff]/40 shadow-sm ring-1 ring-[#0f62fe]/30'
                   : 'bg-zinc-800/80 border-white/5 text-zinc-300 hover:bg-zinc-700 hover:text-white'
               }`}
             >
@@ -106,7 +106,7 @@ export const BandLabMixerDrawer: React.FC<BandLabMixerDrawerProps> = ({
               onClick={() => handleSetChannelMode('split-coach')}
               className={`py-2 px-3.5 rounded-xl text-center text-xs font-bold transition-all border active:scale-[0.97] ${
                 channelMode === 'split-coach'
-                  ? 'bg-teal-400 text-zinc-950 font-black border-teal-300 shadow-md shadow-teal-400/25'
+                  ? 'bg-[#0f62fe] text-white font-bold border-[#78a9ff]/40 shadow-sm ring-1 ring-[#0f62fe]/30'
                   : 'bg-zinc-800/80 border-white/5 text-zinc-300 hover:bg-zinc-700 hover:text-white'
               }`}
             >
@@ -144,11 +144,11 @@ export const BandLabMixerDrawer: React.FC<BandLabMixerDrawerProps> = ({
                     step="0.02"
                     value={t.volume}
                     onChange={(e) => setTrackVolume(t.id, parseFloat(e.target.value))}
-                    className="w-28 accent-cyan cursor-pointer -rotate-90"
+                    className="w-28 accent-[#0f62fe] cursor-pointer -rotate-90"
                   />
                 </div>
 
-                <span className="font-mono text-[10px] text-cyan font-bold mb-2">
+                <span className="font-mono text-[10px] text-[#78a9ff] font-bold mb-2">
                   {Math.round(t.volume * 100)}%
                 </span>
 

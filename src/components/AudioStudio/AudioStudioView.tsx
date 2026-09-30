@@ -1095,7 +1095,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
                 className={[
                   'px-1.5 py-0.5 rounded-full border text-[9px] font-bold',
                   audioNodes.length > 0
-                    ? 'bg-cyan/15 text-cyan border-cyan/30'
+                    ? 'bg-[#0f62fe]/15 text-[#78a9ff] border-[#0f62fe]/30'
                     : 'bg-white/5 text-slate-500 border-white/10',
                 ].join(' ')}
               >
@@ -1167,14 +1167,14 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
                 <span
                   className={[
                     'flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-mono text-[9px] font-black',
-                    isSelectedNode ? 'bg-cyan text-slate-950' : 'bg-cyan/25 text-cyan',
+                    isSelectedNode ? 'bg-[#0f62fe] text-white' : 'bg-[#0f62fe]/20 text-[#78a9ff]',
                   ].join(' ')}
                 >
                   {node.numeroSecuencial}
                 </span>
                 <div
                   className={
-                    isSelectedNode ? 'w-[2px] flex-1 bg-cyan' : 'w-px flex-1 bg-cyan/45'
+                    isSelectedNode ? 'w-[2px] flex-1 bg-[#0f62fe]' : 'w-px flex-1 bg-[#0f62fe]/45'
                   }
                 />
               </div>
@@ -1199,8 +1199,8 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
                 className={[
                   'px-1.5 py-0.5 rounded font-mono font-black text-[9px] shadow-md -translate-y-1 whitespace-nowrap',
                   draggingGhost.snapLineSec != null
-                    ? 'bg-cyan text-slate-950'
-                    : 'bg-black/80 text-cyan border border-cyan/40',
+                    ? 'bg-[#0f62fe] text-white'
+                    : 'bg-black/80 text-[#78a9ff] border border-[#0f62fe]/40',
                 ].join(' ')}
               >
                 {draggingGhost.snapLineSec != null
@@ -1210,7 +1210,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
               <div
                 className={[
                   'w-[2px] h-full',
-                  draggingGhost.snapLineSec != null ? 'bg-cyan shadow-glow-cyan' : 'bg-white/40',
+                  draggingGhost.snapLineSec != null ? 'bg-[#0f62fe] shadow-sm' : 'bg-white/40',
                 ].join(' ')}
               />
             </div>
@@ -1230,7 +1230,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
               <div className="px-1.5 py-0.5 rounded bg-white text-slate-950 font-mono font-black text-[9px] shadow-md -translate-y-1 whitespace-nowrap">
                 CORTE {lastCutSec.toFixed(3)} s
               </div>
-              <div className="w-[2px] h-full bg-white/90 shadow-glow-cyan" />
+              <div className="w-[2px] h-full bg-white/90 shadow-sm" />
             </div>
           )}
 
@@ -1246,9 +1246,9 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             >
               <label 
                 htmlFor="add-track-input"
-                className="cursor-pointer h-11 px-5 rounded-2xl border border-dashed border-white/20 hover:border-cyan/60 bg-zinc-950 hover:bg-zinc-900 flex items-center gap-2 text-xs font-bold text-slate-300 hover:text-white transition-all shadow-md active:scale-98"
+                className="cursor-pointer h-11 px-5 rounded-2xl border border-dashed border-white/20 hover:border-[#0f62fe]/60 bg-zinc-950 hover:bg-zinc-900 flex items-center gap-2 text-xs font-bold text-slate-300 hover:text-white transition-all shadow-md active:scale-98"
               >
-                <Plus className="w-4 h-4 text-cyan" />
+                <Plus className="w-4 h-4 text-[#78a9ff]" />
                 <span>Añadir Pista ({arrangementTracks.filter((t) => (t.clips && t.clips.length > 0) || !!t.buffer).length}/5)</span>
               </label>
               <input
@@ -1286,7 +1286,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
         >
           <div
             ref={playheadNeedleRef}
-            className="w-[2px] bg-white shadow-glow-cyan relative flex justify-center"
+            className="w-[2px] bg-white shadow-sm relative flex justify-center"
             style={{ height: `${playheadHeight}px` }}
           >
             {/* HIT AREA DEL PLAYHEAD — independiente del marker. Es un blanco
@@ -1329,7 +1329,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             title="Abrir Mezclador de Pistas (Volumen, Mute, Solo, Modo de Salida)"
             aria-label="Abrir mezclador de pistas"
           >
-            <Sliders className="w-5 h-5 text-cyan" />
+            <Sliders className="w-5 h-5 text-[#78a9ff]" />
           </button>
 
           {/* Selector rápido Stereo / Split L/R */}
@@ -1451,7 +1451,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
                 : 'Escucharte por los auriculares (monitorización)'
             }
             className={`press w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center ${
-              recordingMonitorEnabled ? 'text-cyan bg-cyan/15' : 'text-slate-500 hover:bg-white/5'
+              recordingMonitorEnabled ? 'text-[#78a9ff] bg-[#0f62fe]/15' : 'text-slate-500 hover:bg-white/5'
             }`}
           >
             <Headphones className="w-5 h-5" />
@@ -1523,7 +1523,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             aria-label={loopEnabled ? 'Desactivar repetición' : 'Activar repetición'}
             title={loopEnabled ? 'Repetir activado (L)' : 'Repetir (L)'}
             className={`w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center press disabled:opacity-30 disabled:pointer-events-none ${
-              loopEnabled ? 'text-cyan bg-cyan/15' : 'text-slate-500 hover:bg-white/5'
+              loopEnabled ? 'text-[#78a9ff] bg-[#0f62fe]/15' : 'text-slate-500 hover:bg-white/5'
             }`}
           >
             <Repeat className="w-5 h-5" />
@@ -1533,7 +1533,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           <button
             type="button"
             onClick={handleAddTimeNode}
-            className="press flex h-11 sm:h-12 shrink-0 items-center gap-1.5 rounded-full border border-cyan/30 bg-cyan/15 px-2.5 text-xs font-bold text-cyan hover:bg-cyan/25 sm:px-3"
+            className="press flex h-11 sm:h-12 shrink-0 items-center gap-1.5 rounded-full border border-[#0f62fe]/30 bg-[#0f62fe]/15 px-2.5 text-xs font-bold text-[#78a9ff] hover:bg-[#0f62fe]/25 sm:px-3"
             title="Añadir marcador temporal"
             aria-label="Añadir marcador temporal"
           >
@@ -1610,8 +1610,8 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
 
       {/* ── 6. NOTIFICACIÓN FLOTANTE DE SINCRONIZACIÓN ── */}
       {exportNotice && (
-        <div className="fixed bottom-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-full bg-cyan-950/90 border border-cyan/50 text-cyan text-xs font-bold shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-2">
-          <CheckCircle2 className="w-4 h-4 text-cyan" />
+        <div className="fixed bottom-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-full bg-surface-2 border border-[#0f62fe]/50 text-[#78a9ff] text-xs font-bold shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-bottom-2">
+          <CheckCircle2 className="w-4 h-4 text-[#78a9ff]" />
           <span>{exportNotice}</span>
         </div>
       )}
@@ -1659,14 +1659,14 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
         >
           <div className={`flex items-center gap-2.5 px-3.5 py-2 rounded-2xl border backdrop-blur-xl shadow-2xl transition-all ${
             draggingGhost.isOverMaster
-              ? 'bg-cyan-950/95 border-cyan text-white shadow-cyan/50 ring-2 ring-cyan scale-105'
+              ? 'bg-[#0f62fe]/20 border-[#0f62fe] text-white ring-2 ring-[#0f62fe]/50 scale-105'
               : 'bg-zinc-900/95 border-white/25 text-white shadow-black/90'
           }`}>
-            <div className={`w-3 h-3 rounded-full shrink-0 ${draggingGhost.isOverMaster ? 'bg-cyan animate-ping' : 'bg-white/80'}`} />
+            <div className={`w-3 h-3 rounded-full shrink-0 ${draggingGhost.isOverMaster ? 'bg-[#0f62fe] animate-ping' : 'bg-white/80'}`} />
             <div className="flex flex-col min-w-0 pr-1">
               <span className="text-xs font-black truncate max-w-[150px]">{draggingGhost.clip.name}</span>
               <div className="flex items-center gap-1.5 font-mono text-[10px]">
-                <span className={draggingGhost.isOverMaster ? 'text-cyan font-bold' : 'text-slate-300'}>
+                <span className={draggingGhost.isOverMaster ? 'text-[#78a9ff] font-bold' : 'text-slate-300'}>
                   {draggingGhost.isOverMaster ? '🎯 Soltar en Master' : `↳ ${draggingGhost.targetTrackName}`}
                 </span>
                 <span className="text-slate-400">· {draggingGhost.startOffsetSec.toFixed(2)}s</span>

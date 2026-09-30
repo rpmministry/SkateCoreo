@@ -121,13 +121,13 @@ export const DeviceSecurityModal: React.FC<DeviceSecurityModalProps> = ({ isOpen
     return (
       <div className={`p-3.5 rounded-2xl border transition-all ${
         device 
-          ? 'bg-slate-900/80 border-cyan/30' 
-          : 'bg-slate-950/40 border-dashed border-white/10'
+          ? 'bg-surface-1 border-[#0f62fe]/40 ring-1 ring-[#0f62fe]/20' 
+          : 'bg-surface-1/40 border-dashed border-white/10'
       }`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
-              device ? 'bg-cyan/15 text-cyan' : 'bg-slate-800 text-slate-500'
+              device ? 'bg-[#0f62fe]/15 text-[#78a9ff]' : 'bg-slate-800 text-slate-500'
             }`}>
               <Icon className="w-5 h-5" />
             </div>
@@ -188,12 +188,12 @@ export const DeviceSecurityModal: React.FC<DeviceSecurityModalProps> = ({ isOpen
       role="dialog"
       aria-modal="true"
     >
-      <div className="relative w-full max-w-md bg-slate-900 border border-white/10 rounded-3xl p-5 sm:p-6 shadow-2xl text-white my-auto max-h-[90vh] overflow-y-auto">
+      <div className="relative w-full max-w-md bg-surface-2 border border-white/10 rounded-3xl p-5 sm:p-6 shadow-2xl text-white my-auto max-h-[90vh] overflow-y-auto">
         
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-white/10">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-cyan/15 text-cyan flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-[#0f62fe]/15 text-[#78a9ff] flex items-center justify-center">
               <ShieldCheck className="w-4 h-4" />
             </div>
             <div>
@@ -220,7 +220,7 @@ export const DeviceSecurityModal: React.FC<DeviceSecurityModalProps> = ({ isOpen
           </div>
           <div className="text-right">
             <div className="text-[10px] text-slate-400 flex items-center justify-end gap-1">
-              <Calendar className="w-3 h-3 text-cyan" />
+              <Calendar className="w-3 h-3 text-[#78a9ff]" />
               <span>Vencimiento:</span>
             </div>
             <div className="font-mono text-[11px] font-bold text-mint">
@@ -262,16 +262,16 @@ export const DeviceSecurityModal: React.FC<DeviceSecurityModalProps> = ({ isOpen
             <button
               type="button"
               onClick={() => setShowPasswordForm(true)}
-              className="w-full py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-750 border border-white/10 text-xs font-bold text-slate-200 hover:text-white flex items-center justify-center gap-2 transition-all"
+              className="w-full py-2.5 px-3 rounded-xl bg-surface-1 hover:bg-white/[0.08] border border-white/10 text-xs font-bold text-slate-200 hover:text-white flex items-center justify-center gap-2 transition-all"
             >
-              <KeyRound className="w-3.5 h-3.5 text-cyan" />
+              <KeyRound className="w-3.5 h-3.5 text-[#78a9ff]" />
               <span>Cambiar Mi Contraseña</span>
             </button>
           ) : (
             <form onSubmit={handleChangePassword} className="space-y-2.5 bg-slate-950/80 p-3.5 rounded-2xl border border-white/10">
               <div className="flex items-center justify-between text-xs pb-1 border-b border-white/5">
                 <span className="font-bold text-white flex items-center gap-1.5">
-                  <Lock className="w-3.5 h-3.5 text-cyan" />
+                  <Lock className="w-3.5 h-3.5 text-[#78a9ff]" />
                   Actualizar Contraseña
                 </span>
                 <button
@@ -290,7 +290,7 @@ export const DeviceSecurityModal: React.FC<DeviceSecurityModalProps> = ({ isOpen
                   value={oldPassword}
                   onChange={(e) => setOldPassword(e.target.value)}
                   placeholder="Contraseña actual"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-white/10 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-cyan"
+                  className="w-full px-3 py-2 rounded-xl bg-surface-1 border border-white/10 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-[#0f62fe]"
                 />
               </div>
 
@@ -301,7 +301,7 @@ export const DeviceSecurityModal: React.FC<DeviceSecurityModalProps> = ({ isOpen
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="Nueva contraseña (mínimo 6 caracteres)"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-white/10 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-cyan"
+                  className="w-full px-3 py-2 rounded-xl bg-surface-1 border border-white/10 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-[#0f62fe]"
                 />
               </div>
 
@@ -312,7 +312,7 @@ export const DeviceSecurityModal: React.FC<DeviceSecurityModalProps> = ({ isOpen
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Confirmar nueva contraseña"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-white/10 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-cyan"
+                  className="w-full px-3 py-2 rounded-xl bg-surface-1 border border-white/10 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-[#0f62fe]"
                 />
               </div>
 
@@ -328,7 +328,7 @@ export const DeviceSecurityModal: React.FC<DeviceSecurityModalProps> = ({ isOpen
               <button
                 type="submit"
                 disabled={passwordLoading}
-                className="w-full py-2 rounded-xl bg-cyan text-slate-950 font-bold text-xs hover:bg-cyan/90 transition-all disabled:opacity-50"
+                className="w-full py-2.5 rounded-xl bg-[#0f62fe] hover:bg-[#0353e9] text-white font-bold text-xs shadow-sm transition-all disabled:opacity-50"
               >
                 {passwordLoading ? 'Guardando...' : 'Guardar Nueva Contraseña'}
               </button>
@@ -341,7 +341,7 @@ export const DeviceSecurityModal: React.FC<DeviceSecurityModalProps> = ({ isOpen
           <button
             type="button"
             onClick={onClose}
-            className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 transition-colors"
+            className="w-full py-2.5 rounded-xl bg-surface-1 hover:bg-white/[0.08] border border-white/10 text-xs font-bold text-slate-300 hover:text-white transition-colors"
           >
             Cerrar
           </button>

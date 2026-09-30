@@ -76,7 +76,7 @@ function ViewLoadingFallback() {
   return (
     <div className="flex-1 min-h-0 flex items-center justify-center bg-neon-canvas">
       <div className="flex flex-col items-center gap-3">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan/30 border-t-cyan" />
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#0f62fe]/30 border-t-[#0f62fe]" />
         <span className="font-mono text-[10px] uppercase tracking-widest text-slate-400">Cargando…</span>
       </div>
     </div>
@@ -984,7 +984,7 @@ export function App() {
               type="button"
               onClick={requestClearRink}
               disabled={points.length === 0 && unplacedNodes.length === 0 && !hasPaperTraceOverlay}
-              className="press hidden min-h-touch min-w-touch items-center justify-center gap-2 rounded-xl bg-[#da1e28]/10 border border-[#da1e28]/30 px-3 text-xs font-medium text-[#ff8389] hover:bg-[#da1e28] hover:text-white disabled:pointer-events-none disabled:opacity-30 lg:flex transition-colors"
+              className="press hidden min-h-touch min-w-touch items-center justify-center gap-2 rounded-xl border border-danger/30 bg-[#da1e28]/10 border border-[#da1e28]/30 px-3 text-xs font-medium text-[#ff8389] hover:bg-[#da1e28] hover:text-white disabled:pointer-events-none disabled:opacity-30 lg:flex transition-colors"
               title={
                 points.length === 0 && unplacedNodes.length === 0 && !hasPaperTraceOverlay
                   ? 'La pista ya está vacía'
@@ -1002,11 +1002,11 @@ export function App() {
           <button
             type="button"
             onClick={() => audioInputRef.current?.click()}
-            className="press hidden min-h-touch items-center justify-center gap-2 rounded-xl border border-white/10 bg-surface-2 px-3 text-xs font-semibold text-slate-200 hover:bg-surface-3 hover:text-white lg:flex lg:px-3.5 transition-colors shadow-sm"
+            className="press hidden min-h-touch items-center justify-center gap-2 rounded-xl border border-cobalt-500/30 bg-[#0f62fe]/10 border border-[#0f62fe]/30 px-3 text-xs font-medium text-[#78a9ff] hover:bg-[#0f62fe] hover:text-white lg:flex lg:px-3.5 transition-colors"
             title="Subir una pista de audio directamente al visor de la Pista 2D"
             aria-label="Subir pista al visor"
           >
-            <Upload className="h-4 w-4 shrink-0 stroke-[2] text-slate-400" />
+            <Upload className="h-4 w-4 shrink-0 stroke-[2]" />
             <span className="lg:inline fm-compact-label">Subir pista al visor</span>
           </button>
 
@@ -1064,7 +1064,7 @@ export function App() {
                     onClick={() => { setShowExportMenu(false); handleExportCoreo(); }}
                     className="press flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-medium text-slate-200 hover:bg-white/5 hover:text-white"
                   >
-                    <Save className="w-4 h-4 text-cyan shrink-0 stroke-[1.75]" />
+                    <Save className="w-4 h-4 text-[#78a9ff] shrink-0 stroke-[1.75]" />
                     <span>
                       <span className="block font-semibold leading-tight">Exportar Paquete (.coreo)</span>
                       <span className="block text-[10px] font-normal text-slate-400">Bundle completo con audio y nodos 2D</span>
@@ -1091,7 +1091,7 @@ export function App() {
                     }}
                     className="press flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-medium text-slate-200 hover:bg-white/5 hover:text-white"
                   >
-                    <Users className="w-4 h-4 text-cyan shrink-0 stroke-[1.75]" />
+                    <Users className="w-4 h-4 text-[#78a9ff] shrink-0 stroke-[1.75]" />
                     <span>
                       <span className="block font-semibold leading-tight">Panel de Entrenadores</span>
                       <span className="block text-[10px] font-normal text-slate-400">Atletas, fichas y almacenamiento personal</span>
@@ -1144,11 +1144,11 @@ export function App() {
               <button
                 type="button"
                 onClick={() => audioInputRef.current?.click()}
-                className="press flex min-h-touch min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-surface-2 px-2.5 text-[11px] font-semibold text-slate-200 hover:bg-surface-3 hover:text-white transition-colors shadow-sm"
+                className="press flex min-h-touch min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-cobalt-500/30 bg-cobalt-500/15 px-2.5 text-[11px] font-bold text-cobalt-300 hover:bg-cobalt-500/25 transition-colors"
                 title="Subir una pista de audio directamente al visor de la Pista 2D"
                 aria-label="Subir pista al visor"
               >
-                <Upload className="h-4 w-4 shrink-0 stroke-[2] text-slate-400" />
+                <Upload className="h-4 w-4 shrink-0 stroke-[2]" />
                 <span className="truncate">Subir pista al visor</span>
               </button>
             </div>
@@ -1224,15 +1224,15 @@ export function App() {
 
           {/* ═══ Banner de Contexto de Entrenador: Atleta Activo ═══ */}
           {activeCoachAthlete && (
-            <div className="relative z-20 shrink-0 bg-gradient-to-r from-cyan/20 via-blue-950/70 to-mint/20 border-b border-cyan/40 px-3 py-1.5 flex items-center justify-between gap-2 text-xs backdrop-blur-md shadow-soft-elevation">
+            <div className="relative z-20 shrink-0 bg-gradient-to-r from-[#0f62fe]/15 via-blue-950/60 to-surface-1 border-b border-[#0f62fe]/30 px-3 py-1.5 flex items-center justify-between gap-2 text-xs backdrop-blur-md shadow-sm">
               <div className="flex items-center gap-2 min-w-0">
-                <div className="flex items-center justify-center w-6 h-6 rounded-lg bg-cyan/25 border border-cyan/40 text-cyan shrink-0">
+                <div className="flex items-center justify-center w-6 h-6 rounded-lg bg-[#0f62fe]/20 border border-[#0f62fe]/40 text-[#78a9ff] shrink-0">
                   <Users className="w-3.5 h-3.5" />
                 </div>
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className="text-[11px] text-slate-400 hidden sm:inline">Atleta:</span>
                   <span className="font-bold text-white truncate">{activeCoachAthlete.name}</span>
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-cyan/20 text-cyan border border-cyan/30 shrink-0">
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#0f62fe]/20 text-[#78a9ff] border border-[#0f62fe]/30 shrink-0">
                     {activeCoachAthlete.category}
                   </span>
                   {activeCoachAthlete.club && (
@@ -1246,7 +1246,7 @@ export function App() {
                 <button
                   type="button"
                   onClick={() => setIsCoachSaveModalOpen(true)}
-                  className="press flex items-center gap-1 px-2.5 py-1 rounded-lg bg-cyan text-neon-canvas text-[11px] font-black shadow-sm hover:bg-cyan/90 transition-all"
+                  className="press flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#0f62fe] text-white text-[11px] font-bold shadow-sm hover:bg-[#0353e9] transition-all"
                   title="Guardar coreografía actual directamente en la ficha del atleta"
                 >
                   <Save className="w-3 h-3" />
@@ -1503,7 +1503,7 @@ export function App() {
       >
         {/* Drawer Top Handle */}
         <div className="shrink-0 h-14 flex items-center justify-between px-4 border-b border-white/5">
-          <span className="text-xs font-black uppercase tracking-widest text-cyan">
+          <span className="text-xs font-black uppercase tracking-widest text-[#78a9ff]">
             Preparación &amp; Audio
           </span>
           <button

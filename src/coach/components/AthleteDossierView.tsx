@@ -34,7 +34,7 @@ import { ShareCoreoModal } from './ShareCoreoModal';
 import { AthleteEditModal } from './AthleteEditModal';
 import { AthleteEvaluationsList } from './technical/AthleteEvaluationsList';
 import { coachDb } from '../services/coachDb';
-import { Badge, Tabs } from '../../components/ui';
+import { Badge, Tabs, Button } from '../../components/ui';
 
 interface AthleteDossierViewProps {
   athlete: CoachAthlete;
@@ -125,25 +125,25 @@ export const AthleteDossierView: React.FC<AthleteDossierViewProps> = ({
         </button>
 
         <div className="flex items-center gap-2">
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleSyncToCloud}
             disabled={isSyncing}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/30 text-xs font-bold transition-all interactive-tap shadow-soft-elevation disabled:opacity-50"
+            icon={<CloudUpload className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />}
             title="Sube la ficha completa con sus coreografías a tu nube personal"
           >
-            <CloudUpload className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-            <span>{isSyncing ? 'Sincronizando...' : 'Subir Ficha a mi Nube'}</span>
-          </button>
+            {isSyncing ? 'Sincronizando...' : 'Subir Ficha a mi Nube'}
+          </Button>
 
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => setIsEditModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/10 text-slate-200 text-xs font-semibold transition-all interactive-tap"
+            icon={<Edit className="w-3.5 h-3.5 text-[#78a9ff]" />}
           >
-            <Edit className="w-3.5 h-3.5 text-cyan" />
-            <span>Editar Ficha</span>
-          </button>
+            Editar Ficha
+          </Button>
         </div>
       </div>
 
@@ -161,10 +161,10 @@ export const AthleteDossierView: React.FC<AthleteDossierViewProps> = ({
       )}
 
       {/* Tarjeta de Expediente de Atleta */}
-      <div className="bg-neon-surface border border-white/10 rounded-3xl p-6 shadow-soft-elevation space-y-6">
+      <div className="bg-surface-2 border border-white/[0.08] rounded-2xl p-6 shadow-elevation-1 space-y-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-20 h-20 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
+            <div className="w-20 h-20 rounded-2xl bg-surface-1 border border-white/10 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
               {athlete.photoDataUrl ? (
                 <img src={athlete.photoDataUrl} alt={athlete.name} className="w-full h-full object-cover" />
               ) : (
@@ -183,7 +183,7 @@ export const AthleteDossierView: React.FC<AthleteDossierViewProps> = ({
                 {athlete.club || 'Sin Club asignado'} {athlete.trainerName && `• Entrenador: ${athlete.trainerName}`}
               </p>
               <div className="flex items-center gap-2 mt-1.5 text-[11px] text-slate-400">
-                <span className="font-mono text-cyan">{athlete.age} años</span>
+                <span className="font-mono text-[#78a9ff] font-semibold">{athlete.age} años</span>
                 <span>• Nacimiento: {athlete.birthDate || 'No registrada'}</span>
                 <span>• Nivel: <strong className="text-slate-300">{athlete.level}</strong></span>
               </div>
@@ -191,23 +191,23 @@ export const AthleteDossierView: React.FC<AthleteDossierViewProps> = ({
           </div>
 
           <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
-            <button
-              type="button"
+            <Button
+              variant="cobalt"
+              size="md"
               onClick={() => startEvaluationForAthlete(athlete)}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-cyan text-neon-canvas font-black text-xs shadow-glow-cyan hover:bg-cyan/90 transition-all interactive-tap"
+              icon={<Award className="w-4 h-4 stroke-[2.5]" />}
             >
-              <Award className="w-4 h-4 stroke-[2.5]" />
-              <span>Evaluar Rutina</span>
-            </button>
+              Evaluar Rutina
+            </Button>
 
-            <button
-              type="button"
+            <Button
+              variant="outline"
+              size="md"
               onClick={() => onCreateNewChoreography(athlete)}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-bold text-xs transition-all interactive-tap border border-white/10"
+              icon={<Compass className="w-4 h-4 stroke-[2.5]" />}
             >
-              <Compass className="w-4 h-4 stroke-[2.5]" />
-              <span>Nueva Coreografía</span>
-            </button>
+              Nueva Coreografía
+            </Button>
           </div>
         </div>
 
@@ -215,7 +215,7 @@ export const AthleteDossierView: React.FC<AthleteDossierViewProps> = ({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
           <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/5">
             <div className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1 mb-1">
-              <Award className="w-3 h-3 text-cyan" />
+              <Award className="w-3 h-3 text-[#78a9ff]" />
               Categoría Oficial
             </div>
             <div className="font-mono font-bold text-amber-300 text-sm">{athlete.category}</div>
@@ -244,7 +244,7 @@ export const AthleteDossierView: React.FC<AthleteDossierViewProps> = ({
 
           <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/5">
             <div className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1 mb-1">
-              <FolderSync className="w-3 h-3 text-cyan" />
+              <FolderSync className="w-3 h-3 text-[#78a9ff]" />
               Estado en Nube
             </div>
             <div className="font-bold text-xs capitalize text-slate-200">
@@ -281,11 +281,11 @@ export const AthleteDossierView: React.FC<AthleteDossierViewProps> = ({
             {(athlete.contactInfo?.guardianName || athlete.contactInfo?.phone || athlete.contactInfo?.email) && (
               <div className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1.5">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                  <Phone className="w-3 h-3 text-cyan" /> Contacto del Representante
+                  <Phone className="w-3 h-3 text-[#78a9ff]" /> Contacto del Representante
                 </span>
                 <div className="text-[11px] text-slate-300 space-y-1">
                   {athlete.contactInfo.guardianName && <div>Tutor: <strong className="text-white">{athlete.contactInfo.guardianName}</strong></div>}
-                  {athlete.contactInfo.phone && <div>Teléfono: <span className="font-mono text-cyan">{athlete.contactInfo.phone}</span></div>}
+                  {athlete.contactInfo.phone && <div>Teléfono: <span className="font-mono text-[#78a9ff]">{athlete.contactInfo.phone}</span></div>}
                   {athlete.contactInfo.email && <div>Correo: <span className="text-slate-400">{athlete.contactInfo.email}</span></div>}
                 </div>
               </div>
@@ -327,7 +327,7 @@ export const AthleteDossierView: React.FC<AthleteDossierViewProps> = ({
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-base font-black text-white flex items-center gap-2">
-              <Compass className="w-5 h-5 text-cyan" />
+              <Compass className="w-5 h-5 text-[#78a9ff]" />
               Coreografías y Archivos .coreo ({athleteChoreographies.length})
             </h3>
             <p className="text-xs text-slate-400">
@@ -335,29 +335,29 @@ export const AthleteDossierView: React.FC<AthleteDossierViewProps> = ({
             </p>
           </div>
 
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => onCreateNewChoreography(athlete)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/30 text-xs font-bold transition-all interactive-tap"
+            icon={<Plus className="w-4 h-4" />}
           >
-            <Plus className="w-4 h-4 text-cyan" />
-            <span>Nueva Coreografía</span>
-          </button>
+            Nueva Coreografía
+          </Button>
         </div>
 
         {athleteChoreographies.length === 0 ? (
-          <div className="p-10 rounded-3xl bg-neon-surface border border-white/5 text-center space-y-3">
+          <div className="p-8 rounded-2xl bg-surface-2 border border-white/[0.08] text-center space-y-3 shadow-elevation-1">
             <p className="text-xs text-slate-400">
               {athlete.name} aún no tiene coreografías registradas en su ficha.
             </p>
-            <button
-              type="button"
+            <Button
+              variant="cobalt"
+              size="sm"
               onClick={() => onCreateNewChoreography(athlete)}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan text-neon-canvas font-black text-xs shadow-glow-cyan hover:bg-cyan/90 transition-all"
+              icon={<Compass className="w-4 h-4" />}
             >
-              <Compass className="w-4 h-4" />
-              <span>Diseñar la primera coreografía</span>
-            </button>
+              Diseñar la primera coreografía
+            </Button>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -367,12 +367,12 @@ export const AthleteDossierView: React.FC<AthleteDossierViewProps> = ({
               return (
                 <div
                   key={choreo.id}
-                  className="bg-neon-surface border border-white/10 rounded-3xl p-5 shadow-soft-elevation space-y-4 hover:border-cyan/30 transition-all flex flex-col justify-between"
+                  className="bg-surface-2 border border-white/[0.08] rounded-2xl p-5 shadow-elevation-1 space-y-4 hover:border-[#0f62fe]/40 transition-all flex flex-col justify-between"
                 >
                   <div className="space-y-2">
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <span className="text-[10px] font-black uppercase tracking-wider text-cyan">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-[#78a9ff]">
                           {choreo.programType} · {choreo.year}
                         </span>
                         <h4 className="text-base font-bold text-white tracking-tight">{choreo.title}</h4>
@@ -400,7 +400,7 @@ export const AthleteDossierView: React.FC<AthleteDossierViewProps> = ({
                       </div>
                       <div>
                         <span className="text-slate-500 block text-[9px]">Puntos Pista</span>
-                        <span className="font-bold text-cyan">{choreo.pointsCount}</span>
+                        <span className="font-bold text-[#78a9ff]">{choreo.pointsCount}</span>
                       </div>
                       <div>
                         <span className="text-slate-500 block text-[9px]">Categoría Creación</span>
@@ -426,7 +426,7 @@ export const AthleteDossierView: React.FC<AthleteDossierViewProps> = ({
                             key={ver.versionNumber}
                             className="flex items-center justify-between py-1 px-2 rounded-lg bg-white/[0.02] hover:bg-white/[0.05] text-[11px]"
                           >
-                            <span className="font-mono text-cyan font-bold">{ver.versionLabel}</span>
+                            <span className="font-mono text-[#78a9ff] font-bold">{ver.versionLabel}</span>
                             <span className="text-slate-400 truncate max-w-[150px]">{ver.fileName}</span>
                             <span className="text-[10px] text-slate-500">
                               {(ver.coreoBlobSize / 1024).toFixed(0)} KB
@@ -439,24 +439,25 @@ export const AthleteDossierView: React.FC<AthleteDossierViewProps> = ({
 
                   {/* Acciones principales de la coreografía */}
                   <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-white/5">
-                    <button
-                      type="button"
+                    <Button
+                      variant="cobalt"
+                      size="sm"
+                      className="flex-1"
                       onClick={() => onOpenChoreographyInEditor(choreo, latestVersion)}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-cyan text-neon-canvas font-black text-xs shadow-glow-cyan hover:bg-cyan/90 transition-all interactive-tap"
+                      icon={<Compass className="w-4 h-4 stroke-[2]" />}
                     >
-                      <Compass className="w-4 h-4 stroke-[2]" />
-                      <span>Abrir en Editor SkateCoreo</span>
-                    </button>
+                      Abrir en Editor SkateCoreo
+                    </Button>
 
                     <button
                       type="button"
                       onClick={() =>
                         handleDownloadCoreoDirect(latestVersion.coreoBlobId, latestVersion.fileName)
                       }
-                      className="p-2.5 rounded-xl bg-white/[0.06] hover:bg-white/10 text-slate-200 transition-all interactive-tap"
+                      className="p-2.5 rounded-xl bg-surface-1 border border-white/10 hover:border-white/20 text-slate-200 transition-all interactive-tap"
                       title="Descargar archivo .coreo"
                     >
-                      <Download className="w-4 h-4 text-cyan" />
+                      <Download className="w-4 h-4 text-[#78a9ff]" />
                     </button>
 
                     <button
@@ -468,7 +469,7 @@ export const AthleteDossierView: React.FC<AthleteDossierViewProps> = ({
                           choreoTitle: choreo.title,
                         })
                       }
-                      className="p-2.5 rounded-xl bg-white/[0.06] hover:bg-white/10 text-slate-200 transition-all interactive-tap"
+                      className="p-2.5 rounded-xl bg-surface-1 border border-white/10 hover:border-white/20 text-slate-200 transition-all interactive-tap"
                       title="Compartir mediante Web Share API"
                     >
                       <Share2 className="w-4 h-4 text-mint" />

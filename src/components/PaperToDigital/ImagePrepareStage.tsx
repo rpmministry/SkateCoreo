@@ -67,7 +67,7 @@ const ParamSlider: React.FC<{
   <label className="block space-y-1">
     <span className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400">
       <span>{label}</span>
-      <span className="font-mono text-cyan">{Math.round(value * 100)}</span>
+      <span className="font-mono text-[#78a9ff]">{Math.round(value * 100)}</span>
     </span>
     <input
       type="range"
@@ -77,7 +77,7 @@ const ParamSlider: React.FC<{
       value={Math.round(value * 100)}
       disabled={disabled}
       onChange={(e) => onChange(Number(e.target.value) / 100)}
-      className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-cyan disabled:opacity-40"
+      className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/15 accent-[#0f62fe] disabled:opacity-40"
     />
   </label>
 );
@@ -334,7 +334,7 @@ export const ImagePrepareStage: React.FC<ImagePrepareStageProps> = ({
               onClick={() => setViewMode(mode)}
               className={[
                 'rounded-lg px-3 py-1.5 text-[11px] font-bold transition-colors',
-                viewMode === mode ? 'bg-cyan text-slate-950' : 'bg-white/10 text-slate-300 hover:bg-white/15',
+                viewMode === mode ? 'bg-[#0f62fe] text-white shadow-sm ring-1 ring-[#0f62fe]/30' : 'bg-white/10 text-slate-300 hover:bg-white/15',
               ].join(' ')}
             >
               {label}
@@ -364,7 +364,7 @@ export const ImagePrepareStage: React.FC<ImagePrepareStageProps> = ({
             <p className="p-6 text-center text-xs text-red-300">{debugError}</p>
           ) : !displayUrl ? (
             <div className="flex flex-col items-center gap-2 text-slate-500">
-              <div className="h-6 w-6 animate-spin rounded-full border-2 border-cyan/30 border-t-cyan" />
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#0f62fe]/30 border-t-[#0f62fe]" />
               <span className="text-[11px]">Rectificando imagen…</span>
             </div>
           ) : viewMode === 'compare' ? (
@@ -374,7 +374,7 @@ export const ImagePrepareStage: React.FC<ImagePrepareStageProps> = ({
                 <img src={rectifiedUrl ?? ''} alt="Imagen original" className="h-full w-full object-contain" />
               </div>
               <div
-                className="pointer-events-none absolute inset-y-0 w-0.5 bg-cyan"
+                className="pointer-events-none absolute inset-y-0 w-0.5 bg-[#0f62fe]"
                 style={{ left: `${comparePos}%` }}
               />
             </div>
@@ -397,7 +397,7 @@ export const ImagePrepareStage: React.FC<ImagePrepareStageProps> = ({
               max={100}
               value={comparePos}
               onChange={(e) => setComparePos(Number(e.target.value))}
-              className="h-1.5 flex-1 cursor-pointer appearance-none rounded-full bg-white/15 accent-cyan"
+              className="h-1.5 flex-1 cursor-pointer appearance-none rounded-full bg-white/15 accent-[#0f62fe]"
             />
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Después</span>
           </label>
@@ -427,7 +427,7 @@ export const ImagePrepareStage: React.FC<ImagePrepareStageProps> = ({
                   className={[
                     'rounded-lg px-2.5 py-1 text-[10px] font-bold transition-colors disabled:opacity-30',
                     diagStage === stage && viewMode === 'processed'
-                      ? 'bg-cyan text-slate-950'
+                      ? 'bg-[#0f62fe] text-white shadow-sm ring-1 ring-[#0f62fe]/30'
                       : 'bg-white/10 text-slate-300 hover:bg-white/15',
                   ].join(' ')}
                 >
@@ -445,7 +445,7 @@ export const ImagePrepareStage: React.FC<ImagePrepareStageProps> = ({
 
       {/* ░░ COLUMNA 2: CONTROLES ░░ */}
       <aside className="flex shrink-0 flex-col gap-3 rounded-2xl border border-white/10 bg-slate-950/95 p-4 lg:min-h-0 lg:overflow-y-auto">
-        <h3 className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-cyan">
+        <h3 className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-[#78a9ff]">
           <SlidersHorizontal className="h-4 w-4" />
           Preparar imagen para escaneo
         </h3>
@@ -463,7 +463,7 @@ export const ImagePrepareStage: React.FC<ImagePrepareStageProps> = ({
             type="button"
             onClick={applyAuto}
             disabled={busy || !rectified}
-            className="flex items-center justify-center gap-1.5 rounded-xl bg-cyan px-3 py-2.5 text-xs font-black text-slate-950 shadow-glow-cyan transition-all hover:bg-cyan/90 disabled:opacity-30"
+            className="flex items-center justify-center gap-1.5 rounded-xl bg-[#0f62fe] px-3 py-2.5 text-xs font-bold text-white shadow-sm transition-all hover:bg-[#0353e9] disabled:opacity-30"
           >
             <Wand2 className="h-4 w-4" />
             Auto Mejorar
@@ -491,7 +491,7 @@ export const ImagePrepareStage: React.FC<ImagePrepareStageProps> = ({
         </button>
 
         {status && (
-          <div className="rounded-xl border border-cyan/30 bg-cyan/15 px-3 py-2 text-[11px] font-semibold text-cyan">
+          <div className="rounded-xl border border-[#0f62fe]/30 bg-[#0f62fe]/15 px-3 py-2 text-[11px] font-semibold text-[#78a9ff]">
             {status}
           </div>
         )}
@@ -513,7 +513,7 @@ export const ImagePrepareStage: React.FC<ImagePrepareStageProps> = ({
                 type="checkbox"
                 checked={includeReview}
                 onChange={(e) => setIncludeReview(e.target.checked)}
-                className="h-3.5 w-3.5 accent-cyan"
+                className="h-3.5 w-3.5 accent-[#0f62fe]"
               />
               Incluir nodos a revisar
             </label>
@@ -527,7 +527,7 @@ export const ImagePrepareStage: React.FC<ImagePrepareStageProps> = ({
                 type="button"
                 onClick={() => onConfirm(points)}
                 disabled={busy || points.length === 0}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-cyan px-5 py-3 text-xs font-black text-slate-950 shadow-glow-cyan transition-all hover:bg-cyan/90 disabled:opacity-30"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0f62fe] px-5 py-3 text-xs font-bold text-white shadow-sm transition-all hover:bg-[#0353e9] disabled:opacity-30"
               >
                 <CheckCircle2 className="h-4 w-4" />
                 Confirmar digitalización
@@ -551,10 +551,10 @@ export const ImagePrepareStage: React.FC<ImagePrepareStageProps> = ({
               type="button"
               onClick={handleDetect}
               disabled={busy || !rectified}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-cyan px-5 py-3 text-xs font-black text-slate-950 shadow-glow-cyan transition-all hover:bg-cyan/90 disabled:opacity-30"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0f62fe] px-5 py-3 text-xs font-bold text-white shadow-sm transition-all hover:bg-[#0353e9] disabled:opacity-30"
             >
               {busy ? (
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-950/30 border-t-slate-950" />
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
               ) : (
                 <ScanLine className="h-4 w-4" />
               )}

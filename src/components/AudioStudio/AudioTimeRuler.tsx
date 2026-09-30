@@ -336,7 +336,7 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
         {!hidePlayhead && (
           <div
             ref={playheadRef}
-            className="absolute top-0 bottom-0 left-0 w-[2px] bg-amber-400 shadow-glow-amber pointer-events-none z-30 will-change-transform"
+            className="absolute top-0 bottom-0 left-0 w-[2px] bg-amber-400 shadow-sm pointer-events-none z-30 will-change-transform"
             style={{ transform: 'translateX(0px)' }}
           >
             <div className="w-3 h-3 bg-amber-400 rotate-45 -translate-x-1.5 -translate-y-1 rounded-sm shadow-md" />
@@ -360,17 +360,17 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
                 // Área táctil ampliada (≈44px) sin agrandar el chip visual: el
                 // pseudo-elemento captura el toque alrededor del marcador.
                 "before:absolute before:-inset-2.5 before:content-['']",
-                'flex max-w-[72px] items-center gap-0.5 px-1 py-0.5 rounded-full border shadow-lg transition-transform shrink-0',
+                'flex max-w-[72px] items-center gap-0.5 px-1 py-0.5 rounded-full border shadow-sm transition-transform shrink-0',
                 'sm:max-w-none sm:gap-1 sm:px-2',
                 isDragging ? 'scale-110 z-40' : '',
                 isSelected
-                  ? 'bg-cyan text-slate-950 font-black border-white shadow-cyan/40 shadow-glow-cyan'
-                  : 'bg-slate-900/95 text-cyan border-cyan/40 hover:border-cyan',
+                  ? 'bg-[#0f62fe] text-white font-bold border-white/60 shadow-sm ring-1 ring-[#0f62fe]/40'
+                  : 'bg-surface-2 text-[#78a9ff] border-[#0f62fe]/40 hover:border-[#0f62fe]',
               ].join(' ')}
               style={{ left: `${leftPx}px`, touchAction: 'none' }}
               title={`Nodo ${node.numeroSecuencial} · ${node.timestampSec.toFixed(3)}s (Arrastra para mover)`}
             >
-              <span className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-black bg-cyan-950/60 text-cyan shrink-0 sm:w-4 sm:h-4 sm:text-[10px]">
+              <span className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-bold bg-[#0f62fe]/20 text-[#78a9ff] shrink-0 sm:w-4 sm:h-4 sm:text-[10px]">
                 {node.numeroSecuencial}
               </span>
               <span className="truncate text-[9px] font-mono font-bold whitespace-nowrap sm:text-[10px]">
