@@ -42,101 +42,101 @@ export interface HomeViewProps {
   onUpgradeToCoach?: () => void;
 }
 
-/* ── Glifos vectoriales de precisión arquitectónica ──────────────── */
+/* ── Glifos vectoriales compactos de precisión técnica ───────────── */
 
 const RinkGlyph: React.FC = () => (
-  <svg viewBox="0 0 240 86" className="h-full w-full" fill="none" aria-hidden="true">
+  <svg viewBox="0 0 240 70" className="h-full w-full" fill="none" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
     <defs>
       <linearGradient id="rinkStroke" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#0072FF" stopOpacity="0.8" />
+        <stop offset="0%" stopColor="#0072FF" stopOpacity="0.85" />
         <stop offset="100%" stopColor="#00E599" stopOpacity="0.9" />
       </linearGradient>
       <radialGradient id="rinkGlow" cx="50%" cy="50%" r="50%">
-        <stop offset="0%" stopColor="#0072FF" stopOpacity="0.15" />
+        <stop offset="0%" stopColor="#0072FF" stopOpacity="0.12" />
         <stop offset="100%" stopColor="#0072FF" stopOpacity="0" />
       </radialGradient>
     </defs>
-    <rect x="6" y="8" width="228" height="70" rx="20" fill="url(#rinkGlow)" />
+    <rect x="6" y="6" width="228" height="58" rx="16" fill="url(#rinkGlow)" />
     <rect
       x="6"
-      y="8"
+      y="6"
       width="228"
-      height="70"
-      rx="20"
+      height="58"
+      rx="16"
       stroke="rgba(0,114,255,0.25)"
-      strokeWidth="1.5"
+      strokeWidth="1.2"
       strokeDasharray="4 4"
     />
-    <line x1="120" y1="8" x2="120" y2="78" stroke="rgba(255,255,255,0.12)" strokeWidth="1" strokeDasharray="3 3" />
-    <circle cx="120" cy="43" r="16" stroke="rgba(0,114,255,0.2)" strokeWidth="1" />
+    <line x1="120" y1="6" x2="120" y2="64" stroke="rgba(255,255,255,0.12)" strokeWidth="1" strokeDasharray="3 3" />
+    <circle cx="120" cy="35" r="13" stroke="rgba(0,114,255,0.2)" strokeWidth="1" />
     <path
-      d="M26 62 C 65 16, 95 68, 138 28 S 192 56, 214 26"
+      d="M26 48 C 65 14, 95 54, 138 22 S 192 46, 214 20"
       stroke="url(#rinkStroke)"
-      strokeWidth="2.5"
+      strokeWidth="2.2"
       strokeLinecap="round"
     />
-    <circle cx="26" cy="62" r="4.5" fill="#00E599" className="shadow-glow-mint" />
-    <circle cx="138" cy="28" r="4.5" fill="#FFFFFF" />
-    <circle cx="214" cy="26" r="4.5" fill="#FF3366" className="shadow-glow-coral" />
+    <circle cx="26" cy="48" r="3.5" fill="#00E599" />
+    <circle cx="138" cy="22" r="3.5" fill="#FFFFFF" />
+    <circle cx="214" cy="20" r="3.5" fill="#FF3366" />
   </svg>
 );
 
-const WAVE_BARS = [16, 32, 48, 24, 62, 38, 70, 42, 54, 28, 64, 40, 50, 22, 46, 32, 58, 26, 38, 20];
+const WAVE_BARS = [14, 26, 38, 20, 48, 30, 52, 34, 42, 22, 50, 32, 40, 18, 36, 26, 44, 20, 30, 16];
 
 const WaveGlyph: React.FC = () => (
-  <svg viewBox="0 0 240 86" className="h-full w-full" fill="none" aria-hidden="true">
+  <svg viewBox="0 0 240 70" className="h-full w-full" fill="none" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
     <defs>
       <linearGradient id="waveGlow" cx="50%" cy="50%" r="50%">
-        <stop offset="0%" stopColor="#00E599" stopOpacity="0.12" />
+        <stop offset="0%" stopColor="#00E599" stopOpacity="0.1" />
         <stop offset="100%" stopColor="#00E599" stopOpacity="0" />
       </linearGradient>
     </defs>
-    <rect x="6" y="8" width="228" height="70" rx="16" fill="url(#waveGlow)" />
+    <rect x="6" y="6" width="228" height="58" rx="14" fill="url(#waveGlow)" />
     {WAVE_BARS.map((h, i) => (
       <rect
         key={i}
-        x={14 + i * 11}
-        y={43 - h / 2}
-        width="4"
+        x={16 + i * 10.8}
+        y={35 - h / 2}
+        width="3.5"
         height={h}
-        rx="2"
+        rx="1.5"
         fill="#00E599"
         opacity={0.35 + (i % 4) * 0.18}
       />
     ))}
-    <line x1="10" y1="43" x2="230" y2="43" stroke="rgba(0,229,153,0.3)" strokeWidth="1" />
+    <line x1="12" y1="35" x2="228" y2="35" stroke="rgba(0,229,153,0.3)" strokeWidth="1" />
   </svg>
 );
 
 const CoachGlyph: React.FC = () => (
-  <svg viewBox="0 0 240 86" className="h-full w-full" fill="none" aria-hidden="true">
+  <svg viewBox="0 0 240 70" className="h-full w-full" fill="none" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
     <defs>
       <radialGradient id="coachGlow" cx="50%" cy="50%" r="50%">
-        <stop offset="0%" stopColor="#FF3366" stopOpacity="0.12" />
+        <stop offset="0%" stopColor="#FF3366" stopOpacity="0.1" />
         <stop offset="100%" stopColor="#FF3366" stopOpacity="0" />
       </radialGradient>
     </defs>
-    <rect x="6" y="8" width="228" height="70" rx="16" fill="url(#coachGlow)" />
-    <circle cx="120" cy="30" r="14" stroke="#FF3366" strokeWidth="2" opacity="0.9" />
+    <rect x="6" y="6" width="228" height="58" rx="14" fill="url(#coachGlow)" />
+    <circle cx="120" cy="24" r="11" stroke="#FF3366" strokeWidth="1.8" opacity="0.9" />
     <path
-      d="M86 66 C86 50, 100 46, 120 46 C140 46, 154 50, 154 66"
+      d="M94 52 C94 40, 104 36, 120 36 C136 36, 146 40, 146 52"
       stroke="#FF3366"
-      strokeWidth="2"
+      strokeWidth="1.8"
       strokeLinecap="round"
       opacity="0.9"
     />
-    <circle cx="62" cy="36" r="10" stroke="rgba(255,51,102,0.5)" strokeWidth="1.5" />
+    <circle cx="70" cy="28" r="8" stroke="rgba(255,51,102,0.45)" strokeWidth="1.2" />
     <path
-      d="M40 66 C40 55, 49 51, 62 51 C75 51, 84 55, 84 66"
-      stroke="rgba(255,51,102,0.5)"
-      strokeWidth="1.5"
+      d="M52 52 C52 44, 59 40, 70 40 C81 40, 88 44, 88 52"
+      stroke="rgba(255,51,102,0.45)"
+      strokeWidth="1.2"
       strokeLinecap="round"
     />
-    <circle cx="178" cy="36" r="10" stroke="rgba(255,51,102,0.5)" strokeWidth="1.5" />
+    <circle cx="170" cy="28" r="8" stroke="rgba(255,51,102,0.45)" strokeWidth="1.2" />
     <path
-      d="M156 66 C156 55, 165 51, 178 51 C191 51, 200 55, 200 66"
-      stroke="rgba(255,51,102,0.5)"
-      strokeWidth="1.5"
+      d="M152 52 C152 44, 159 40, 170 40 C181 40, 188 44, 188 52"
+      stroke="rgba(255,51,102,0.45)"
+      strokeWidth="1.2"
       strokeLinecap="round"
     />
   </svg>
@@ -155,6 +155,8 @@ interface AccessModuleProps {
   glyph: React.ReactNode;
   onClick: () => void;
   locked?: boolean;
+  className?: string;
+  isWideOnTablet?: boolean;
 }
 
 const AccessModule: React.FC<AccessModuleProps> = ({
@@ -168,6 +170,8 @@ const AccessModule: React.FC<AccessModuleProps> = ({
   glyph,
   onClick,
   locked,
+  className = '',
+  isWideOnTablet = false,
 }) => {
   const isCobalt = tone === 'cobalt';
   const isMint = tone === 'mint';
@@ -219,79 +223,150 @@ const AccessModule: React.FC<AccessModuleProps> = ({
         }
       }}
       aria-label={cta}
-      className={`group relative flex flex-col justify-between overflow-hidden rounded-2xl bg-surface-1/90 backdrop-blur-md p-6 border transition-all duration-200 cursor-pointer hover:-translate-y-1 hover:shadow-elevation-2 active:scale-[0.99] select-none ${toneConfig.border}`}
+      className={`group relative flex flex-col justify-between overflow-hidden rounded-2xl bg-surface-1/90 backdrop-blur-md p-4 sm:p-4.5 lg:p-5 border transition-all duration-200 cursor-pointer hover:-translate-y-0.5 hover:shadow-elevation-2 active:scale-[0.99] select-none ${toneConfig.border} ${className}`}
     >
-      {/* Resplandor angular superior */}
+      {/* Resplandor ambiental de profundidad */}
       <div
         aria-hidden="true"
         className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${toneConfig.glow}`}
       />
       <div
         aria-hidden="true"
-        className={`pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full blur-3xl ${toneConfig.radial}`}
+        className={`pointer-events-none absolute -right-12 -top-16 h-40 w-40 rounded-full blur-2xl ${toneConfig.radial}`}
       />
 
-      {/* Cabecera del módulo con icono y etiqueta */}
-      <div className="relative flex items-start justify-between gap-3 mb-5">
-        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl shadow-inner ${toneConfig.iconBg}`}>
-          {icon}
-        </div>
-        {tag && (
-          <Badge variant={toneConfig.badgeVariant} size="sm">
-            {tag}
-          </Badge>
-        )}
-      </div>
+      {/* Contenido en tablet cuando la tarjeta se expande a dos columnas */}
+      {isWideOnTablet ? (
+        <div className="relative flex flex-col md:flex-row md:items-center md:justify-between lg:flex-col lg:items-stretch gap-3">
+          {/* Bloque Izquierdo / Principal */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="flex items-center gap-2.5">
+                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl shadow-inner ${toneConfig.iconBg}`}>
+                  {icon}
+                </div>
+                <div>
+                  <span className={`text-[9px] font-bold uppercase tracking-wider block ${toneConfig.eyebrow}`}>
+                    {eyebrow}
+                  </span>
+                  <div className="font-display font-bold text-base sm:text-lg text-white tracking-tight flex items-center gap-2">
+                    <span>{title}</span>
+                    {locked && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-400 bg-surface-2 px-1.5 py-0.5 rounded border border-white/10">
+                        <Lock className="h-2.5 w-2.5 text-slate-400 shrink-0" />
+                        <span>Bloqueado</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
 
-      {/* Cuerpo principal con títulos y lista */}
-      <div className="relative flex flex-col gap-1.5 mb-4">
-        <span className={`text-[10px] font-bold uppercase tracking-[0.2em] ${toneConfig.eyebrow}`}>
-          {eyebrow}
-        </span>
-        <div className="font-display font-bold text-xl text-white tracking-tight flex items-center justify-between gap-2">
-          <span>{title}</span>
-          {locked && (
-            <span className="flex items-center gap-1 text-[11px] font-medium text-slate-400 bg-surface-2 px-2 py-0.5 rounded-md border border-white/10">
-              <Lock className="h-3 w-3 text-slate-400 shrink-0" />
-              <span>Bloqueado</span>
-            </span>
-          )}
-        </div>
-
-        <div className="mt-2 flex flex-col gap-1.5">
-          {lines.map((line) => (
-            <div key={line} className="flex items-center gap-2 text-xs text-slate-400">
-              <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${toneConfig.dot}`} />
-              <span>{line}</span>
+              {tag && (
+                <Badge variant={toneConfig.badgeVariant} size="xs" className="shrink-0">
+                  {tag}
+                </Badge>
+              )}
             </div>
-          ))}
+
+            <div className="flex flex-wrap md:flex-nowrap items-center gap-x-3 gap-y-1 mt-1.5">
+              {lines.map((line) => (
+                <div key={line} className="flex items-center gap-1.5 text-[11px] text-slate-400 truncate">
+                  <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${toneConfig.dot}`} />
+                  <span className="truncate">{line}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Bloque Derecho: Glifo y Botón */}
+          <div className="flex flex-col md:flex-row lg:flex-col items-stretch md:items-center lg:items-stretch gap-2 shrink-0 md:w-auto lg:w-full mt-2 md:mt-0 lg:mt-2">
+            <div className="hidden sm:block md:w-44 lg:w-full h-9 rounded-lg border border-white/[0.05] bg-surface-2/60 p-1 overflow-hidden shadow-inner">
+              {glyph}
+            </div>
+
+            <Button
+              variant={locked ? 'outline' : toneConfig.buttonVariant}
+              size="sm"
+              className="w-full md:w-48 lg:w-full justify-between"
+              onClick={(e) => {
+                e.stopPropagation();
+                onClick();
+              }}
+            >
+              <span>{cta}</span>
+              {locked ? (
+                <Sparkles className="h-3.5 w-3.5 text-coral-400 shrink-0" />
+              ) : (
+                <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1 shrink-0" />
+              )}
+            </Button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <>
+          {/* Cabecera del módulo con icono y etiqueta */}
+          <div className="relative flex items-start justify-between gap-2 mb-2 sm:mb-2.5">
+            <div className={`flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl shadow-inner ${toneConfig.iconBg}`}>
+              {icon}
+            </div>
+            {tag && (
+              <Badge variant={toneConfig.badgeVariant} size="xs">
+                {tag}
+              </Badge>
+            )}
+          </div>
 
-      {/* Glifo técnico */}
-      <div className="relative my-3 rounded-xl border border-white/[0.05] bg-surface-2/60 p-2 overflow-hidden shadow-inner">
-        {glyph}
-      </div>
+          {/* Cuerpo principal con títulos y lista */}
+          <div className="relative flex flex-col gap-1 mb-2">
+            <span className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-wider ${toneConfig.eyebrow}`}>
+              {eyebrow}
+            </span>
+            <div className="font-display font-bold text-base sm:text-lg text-white tracking-tight flex items-center justify-between gap-2">
+              <span>{title}</span>
+              {locked && (
+                <span className="flex items-center gap-1 text-[10px] font-medium text-slate-400 bg-surface-2 px-1.5 py-0.5 rounded border border-white/10">
+                  <Lock className="h-2.5 w-2.5 text-slate-400 shrink-0" />
+                  <span>Bloqueado</span>
+                </span>
+              )}
+            </div>
 
-      {/* Botón de acción */}
-      <div className="relative mt-2">
-        <Button
-          variant={locked ? 'outline' : toneConfig.buttonVariant}
-          size="md"
-          className="w-full justify-between"
-          onClick={(e) => {
-            e.stopPropagation();
-            onClick();
-          }}
-        >
-          <span>{cta}</span>
-          {locked ? (
-            <Sparkles className="h-4 w-4 text-coral-400 shrink-0" />
-          ) : (
-            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1 shrink-0" />
-          )}
-        </Button>
-      </div>
+            <div className="mt-1 flex flex-col gap-1">
+              {lines.map((line) => (
+                <div key={line} className="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-400">
+                  <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${toneConfig.dot}`} />
+                  <span className="truncate">{line}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Glifo técnico compacto */}
+          <div className="relative my-1.5 rounded-lg border border-white/[0.05] bg-surface-2/60 p-1 overflow-hidden shadow-inner h-9 sm:h-10">
+            {glyph}
+          </div>
+
+          {/* Botón de acción */}
+          <div className="relative mt-1">
+            <Button
+              variant={locked ? 'outline' : toneConfig.buttonVariant}
+              size="sm"
+              className="w-full justify-between"
+              onClick={(e) => {
+                e.stopPropagation();
+                onClick();
+              }}
+            >
+              <span>{cta}</span>
+              {locked ? (
+                <Sparkles className="h-3.5 w-3.5 text-coral-400 shrink-0" />
+              ) : (
+                <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1 shrink-0" />
+              )}
+            </Button>
+          </div>
+        </>
+      )}
     </div>
   );
 };
@@ -310,47 +385,49 @@ export const HomeView: React.FC<HomeViewProps> = ({
   return (
     <section
       aria-label="Inicio"
-      className="relative flex-1 min-h-0 overflow-y-auto scroll-touch bg-canvas"
+      className="relative flex-1 min-h-0 overflow-y-auto scroll-touch bg-canvas w-full flex flex-col justify-between"
     >
-      <div className="relative mx-auto min-h-full w-full max-w-6xl px-4 py-8 animate-fade-in sm:px-6 lg:px-8">
+      <div className="relative mx-auto w-full max-w-6xl px-3 py-3 sm:px-6 sm:py-5 lg:px-8 lg:py-5 flex flex-col flex-1 justify-between min-h-full">
         {/* Luces sutiles de fondo (estáticas, rendimiento óptimo) */}
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute -top-24 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-cobalt-500/10 blur-[120px]"
+          className="pointer-events-none absolute -top-20 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-cobalt-500/10 blur-[100px]"
         />
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute bottom-12 right-12 h-72 w-72 rounded-full bg-mint-500/[0.08] blur-[120px]"
+          className="pointer-events-none absolute bottom-8 right-8 h-64 w-64 rounded-full bg-mint-500/[0.07] blur-[100px]"
         />
 
-        {/* ── Header de Marca y Hero ── */}
-        <header className="relative flex flex-col items-center text-center mb-8">
-          <div className="flex justify-center mb-2">
-            <SkateCoreoBrand size="lg" />
+        {/* ── Header de Marca y Hero (Sleek, Compact & Balanced) ── */}
+        <header className="relative flex flex-col items-center text-center mb-3 sm:mb-4 lg:mb-5">
+          <div className="flex justify-center mb-1">
+            <SkateCoreoBrand size="md" />
           </div>
 
-          <h1 className="mt-2 max-w-[20ch] font-display text-2xl sm:text-3xl font-bold text-white tracking-tight sm:max-w-[26ch]">
+          <h1 className="mt-1 font-display text-lg sm:text-2xl lg:text-2xl font-bold text-white tracking-tight max-w-[28ch]">
             Tecnología para crear <span className="text-gradient-brand">el movimiento perfecto</span>.
           </h1>
 
-          <div className="mt-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">
+          <div className="mt-1 flex items-center gap-2 text-[10px] sm:text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
             <span>Diseña</span>
             <span className="text-cobalt-400">·</span>
             <span>Sincroniza</span>
             <span className="text-mint-400">·</span>
             <span>Visualiza</span>
+            <span className="text-coral-400">·</span>
+            <span>Evalúa</span>
           </div>
         </header>
 
-        {/* ── Los tres accesos principales (responsivos 1-2-3 col) ── */}
-        <div className="relative grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 mb-10">
+        {/* ── Los tres accesos principales (responsivo 3 cols desktop, 2 cols + 1 wide en tablet, 1 col móvil) ── */}
+        <div className="relative grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4 lg:gap-5 mb-3 sm:mb-4">
           <AccessModule
             tone="cobalt"
             tag="Editor principal"
-            icon={<Compass className="h-6 w-6" />}
+            icon={<Compass className="h-5 w-5" />}
             eyebrow="Coreografía"
             title="Pista 2D"
-            lines={['Diseño coreográfico reglamentario', 'Trazado técnico y curvas de Bézier', 'Visualización espacial y tiempos']}
+            lines={['Trazado técnico y curvas de Bézier', 'Visualización espacial y tiempos']}
             cta="Abrir Pista 2D"
             glyph={<RinkGlyph />}
             onClick={onOpenRink}
@@ -359,10 +436,10 @@ export const HomeView: React.FC<HomeViewProps> = ({
           <AccessModule
             tone="mint"
             tag="Segundo pilar"
-            icon={<AudioLines className="h-6 w-6" />}
+            icon={<AudioLines className="h-5 w-5" />}
             eyebrow="Audio"
             title="Audio Studio"
-            lines={['Edición y mezcla multipista', 'Recortes, fundidos y cues', 'Exportación directa al visor']}
+            lines={['Mezcla multipista y BPM sincrónico', 'Cues, recortes y fundidos']}
             cta="Editar en Estudio"
             glyph={<WaveGlyph />}
             onClick={onOpenStudio}
@@ -371,47 +448,48 @@ export const HomeView: React.FC<HomeViewProps> = ({
           <AccessModule
             tone="coral"
             tag={isCoach ? 'Entrenador Activo' : 'Exclusivo Entrenadores'}
-            icon={<Users className="h-6 w-6" />}
+            icon={<Users className="h-5 w-5" />}
             eyebrow="Gestión Deportiva"
             title="Panel de Entrenador"
             lines={[
-              'Atletas y fichas deportivas',
-              'Evaluación técnica de rutinas (RollArt / FEP)',
-              'Sincronización en la nube (1-clic)',
+              'Atletas, fichas y expedientes deportivos',
+              'Evaluación técnica oficial RollArt / FEP / White',
             ]}
             cta={isCoach ? 'Abrir Panel de Entrenador' : 'Conocer Plan Entrenador'}
             glyph={<CoachGlyph />}
             onClick={isCoach ? (onOpenCoach || (() => {})) : (onUpgradeToCoach || (() => {}))}
             locked={!isCoach}
+            className="md:col-span-2 lg:col-span-1"
+            isWideOnTablet={true}
           />
         </div>
 
-        {/* ── Herramientas complementarias ── */}
-        <div className="relative flex flex-col items-center gap-4">
-          <div className="flex items-center gap-3">
-            <span aria-hidden="true" className="h-px w-10 bg-white/10" />
-            <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-slate-400">
-              Herramientas complementarias
+        {/* ── Herramientas complementarias (Discretas y centradas) ── */}
+        <div className="relative flex flex-col items-center gap-2 pb-1">
+          <div className="flex items-center gap-2">
+            <span aria-hidden="true" className="h-px w-8 bg-white/10" />
+            <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-slate-400">
+              Herramientas rápidas
             </span>
-            <span aria-hidden="true" className="h-px w-10 bg-white/10" />
+            <span aria-hidden="true" className="h-px w-8 bg-white/10" />
           </div>
 
-          <div className="flex w-full flex-col items-stretch gap-3 sm:w-auto sm:flex-row sm:items-center">
-            <Button variant="secondary" onClick={onImportCoreo}>
-              <FolderOpen className="h-4 w-4 text-cobalt-400" />
+          <div className="flex w-full flex-wrap items-center justify-center gap-2 sm:w-auto">
+            <Button variant="secondary" size="sm" onClick={onImportCoreo}>
+              <FolderOpen className="h-3.5 w-3.5 text-cobalt-400" />
               <span>Importar .coreo</span>
             </Button>
 
             {onOpenPaperToDigital && (
-              <Button variant="secondary" onClick={onOpenPaperToDigital}>
-                <ScanLine className="h-4 w-4 text-mint-400" />
+              <Button variant="secondary" size="sm" onClick={onOpenPaperToDigital}>
+                <ScanLine className="h-3.5 w-3.5 text-mint-400" />
                 <span>Digitalizar plantilla A4</span>
               </Button>
             )}
 
             {onOpenCoach && (
-              <Button variant="secondary" onClick={onOpenCoach}>
-                <Users className="h-4 w-4 text-coral-400" />
+              <Button variant="secondary" size="sm" onClick={onOpenCoach}>
+                <Users className="h-3.5 w-3.5 text-coral-400" />
                 <span>Panel de Entrenadores</span>
               </Button>
             )}
