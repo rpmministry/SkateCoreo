@@ -919,7 +919,7 @@ export function App() {
           ═══════════════════════════════════════════════ */}
       {activeView !== 'studio' && activeView !== 'coach' && (
         <header className="relative z-30 shrink-0 bg-surface-1/90 backdrop-blur-md border-b border-white/[0.08] pt-safe px-safe">
-          <div className="fm-header-grid flex min-h-[54px] items-center justify-between gap-2 px-2 py-1 sm:px-3 lg:grid lg:min-h-[60px] lg:grid-cols-[minmax(0,auto)_minmax(0,1fr)_minmax(0,auto)] lg:items-center lg:px-4">
+          <div className="fm-header-grid flex min-h-[54px] items-center justify-between gap-2 px-2 py-1 sm:px-3 lg:grid lg:min-h-[60px] lg:grid-cols-[minmax(0,auto)_minmax(0,1fr)_minmax(0,auto)] lg:items-center lg:gap-3 lg:px-4">
 
         {/* ── IZQUIERDA: Marca (navega a Inicio) + contexto del atleta ── */}
         <div className="flex min-w-0 items-center gap-2">
@@ -951,7 +951,7 @@ export function App() {
               title={`Acceso Beta Tester · vence el ${getFormattedExpiration() ?? '—'}`}
             >
               <Sparkles className="h-3 w-3 shrink-0 text-amber-400" />
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-300">Beta Tester</span>
+              <span className="hidden xl:inline text-[10px] font-semibold uppercase tracking-wider text-amber-300">Beta Tester</span>
               <span className="rounded-full bg-white/[0.08] px-1.5 py-0.5 font-mono text-[9px] font-medium text-neutral-200">
                 {getDaysRemaining()}d
               </span>
@@ -984,7 +984,7 @@ export function App() {
               type="button"
               onClick={requestClearRink}
               disabled={points.length === 0 && unplacedNodes.length === 0 && !hasPaperTraceOverlay}
-              className="press hidden min-h-[36px] items-center justify-center gap-1.5 rounded-lg border border-danger/25 bg-danger/10 px-3 text-xs font-medium text-red-300 hover:bg-danger/20 hover:text-white disabled:pointer-events-none disabled:opacity-30 lg:flex transition-colors"
+              className="press hidden min-h-[36px] items-center justify-center gap-1.5 rounded-lg border border-danger/25 bg-danger/10 px-2.5 2xl:px-3 text-xs font-medium text-red-300 hover:bg-danger/20 hover:text-white disabled:pointer-events-none disabled:opacity-30 lg:flex transition-colors"
               title={
                 points.length === 0 && unplacedNodes.length === 0 && !hasPaperTraceOverlay
                   ? 'La pista ya está vacía'
@@ -993,7 +993,7 @@ export function App() {
               aria-label="Limpiar toda la pista 2D"
             >
               <Trash2 className="h-3.5 w-3.5 shrink-0 stroke-[1.8]" />
-              <span className="hidden xl:inline">Limpiar Pista</span>
+              <span className="hidden 2xl:inline">Limpiar Pista</span>
             </button>
           )}
 
@@ -1002,12 +1002,12 @@ export function App() {
           <button
             type="button"
             onClick={() => audioInputRef.current?.click()}
-            className="press hidden min-h-[36px] items-center justify-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 text-xs font-medium text-neutral-200 hover:bg-white/[0.08] hover:text-white lg:flex lg:px-3.5 transition-colors"
+            className="press hidden min-h-[36px] items-center justify-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.04] px-2.5 2xl:px-3.5 text-xs font-medium text-neutral-200 hover:bg-white/[0.08] hover:text-white lg:flex transition-colors"
             title="Subir una pista de audio directamente al visor de la Pista 2D"
             aria-label="Subir pista al visor"
           >
             <Upload className="h-3.5 w-3.5 shrink-0 text-ice-primary stroke-[1.8]" />
-            <span className="lg:inline fm-compact-label">Subir pista al visor</span>
+            <span className="hidden 2xl:inline">Subir pista al visor</span>
           </button>
 
           {/* Botón de Salir / Cerrar Sesión (header en ≥ sm; en móvil vive en el

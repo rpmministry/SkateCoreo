@@ -124,7 +124,7 @@ export const BottomNav: React.FC<NavProps> = ({ active, onSelect, badges }) => (
 export const DesktopHeaderNav: React.FC<NavProps> = ({ active, onSelect, badges }) => (
   <nav
     aria-label="Navegación principal"
-    className="fm-desktop-flex hidden lg:flex lg:justify-self-center items-center gap-1 rounded-xl border border-white/[0.07] bg-surface-1/90 backdrop-blur-md p-1 shrink-0 touch-manipulation shadow-elevation-1"
+    className="fm-desktop-flex hidden lg:flex lg:justify-self-center items-center gap-1 rounded-xl border border-white/[0.07] bg-surface-1/90 backdrop-blur-md p-1 min-w-0 max-w-full touch-manipulation shadow-elevation-1"
   >
     {DESKTOP_TABS.map((tab) => {
       const Icon = tab.icon;
@@ -138,14 +138,14 @@ export const DesktopHeaderNav: React.FC<NavProps> = ({ active, onSelect, badges 
           aria-current={isActive ? 'page' : undefined}
           title={tab.hint}
           className={[
-            'press relative flex min-h-[34px] items-center gap-2 rounded-lg px-3 py-1 text-xs transition-all select-none',
+            'press relative flex min-h-[34px] items-center gap-1.5 xl:gap-2 rounded-lg px-2.5 xl:px-3 py-1 text-xs transition-all select-none shrink-0',
             isActive
               ? 'bg-surface-2 text-white font-medium border border-white/[0.08] shadow-elevation-1'
               : 'text-neutral-400 hover:bg-white/[0.04] hover:text-neutral-200 font-normal border border-transparent',
           ].join(' ')}
         >
           <Icon className={`h-4 w-4 shrink-0 transition-colors ${isActive ? 'text-ice-primary stroke-[2]' : 'text-neutral-400 stroke-[1.75]'}`} />
-          <span className="fm-nav-label hidden xl:inline whitespace-nowrap">{tab.short}</span>
+          <span className="fm-nav-label inline whitespace-nowrap">{tab.short}</span>
           {badge > 0 && (
             <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-ice-primary/20 text-ice-light border border-ice-primary/30 px-1 text-[9px] font-semibold">
               {badge > 9 ? '9+' : badge}
