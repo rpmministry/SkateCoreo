@@ -166,6 +166,7 @@ export function App() {
   const authPlan = useAuthStore((s) => s.subscription_plan);
   const getDaysRemaining = useAuthStore((s) => s.getDaysRemaining);
   const getFormattedExpiration = useAuthStore((s) => s.getFormattedExpiration);
+  const isCoach = useAuthStore((s) => s.isCoach());
 
   /**
    * Propiedad de los datos locales: si se entra con una cuenta distinta a la que
@@ -1163,10 +1164,41 @@ export function App() {
       <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden relative">
 
         {activeView === 'coach' ? (
-          <CoachPortal
-            onOpenEditorForAthlete={handleCoachOpenEditor}
-            onExitCoachPortal={() => startTransition(() => setActiveView('home'))}
-          />
+          isCoach ? (
+            <CoachPortal
+              onOpenEditorForAthlete={handleCoachOpenEditor}
+              onExitCoachPortal={() => startTransition(() => setActiveView('home'))}
+            />
+          ) : (
+            <div className="flex-1 min-h-0 flex flex-col items-center justify-center p-6 bg-neon-canvas text-center">
+              <div className="max-w-md p-6 rounded-3xl bg-neon-surface border border-coral/30 space-y-4 shadow-soft-elevation">
+                <span className="text-xs font-black uppercase text-coral tracking-wider">Acceso Exclusivo</span>
+                <h2 className="text-xl font-bold text-white">Panel de Entrenadores</h2>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Para acceder al directorio de atletas, fichas deportivas y almacenamiento técnico, necesitas una cuenta activa con rol de Entrenador.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-2 justify-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveView('home');
+                      useAuthStore.getState().setUpgradeModalOpen(true);
+                    }}
+                    className="press px-4 py-2.5 rounded-xl bg-coral text-white font-bold text-xs shadow-glow-coral hover:bg-coral-hover"
+                  >
+                    Conocer Plan Entrenador
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveView('home')}
+                    className="press px-4 py-2.5 rounded-xl bg-white/10 text-slate-300 font-bold text-xs hover:bg-white/15"
+                  >
+                    Volver al Inicio
+                  </button>
+                </div>
+              </div>
+            </div>
+          )
         ) : activeView === 'home' ? (
           <HomeView
             skaterName={selectedSkater?.name}
@@ -1189,6 +1221,8 @@ export function App() {
             onSaveOffline={handleSaveOffline}
             onOpenPaperToDigital={() => setPaperOpen(true)}
             onOpenCoach={() => startTransition(() => setActiveView('coach'))}
+            isCoach={isCoach}
+            onUpgradeToCoach={() => useAuthStore.getState().setUpgradeModalOpen(true)}
           />
         ) : activeView === 'studio' ? (
           <div className="flex-1 min-h-0 flex flex-col overflow-hidden relative">
@@ -1210,7 +1244,7 @@ export function App() {
                   onPreRollSecChange={handlePreRollSecChange}
                   onClearRink={requestClearRink}
                   onLogout={handleLogout}
-                  onOpenCoachPortal={() => startTransition(() => setActiveView('coach'))}
+                  onOpenCoachPortal={isCoach ? () => startTransition(() => setActiveView('coach')) : undefined}
                 />
               )}
             </aside>

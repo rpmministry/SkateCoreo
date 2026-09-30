@@ -28,7 +28,7 @@ export class GoogleDriveProvider implements StorageProvider {
   private clientId: string = '';
 
   constructor(clientId?: string) {
-    if (clientId) this.clientId = clientId;
+    this.clientId = clientId || (import.meta.env?.VITE_GOOGLE_CLIENT_ID as string) || '';
     this.loadCachedSession();
   }
 
@@ -84,18 +84,13 @@ export class GoogleDriveProvider implements StorageProvider {
     // Si ya tiene token válido
     if (this.isConnected()) return true;
 
-    // 1. Si no hay Client ID configurado, permite que el usuario ingrese un token o su Client ID
     if (!this.clientId) {
-      const customToken = window.prompt(
-        'Conexión Google Drive:\nIntroduce tu Token OAuth de Google Drive (o configura tu Client ID en Ajustes de Almacenamiento):'
-      );
-      if (customToken && customToken.trim()) {
-        this.accessToken = customToken.trim();
-        this.tokenExpiresAt = Date.now() + 3600 * 1000;
-        await this.getUserInfo();
-        this.saveSession();
-        return true;
-      }
+      this.clientId = (import.meta.env?.VITE_GOOGLE_CLIENT_ID as string) || '';
+    }
+
+    if (!this.clientId) {
+      console.warn('Google Drive: VITE_GOOGLE_CLIENT_ID no configurado en variables de entorno.');
+      alert('Para conectar con Google Drive con un clic, configura VITE_GOOGLE_CLIENT_ID en las variables de entorno.');
       return false;
     }
 

@@ -25,7 +25,7 @@ export class OneDriveProvider implements StorageProvider {
   private clientId: string = '';
 
   constructor(clientId?: string) {
-    if (clientId) this.clientId = clientId;
+    this.clientId = clientId || (import.meta.env?.VITE_ONEDRIVE_CLIENT_ID as string) || '';
     this.loadCachedSession();
   }
 
@@ -78,18 +78,67 @@ export class OneDriveProvider implements StorageProvider {
   async connect(): Promise<boolean> {
     if (this.isConnected()) return true;
 
-    // Conexión por Token OAuth o Client ID
-    const customToken = window.prompt(
-      'Conexión Microsoft OneDrive:\nIntroduce tu Token OAuth de Microsoft Graph (o configúralo en Ajustes de Almacenamiento):'
-    );
-    if (customToken && customToken.trim()) {
-      this.accessToken = customToken.trim();
-      this.tokenExpiresAt = Date.now() + 3600 * 1000;
-      await this.getUserInfo();
-      this.saveSession();
-      return true;
+    if (!this.clientId) {
+      this.clientId = (import.meta.env?.VITE_ONEDRIVE_CLIENT_ID as string) || '';
     }
-    return false;
+
+    if (!this.clientId) {
+      console.warn('OneDrive: VITE_ONEDRIVE_CLIENT_ID no configurado en variables de entorno.');
+      alert('Para conectar con Microsoft OneDrive con un clic, configura VITE_ONEDRIVE_CLIENT_ID en las variables de entorno.');
+      return false;
+    }
+
+    const redirectUri = window.location.origin + window.location.pathname;
+    const scope = encodeURIComponent('Files.ReadWrite User.Read offline_access');
+    const authUrl = 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=' +
+      encodeURIComponent(this.clientId) +
+      '&response_type=token&redirect_uri=' +
+      encodeURIComponent(redirectUri) +
+      '&scope=' + scope + '&prompt=select_account';
+
+    return new Promise((resolve) => {
+      const width = 600;
+      const height = 700;
+      const left = window.screenX + (window.outerWidth - width) / 2;
+      const top = window.screenY + (window.outerHeight - height) / 2;
+      const popup = window.open(
+        authUrl,
+        'skatecoreo_onedrive_oauth',
+        'width=' + width + ',height=' + height + ',left=' + left + ',top=' + top + ',status=0,toolbar=0,location=0'
+      );
+
+      if (!popup) {
+        alert('Por favor habilita las ventanas emergentes (popups) en tu navegador para continuar.');
+        resolve(false);
+        return;
+      }
+
+      const timer = setInterval(async () => {
+        try {
+          if (popup.closed) {
+            clearInterval(timer);
+            resolve(this.isConnected());
+            return;
+          }
+          if (popup.location && popup.location.origin === window.location.origin) {
+            const hash = popup.location.hash || '';
+            const params = new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : hash);
+            const token = params.get('access_token');
+            const expiresIn = params.get('expires_in');
+            if (token) {
+              clearInterval(timer);
+              popup.close();
+              this.accessToken = token;
+              const expSec = expiresIn ? parseInt(expiresIn, 10) : 3600;
+              this.tokenExpiresAt = Date.now() + expSec * 1000;
+              await this.getUserInfo();
+              this.saveSession();
+              resolve(true);
+            }
+          }
+        } catch {}
+      }, 500);
+    });
   }
 
   async disconnect(): Promise<void> {

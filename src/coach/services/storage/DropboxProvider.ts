@@ -26,7 +26,7 @@ export class DropboxProvider implements StorageProvider {
   private clientId: string = '';
 
   constructor(clientId?: string) {
-    if (clientId) this.clientId = clientId;
+    this.clientId = clientId || (import.meta.env?.VITE_DROPBOX_APP_KEY as string) || '';
     this.loadCachedSession();
   }
 
@@ -79,17 +79,65 @@ export class DropboxProvider implements StorageProvider {
   async connect(): Promise<boolean> {
     if (this.isConnected()) return true;
 
-    const customToken = window.prompt(
-      'Conexión Dropbox:\nIntroduce tu Token de acceso de Dropbox (o configúralo en Ajustes de Almacenamiento):'
-    );
-    if (customToken && customToken.trim()) {
-      this.accessToken = customToken.trim();
-      this.tokenExpiresAt = Date.now() + 3600 * 1000;
-      await this.getUserInfo();
-      this.saveSession();
-      return true;
+    if (!this.clientId) {
+      this.clientId = (import.meta.env?.VITE_DROPBOX_APP_KEY as string) || '';
     }
-    return false;
+
+    if (!this.clientId) {
+      console.warn('Dropbox: VITE_DROPBOX_APP_KEY no configurado en variables de entorno.');
+      alert('Para conectar con Dropbox con un clic, configura VITE_DROPBOX_APP_KEY en las variables de entorno.');
+      return false;
+    }
+
+    const redirectUri = window.location.origin + window.location.pathname;
+    const authUrl = 'https://www.dropbox.com/oauth2/authorize?client_id=' +
+      encodeURIComponent(this.clientId) +
+      '&response_type=token&redirect_uri=' +
+      encodeURIComponent(redirectUri);
+
+    return new Promise((resolve) => {
+      const width = 600;
+      const height = 700;
+      const left = window.screenX + (window.outerWidth - width) / 2;
+      const top = window.screenY + (window.outerHeight - height) / 2;
+      const popup = window.open(
+        authUrl,
+        'skatecoreo_dropbox_oauth',
+        'width=' + width + ',height=' + height + ',left=' + left + ',top=' + top + ',status=0,toolbar=0,location=0'
+      );
+
+      if (!popup) {
+        alert('Por favor habilita las ventanas emergentes (popups) en tu navegador para continuar.');
+        resolve(false);
+        return;
+      }
+
+      const timer = setInterval(async () => {
+        try {
+          if (popup.closed) {
+            clearInterval(timer);
+            resolve(this.isConnected());
+            return;
+          }
+          if (popup.location && popup.location.origin === window.location.origin) {
+            const hash = popup.location.hash || '';
+            const params = new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : hash);
+            const token = params.get('access_token');
+            const expiresIn = params.get('expires_in');
+            if (token) {
+              clearInterval(timer);
+              popup.close();
+              this.accessToken = token;
+              const expSec = expiresIn ? parseInt(expiresIn, 10) : 3600;
+              this.tokenExpiresAt = Date.now() + expSec * 1000;
+              await this.getUserInfo();
+              this.saveSession();
+              resolve(true);
+            }
+          }
+        } catch {}
+      }, 500);
+    });
   }
 
   async disconnect(): Promise<void> {

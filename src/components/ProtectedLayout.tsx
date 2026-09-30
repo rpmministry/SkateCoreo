@@ -16,6 +16,7 @@ interface ProtectedLayoutProps {
 
 export const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
   const hasAccess = useAuthStore((s) => s.hasActiveAccess());
+  const isUpgradeModalOpen = useAuthStore((s) => s.isUpgradeModalOpen);
 
   return (
     <div className="relative w-screen app-viewport-height overflow-hidden">
@@ -24,8 +25,8 @@ export const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) =>
         {children}
       </div>
 
-      {/* Overlay Soft Paywall Glassmorphism (solo visible si no tiene acceso activo) */}
-      {!hasAccess && <AuthModal />}
+      {/* Overlay Soft Paywall Glassmorphism (visible si no tiene acceso activo o si abrió el modal de suscripción/upgrade) */}
+      {(!hasAccess || isUpgradeModalOpen) && <AuthModal />}
     </div>
   );
 };

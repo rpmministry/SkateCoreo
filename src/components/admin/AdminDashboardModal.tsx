@@ -15,6 +15,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   ShieldCheck,
+  Users,
   Building2,
   Plus,
   FileText,
@@ -47,7 +48,7 @@ interface AdminDashboardModalProps {
   onClose: () => void;
 }
 
-type AdminTab = 'packages' | 'new-package' | 'codes' | 'audit' | 'tiers';
+type AdminTab = 'packages' | 'new-package' | 'codes' | 'audit' | 'tiers' | 'users';
 
 export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen, onClose }) => {
   const currentUser = useAuthStore((s) => s.user);
@@ -92,6 +93,34 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
   // Auditoría
   const [auditLogs, setAuditLogs] = useState<CommercialAuditLog[]>([]);
   const [isLoadingAudit, setIsLoadingAudit] = useState(false);
+
+  // Gestión de Usuarios y Roles
+  const [userList, setUserList] = useState<any[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [userFeedback, setUserFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const loadUsersList = useCallback(async () => {
+    if (!currentUser || !isAdmin) return;
+    setIsLoadingUsers(true);
+    const res = await useAuthStore.getState().adminListUsers();
+    if (res.success && res.users) {
+      setUserList(res.users);
+    }
+    setIsLoadingUsers(false);
+  }, [currentUser, isAdmin]);
+
+  const handleChangeRole = async (targetUserId: string, newRole: string) => {
+    if (!window.confirm(`¿Confirmas cambiar el rol de este usuario a "${newRole}"?`)) return;
+    setUserFeedback(null);
+    const res = await useAuthStore.getState().adminChangeUserRole(targetUserId, newRole as any);
+    if (res.success) {
+      setUserFeedback({ type: 'success', message: 'Rol de usuario actualizado con éxito.' });
+      await loadUsersList();
+    } else {
+      setUserFeedback({ type: 'error', message: res.error || 'No se pudo actualizar el rol.' });
+    }
+  };
 
   // Cargar paquetes
   const loadPackages = useCallback(async () => {
@@ -404,6 +433,21 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
             <span>Escala de Descuentos</span>
           </button>
 
+                    <button
+            type="button"
+            onClick={() => {
+              setActiveTab('users');
+              void loadUsersList();
+            }}
+            className={`press flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
+              activeTab === 'users'
+                ? 'bg-cyan text-neon-canvas shadow-glow-cyan'
+                : 'text-slate-300 hover:bg-white/5'
+            }`}
+          >
+            <Users className="h-4 w-4" />
+            <span>Usuarios & Roles</span>
+          </button>
           <button
             type="button"
             onClick={() => {
@@ -942,6 +986,129 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
               <p className="text-[11px] text-slate-500">
                 * Nota: Para compras con condiciones especiales, el administrador puede autorizar cualquier porcentaje de descuento negociado directo al crear el paquete.
               </p>
+            </div>
+          )}
+
+                    {/* ══════════ TAB 6: GESTIÓN DE USUARIOS & ROLES ══════════ */}
+          {activeTab === 'users' && (
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
+                <div>
+                  <h2 className="text-base font-black text-white">Gestión de Usuarios & Control de Roles (RBAC)</h2>
+                  <p className="text-xs text-slate-400">
+                    Supervisa cuentas registradas, planes de suscripción y asigna permisos de Patinador, Entrenador o Administrador.
+                  </p>
+                </div>
+                <Button variant="secondary" size="sm" onClick={() => void loadUsersList()} disabled={isLoadingUsers}>
+                  <RefreshCw className={`h-3.5 w-3.5 ${isLoadingUsers ? 'animate-spin' : ''}`} />
+                  Actualizar Lista
+                </Button>
+              </div>
+
+              {userFeedback && (
+                <div
+                  className={`p-3 rounded-xl text-xs font-semibold ${
+                    userFeedback.type === 'success'
+                      ? 'bg-mint/15 text-mint border border-mint/30'
+                      : 'bg-coral/15 text-coral border border-coral/30'
+                  }`}
+                >
+                  {userFeedback.message}
+                </div>
+              )}
+
+              {/* Búsqueda */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar por email, nombre o rol..."
+                  value={userSearchQuery}
+                  onChange={(e) => setUserSearchQuery(e.target.value)}
+                  className="w-full bg-slate-900 border border-white/10 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-cyan"
+                />
+              </div>
+
+              {/* Tabla de Usuarios */}
+              {isLoadingUsers ? (
+                <div className="p-8 text-center text-xs text-slate-400">Cargando directorio de usuarios...</div>
+              ) : userList.length === 0 ? (
+                <div className="p-8 text-center text-xs text-slate-400 border border-white/5 rounded-2xl bg-white/[0.01]">
+                  No se encontraron usuarios o la base de datos no tiene registros de usuarios adicionales.
+                </div>
+              ) : (
+                <div className="glass-panel overflow-hidden rounded-2xl border border-white/10 bg-slate-900/50 overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-900 border-b border-white/10 text-slate-400 uppercase text-[10px] font-bold">
+                      <tr>
+                        <th className="py-3 px-4">Usuario / Email</th>
+                        <th className="py-3 px-4">Rol Actual</th>
+                        <th className="py-3 px-4">Plan / Suscripción</th>
+                        <th className="py-3 px-4">Registro</th>
+                        <th className="py-3 px-4 text-right">Cambiar Rol</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {userList
+                        .filter((u) => {
+                          if (!userSearchQuery.trim()) return true;
+                          const q = userSearchQuery.toLowerCase();
+                          return (
+                            (u.email || '').toLowerCase().includes(q) ||
+                            (u.role || '').toLowerCase().includes(q) ||
+                            (u.full_name || '').toLowerCase().includes(q)
+                          );
+                        })
+                        .map((u) => {
+                          const isCoach = u.role === 'coach';
+                          const isAdminRole = u.role === 'superadmin' || u.role === 'club_admin';
+                          const roleBadgeColor = isAdminRole
+                            ? 'bg-mint/20 text-mint border-mint/30'
+                            : isCoach
+                            ? 'bg-coral/20 text-coral border-coral/30'
+                            : 'bg-cyan/20 text-cyan border-cyan/30';
+
+                          return (
+                            <tr key={u.id} className="hover:bg-white/[0.02]">
+                              <td className="py-3 px-4">
+                                <div className="font-bold text-white">{u.email}</div>
+                                {u.full_name && <div className="text-[10px] text-slate-400">{u.full_name}</div>}
+                              </td>
+                              <td className="py-3 px-4">
+                                <span className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase border ${roleBadgeColor}`}>
+                                  {u.role || 'skater'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-slate-300">
+                                <span className="capitalize">{u.subscription_plan || 'free'}</span>
+                                {u.subscription_expires_at && (
+                                  <div className="text-[10px] text-slate-500">
+                                    Hasta {new Date(u.subscription_expires_at).toLocaleDateString('es-ES')}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 text-slate-400 text-[11px]">
+                                {u.created_at ? new Date(u.created_at).toLocaleDateString('es-ES') : '—'}
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <select
+                                  value={u.role || 'skater'}
+                                  onChange={(e) => handleChangeRole(u.id, e.target.value)}
+                                  className="bg-slate-800 border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none focus:border-cyan"
+                                >
+                                  <option value="skater">Patinador (Skater)</option>
+                                  <option value="coach">Entrenador (Coach)</option>
+                                  <option value="club_admin">Administrador de Club</option>
+                                  <option value="superadmin">Superadmin</option>
+                                </select>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
 

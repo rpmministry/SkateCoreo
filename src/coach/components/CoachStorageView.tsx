@@ -17,7 +17,6 @@ import {
   CheckCircle2,
   ExternalLink,
   RefreshCw,
-  Key,
   Database,
 } from 'lucide-react';
 import { useCoachStore } from '../store/useCoachStore';
@@ -31,21 +30,10 @@ export const CoachStorageView: React.FC = () => {
     connectCloudProvider,
     disconnectCloudProvider,
     syncAllToCloud,
-    profile,
-    updateProfile,
     isLoading,
   } = useCoachStore();
 
   const [persistentActive, setPersistentActive] = useState<boolean | null>(null);
-  const [googleClientId, setGoogleClientId] = useState(
-    profile?.storageConfig?.googleDrive?.clientId || ''
-  );
-  const [oneDriveClientId, setOneDriveClientId] = useState(
-    profile?.storageConfig?.oneDrive?.clientId || ''
-  );
-  const [dropboxClientId, setDropboxClientId] = useState(
-    profile?.storageConfig?.dropbox?.clientId || ''
-  );
   const [statusMessage, setStatusMessage] = useState<{ text: string; isError?: boolean } | null>(null);
 
   React.useEffect(() => {
@@ -78,16 +66,7 @@ export const CoachStorageView: React.FC = () => {
     setStatusMessage({ text: `Proveedor desconectado. Operando 100% en almacenamiento local.` });
   };
 
-  const handleSaveClientIds = async () => {
-    await updateProfile({
-      storageConfig: {
-        googleDrive: { ...profile?.storageConfig?.googleDrive, clientId: googleClientId, connected: Boolean(profile?.storageConfig?.googleDrive?.connected) },
-        oneDrive: { ...profile?.storageConfig?.oneDrive, clientId: oneDriveClientId, connected: Boolean(profile?.storageConfig?.oneDrive?.connected) },
-        dropbox: { ...profile?.storageConfig?.dropbox, clientId: dropboxClientId, connected: Boolean(profile?.storageConfig?.dropbox?.connected) },
-      },
-    });
-    setStatusMessage({ text: 'Configuración de credenciales de cliente guardada.' });
-  };
+
 
   const formatSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
@@ -383,64 +362,7 @@ export const CoachStorageView: React.FC = () => {
         </div>
       </div>
 
-      {/* Configuración de Client IDs opcionales */}
-      <div className="p-6 rounded-3xl bg-neon-surface border border-white/10 space-y-4">
-        <div className="flex items-center gap-2">
-          <Key className="w-4 h-4 text-cyan" />
-          <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-            Credenciales de Aplicación OAuth (Opcional para clubes/entrenadores avanzados)
-          </h3>
-        </div>
 
-        <p className="text-xs text-slate-400">
-          Si dispones de tus propias claves OAuth de Google Cloud Console o Azure AD para tu club, puedes introducirlas aquí:
-        </p>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-          <div>
-            <label className="block text-slate-400 font-medium mb-1">Google Client ID:</label>
-            <input
-              type="text"
-              placeholder="xxxx.apps.googleusercontent.com"
-              value={googleClientId}
-              onChange={(e) => setGoogleClientId(e.target.value)}
-              className="w-full bg-neon-canvas border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-cyan text-xs font-mono"
-            />
-          </div>
-
-          <div>
-            <label className="block text-slate-400 font-medium mb-1">OneDrive Client ID:</label>
-            <input
-              type="text"
-              placeholder="Application (client) ID de Azure"
-              value={oneDriveClientId}
-              onChange={(e) => setOneDriveClientId(e.target.value)}
-              className="w-full bg-neon-canvas border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-cyan text-xs font-mono"
-            />
-          </div>
-
-          <div>
-            <label className="block text-slate-400 font-medium mb-1">Dropbox App Key:</label>
-            <input
-              type="text"
-              placeholder="App Key de Dropbox Developer Console"
-              value={dropboxClientId}
-              onChange={(e) => setDropboxClientId(e.target.value)}
-              className="w-full bg-neon-canvas border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-cyan text-xs font-mono"
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-end pt-2">
-          <button
-            type="button"
-            onClick={handleSaveClientIds}
-            className="px-4 py-2 rounded-xl bg-white/[0.06] hover:bg-white/10 text-slate-200 text-xs font-bold transition-all interactive-tap"
-          >
-            Guardar Claves de Cliente
-          </button>
-        </div>
-      </div>
     </div>
   );
 };

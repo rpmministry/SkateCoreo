@@ -1,5 +1,5 @@
 import React from 'react';
-import { Compass, AudioLines, FolderOpen, ScanLine, ArrowRight, Users } from 'lucide-react';
+import { Compass, AudioLines, FolderOpen, ScanLine, ArrowRight, Users, Lock, Sparkles } from 'lucide-react';
 import { SkateCoreoBrand } from './brand/SkateCoreoBrand';
 import { Button } from './ui/Button';
 
@@ -32,6 +32,10 @@ export interface HomeViewProps {
   onOpenPaperToDigital?: () => void;
   /** Acceso al Panel de Entrenadores. */
   onOpenCoach?: () => void;
+  /** Estado de rol de entrenador. */
+  isCoach?: boolean;
+  /** Acción para abrir modal de upgrade a entrenador. */
+  onUpgradeToCoach?: () => void;
 }
 
 /* ── Glifos abstractos (decorativos, minimalistas) ──────────────── */
@@ -80,10 +84,37 @@ const WaveGlyph: React.FC = () => (
   </svg>
 );
 
+const CoachGlyph: React.FC = () => (
+  <svg viewBox="0 0 220 78" className="h-full w-full" fill="none" aria-hidden="true">
+    <circle cx="110" cy="28" r="14" stroke="#FF4C79" strokeWidth="2" opacity="0.85" />
+    <path
+      d="M78 62 C78 48, 92 44, 110 44 C128 44, 142 48, 142 62"
+      stroke="#FF4C79"
+      strokeWidth="2"
+      strokeLinecap="round"
+      opacity="0.85"
+    />
+    <circle cx="58" cy="34" r="10" stroke="rgba(255,76,121,0.5)" strokeWidth="1.5" />
+    <path
+      d="M38 62 C38 52, 47 48, 58 48 C69 48, 78 52, 78 62"
+      stroke="rgba(255,76,121,0.5)"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+    />
+    <circle cx="162" cy="34" r="10" stroke="rgba(255,76,121,0.5)" strokeWidth="1.5" />
+    <path
+      d="M142 62 C142 52, 151 48, 162 48 C173 48, 182 52, 182 62"
+      stroke="rgba(255,76,121,0.5)"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
 /* ── Módulo de acceso principal ─────────────────────────────────── */
 
 interface AccessModuleProps {
-  tone: 'cyan' | 'mint';
+  tone: 'cyan' | 'mint' | 'coral';
   icon: React.ReactNode;
   tag?: string;
   eyebrow: string;
@@ -92,6 +123,7 @@ interface AccessModuleProps {
   cta: string;
   glyph: React.ReactNode;
   onClick: () => void;
+  locked?: boolean;
 }
 
 const AccessModule: React.FC<AccessModuleProps> = ({
@@ -104,19 +136,54 @@ const AccessModule: React.FC<AccessModuleProps> = ({
   cta,
   glyph,
   onClick,
+  locked,
 }) => {
   const isCyan = tone === 'cyan';
-  const ring = isCyan ? 'bg-cyan/12 text-cyan ring-cyan/25' : 'bg-mint/12 text-mint ring-mint/25';
+  const isMint = tone === 'mint';
+
+  const ring = isCyan
+    ? 'bg-cyan/12 text-cyan ring-cyan/25'
+    : isMint
+    ? 'bg-mint/12 text-mint ring-mint/25'
+    : 'bg-[#FF4C79]/12 text-[#FF4C79] ring-[#FF4C79]/25';
+
   const cardBorder = isCyan
     ? 'border-cyan/25 hover:border-cyan/50'
-    : 'border-mint/25 hover:border-mint/50';
-  const cardWash = isCyan ? 'from-cyan/[0.13]' : 'from-mint/[0.13]';
-  const glow = isCyan ? 'bg-cyan/15' : 'bg-mint/15';
-  const accentText = isCyan ? 'text-cyan' : 'text-mint';
-  const dot = isCyan ? 'bg-cyan' : 'bg-mint';
+    : isMint
+    ? 'border-mint/25 hover:border-mint/50'
+    : 'border-[#FF4C79]/25 hover:border-[#FF4C79]/50';
+
+  const cardWash = isCyan
+    ? 'from-cyan/[0.13]'
+    : isMint
+    ? 'from-mint/[0.13]'
+    : 'from-[#FF4C79]/[0.13]';
+
+  const glow = isCyan
+    ? 'bg-cyan/15'
+    : isMint
+    ? 'bg-mint/15'
+    : 'bg-[#FF4C79]/15';
+
+  const accentText = isCyan
+    ? 'text-cyan'
+    : isMint
+    ? 'text-mint'
+    : 'text-[#FF4C79]';
+
+  const dot = isCyan
+    ? 'bg-cyan'
+    : isMint
+    ? 'bg-mint'
+    : 'bg-[#FF4C79]';
+
   const ctaClass = isCyan
     ? 'bg-cyan text-neon-canvas shadow-glow-cyan'
-    : 'bg-mint text-neon-canvas shadow-glow-mint';
+    : isMint
+    ? 'bg-mint text-neon-canvas shadow-glow-mint'
+    : locked
+    ? 'bg-[#FF4C79]/20 text-[#FF4C79] border border-[#FF4C79]/40 hover:bg-[#FF4C79]/30'
+    : 'bg-[#FF4C79] text-white shadow-[0_0_20px_rgba(255,76,121,0.4)]';
 
   return (
     <button
@@ -147,8 +214,9 @@ const AccessModule: React.FC<AccessModuleProps> = ({
         <span className={`text-[10px] font-black uppercase tracking-[0.24em] ${accentText}`}>
           {eyebrow}
         </span>
-        <span className="home-module-title font-display font-black tracking-tight text-white">
-          {title}
+        <span className="home-module-title font-display font-black tracking-tight text-white flex items-center justify-between gap-2">
+          <span>{title}</span>
+          {locked && <Lock className="h-4 w-4 text-slate-400 shrink-0" />}
         </span>
         <span className="mt-1 flex flex-col gap-0.5">
           {lines.map((line) => (
@@ -167,8 +235,12 @@ const AccessModule: React.FC<AccessModuleProps> = ({
       <span
         className={`home-module-block relative inline-flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-black ${ctaClass}`}
       >
-        {cta}
-        <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+        <span>{cta}</span>
+        {locked ? (
+          <Sparkles className="h-4 w-4 text-coral shrink-0" />
+        ) : (
+          <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 shrink-0" />
+        )}
       </span>
     </button>
   );
@@ -182,6 +254,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onImportCoreo,
   onOpenPaperToDigital,
   onOpenCoach,
+  isCoach = false,
+  onUpgradeToCoach,
 }) => {
   return (
     <section
@@ -214,8 +288,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
           </p>
         </header>
 
-        {/* ── Los dos accesos principales ── */}
-        <div className="relative grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-[1.35fr_1fr]">
+        {/* ── Los accesos principales ── */}
+        <div className="relative grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           <AccessModule
             tone="cyan"
             tag="Editor principal"
@@ -238,6 +312,23 @@ export const HomeView: React.FC<HomeViewProps> = ({
             cta="Editar mezcla en Estudio"
             glyph={<WaveGlyph />}
             onClick={onOpenStudio}
+          />
+
+          <AccessModule
+            tone="coral"
+            tag={isCoach ? 'Entrenador Activo' : 'Exclusivo Entrenadores'}
+            icon={<Users className="h-6 w-6" />}
+            eyebrow="Gestión Deportiva"
+            title="Panel de Entrenador"
+            lines={[
+              'Atletas y fichas deportivas',
+              'Sincronización en la nube (1-clic)',
+              'Backups locales y catálogo'
+            ]}
+            cta={isCoach ? 'Abrir Panel de Entrenador' : 'Conocer Plan Entrenador'}
+            glyph={<CoachGlyph />}
+            onClick={isCoach ? (onOpenCoach || (() => {})) : (onUpgradeToCoach || (() => {}))}
+            locked={!isCoach}
           />
         </div>
 
