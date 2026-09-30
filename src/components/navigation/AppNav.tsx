@@ -79,7 +79,7 @@ interface NavProps {
 export const BottomNav: React.FC<NavProps> = ({ active, onSelect, badges }) => (
   <nav
     aria-label="Navegación principal"
-    className="fm-mobile-only lg:hidden shrink-0 z-40 grid grid-cols-5 items-stretch glass-hud border-t border-white/10 nav-safe-bottom pl-safe pr-safe touch-manipulation overscroll-contain"
+    className="fm-mobile-only lg:hidden shrink-0 z-40 grid grid-cols-5 items-stretch bg-surface-1/95 backdrop-blur-xl border-t border-white/[0.08] nav-safe-bottom pl-safe pr-safe touch-manipulation overscroll-contain shadow-elevation-2"
   >
     {APP_TABS.map((tab) => {
       const Icon = tab.icon;
@@ -95,27 +95,27 @@ export const BottomNav: React.FC<NavProps> = ({ active, onSelect, badges }) => (
           title={tab.hint}
           className={[
             'press relative flex min-h-[54px] flex-1 flex-col items-center justify-center gap-1',
-            'rounded-2xl px-1 py-1.5',
-            isActive ? 'text-cyan' : 'text-slate-400 hover:text-slate-100',
+            'rounded-2xl px-1 py-1.5 transition-colors',
+            isActive ? 'text-cobalt-400' : 'text-slate-400 hover:text-slate-100',
           ].join(' ')}
         >
           {/* Indicador superior de pestaña activa */}
           <span
             aria-hidden="true"
             className={[
-              'absolute top-0 h-[3px] w-8 rounded-full transition-all duration-200',
-              isActive ? 'bg-cyan shadow-glow-cyan opacity-100' : 'opacity-0',
+              'absolute top-0 h-[2.5px] w-8 rounded-full transition-all duration-200',
+              isActive ? 'bg-cobalt-400 shadow-glow-cobalt opacity-100' : 'opacity-0',
             ].join(' ')}
           />
           <span className="relative flex items-center justify-center">
-            <Icon className={`h-[22px] w-[22px] ${isActive ? 'stroke-[2.4]' : 'stroke-[1.9]'}`} />
+            <Icon className={`h-[22px] w-[22px] transition-transform ${isActive ? 'stroke-[2.4] scale-105' : 'stroke-[1.9]'}`} />
             {badge > 0 && (
               <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-400 px-1 text-[9px] font-black text-slate-950">
                 {badge > 9 ? '9+' : badge}
               </span>
             )}
           </span>
-          <span className="max-w-full truncate text-[10px] font-bold leading-none">{tab.short}</span>
+          <span className={`max-w-full truncate text-[10px] leading-none ${isActive ? 'font-bold text-white' : 'font-medium'}`}>{tab.short}</span>
         </button>
       );
     })}
@@ -129,7 +129,7 @@ export const BottomNav: React.FC<NavProps> = ({ active, onSelect, badges }) => (
 export const DesktopHeaderNav: React.FC<NavProps> = ({ active, onSelect, badges }) => (
   <nav
     aria-label="Navegación principal"
-    className="fm-desktop-flex hidden lg:flex lg:justify-self-center items-center gap-1 rounded-xl border border-white/10 bg-white/[0.04] p-1 shadow-soft-elevation shrink-0 touch-manipulation"
+    className="fm-desktop-flex hidden lg:flex lg:justify-self-center items-center gap-1 rounded-xl border border-white/[0.08] bg-surface-2/80 p-1 shadow-inner shrink-0 touch-manipulation backdrop-blur-md"
   >
     {DESKTOP_TABS.map((tab) => {
       const Icon = tab.icon;
@@ -143,13 +143,13 @@ export const DesktopHeaderNav: React.FC<NavProps> = ({ active, onSelect, badges 
           aria-current={isActive ? 'page' : undefined}
           title={tab.hint}
           className={[
-            'press relative flex min-h-touch items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold',
+            'press relative flex min-h-[38px] items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs transition-all select-none',
             isActive
-              ? 'bg-cyan text-neon-canvas font-black shadow-glow-cyan'
-              : 'text-slate-300 hover:bg-white/5 hover:text-white',
+              ? 'bg-cobalt-600/30 text-white font-semibold shadow-elevation-1 border border-cobalt-400/40 text-glow-cobalt'
+              : 'text-slate-400 hover:bg-white/[0.04] hover:text-slate-100 font-medium',
           ].join(' ')}
         >
-          <Icon className="h-4 w-4 shrink-0 stroke-[2]" />
+          <Icon className={`h-4 w-4 shrink-0 transition-colors ${isActive ? 'text-cobalt-400 stroke-[2.2]' : 'text-slate-400 stroke-[1.8]'}`} />
           <span className="fm-nav-label hidden xl:inline whitespace-nowrap">{tab.short}</span>
           {badge > 0 && (
             <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-400 px-1 text-[9px] font-black text-slate-950">

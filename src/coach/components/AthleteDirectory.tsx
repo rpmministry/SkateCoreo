@@ -23,6 +23,7 @@ import { CoachAthlete } from '../types';
 import { useCoachStore } from '../store/useCoachStore';
 import { CategoriaReglamento } from '../../constants/reglamento';
 import { AthleteEditModal } from './AthleteEditModal';
+import { Badge, Button, EmptyState } from '../../components/ui';
 
 interface AthleteDirectoryProps {
   onSelectAthlete: (athlete: CoachAthlete) => void;
@@ -108,7 +109,7 @@ export const AthleteDirectory: React.FC<AthleteDirectoryProps> = ({
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-black tracking-tight text-white flex items-center gap-2">
-            <Users className="w-6 h-6 text-cyan" />
+            <Users className="w-6 h-6 text-cobalt-pro" />
             Directorio de Atletas ({filteredAthletes.length})
           </h2>
           <p className="text-xs text-slate-400">
@@ -116,18 +117,18 @@ export const AthleteDirectory: React.FC<AthleteDirectoryProps> = ({
           </p>
         </div>
 
-        <button
-          type="button"
+        <Button
+          variant="cobalt"
+          size="sm"
           onClick={() => setIsAddModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-cyan text-neon-canvas font-black text-xs shadow-glow-cyan hover:bg-cyan/90 transition-all interactive-tap"
+          icon={<UserPlus className="w-4 h-4 stroke-[2.5]" />}
         >
-          <UserPlus className="w-4 h-4 stroke-[2.5]" />
-          <span>Registrar Atleta</span>
-        </button>
+          Registrar Atleta
+        </Button>
       </div>
 
       {/* Barra de Filtros y Búsqueda */}
-      <div className="p-4 rounded-3xl bg-neon-surface border border-white/10 space-y-3 shadow-soft-elevation">
+      <div className="p-4 rounded-2xl bg-surface-2 border border-white/[0.08] space-y-3 shadow-elevation-1">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
           {/* Búsqueda rápida */}
           <div className="flex-1 relative">
@@ -137,7 +138,7 @@ export const AthleteDirectory: React.FC<AthleteDirectoryProps> = ({
               placeholder="Buscar por nombre, club o notas técnicas..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-neon-canvas border border-white/10 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 outline-none focus:border-cyan"
+              className="w-full bg-surface-1 border border-white/10 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-cobalt-pro transition-colors"
             />
           </div>
 
@@ -147,7 +148,7 @@ export const AthleteDirectory: React.FC<AthleteDirectoryProps> = ({
               <select
                 value={clubFilter}
                 onChange={(e) => setClubFilter(e.target.value)}
-                className="w-full bg-neon-canvas border border-white/10 rounded-2xl px-3 py-2.5 text-xs text-white outline-none focus:border-cyan"
+                className="w-full bg-surface-1 border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-cobalt-pro transition-colors"
               >
                 <option value="ALL">Todos los Clubes</option>
                 {uniqueClubs.map((club) => (
@@ -174,7 +175,7 @@ export const AthleteDirectory: React.FC<AthleteDirectoryProps> = ({
                 onClick={() => setCategoryFilter(cat)}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 interactive-tap ${
                   isSelected
-                    ? 'bg-cyan text-neon-canvas font-black shadow-glow-cyan'
+                    ? 'bg-cobalt-pro text-white font-bold shadow-glow-cobalt'
                     : 'bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] hover:text-white'
                 }`}
               >
@@ -187,34 +188,36 @@ export const AthleteDirectory: React.FC<AthleteDirectoryProps> = ({
 
       {/* Listado / Rejilla de Atletas */}
       {filteredAthletes.length === 0 ? (
-        <div className="p-12 rounded-3xl bg-neon-surface border border-white/5 text-center space-y-3">
-          <p className="text-sm font-semibold text-slate-400">
-            No se encontraron atletas con los criterios seleccionados.
-          </p>
-          <button
-            type="button"
-            onClick={() => {
-              setSearchQuery('');
-              setCategoryFilter('ALL');
-              setClubFilter('ALL');
-            }}
-            className="text-xs text-cyan font-bold hover:underline"
-          >
-            Limpiar filtros de búsqueda
-          </button>
-        </div>
+        <EmptyState
+          title="No se encontraron atletas"
+          description="No hay atletas que coincidan con los filtros de búsqueda aplicados."
+          icon={<Users className="w-8 h-8 text-cobalt-pro" />}
+          action={
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSearchQuery('');
+                setCategoryFilter('ALL');
+                setClubFilter('ALL');
+              }}
+            >
+              Limpiar filtros de búsqueda
+            </Button>
+          }
+        />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredAthletes.map((athlete) => (
             <div
               key={athlete.id}
               onClick={() => onSelectAthlete(athlete)}
-              className="group bg-neon-surface border border-white/10 rounded-3xl p-5 shadow-soft-elevation hover:border-cyan/40 transition-all cursor-pointer flex flex-col justify-between space-y-4 hover:shadow-glow-cyan/5"
+              className="group bg-surface-2 border border-white/[0.08] rounded-2xl p-5 shadow-elevation-1 hover:border-cobalt-pro/50 transition-all cursor-pointer flex flex-col justify-between space-y-4 hover:shadow-elevation-2"
             >
               <div className="space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
+                    <div className="w-14 h-14 rounded-2xl bg-surface-1 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
                       {athlete.photoDataUrl ? (
                         <img src={athlete.photoDataUrl} alt={athlete.name} className="w-full h-full object-cover" />
                       ) : (
@@ -223,7 +226,7 @@ export const AthleteDirectory: React.FC<AthleteDirectoryProps> = ({
                     </div>
 
                     <div>
-                      <h3 className="font-bold text-base text-white group-hover:text-cyan transition-colors tracking-tight">
+                      <h3 className="font-bold text-base text-white group-hover:text-cobalt-pro transition-colors tracking-tight">
                         {athlete.name}
                       </h3>
                       <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-0.5">
@@ -247,14 +250,18 @@ export const AthleteDirectory: React.FC<AthleteDirectoryProps> = ({
                   </button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 text-[11px] font-mono p-2.5 rounded-2xl bg-white/[0.02] border border-white/5">
+                <div className="grid grid-cols-2 gap-2 text-[11px] font-mono p-2.5 rounded-xl bg-surface-1 border border-white/[0.06]">
                   <div>
-                    <span className="text-slate-500 block text-[9px] uppercase">Categoría</span>
-                    <strong className="text-amber-300 font-bold">{athlete.category}</strong>
+                    <span className="text-slate-500 block text-[9px] uppercase tracking-wider">Categoría</span>
+                    <Badge variant="amber" size="xs" className="mt-0.5 font-bold">
+                      {athlete.category}
+                    </Badge>
                   </div>
                   <div>
-                    <span className="text-slate-500 block text-[9px] uppercase">Eficiencia</span>
-                    <strong className="text-slate-200">{athlete.eficiencia || 'BÁSICA'}</strong>
+                    <span className="text-slate-500 block text-[9px] uppercase tracking-wider">Eficiencia</span>
+                    <Badge variant="neutral" size="xs" className="mt-0.5 font-bold">
+                      {athlete.eficiencia || 'BÁSICA'}
+                    </Badge>
                   </div>
                 </div>
               </div>
@@ -263,21 +270,21 @@ export const AthleteDirectory: React.FC<AthleteDirectoryProps> = ({
               <div className="flex items-center justify-between pt-3 border-t border-white/5 text-xs">
                 <span className="text-slate-400 font-medium group-hover:text-white flex items-center gap-1 transition-colors">
                   Abrir expediente
-                  <ArrowRight className="w-3.5 h-3.5 text-cyan transition-transform group-hover:translate-x-1" />
+                  <ArrowRight className="w-3.5 h-3.5 text-cobalt-pro transition-transform group-hover:translate-x-1" />
                 </span>
 
-                <button
-                  type="button"
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={(e) => {
                     e.stopPropagation();
                     onCreateChoreography(athlete);
                   }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/30 text-[11px] font-bold transition-all interactive-tap"
+                  icon={<Compass className="w-3.5 h-3.5" />}
                   title="Crear coreografía directamente en la Pista 2D"
                 >
-                  <Compass className="w-3.5 h-3.5 stroke-[2]" />
-                  <span>Coreografía</span>
-                </button>
+                  Coreografía
+                </Button>
               </div>
             </div>
           ))}

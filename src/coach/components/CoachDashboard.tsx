@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useCoachStore } from '../store/useCoachStore';
 import { CoachAthlete } from '../types';
+import { Button } from '../../components/ui';
 
 interface CoachDashboardProps {
   onNavigateToAthletes: () => void;
@@ -75,7 +76,7 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({
   return (
     <div className="space-y-6 animate-fade-in text-white pb-12">
       {/* Saludo y acciones rápidas */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-6 rounded-3xl bg-gradient-to-r from-cyan/15 via-white/[0.02] to-transparent border border-cyan/20 shadow-soft-elevation">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-6 rounded-3xl bg-gradient-to-r from-cobalt-pro/15 via-white/[0.02] to-transparent border border-cobalt-pro/20 shadow-elevation-1 rounded-2xl">
         <div>
           <h2 className="text-xl font-black text-white tracking-tight">
             Bienvenido, {profile?.name || 'Entrenador/a'}
@@ -86,14 +87,14 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            type="button"
+          <Button
+            variant="cobalt"
+            size="sm"
             onClick={onRegisterAthlete}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-cyan text-neon-canvas font-black text-xs shadow-glow-cyan hover:bg-cyan/90 transition-all interactive-tap"
+            icon={<Plus className="w-4 h-4 stroke-[2.5]" />}
           >
-            <Plus className="w-4 h-4 stroke-[2.5]" />
-            <span>Nueva Atleta</span>
-          </button>
+            Nueva Atleta
+          </Button>
         </div>
       </div>
 
@@ -102,14 +103,14 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({
         {/* Atletas Registrados */}
         <div
           onClick={onNavigateToAthletes}
-          className="p-5 rounded-3xl bg-neon-surface border border-white/10 shadow-soft-elevation space-y-2 cursor-pointer hover:border-cyan/40 transition-all group"
+          className="p-5 rounded-2xl bg-surface-2 border border-white/[0.08] shadow-elevation-1 space-y-2 cursor-pointer hover:border-cobalt-pro/40 transition-all group"
         >
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[10px] font-black uppercase tracking-wider">Mis Atletas</span>
-            <Users className="w-4 h-4 text-cyan" />
+            <Users className="w-4 h-4 text-cobalt-pro" />
           </div>
           <div className="text-3xl font-black text-white font-mono">{athletes.length}</div>
-          <div className="text-[11px] text-slate-400 flex items-center justify-between group-hover:text-cyan transition-colors">
+          <div className="text-[11px] text-slate-400 flex items-center justify-between group-hover:text-cobalt-pro transition-colors">
             <span>Ver directorio completo</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </div>
@@ -118,11 +119,11 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({
         {/* Almacenamiento */}
         <div
           onClick={onNavigateToStorage}
-          className="p-5 rounded-3xl bg-neon-surface border border-white/10 shadow-soft-elevation space-y-2 cursor-pointer hover:border-mint/40 transition-all group"
+          className="p-5 rounded-2xl bg-surface-2 border border-white/[0.08] shadow-elevation-1 space-y-2 cursor-pointer hover:border-mint/40 transition-all group"
         >
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[10px] font-black uppercase tracking-wider">Almacenamiento</span>
-            <HardDrive className="w-4 h-4 text-mint" />
+            <HardDrive className="w-4 h-4 text-laser-mint" />
           </div>
           <div className="text-2xl font-black text-white font-mono">
             {formatSize(storageSummary?.totalStorageBytes || 0)}
@@ -136,7 +137,7 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({
         </div>
 
         {/* Estado Sincronización */}
-        <div className="p-5 rounded-3xl bg-neon-surface border border-white/10 shadow-soft-elevation space-y-2">
+        <div className="p-5 rounded-2xl bg-surface-2 border border-white/[0.08] shadow-elevation-1 space-y-2">
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[10px] font-black uppercase tracking-wider">Sincronización</span>
             <FolderSync className="w-4 h-4 text-amber-400" />
@@ -168,11 +169,11 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({
         {/* Último Backup */}
         <div
           onClick={onNavigateToBackup}
-          className="p-5 rounded-3xl bg-neon-surface border border-white/10 shadow-soft-elevation space-y-2 cursor-pointer hover:border-coral/40 transition-all group"
+          className="p-5 rounded-2xl bg-surface-2 border border-white/[0.08] shadow-elevation-1 space-y-2 cursor-pointer hover:border-coral/40 transition-all group"
         >
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[10px] font-black uppercase tracking-wider">Último Respaldo</span>
-            <Archive className="w-4 h-4 text-coral" />
+            <Archive className="w-4 h-4 text-coral-flame" />
           </div>
           <div className="text-xs font-bold text-white truncate">
             {formatTime(profile?.lastBackupDate)}
@@ -185,7 +186,7 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({
       </div>
 
       {/* Desglose por Categorías del Reglamento 2026 */}
-      <div className="p-6 rounded-3xl bg-neon-surface border border-white/10 shadow-soft-elevation space-y-4">
+      <div className="p-6 rounded-2xl bg-surface-2 border border-white/[0.08] shadow-elevation-1 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold text-white uppercase tracking-wider">
             Distribución por Categorías Oficiales 2026
@@ -197,7 +198,7 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({
           {Object.entries(categoryStats).map(([cat, count]) => (
             <div
               key={cat}
-              className="p-3.5 rounded-2xl bg-white/[0.02] border border-white/5 flex flex-col items-center text-center space-y-1"
+              className="p-3.5 rounded-xl bg-surface-1 border border-white/[0.06] flex flex-col items-center text-center space-y-1"
             >
               <span className="font-mono text-xs font-bold text-cyan">{cat}</span>
               <span className="text-2xl font-black text-white font-mono">{count}</span>
@@ -208,7 +209,7 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({
       </div>
 
       {/* Atletas Recientes */}
-      <div className="p-6 rounded-3xl bg-neon-surface border border-white/10 shadow-soft-elevation space-y-4">
+      <div className="p-6 rounded-2xl bg-surface-2 border border-white/[0.08] shadow-elevation-1 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold text-white uppercase tracking-wider">
             Atletas Recientes

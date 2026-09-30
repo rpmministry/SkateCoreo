@@ -27,6 +27,7 @@ import { EvaluationPdfService } from '../../services/evaluationPdfService';
 import { EvaluationComparisonModal } from './EvaluationComparisonModal';
 import { exportCoreoProject } from '../../../services/coreoPackage';
 import { coachDb } from '../../services/coachDb';
+import { Card } from '../../../components/ui';
 
 interface AthleteEvaluationsListProps {
   athlete: CoachAthlete;
@@ -230,22 +231,22 @@ export const AthleteEvaluationsList: React.FC<AthleteEvaluationsListProps> = ({
       {/* Tarjetas KPI de Desempeño */}
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
+          <Card surface={2} className="p-4 space-y-1">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Evaluaciones</span>
             <div className="text-2xl font-black text-white font-mono">{stats.total}</div>
-          </div>
-          <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
+          </Card>
+          <Card surface={2} className="p-4 space-y-1">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Última Puntuación</span>
-            <div className="text-2xl font-black text-cyan font-mono">{stats.latest}</div>
-          </div>
-          <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
+            <div className="text-2xl font-black text-cobalt-400 font-mono">{stats.latest}</div>
+          </Card>
+          <Card surface={2} className="p-4 space-y-1">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Puntuación Promedio</span>
             <div className="text-2xl font-black text-slate-200 font-mono">{stats.avg}</div>
-          </div>
-          <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
+          </Card>
+          <Card surface={2} className="p-4 space-y-1">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Mejor Registro (TSS)</span>
-            <div className="text-2xl font-black text-teal-400 font-mono">{stats.max}</div>
-          </div>
+            <div className="text-2xl font-black text-mint-400 font-mono">{stats.max}</div>
+          </Card>
         </div>
       )}
 

@@ -918,7 +918,7 @@ export function App() {
           La categoría del atleta NO se repite aquí: ya vive en «Reglamento 2026».
           ═══════════════════════════════════════════════ */}
       {activeView !== 'studio' && activeView !== 'coach' && (
-        <header className="relative z-30 shrink-0 glass-hud border-b border-white/10 pt-safe px-safe">
+        <header className="relative z-30 shrink-0 bg-surface-1/90 backdrop-blur-md border-b border-white/[0.08] pt-safe px-safe">
           <div className="fm-header-grid flex min-h-[54px] items-center justify-between gap-2 px-2 py-1 sm:px-3 lg:grid lg:min-h-[60px] lg:grid-cols-[minmax(0,auto)_minmax(0,1fr)_minmax(0,auto)] lg:items-center lg:px-4">
 
         {/* ── IZQUIERDA: Marca (navega a Inicio) + contexto del atleta ── */}
@@ -984,7 +984,7 @@ export function App() {
               type="button"
               onClick={requestClearRink}
               disabled={points.length === 0 && unplacedNodes.length === 0 && !hasPaperTraceOverlay}
-              className="press hidden min-h-touch min-w-touch items-center justify-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3 text-xs font-bold text-red-400 hover:bg-red-500/20 disabled:pointer-events-none disabled:opacity-30 lg:flex"
+              className="press hidden min-h-touch min-w-touch items-center justify-center gap-2 rounded-xl border border-danger/30 bg-danger/10 px-3 text-xs font-bold text-danger hover:bg-danger/20 disabled:pointer-events-none disabled:opacity-30 lg:flex transition-colors"
               title={
                 points.length === 0 && unplacedNodes.length === 0 && !hasPaperTraceOverlay
                   ? 'La pista ya está vacía'
@@ -1002,7 +1002,7 @@ export function App() {
           <button
             type="button"
             onClick={() => audioInputRef.current?.click()}
-            className="press hidden min-h-touch items-center justify-center gap-2 rounded-xl border border-cyan/30 bg-cyan/15 px-3 text-xs font-bold text-cyan shadow-soft-elevation hover:bg-cyan/25 lg:flex lg:px-3.5"
+            className="press hidden min-h-touch items-center justify-center gap-2 rounded-xl border border-cobalt-500/30 bg-cobalt-500/15 px-3 text-xs font-bold text-cobalt-300 shadow-soft-elevation hover:bg-cobalt-500/25 lg:flex lg:px-3.5 transition-colors"
             title="Subir una pista de audio directamente al visor de la Pista 2D"
             aria-label="Subir pista al visor"
           >
@@ -1015,7 +1015,7 @@ export function App() {
           <button
             type="button"
                   onClick={() => { void handleLogout(); }}
-            className="press hidden h-12 w-12 min-h-touch min-w-touch items-center justify-center rounded-xl border border-coral/20 bg-coral/[0.06] text-slate-300 hover:bg-coral/15 hover:text-coral sm:flex"
+            className="press hidden h-10 w-10 min-h-touch min-w-touch items-center justify-center rounded-xl border border-white/10 bg-surface-2 text-slate-300 hover:border-danger/30 hover:bg-danger/10 hover:text-danger sm:flex transition-colors"
             title="Cerrar sesión y salir de la aplicación"
             aria-label="Cerrar sesión"
           >
@@ -1027,7 +1027,7 @@ export function App() {
             <button
               type="button"
               onClick={() => setShowExportMenu((v) => !v)}
-              className="press flex h-12 w-12 min-h-touch min-w-touch items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] hover:text-white"
+              className="press flex h-10 w-10 min-h-touch min-w-touch items-center justify-center rounded-xl border border-white/10 bg-surface-2 text-slate-300 hover:bg-surface-3 hover:text-white transition-colors"
               title="Más opciones del proyecto"
               aria-label="Más opciones del proyecto"
             >
@@ -1041,7 +1041,7 @@ export function App() {
                   onClick={() => setShowExportMenu(false)}
                   aria-hidden="true"
                 />
-                <div className="glass-panel absolute right-0 mt-2 flex w-[min(19rem,calc(100vw-1.5rem))] flex-col gap-1 overflow-hidden rounded-2xl p-2 shadow-2xl animate-scale-in">
+                <div className="absolute right-0 mt-2 flex w-[min(19rem,calc(100vw-1.5rem))] flex-col gap-1 overflow-hidden rounded-2xl p-2 bg-surface-2/95 border border-white/[0.12] backdrop-blur-xl shadow-elevation-3 animate-scale-in z-50">
                   <p className="px-2 pb-1 pt-0.5 text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">
                     Proyecto
                   </p>
@@ -1144,7 +1144,7 @@ export function App() {
               <button
                 type="button"
                 onClick={() => audioInputRef.current?.click()}
-                className="press flex min-h-touch min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-cyan/30 bg-cyan/15 px-2.5 text-[11px] font-bold text-cyan hover:bg-cyan/25"
+                className="press flex min-h-touch min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-cobalt-500/30 bg-cobalt-500/15 px-2.5 text-[11px] font-bold text-cobalt-300 hover:bg-cobalt-500/25 transition-colors"
                 title="Subir una pista de audio directamente al visor de la Pista 2D"
                 aria-label="Subir pista al visor"
               >

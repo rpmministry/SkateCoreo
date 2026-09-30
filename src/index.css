@@ -9,12 +9,22 @@
 
   :root {
     /* ── Colors: Canvas depth (darkest → elevated) ── */
-    --color-canvas: #0B0F19;
-    --color-surface: #121826;
-    --color-card: #192234;
-    --color-hover: #222E46;
-    --color-active: #2B3B59;
-    --color-glass: rgba(18, 24, 38, 0.85);
+    --color-canvas: #070A10;
+    --color-surface: #0D131F;
+    --color-card: #131B2B;
+    --color-raised: #1A2438;
+    --color-hover: #22304A;
+    --color-active: #2A3C5C;
+    --color-glass: rgba(13, 19, 31, 0.88);
+
+    /* ── Obsidian Layered System ── */
+    --bg-canvas: #070A10;
+    --bg-surface-1: #0D131F;
+    --bg-surface-2: #131B2B;
+    --bg-surface-3: #1A2438;
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --border-medium: rgba(255, 255, 255, 0.14);
+    --border-strong: rgba(255, 255, 255, 0.22);
 
     /* ── Colors: Text (WCAG AA/AAA on --color-canvas) ── */
     --color-text-primary: #FFFFFF;
@@ -23,12 +33,12 @@
     --color-text-disabled: #475569;
 
     /* ── Colors: Interactive accent triad ── */
-    --color-accent-coral: #FF4C79;
-    --color-accent-coral-hover: #FF3366;
-    --color-accent-cyan: #00D2FF;
-    --color-accent-cyan-hover: #00B8E6;
-    --color-accent-mint: #10F49C;
-    --color-accent-mint-hover: #0DE08E;
+    --color-accent-coral: #FF3366;
+    --color-accent-coral-hover: #E61E52;
+    --color-accent-cyan: #0072FF;
+    --color-accent-cyan-hover: #005ECC;
+    --color-accent-mint: #00E599;
+    --color-accent-mint-hover: #00C782;
     --color-accent-amber: #F59E0B;
 
     /* ── Colors: Semantic ── */
@@ -220,10 +230,24 @@ body {
 
 /* ── Glass morphism surfaces ── */
 .glass-panel {
-  background: linear-gradient(180deg, rgba(25, 34, 52, 0.82) 0%, rgba(18, 24, 38, 0.88) 100%);
-  backdrop-filter: blur(18px) saturate(140%);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  background: linear-gradient(180deg, rgba(13, 19, 31, 0.88) 0%, rgba(7, 10, 16, 0.94) 100%);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
   border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.75);
+}
+
+.glass-card {
+  background: rgba(19, 27, 43, 0.65);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-lg);
+  transition: all 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.glass-card:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(26, 36, 56, 0.8);
 }
 
 .glass-hud {

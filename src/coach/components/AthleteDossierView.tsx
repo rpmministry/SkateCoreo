@@ -34,6 +34,7 @@ import { ShareCoreoModal } from './ShareCoreoModal';
 import { AthleteEditModal } from './AthleteEditModal';
 import { AthleteEvaluationsList } from './technical/AthleteEvaluationsList';
 import { coachDb } from '../services/coachDb';
+import { Badge, Tabs } from '../../components/ui';
 
 interface AthleteDossierViewProps {
   athlete: CoachAthlete;
@@ -174,9 +175,9 @@ export const AthleteDossierView: React.FC<AthleteDossierViewProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-xl font-black text-white">{athlete.name}</h2>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                <Badge variant="amber" size="sm">
                   {athlete.category}
-                </span>
+                </Badge>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
                 {athlete.club || 'Sin Club asignado'} {athlete.trainerName && `• Entrenador: ${athlete.trainerName}`}
@@ -294,32 +295,25 @@ export const AthleteDossierView: React.FC<AthleteDossierViewProps> = ({
       </div>
 
       {/* Selector de Pestañas del Expediente: Evaluaciones vs Coreografías */}
-      <div className="flex items-center gap-2 border-b border-white/10 pb-3">
-        <button
-          type="button"
-          onClick={() => setActiveSubTab('evaluations')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-black transition-all interactive-tap ${
-            activeSubTab === 'evaluations'
-              ? 'bg-cyan text-neon-canvas shadow-glow-cyan'
-              : 'bg-white/5 text-slate-300 hover:text-white'
-          }`}
-        >
-          <Award className="w-4 h-4" />
-          <span>Puntajes y Evaluaciones ({athleteEvaluations.length})</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveSubTab('choreographies')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-black transition-all interactive-tap ${
-            activeSubTab === 'choreographies'
-              ? 'bg-cyan text-neon-canvas shadow-glow-cyan'
-              : 'bg-white/5 text-slate-300 hover:text-white'
-          }`}
-        >
-          <Compass className="w-4 h-4" />
-          <span>Coreografías y Archivos .coreo ({athleteChoreographies.length})</span>
-        </button>
+      <div className="pb-3 border-b border-white/[0.08]">
+        <Tabs
+          tabs={[
+            {
+              id: 'evaluations',
+              label: 'Puntajes y Evaluaciones',
+              icon: <Award className="w-4 h-4" />,
+              badge: athleteEvaluations.length,
+            },
+            {
+              id: 'choreographies',
+              label: 'Coreografías y Archivos .coreo',
+              icon: <Compass className="w-4 h-4" />,
+              badge: athleteChoreographies.length,
+            },
+          ]}
+          activeTab={activeSubTab}
+          onChange={(id) => setActiveSubTab(id as 'choreographies' | 'evaluations')}
+        />
       </div>
 
       {activeSubTab === 'evaluations' ? (

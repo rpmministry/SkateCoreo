@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { 
   MapPin, 
   Trash2, 
-  Sparkles,
-  Clock,
-  ChevronDown,
-  ChevronUp
+  Sparkles, 
+  Clock, 
+  ChevronDown, 
+  ChevronUp 
 } from 'lucide-react';
 import { useChoreographyStore } from '../store/useChoreographyStore';
 
@@ -20,10 +20,8 @@ const fmtTimeWithMs = (sec: number): string => {
  * NodePlacementTray — Bandeja contextual para colocar por orden estricto los
  * nodos generados desde el audio.
  *
- * Portrait-first: en móvil/tablet flota SOBRE la Pista 2D (no le roba espacio
- * permanente) y puede minimizarse a una barra compacta para liberar el lienzo.
- * Solo aparece cuando hay nodos pendientes (`unplacedNodes`), y desaparece al
- * vaciarlos. En escritorio (lg+) se ancla arriba a la derecha como panel.
+ * Obsidian Precision Tech: superficie layered titanium, acento Cobalt Pro,
+ * y visualización clara del orden secuencial.
  */
 export const NodePlacementTray: React.FC = () => {
   const unplacedNodes = useChoreographyStore((s) => s.unplacedNodes);
@@ -31,8 +29,7 @@ export const NodePlacementTray: React.FC = () => {
   const clearUnplacedNodes = useChoreographyStore((s) => s.clearUnplacedNodes);
   const placeTrayNode = useChoreographyStore((s) => s.placeTrayNode);
 
-  // Minimización local: al colapsar deja solo la cabecera + acción rápida para
-  // que la pista recupere espacio sin perder la bandeja.
+  // Minimización local: al colapsar deja solo la cabecera + acción rápida
   const [collapsed, setCollapsed] = useState(false);
 
   if (unplacedNodes.length === 0) return null;
@@ -50,29 +47,18 @@ export const NodePlacementTray: React.FC = () => {
   };
 
   return (
-    // PANEL RESERVADO (no overlay): ocupa espacio real en el layout, así nunca
-    // tapa la Pista 2D. En escritorio y en TABLET HORIZONTAL es una
-    // COLUMNA LATERAL (izquierda del canvas, 240–256px, `.fm-tablet-tray`); en
-    // teléfono y tablet vertical es una franja superior compacta con scroll
-    // interno. Sin `z-index` propio: la barra superior global (z-30) siempre
-    // queda por encima. `min-h-0` permite encogerse y `overflow` interno evita
-    // que empuje el layout. `.node-tray` es contenedor de consulta: su rejilla
-    // interna se adapta a su PROPIO ancho (no al viewport).
-    <div className="node-tray fm-tablet-tray flex min-h-0 max-h-[42%] shrink-0 flex-col overflow-hidden border-b border-cyan/40 bg-[#0C1220] lg:max-h-none lg:h-full lg:w-60 lg:border-b-0 lg:border-r xl:w-64">
-      {/* ── Cabecera de la Bandeja ──
-          `flex-wrap` + `min-h` automático: si la columna es estrecha, los botones
-          bajan a una segunda línea y el TÍTULO NUNCA se recorta. */}
-      <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-white/10 bg-gradient-to-r from-cyan/20 to-transparent px-3 py-2">
+    <div className="node-tray fm-tablet-tray flex min-h-0 max-h-[42%] shrink-0 flex-col overflow-hidden border-b border-cobalt-500/30 bg-surface-1 shadow-elevation-1 lg:max-h-none lg:h-full lg:w-60 lg:border-b-0 lg:border-r lg:border-white/[0.08] xl:w-64">
+      {/* ── Cabecera de la Bandeja ── */}
+      <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-white/[0.08] bg-surface-2/80 px-3 py-2.5">
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-cyan shadow-glow-cyan animate-pulse" />
-          {/* Título SIEMPRE completo (puede envolver entre palabras, nunca se trunca). */}
-          <span className="min-w-0 text-[13px] font-black uppercase leading-tight tracking-wide text-white">
+          <span className="h-2 w-2 shrink-0 rounded-full bg-cobalt-400 shadow-glow-cobalt animate-pulse" />
+          <span className="min-w-0 text-xs font-bold uppercase tracking-wider text-white">
             Nodos por colocar
           </span>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <span
-            className="rounded-full border border-cyan/30 bg-cyan/15 px-2 py-0.5 font-mono text-[10px] font-bold text-cyan"
+            className="rounded-full border border-cobalt-400/30 bg-cobalt-500/15 px-2 py-0.5 font-mono text-[10px] font-bold text-cobalt-300"
             title={`${currentStep} de ${totalCount} pendientes`}
           >
             {totalCount}
@@ -81,7 +67,7 @@ export const NodePlacementTray: React.FC = () => {
             type="button"
             onClick={() => setCollapsed((v) => !v)}
             aria-expanded={!collapsed}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-300 hover:bg-white/10 hover:text-white"
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-300 hover:bg-white/10 hover:text-white transition-colors"
             title={collapsed ? 'Expandir bandeja de nodos' : 'Minimizar bandeja de nodos'}
             aria-label={collapsed ? 'Expandir bandeja de nodos' : 'Minimizar bandeja de nodos'}
           >
@@ -90,7 +76,7 @@ export const NodePlacementTray: React.FC = () => {
           <button
             type="button"
             onClick={clearUnplacedNodes}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-500/10 hover:text-red-400"
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-danger/10 hover:text-danger"
             title="Descartar bandeja de nodos"
             aria-label="Descartar bandeja de nodos"
           >
@@ -102,17 +88,17 @@ export const NodePlacementTray: React.FC = () => {
       {!collapsed && (
         <>
           {/* ── Banner de Instrucción: Bloqueo Secuencial Estricto ── */}
-          <div className="shrink-0 border-b border-cyan/20 bg-cyan/5 p-3">
+          <div className="shrink-0 border-b border-cobalt-500/20 bg-cobalt-500/[0.05] p-3">
             <div className="flex items-start gap-2">
-              <MapPin className="mt-0.5 h-4 w-4 shrink-0 animate-bounce text-cyan" />
+              <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-cobalt-400 animate-bounce" />
               <div className="text-xs">
-                <p className="font-bold leading-tight text-slate-200">
+                <p className="font-semibold leading-tight text-slate-200">
                   Toca la pista para ubicar el{' '}
-                  <span className="font-black text-cyan underline underline-offset-2">
+                  <span className="font-bold text-cobalt-300 underline underline-offset-2">
                     Nodo {currentNode ? currentNode.numeroSecuencial : currentStep}
                   </span>
                 </p>
-                <p className="mt-0.5 text-[11px] text-slate-400">
+                <p className="mt-0.5 text-[11px] text-slate-400 leading-relaxed">
                   Orden estricto: cada nodo se desbloquea tras posicionar el anterior.
                 </p>
               </div>
@@ -123,19 +109,16 @@ export const NodePlacementTray: React.FC = () => {
               <button
                 type="button"
                 onClick={handlePlaceAtCenter}
-                className="flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-cyan/30 bg-cyan/15 px-2 py-1.5 text-xs font-bold text-cyan transition-all interactive-tap hover:bg-cyan/25"
+                className="flex min-h-[38px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-cobalt-500/30 bg-cobalt-500/15 px-3 py-1.5 text-xs font-semibold text-cobalt-300 transition-all hover:bg-cobalt-500/25 active:scale-[0.98]"
                 title="Ubicar automáticamente en el centro de la pista"
               >
-                <Sparkles className="h-3.5 w-3.5" />
+                <Sparkles className="h-3.5 w-3.5 text-cobalt-300" />
                 <span>Colocar en Centro</span>
               </button>
             </div>
           </div>
 
-          {/* ── Rejilla de Nodos (FILAS/COLUMNAS, número muy visible) ──
-              No es una línea horizontal infinita: envuelve automáticamente.
-              El nodo activo (orden estricto) se resalta; los ya colocados muestran ✓;
-              los bloqueados quedan atenuados. Fichas de 44px (área táctil mínima). */}
+          {/* ── Rejilla de Nodos ── */}
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2">
             <div className="node-tray-grid grid grid-cols-6 gap-1.5 sm:grid-cols-8 lg:grid-cols-6">
               {unplacedNodes.map((node, index) => {
@@ -146,8 +129,6 @@ export const NodePlacementTray: React.FC = () => {
                     key={node.id}
                     type="button"
                     onClick={() => {
-                      // Solo el nodo activo es colocable (orden estricto). El resto
-                      // son indicadores de estado.
                       if (isCurrent) handlePlaceAtCenter();
                     }}
                     disabled={!isCurrent}
@@ -156,12 +137,12 @@ export const NodePlacementTray: React.FC = () => {
                     }`}
                     aria-label={`Nodo ${node.numeroSecuencial}${isPlaced ? ' (colocado)' : isCurrent ? ' (siguiente)' : ''}`}
                     className={[
-                      'flex h-11 min-h-[44px] items-center justify-center rounded-xl text-sm font-black transition-all',
+                      'flex h-10 min-h-[40px] items-center justify-center rounded-xl text-xs font-bold transition-all',
                       isCurrent
-                        ? 'bg-cyan text-slate-950 ring-2 ring-cyan-300 shadow-glow-cyan interactive-tap'
+                        ? 'bg-cobalt-500 text-white ring-2 ring-cobalt-300/80 shadow-glow-cobalt active:scale-[0.96]'
                         : isPlaced
-                        ? 'bg-mint/20 text-mint'
-                        : 'bg-white/5 text-slate-500 enabled:hover:bg-white/10',
+                        ? 'bg-mint-500/15 text-mint-300 border border-mint-500/30'
+                        : 'bg-surface-2 text-slate-500 border border-white/[0.04]',
                     ].join(' ')}
                   >
                     {isPlaced ? '✓' : node.numeroSecuencial}
@@ -170,11 +151,11 @@ export const NodePlacementTray: React.FC = () => {
               })}
             </div>
 
-            {/* Guía del paso actual (una sola línea: no ocupa espacio de más) */}
+            {/* Guía del paso actual */}
             {currentNode && (
-              <p className="mt-2 flex items-center gap-1.5 font-mono text-[11px] text-slate-300">
-                <Clock className="h-3 w-3 shrink-0 text-cyan" />
-                Nodo {currentNode.numeroSecuencial} · {fmtTimeWithMs(currentNode.timestampSec)}s
+              <p className="mt-2.5 flex items-center gap-1.5 font-mono text-[11px] text-slate-400">
+                <Clock className="h-3 w-3 shrink-0 text-cobalt-400" />
+                <span>Nodo {currentNode.numeroSecuencial} · {fmtTimeWithMs(currentNode.timestampSec)}s</span>
               </p>
             )}
           </div>
@@ -183,3 +164,4 @@ export const NodePlacementTray: React.FC = () => {
     </div>
   );
 };
+

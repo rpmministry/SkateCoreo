@@ -1,14 +1,18 @@
 import React from 'react';
-import { Compass, AudioLines, FolderOpen, ScanLine, ArrowRight, Users, Lock, Sparkles } from 'lucide-react';
+import {
+  Compass,
+  AudioLines,
+  FolderOpen,
+  ScanLine,
+  ArrowRight,
+  Users,
+  Lock,
+  Sparkles,
+} from 'lucide-react';
 import { SkateCoreoBrand } from './brand/SkateCoreoBrand';
 import { Button } from './ui/Button';
+import { Badge } from './ui/Badge';
 
-/**
- * HomeViewProps — se mantiene la interfaz completa (App sigue pasando los
- * mismos callbacks/datos). El Home presenta los tres accesos principales:
- * Pista 2D, Audio Studio y Panel de Entrenador (activo para entrenadores,
- * promocional/bloqueado para patinadores).
- */
 export interface HomeViewProps {
   skaterName?: string | null;
   skaterCategory?: string | null;
@@ -38,73 +42,100 @@ export interface HomeViewProps {
   onUpgradeToCoach?: () => void;
 }
 
-/* ── Glifos abstractos (decorativos, minimalistas) ──────────────── */
+/* ── Glifos vectoriales de precisión arquitectónica ──────────────── */
 
 const RinkGlyph: React.FC = () => (
-  <svg viewBox="0 0 220 78" className="h-full w-full" fill="none" aria-hidden="true">
+  <svg viewBox="0 0 240 86" className="h-full w-full" fill="none" aria-hidden="true">
+    <defs>
+      <linearGradient id="rinkStroke" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#0072FF" stopOpacity="0.8" />
+        <stop offset="100%" stopColor="#00E599" stopOpacity="0.9" />
+      </linearGradient>
+      <radialGradient id="rinkGlow" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stopColor="#0072FF" stopOpacity="0.15" />
+        <stop offset="100%" stopColor="#0072FF" stopOpacity="0" />
+      </radialGradient>
+    </defs>
+    <rect x="6" y="8" width="228" height="70" rx="20" fill="url(#rinkGlow)" />
     <rect
-      x="5"
-      y="12"
-      width="210"
-      height="54"
-      rx="18"
-      stroke="rgba(0,210,255,0.30)"
+      x="6"
+      y="8"
+      width="228"
+      height="70"
+      rx="20"
+      stroke="rgba(0,114,255,0.25)"
       strokeWidth="1.5"
+      strokeDasharray="4 4"
     />
+    <line x1="120" y1="8" x2="120" y2="78" stroke="rgba(255,255,255,0.12)" strokeWidth="1" strokeDasharray="3 3" />
+    <circle cx="120" cy="43" r="16" stroke="rgba(0,114,255,0.2)" strokeWidth="1" />
     <path
-      d="M24 54 C 62 18, 96 66, 134 28 S 186 50, 196 24"
-      stroke="#00D2FF"
-      strokeWidth="2"
+      d="M26 62 C 65 16, 95 68, 138 28 S 192 56, 214 26"
+      stroke="url(#rinkStroke)"
+      strokeWidth="2.5"
       strokeLinecap="round"
-      opacity="0.9"
     />
-    <circle cx="24" cy="54" r="4" fill="#10F49C" />
-    <circle cx="134" cy="28" r="4" fill="#FFFFFF" />
-    <circle cx="196" cy="24" r="4" fill="#FF4C79" />
+    <circle cx="26" cy="62" r="4.5" fill="#00E599" className="shadow-glow-mint" />
+    <circle cx="138" cy="28" r="4.5" fill="#FFFFFF" />
+    <circle cx="214" cy="26" r="4.5" fill="#FF3366" className="shadow-glow-coral" />
   </svg>
 );
 
-const WAVE_BARS = [14, 30, 46, 22, 58, 34, 66, 40, 52, 26, 60, 38, 48, 20, 44, 30, 56, 24, 36, 18];
+const WAVE_BARS = [16, 32, 48, 24, 62, 38, 70, 42, 54, 28, 64, 40, 50, 22, 46, 32, 58, 26, 38, 20];
 
 const WaveGlyph: React.FC = () => (
-  <svg viewBox="0 0 220 78" className="h-full w-full" fill="none" aria-hidden="true">
+  <svg viewBox="0 0 240 86" className="h-full w-full" fill="none" aria-hidden="true">
+    <defs>
+      <linearGradient id="waveGlow" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stopColor="#00E599" stopOpacity="0.12" />
+        <stop offset="100%" stopColor="#00E599" stopOpacity="0" />
+      </linearGradient>
+    </defs>
+    <rect x="6" y="8" width="228" height="70" rx="16" fill="url(#waveGlow)" />
     {WAVE_BARS.map((h, i) => (
       <rect
         key={i}
-        x={10 + i * 10.2}
-        y={39 - h / 2}
+        x={14 + i * 11}
+        y={43 - h / 2}
         width="4"
         height={h}
         rx="2"
-        fill="#10F49C"
-        opacity={0.35 + (i % 4) * 0.16}
+        fill="#00E599"
+        opacity={0.35 + (i % 4) * 0.18}
       />
     ))}
-    <line x1="6" y1="39" x2="214" y2="39" stroke="rgba(16,244,156,0.35)" strokeWidth="1" />
+    <line x1="10" y1="43" x2="230" y2="43" stroke="rgba(0,229,153,0.3)" strokeWidth="1" />
   </svg>
 );
 
 const CoachGlyph: React.FC = () => (
-  <svg viewBox="0 0 220 78" className="h-full w-full" fill="none" aria-hidden="true">
-    <circle cx="110" cy="28" r="14" stroke="#FF4C79" strokeWidth="2" opacity="0.85" />
+  <svg viewBox="0 0 240 86" className="h-full w-full" fill="none" aria-hidden="true">
+    <defs>
+      <radialGradient id="coachGlow" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stopColor="#FF3366" stopOpacity="0.12" />
+        <stop offset="100%" stopColor="#FF3366" stopOpacity="0" />
+      </radialGradient>
+    </defs>
+    <rect x="6" y="8" width="228" height="70" rx="16" fill="url(#coachGlow)" />
+    <circle cx="120" cy="30" r="14" stroke="#FF3366" strokeWidth="2" opacity="0.9" />
     <path
-      d="M78 62 C78 48, 92 44, 110 44 C128 44, 142 48, 142 62"
-      stroke="#FF4C79"
+      d="M86 66 C86 50, 100 46, 120 46 C140 46, 154 50, 154 66"
+      stroke="#FF3366"
       strokeWidth="2"
       strokeLinecap="round"
-      opacity="0.85"
+      opacity="0.9"
     />
-    <circle cx="58" cy="34" r="10" stroke="rgba(255,76,121,0.5)" strokeWidth="1.5" />
+    <circle cx="62" cy="36" r="10" stroke="rgba(255,51,102,0.5)" strokeWidth="1.5" />
     <path
-      d="M38 62 C38 52, 47 48, 58 48 C69 48, 78 52, 78 62"
-      stroke="rgba(255,76,121,0.5)"
+      d="M40 66 C40 55, 49 51, 62 51 C75 51, 84 55, 84 66"
+      stroke="rgba(255,51,102,0.5)"
       strokeWidth="1.5"
       strokeLinecap="round"
     />
-    <circle cx="162" cy="34" r="10" stroke="rgba(255,76,121,0.5)" strokeWidth="1.5" />
+    <circle cx="178" cy="36" r="10" stroke="rgba(255,51,102,0.5)" strokeWidth="1.5" />
     <path
-      d="M142 62 C142 52, 151 48, 162 48 C173 48, 182 52, 182 62"
-      stroke="rgba(255,76,121,0.5)"
+      d="M156 66 C156 55, 165 51, 178 51 C191 51, 200 55, 200 66"
+      stroke="rgba(255,51,102,0.5)"
       strokeWidth="1.5"
       strokeLinecap="round"
     />
@@ -114,7 +145,7 @@ const CoachGlyph: React.FC = () => (
 /* ── Módulo de acceso principal ─────────────────────────────────── */
 
 interface AccessModuleProps {
-  tone: 'cyan' | 'mint' | 'coral';
+  tone: 'cobalt' | 'mint' | 'coral';
   icon: React.ReactNode;
   tag?: string;
   eyebrow: string;
@@ -138,111 +169,130 @@ const AccessModule: React.FC<AccessModuleProps> = ({
   onClick,
   locked,
 }) => {
-  const isCyan = tone === 'cyan';
+  const isCobalt = tone === 'cobalt';
   const isMint = tone === 'mint';
 
-  const ring = isCyan
-    ? 'bg-cyan/12 text-cyan ring-cyan/25'
+  const toneConfig = isCobalt
+    ? {
+        border: 'border-white/[0.08] hover:border-cobalt-500/50',
+        glow: 'from-cobalt-600/[0.12] via-transparent to-transparent',
+        radial: 'bg-cobalt-500/10',
+        iconBg: 'bg-cobalt-500/15 text-cobalt-400 ring-1 ring-cobalt-400/30',
+        eyebrow: 'text-cobalt-400',
+        dot: 'bg-cobalt-400',
+        buttonVariant: 'cobalt' as const,
+        badgeVariant: 'cobalt' as const,
+      }
     : isMint
-    ? 'bg-mint/12 text-mint ring-mint/25'
-    : 'bg-[#FF4C79]/12 text-[#FF4C79] ring-[#FF4C79]/25';
-
-  const cardBorder = isCyan
-    ? 'border-cyan/25 hover:border-cyan/50'
-    : isMint
-    ? 'border-mint/25 hover:border-mint/50'
-    : 'border-[#FF4C79]/25 hover:border-[#FF4C79]/50';
-
-  const cardWash = isCyan
-    ? 'from-cyan/[0.13]'
-    : isMint
-    ? 'from-mint/[0.13]'
-    : 'from-[#FF4C79]/[0.13]';
-
-  const glow = isCyan
-    ? 'bg-cyan/15'
-    : isMint
-    ? 'bg-mint/15'
-    : 'bg-[#FF4C79]/15';
-
-  const accentText = isCyan
-    ? 'text-cyan'
-    : isMint
-    ? 'text-mint'
-    : 'text-[#FF4C79]';
-
-  const dot = isCyan
-    ? 'bg-cyan'
-    : isMint
-    ? 'bg-mint'
-    : 'bg-[#FF4C79]';
-
-  const ctaClass = isCyan
-    ? 'bg-cyan text-neon-canvas shadow-glow-cyan'
-    : isMint
-    ? 'bg-mint text-neon-canvas shadow-glow-mint'
-    : locked
-    ? 'bg-[#FF4C79]/20 text-[#FF4C79] border border-[#FF4C79]/40 hover:bg-[#FF4C79]/30'
-    : 'bg-[#FF4C79] text-white shadow-[0_0_20px_rgba(255,76,121,0.4)]';
+    ? {
+        border: 'border-white/[0.08] hover:border-mint-500/50',
+        glow: 'from-mint-600/[0.12] via-transparent to-transparent',
+        radial: 'bg-mint-500/10',
+        iconBg: 'bg-mint-500/15 text-mint-400 ring-1 ring-mint-400/30',
+        eyebrow: 'text-mint-400',
+        dot: 'bg-mint-400',
+        buttonVariant: 'mint' as const,
+        badgeVariant: 'mint' as const,
+      }
+    : {
+        border: locked
+          ? 'border-white/[0.08] hover:border-coral-500/40'
+          : 'border-white/[0.08] hover:border-coral-500/50',
+        glow: 'from-coral-600/[0.12] via-transparent to-transparent',
+        radial: 'bg-coral-500/10',
+        iconBg: 'bg-coral-500/15 text-coral-400 ring-1 ring-coral-400/30',
+        eyebrow: 'text-coral-400',
+        dot: 'bg-coral-400',
+        buttonVariant: 'coach' as const,
+        badgeVariant: 'coral' as const,
+      };
 
   return (
-    <button
-      type="button"
+    <div
       onClick={onClick}
-      title={title}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
       aria-label={cta}
-      className={`home-module press group relative flex flex-col justify-between overflow-hidden rounded-[28px] border bg-gradient-to-br ${cardWash} via-white/[0.02] to-transparent text-left shadow-soft-elevation transition-colors ${cardBorder}`}
+      className={`group relative flex flex-col justify-between overflow-hidden rounded-2xl bg-surface-1/90 backdrop-blur-md p-6 border transition-all duration-200 cursor-pointer hover:-translate-y-1 hover:shadow-elevation-2 active:scale-[0.99] select-none ${toneConfig.border}`}
     >
-      <span aria-hidden="true" className="pointer-events-none absolute inset-0 grid-veil opacity-30" />
-      <span
+      {/* Resplandor angular superior */}
+      <div
         aria-hidden="true"
-        className={`pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full blur-3xl ${glow}`}
+        className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${toneConfig.glow}`}
+      />
+      <div
+        aria-hidden="true"
+        className={`pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full blur-3xl ${toneConfig.radial}`}
       />
 
-      <span className="relative flex items-start justify-between gap-3">
-        <span className={`home-module-icon flex shrink-0 items-center justify-center rounded-2xl ring-1 ${ring}`}>
+      {/* Cabecera del módulo con icono y etiqueta */}
+      <div className="relative flex items-start justify-between gap-3 mb-5">
+        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl shadow-inner ${toneConfig.iconBg}`}>
           {icon}
-        </span>
+        </div>
         {tag && (
-          <span className="rounded-full border border-white/10 bg-black/30 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.2em] text-slate-300">
+          <Badge variant={toneConfig.badgeVariant} size="sm">
             {tag}
-          </span>
+          </Badge>
         )}
-      </span>
+      </div>
 
-      <span className="home-module-block relative flex flex-col gap-1.5">
-        <span className={`text-[10px] font-black uppercase tracking-[0.24em] ${accentText}`}>
+      {/* Cuerpo principal con títulos y lista */}
+      <div className="relative flex flex-col gap-1.5 mb-4">
+        <span className={`text-[10px] font-bold uppercase tracking-[0.2em] ${toneConfig.eyebrow}`}>
           {eyebrow}
         </span>
-        <span className="home-module-title font-display font-black tracking-tight text-white flex items-center justify-between gap-2">
+        <div className="font-display font-bold text-xl text-white tracking-tight flex items-center justify-between gap-2">
           <span>{title}</span>
-          {locked && <Lock className="h-4 w-4 text-slate-400 shrink-0" />}
-        </span>
-        <span className="mt-1 flex flex-col gap-0.5">
-          {lines.map((line) => (
-            <span key={line} className="flex items-center gap-2 text-[11px] text-slate-400 sm:text-xs">
-              <span aria-hidden="true" className={`h-1 w-1 shrink-0 rounded-full ${dot}`} />
-              {line}
+          {locked && (
+            <span className="flex items-center gap-1 text-[11px] font-medium text-slate-400 bg-surface-2 px-2 py-0.5 rounded-md border border-white/10">
+              <Lock className="h-3 w-3 text-slate-400 shrink-0" />
+              <span>Bloqueado</span>
             </span>
+          )}
+        </div>
+
+        <div className="mt-2 flex flex-col gap-1.5">
+          {lines.map((line) => (
+            <div key={line} className="flex items-center gap-2 text-xs text-slate-400">
+              <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${toneConfig.dot}`} />
+              <span>{line}</span>
+            </div>
           ))}
-        </span>
-      </span>
+        </div>
+      </div>
 
-      <span className="home-module-block relative block">
-        <span className="home-module-glyph block">{glyph}</span>
-      </span>
+      {/* Glifo técnico */}
+      <div className="relative my-3 rounded-xl border border-white/[0.05] bg-surface-2/60 p-2 overflow-hidden shadow-inner">
+        {glyph}
+      </div>
 
-      <span
-        className={`home-module-block relative inline-flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-black ${ctaClass}`}
-      >
-        <span>{cta}</span>
-        {locked ? (
-          <Sparkles className="h-4 w-4 text-[#FF4C79] shrink-0" />
-        ) : (
-          <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 shrink-0" />
-        )}
-      </span>
-    </button>
+      {/* Botón de acción */}
+      <div className="relative mt-2">
+        <Button
+          variant={locked ? 'outline' : toneConfig.buttonVariant}
+          size="md"
+          className="w-full justify-between"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClick();
+          }}
+        >
+          <span>{cta}</span>
+          {locked ? (
+            <Sparkles className="h-4 w-4 text-coral-400 shrink-0" />
+          ) : (
+            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1 shrink-0" />
+          )}
+        </Button>
+      </div>
+    </div>
   );
 };
 
@@ -260,43 +310,47 @@ export const HomeView: React.FC<HomeViewProps> = ({
   return (
     <section
       aria-label="Inicio"
-      className="relative flex-1 min-h-0 overflow-y-auto scroll-touch bg-neon-canvas"
+      className="relative flex-1 min-h-0 overflow-y-auto scroll-touch bg-canvas"
     >
-      <div className="home-shell relative mx-auto min-h-full w-full max-w-5xl px-4 animate-fade-in sm:px-6 lg:px-8">
-        {/* Ambiente sutil (estático, sin consumo de GPU en bucle) */}
+      <div className="relative mx-auto min-h-full w-full max-w-6xl px-4 py-8 animate-fade-in sm:px-6 lg:px-8">
+        {/* Luces sutiles de fondo (estáticas, rendimiento óptimo) */}
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute -top-24 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-cyan/10 blur-[110px]"
+          className="pointer-events-none absolute -top-24 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-cobalt-500/10 blur-[120px]"
         />
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute bottom-0 right-6 h-64 w-64 rounded-full bg-mint/[0.07] blur-[110px]"
+          className="pointer-events-none absolute bottom-12 right-12 h-72 w-72 rounded-full bg-mint-500/[0.08] blur-[120px]"
         />
 
-        {/* ── Marca + mensaje ── */}
-        <header className="relative flex flex-col items-center text-center">
-          <div className="flex justify-center">
+        {/* ── Header de Marca y Hero ── */}
+        <header className="relative flex flex-col items-center text-center mb-8">
+          <div className="flex justify-center mb-2">
             <SkateCoreoBrand size="lg" />
           </div>
 
-          <h1 className="home-title mt-2 max-w-[16ch] font-display font-extrabold text-white sm:max-w-[24ch]">
+          <h1 className="mt-2 max-w-[20ch] font-display text-2xl sm:text-3xl font-bold text-white tracking-tight sm:max-w-[26ch]">
             Tecnología para crear <span className="text-gradient-brand">el movimiento perfecto</span>.
           </h1>
 
-          <p className="mt-1.5 text-[11px] font-bold uppercase tracking-[0.34em] text-slate-400 sm:text-xs">
-            Diseña · Sincroniza · Visualiza
-          </p>
+          <div className="mt-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">
+            <span>Diseña</span>
+            <span className="text-cobalt-400">·</span>
+            <span>Sincroniza</span>
+            <span className="text-mint-400">·</span>
+            <span>Visualiza</span>
+          </div>
         </header>
 
-        {/* ── Los tres accesos principales (siempre visibles, responsivos 1-2-3 col) ── */}
-        <div className="relative grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {/* ── Los tres accesos principales (responsivos 1-2-3 col) ── */}
+        <div className="relative grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 mb-10">
           <AccessModule
-            tone="cyan"
+            tone="cobalt"
             tag="Editor principal"
             icon={<Compass className="h-6 w-6" />}
             eyebrow="Coreografía"
             title="Pista 2D"
-            lines={['Diseño coreográfico', 'Trazado técnico y curvas', 'Visualización espacial']}
+            lines={['Diseño coreográfico reglamentario', 'Trazado técnico y curvas de Bézier', 'Visualización espacial y tiempos']}
             cta="Abrir Pista 2D"
             glyph={<RinkGlyph />}
             onClick={onOpenRink}
@@ -308,8 +362,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
             icon={<AudioLines className="h-6 w-6" />}
             eyebrow="Audio"
             title="Audio Studio"
-            lines={['Editar y mezclar la música', 'Cortar, fundidos y multipista', 'Enviar la mezcla al visor']}
-            cta="Editar mezcla en Estudio"
+            lines={['Edición y mezcla multipista', 'Recortes, fundidos y cues', 'Exportación directa al visor']}
+            cta="Editar en Estudio"
             glyph={<WaveGlyph />}
             onClick={onOpenStudio}
           />
@@ -322,7 +376,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             title="Panel de Entrenador"
             lines={[
               'Atletas y fichas deportivas',
-              'Evaluación técnica de rutinas',
+              'Evaluación técnica de rutinas (RollArt / FEP)',
               'Sincronización en la nube (1-clic)',
             ]}
             cta={isCoach ? 'Abrir Panel de Entrenador' : 'Conocer Plan Entrenador'}
@@ -333,32 +387,32 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
 
         {/* ── Herramientas complementarias ── */}
-        <div className="relative flex flex-col items-center gap-3">
+        <div className="relative flex flex-col items-center gap-4">
           <div className="flex items-center gap-3">
-            <span aria-hidden="true" className="h-px w-8 bg-white/10" />
-            <span className="text-[10px] font-black uppercase tracking-[0.28em] text-slate-500">
+            <span aria-hidden="true" className="h-px w-10 bg-white/10" />
+            <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-slate-400">
               Herramientas complementarias
             </span>
-            <span aria-hidden="true" className="h-px w-8 bg-white/10" />
+            <span aria-hidden="true" className="h-px w-10 bg-white/10" />
           </div>
 
-          <div className="flex w-full flex-col items-stretch gap-2.5 sm:w-auto sm:flex-row sm:items-center">
+          <div className="flex w-full flex-col items-stretch gap-3 sm:w-auto sm:flex-row sm:items-center">
             <Button variant="secondary" onClick={onImportCoreo}>
-              <FolderOpen className="h-4 w-4 text-cyan" />
-              Importar .coreo
+              <FolderOpen className="h-4 w-4 text-cobalt-400" />
+              <span>Importar .coreo</span>
             </Button>
 
             {onOpenPaperToDigital && (
               <Button variant="secondary" onClick={onOpenPaperToDigital}>
-                <ScanLine className="h-4 w-4 text-mint" />
-                Digitalizar plantilla A4
+                <ScanLine className="h-4 w-4 text-mint-400" />
+                <span>Digitalizar plantilla A4</span>
               </Button>
             )}
 
             {onOpenCoach && (
               <Button variant="secondary" onClick={onOpenCoach}>
-                <Users className="h-4 w-4 text-[#FF4C79]" />
-                Panel de Entrenadores
+                <Users className="h-4 w-4 text-coral-400" />
+                <span>Panel de Entrenadores</span>
               </Button>
             )}
           </div>
@@ -367,4 +421,3 @@ export const HomeView: React.FC<HomeViewProps> = ({
     </section>
   );
 };
-

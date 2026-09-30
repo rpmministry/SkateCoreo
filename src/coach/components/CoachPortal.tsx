@@ -29,6 +29,7 @@ import { CoachStorageView } from './CoachStorageView';
 import { CoachBackupView } from './CoachBackupView';
 import { CoachSettingsView } from './CoachSettingsView';
 import { AthleteEditModal } from './AthleteEditModal';
+import { Badge } from '../../components/ui';
 import { CoachAthlete, CoachChoreography, CoachChoreographyVersion } from '../types';
 
 interface CoachPortalProps {
@@ -78,7 +79,7 @@ export const CoachPortal: React.FC<CoachPortalProps> = ({
   return (
     <div className="flex-1 min-h-0 flex flex-col bg-neon-canvas text-white overflow-hidden select-none">
       {/* ═══ Header Propio del Panel de Entrenadores ═══ */}
-      <header className="shrink-0 z-30 glass-hud border-b border-white/10 px-4 py-2.5">
+      <header className="shrink-0 z-30 bg-surface-1/90 backdrop-blur-md border-b border-white/[0.08] px-4 py-2.5">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           {/* Izquierda: Marca y Salida */}
           <div className="flex items-center gap-3">
@@ -96,9 +97,9 @@ export const CoachPortal: React.FC<CoachPortalProps> = ({
               <span className="text-sm font-black tracking-tight text-white flex items-center gap-1.5">
                 <span className="text-cyan font-black">Panel</span> Entrenadores
               </span>
-              <span className="hidden md:inline-flex px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-cyan/15 text-cyan border border-cyan/30">
+              <Badge variant="cobalt" size="xs" className="hidden md:inline-flex">
                 PRO 2026
-              </span>
+              </Badge>
             </div>
           </div>
 
@@ -114,8 +115,8 @@ export const CoachPortal: React.FC<CoachPortalProps> = ({
                   onClick={() => setActiveCoachTab(item.id)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all disabled:opacity-30 disabled:pointer-events-none interactive-tap ${
                     isActive
-                      ? 'bg-cyan text-neon-canvas font-black shadow-glow-cyan'
-                      : 'text-slate-300 hover:text-white hover:bg-white/5'
+                      ? 'bg-cobalt-pro text-white font-bold shadow-glow-cobalt'
+                      : 'text-slate-300 hover:text-white hover:bg-white/[0.06]'
                   }`}
                 >
                   {item.icon}
@@ -129,7 +130,7 @@ export const CoachPortal: React.FC<CoachPortalProps> = ({
           <div className="flex items-center gap-2 text-xs">
             <div
               onClick={() => setActiveCoachTab('storage')}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/[0.04] border border-white/10 text-slate-300 cursor-pointer hover:bg-white/[0.08] transition-all text-[11px]"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-surface-2 border border-white/[0.08] text-slate-300 cursor-pointer hover:bg-surface-3 transition-all text-[11px]"
               title={`Proveedor actual: ${storageSummary?.activeProvider}`}
             >
               <span
@@ -156,7 +157,7 @@ export const CoachPortal: React.FC<CoachPortalProps> = ({
                 onClick={() => setActiveCoachTab(item.id)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 disabled:opacity-30 interactive-tap ${
                   isActive
-                    ? 'bg-cyan text-neon-canvas font-black shadow-glow-cyan'
+                    ? 'bg-cobalt-pro text-white font-bold shadow-glow-cobalt'
                     : 'bg-white/[0.04] text-slate-300 hover:text-white'
                 }`}
               >
