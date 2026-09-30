@@ -159,3 +159,136 @@ export interface CoachBackupManifest {
     filesCount: number;
   };
 }
+
+// ── TIPOS DEL PANEL TÉCNICO Y EVALUACIONES (2026) ─────────────
+
+export type RegulationSystemId =
+  | 'WORLD_SKATE_ROLLART_2026'
+  | 'FEP_ECUADOR_2026'
+  | 'WHITE_FIGURES_2026';
+
+export type EvaluationDiscipline =
+  | 'Libre'
+  | 'Solo Danza'
+  | 'Figuras'
+  | 'Parejas'
+  | 'Show';
+
+export type EvaluationSegment =
+  | 'Corto'
+  | 'Largo'
+  | 'Único'
+  | 'Danza Obligatoria'
+  | 'Style Dance'
+  | 'Free Dance'
+  | 'Figuras';
+
+export type EvaluationCorrectionPriority = 'urgente' | 'importante' | 'recomendacion';
+
+export interface EvaluationElementRecord {
+  id: string;
+  code: string;
+  name: string;
+  type: 'Jump' | 'Spin' | 'StepSequence' | 'Choreographic' | 'DanceFootwork' | 'Travelling' | 'DanceSpin' | 'Figure' | 'NJ';
+  baseValue: number;
+  executionTimestampMs: number;
+  rotationsCount: number;
+  deductionCode: '<' | '<<' | '<<<' | null;
+  edgeIndicator: 'Outside' | 'Inside' | 'Flat' | 'e' | null;
+  qoeScore: number; // -3 a +3
+  isTimeBonusApplied: boolean;
+  isValid: boolean;
+  validationError?: string;
+  finalValue: number;
+  notes?: string;
+}
+
+export interface EvaluationArtisticComponents {
+  skatingSkills: number; // 0.25 a 10.0
+  transitions: number;
+  performance: number;
+  choreography: number;
+  factor: number;
+  totalPcs: number;
+}
+
+export interface EvaluationFigureMarks {
+  tracing: number; // 0.0 a 10.0
+  movement: number;
+  carriage: number;
+  average: number;
+}
+
+export interface EvaluationDeductions {
+  fallsCount: number;
+  fallsDeduction: number;
+  timeViolationSeconds: number;
+  timeDeduction: number;
+  costumeDeduction: number;
+  musicViolationDeduction: number;
+  otherDeductions: number;
+  totalDeductions: number;
+}
+
+export interface EvaluationScoreSummary {
+  tes: number;
+  pcs: number;
+  deductions: number;
+  totalScore: number;
+  elementsCount: number;
+  bonusTCount: number;
+}
+
+export interface TechnicalCorrectionItem {
+  id: string;
+  item: string;
+  priority: EvaluationCorrectionPriority;
+}
+
+export interface EvaluationPedagogicalFeedback {
+  strengths: string[];
+  technicalCorrections: TechnicalCorrectionItem[];
+  choreographicSuggestions: {
+    spatialDistribution?: string;
+    musicality?: string;
+    transitions?: string;
+    interpretation?: string;
+  };
+  nextGoals: string[];
+  generalObservations: string;
+}
+
+/**
+ * Evaluación Técnica Profesional de Entrenamiento.
+ * Registra fielmente el cálculo oficial reglamentario y la retroalimentación
+ * pedagógica del entrenador.
+ */
+export interface CoachEvaluation {
+  id: string;
+  athleteId: string;
+  athleteName: string;
+  choreographyId?: string;
+  choreographyTitle?: string;
+  choreographyVersionNumber?: number;
+  trainerId: string;
+  trainerName: string;
+  date: string; // ISO 8601 YYYY-MM-DDTHH:mm:ss.sssZ
+  regulationId: RegulationSystemId;
+  regulationTitle: string;
+  season: '2026';
+  discipline: EvaluationDiscipline;
+  programSegment: EvaluationSegment;
+  category: string;
+  eficiencia?: string;
+  elements: EvaluationElementRecord[];
+  artisticComponents?: EvaluationArtisticComponents;
+  figureMarks?: EvaluationFigureMarks;
+  deductions: EvaluationDeductions;
+  scoresSummary: EvaluationScoreSummary;
+  feedback: EvaluationPedagogicalFeedback;
+  isSentToAthlete: boolean;
+  sentAt?: number;
+  updated_at: number;
+  syncState: SyncState;
+}
+

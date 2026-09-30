@@ -16,7 +16,7 @@ class IndexedDBService {
   private dbPromise: Promise<IDBDatabase> | null = null;
 
   constructor() {
-    this.initDB();
+    this.initDB().catch(() => {});
   }
 
   private initDB(): Promise<IDBDatabase> {
@@ -326,32 +326,6 @@ class IndexedDBService {
       const request = store.delete('current_offline_session');
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
-    });
-  }
-
-  /**
-   * Elimina EXCLUSIVAMENTE el audio de la sesión offline sin tocar los puntos de la coreografía.
-   * Si no hay puntos, elimina el registro completo.
-   */
-  public async clearOfflineAudio(): Promise<void> {
-    const session = await this.getOfflineSession();
-    if (!session) return;
-    if (!session.points || session.points.length === 0) {
-      await this.clearOfflineSession();
-      return;
-    }
-    const db = await this.initDB();
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction('offline_sessions', 'readwrite');
-      const store = tx.objectStore('offline_sessions');
-      const updated = {
-        ...session,
-        audioBlob: new Blob([]),
-        audioFileName: '',
-      };
-      const req = store.put(updated);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
     });
   }
 }

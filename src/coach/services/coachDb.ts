@@ -11,11 +11,11 @@
  * Sin utilizar Supabase Storage.
  */
 
-import { CoachAthlete, CoachChoreography, CoachProfile } from '../types';
+import { CoachAthlete, CoachChoreography, CoachProfile, CoachEvaluation } from '../types';
 import { dbService } from '../../services/db';
 
 const COACH_DB_NAME = 'SkateCoreoCoachDB';
-const COACH_DB_VERSION = 1;
+const COACH_DB_VERSION = 2;
 
 export interface StoredBinaryFile {
   id: string;
@@ -35,6 +35,7 @@ class CoachDatabaseService {
   private memAthletes: Map<string, CoachAthlete> = new Map();
   private memChoreos: Map<string, CoachChoreography> = new Map();
   private memFiles: Map<string, StoredBinaryFile> = new Map();
+  private memEvaluations: Map<string, CoachEvaluation> = new Map();
   private memProfile: CoachProfile | null = null;
 
   private isIndexedDbAvailable(): boolean {
@@ -81,6 +82,16 @@ class CoachDatabaseService {
         // 4. Perfil y ajustes del entrenador
         if (!db.objectStoreNames.contains('profile')) {
           db.createObjectStore('profile', { keyPath: 'trainerId' });
+        }
+
+        // 5. Evaluaciones del Panel Técnico
+        if (!db.objectStoreNames.contains('evaluations')) {
+          const evalStore = db.createObjectStore('evaluations', { keyPath: 'id' });
+          evalStore.createIndex('athleteId', 'athleteId', { unique: false });
+          evalStore.createIndex('choreographyId', 'choreographyId', { unique: false });
+          evalStore.createIndex('date', 'date', { unique: false });
+          evalStore.createIndex('trainerId', 'trainerId', { unique: false });
+          evalStore.createIndex('updated_at', 'updated_at', { unique: false });
         }
       };
 
@@ -166,6 +177,12 @@ class CoachDatabaseService {
     const choreos = await this.getChoreographiesByAthlete(id);
     for (const ch of choreos) {
       await this.deleteChoreography(ch.id);
+    }
+
+    // Eliminar también evaluaciones técnicas asociadas
+    const evals = await this.getEvaluationsByAthlete(id);
+    for (const ev of evals) {
+      await this.deleteEvaluation(ev.id);
     }
 
     if (this.isIndexedDbAvailable()) {
@@ -344,6 +361,106 @@ class CoachDatabaseService {
       });
     } catch {
       return Array.from(this.memFiles.values());
+    }
+  }
+
+  // ── EVALUACIONES TÉCNICAS (PANEL TÉCNICO) ─────────────────
+
+  public async saveEvaluation(evaluation: CoachEvaluation): Promise<void> {
+    this.memEvaluations.set(evaluation.id, evaluation);
+
+    if (this.isIndexedDbAvailable()) {
+      const db = await this.initDB();
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction('evaluations', 'readwrite');
+        const store = tx.objectStore('evaluations');
+        const req = store.put(evaluation);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+    }
+  }
+
+  public async getEvaluationById(id: string): Promise<CoachEvaluation | null> {
+    if (!this.isIndexedDbAvailable()) {
+      return this.memEvaluations.get(id) || null;
+    }
+    try {
+      const db = await this.initDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('evaluations', 'readonly');
+        const store = tx.objectStore('evaluations');
+        const req = store.get(id);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => reject(req.error);
+      });
+    } catch {
+      return this.memEvaluations.get(id) || null;
+    }
+  }
+
+  public async getEvaluationsByAthlete(athleteId: string): Promise<CoachEvaluation[]> {
+    if (!this.isIndexedDbAvailable()) {
+      return Array.from(this.memEvaluations.values())
+        .filter((e) => e.athleteId === athleteId)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }
+    try {
+      const db = await this.initDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('evaluations', 'readonly');
+        const store = tx.objectStore('evaluations');
+        const index = store.index('athleteId');
+        const req = index.getAll(athleteId);
+        req.onsuccess = () => {
+          const list: CoachEvaluation[] = req.result || [];
+          list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          resolve(list);
+        };
+        req.onerror = () => reject(req.error);
+      });
+    } catch {
+      return Array.from(this.memEvaluations.values())
+        .filter((e) => e.athleteId === athleteId)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }
+  }
+
+  public async getAllEvaluations(): Promise<CoachEvaluation[]> {
+    if (!this.isIndexedDbAvailable()) {
+      return Array.from(this.memEvaluations.values())
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }
+    try {
+      const db = await this.initDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('evaluations', 'readonly');
+        const store = tx.objectStore('evaluations');
+        const req = store.getAll();
+        req.onsuccess = () => {
+          const list: CoachEvaluation[] = req.result || [];
+          list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          resolve(list);
+        };
+        req.onerror = () => reject(req.error);
+      });
+    } catch {
+      return Array.from(this.memEvaluations.values())
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }
+  }
+
+  public async deleteEvaluation(id: string): Promise<void> {
+    this.memEvaluations.delete(id);
+    if (this.isIndexedDbAvailable()) {
+      const db = await this.initDB();
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction('evaluations', 'readwrite');
+        const store = tx.objectStore('evaluations');
+        const req = store.delete(id);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
     }
   }
 

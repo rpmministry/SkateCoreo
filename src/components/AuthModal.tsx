@@ -30,9 +30,7 @@ import {
   Sparkles,
   ChevronDown,
   ArrowRight,
-  X,
 } from 'lucide-react';
-import { PRICING_PLANS, PlanRole } from '../services/pricingService';
 import { useAuthStore } from '../store/useAuthStore';
 import { PayPalButton } from './PayPalButton';
 import { getDeviceType, getDeviceTypeLabel } from '../utils/deviceDetector';
@@ -70,12 +68,9 @@ export const AuthModal: React.FC = () => {
     redeemClubLicense,
     recoverPaymentLookup,
     isLoading,
-    isUpgradeModalOpen,
-    setUpgradeModalOpen,
   } = useAuthStore();
 
   // ── Tarjeta 1: Plan y Email Pre-Pago PayPal ─────────────────────────
-  const [selectedRole, setSelectedRole] = useState<PlanRole>(() => isUpgradeModalOpen ? 'coach' : 'skater');
   const [selectedPlan, setSelectedPlan] = useState<'annual' | 'monthly'>('annual');
   const [buyerEmail, setBuyerEmail] = useState('');
   const [paymentFeedback, setPaymentFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -120,8 +115,8 @@ export const AuthModal: React.FC = () => {
   const detectedType = getDeviceType();
   const detectedLabel = getDeviceTypeLabel(detectedType);
 
-  // Si el usuario ya tiene acceso activo verificado y no está en upgrade modal, no mostrar paywall
-  if (hasActiveAccess() && !isUpgradeModalOpen) return null;
+  // Si el usuario ya tiene acceso activo verificado, no mostrar paywall
+  if (hasActiveAccess()) return null;
 
   // ── Handler Login ──────────────────────────────────────────────────
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -194,8 +189,7 @@ export const AuthModal: React.FC = () => {
       postPaymentData.payerEmail,
       postRegPassword,
       postRegName || postPaymentData.payerName || '',
-      postPaymentData.orderID,
-      selectedRole
+      postPaymentData.orderID
     );
     setPostRegLoading(false);
 
@@ -203,7 +197,6 @@ export const AuthModal: React.FC = () => {
       setPostRegFeedback({ type: 'error', message: res.message });
     } else {
       setPostPaymentData(null);
-      setUpgradeModalOpen(false);
     }
   };
 
@@ -242,16 +235,6 @@ export const AuthModal: React.FC = () => {
         aria-modal="true"
         aria-label="Acceso a SkateCoreo"
       >
-        {isUpgradeModalOpen && (
-          <button
-            type="button"
-            onClick={() => setUpgradeModalOpen(false)}
-            className="fixed top-4 right-4 z-50 p-2.5 rounded-full bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white transition-all border border-white/15 shadow-xl"
-            title="Cerrar y volver a SkateCoreo"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        )}
         <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col justify-center px-3 py-5 sm:px-6 sm:py-8">
           {/* ── Marca ── */}
           <header className="mb-4 flex flex-col items-center text-center sm:mb-6">
@@ -309,210 +292,158 @@ export const AuthModal: React.FC = () => {
               aria-label="Adquirir suscripción"
               className={panelClass('buy', authTab)}
             >
-              {(() => {
-                const planDetails = PRICING_PLANS[selectedRole];
-                const paypalAmount = selectedPlan === 'monthly'
-                  ? planDetails.monthlyPrice.toFixed(2)
-                  : planDetails.annualPrice.toFixed(2);
+              <div className="mb-3 flex items-center justify-between gap-2 border-b border-white/5 pb-2.5">
+                <span className="font-mono text-[10px] font-black uppercase tracking-wider text-cyan">
+                  Suscripción SkateCoreo
+                </span>
+                <span className="rounded-full border border-cyan/30 bg-cyan/15 px-2.5 py-0.5 text-[10px] font-black uppercase text-cyan">
+                  {selectedPlan === 'annual' ? 'Ahorro 20%' : 'Plan Mensual'}
+                </span>
+              </div>
 
-                return (
-                  <>
-                    <div className="mb-3 flex items-center justify-between gap-2 border-b border-white/5 pb-2.5">
-                      <span className="font-mono text-[10px] font-black uppercase tracking-wider text-cyan">
-                        {isUpgradeModalOpen ? 'Actualizar Plan' : 'Suscripción SkateCoreo'}
-                      </span>
-                      <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-black uppercase ${
-                        selectedRole === 'coach'
-                          ? 'border-coral/40 bg-coral/15 text-coral'
-                          : 'border-cyan/30 bg-cyan/15 text-cyan'
-                      }`}>
-                        {selectedPlan === 'annual'
-                          ? `Ahorro ${planDetails.annualDiscountPercent}%`
-                          : 'Plan Mensual'}
-                      </span>
-                    </div>
+              {/* Selector de Plan Individual: Anual vs Mensual */}
+              <div className="mb-4 grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-1.5">
+                <button
+                  type="button"
+                  onClick={() => setSelectedPlan('annual')}
+                  className={`press flex flex-col items-center justify-center rounded-xl py-2 px-2 transition-all ${
+                    selectedPlan === 'annual'
+                      ? 'bg-cyan text-neon-canvas shadow-glow-cyan font-black'
+                      : 'text-slate-300 hover:bg-white/[0.06] font-semibold'
+                  }`}
+                >
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs">Anual</span>
+                    <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-black ${
+                      selectedPlan === 'annual' ? 'bg-slate-950 text-cyan' : 'bg-mint/20 text-mint'
+                    }`}>
+                      -20%
+                    </span>
+                  </div>
+                  <span className="text-sm font-black">$48 / año</span>
+                  <span className="text-[10px] opacity-80">(Solo $4/mes)</span>
+                </button>
 
-                    {/* Selector de Rol: Patinador vs Entrenador */}
-                    <div className="mb-3 grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedRole('skater')}
-                        className={`press flex items-center justify-center gap-1.5 rounded-xl py-2 px-2 transition-all ${
-                          selectedRole === 'skater'
-                            ? 'bg-cyan text-neon-canvas shadow-glow-cyan font-black'
-                            : 'text-slate-300 hover:bg-white/[0.06] font-semibold'
-                        }`}
-                      >
-                        <Sparkles className="h-3.5 w-3.5" />
-                        <span className="text-xs">Patinador/a</span>
-                      </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedPlan('monthly')}
+                  className={`press flex flex-col items-center justify-center rounded-xl py-2 px-2 transition-all ${
+                    selectedPlan === 'monthly'
+                      ? 'bg-cyan text-neon-canvas shadow-glow-cyan font-black'
+                      : 'text-slate-300 hover:bg-white/[0.06] font-semibold'
+                  }`}
+                >
+                  <span className="text-xs">Mensual</span>
+                  <span className="text-sm font-black">$5 / mes</span>
+                  <span className="text-[10px] opacity-80">Flexibilidad total</span>
+                </button>
+              </div>
 
-                      <button
-                        type="button"
-                        onClick={() => setSelectedRole('coach')}
-                        className={`press flex items-center justify-center gap-1.5 rounded-xl py-2 px-2 transition-all ${
-                          selectedRole === 'coach'
-                            ? 'bg-coral text-white shadow-[0_0_15px_rgba(255,76,121,0.5)] font-black'
-                            : 'text-slate-300 hover:bg-white/[0.06] font-semibold'
-                        }`}
-                      >
-                        <Users className="h-3.5 w-3.5" />
-                        <span className="text-xs">Entrenador/a</span>
-                      </button>
-                    </div>
-
-                    {/* Selector Anual vs Mensual */}
-                    <div className="mb-4 grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedPlan('annual')}
-                        className={`press flex flex-col items-center justify-center rounded-xl py-2 px-2 transition-all ${
-                          selectedPlan === 'annual'
-                            ? selectedRole === 'coach'
-                              ? 'bg-coral text-white shadow-[0_0_15px_rgba(255,76,121,0.5)] font-black'
-                              : 'bg-cyan text-neon-canvas shadow-glow-cyan font-black'
-                            : 'text-slate-300 hover:bg-white/[0.06] font-semibold'
-                        }`}
-                      >
-                        <div className="flex items-center gap-1">
-                          <span className="text-xs">Anual</span>
-                          <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-black ${
-                            selectedPlan === 'annual'
-                              ? 'bg-slate-950 text-white'
-                              : 'bg-mint/20 text-mint'
-                          }`}>
-                            -{planDetails.annualDiscountPercent}%
-                          </span>
-                        </div>
-                        <span className="text-sm font-black">${planDetails.annualPrice.toFixed(2)} / año</span>
-                        <span className="text-[10px] opacity-80">(Solo ${planDetails.monthlyEquivalent.toFixed(2)}/mes)</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setSelectedPlan('monthly')}
-                        className={`press flex flex-col items-center justify-center rounded-xl py-2 px-2 transition-all ${
-                          selectedPlan === 'monthly'
-                            ? selectedRole === 'coach'
-                              ? 'bg-coral text-white shadow-[0_0_15px_rgba(255,76,121,0.5)] font-black'
-                              : 'bg-cyan text-neon-canvas shadow-glow-cyan font-black'
-                            : 'text-slate-300 hover:bg-white/[0.06] font-semibold'
-                        }`}
-                      >
-                        <span className="text-xs">Mensual</span>
-                        <span className="text-sm font-black">${planDetails.monthlyPrice.toFixed(2)} / mes</span>
-                        <span className="text-[10px] opacity-80">Flexibilidad total</span>
-                      </button>
-                    </div>
-
-                    {/* Tarjeta de Precios Dinámica */}
-                    {selectedPlan === 'annual' ? (
-                      <div className="flex items-baseline justify-between gap-3">
-                        <div className="min-w-0">
-                          <h2 className="font-display text-lg font-black text-white sm:text-xl">
-                            {planDetails.name} Anual
-                          </h2>
-                          <p className="mt-0.5 text-xs text-slate-400">
-                            Acceso profesional por 365 días con máxima economía
-                          </p>
-                        </div>
-                        <div className="shrink-0 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <span className="text-xs text-slate-500 line-through">
-                              ${(planDetails.monthlyPrice * 12).toFixed(2)}
-                            </span>
-                            <span className="text-2xl font-black text-white sm:text-3xl">
-                              ${planDetails.annualPrice.toFixed(2)}
-                            </span>
-                          </div>
-                          <span className="block text-[10px] font-bold text-mint">
-                            Ahorras ${planDetails.annualSavings.toFixed(2)}/año ({planDetails.annualDiscountPercent}% descuento)
-                          </span>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-baseline justify-between gap-3">
-                        <div className="min-w-0">
-                          <h2 className="font-display text-lg font-black text-white sm:text-xl">
-                            {planDetails.name} Mensual
-                          </h2>
-                          <p className="mt-0.5 text-xs text-slate-400">
-                            Suscripción recurrente mes a mes
-                          </p>
-                        </div>
-                        <div className="shrink-0 text-right">
-                          <span className="text-2xl font-black text-white sm:text-3xl">
-                            ${planDetails.monthlyPrice.toFixed(2)}
-                          </span>
-                          <span className="ml-1 text-xs text-slate-400">USD / mes</span>
-                        </div>
-                      </div>
-                    )}
-
-                    <ul className="mt-4 space-y-2 text-xs text-slate-300">
-                      {planDetails.features.map((feat: string, idx: number) => (
-                        <li key={idx} className="flex items-start gap-2">
-                          <Check className={`mt-0.5 h-4 w-4 shrink-0 ${selectedRole === 'coach' ? 'text-coral' : 'text-mint'}`} />
-                          <span>{feat}</span>
-                        </li>
-                      ))}
-                      <li className="flex items-start gap-2">
-                        <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-cyan" />
-                        <span>
-                          Hasta 3 dispositivos: <strong>1 PC + 1 Tablet + 1 Celular</strong>
-                        </span>
-                      </li>
-                    </ul>
-
-                    <div className="mt-4 space-y-2 border-t border-white/10 pt-3">
-                      <Field
-                        id="buyer-email"
-                        type="email"
-                        required
-                        label={
-                          <>
-                            <span className="text-cyan">*</span> Correo para vincular tu suscripción
-                          </>
-                        }
-                        icon={<Mail className="h-4 w-4" />}
-                        value={buyerEmail}
-                        onChange={(e) => setBuyerEmail(e.target.value)}
-                        placeholder="tu.correo@ejemplo.com"
-                        autoComplete="email"
-                      />
-                    </div>
-
-                    <div className="mt-3">
-                      <PayPalButton
-                        amount={paypalAmount}
-                        plan={selectedPlan}
-                        buyerEmail={buyerEmail}
-                        onSuccess={(data) => {
-                          setPostPaymentData({
-                            orderID: data.orderID,
-                            payerEmail: data.payerEmail,
-                            payerName: data.payerName,
-                          });
-                          setPostRegName(data.payerName || '');
-                        }}
-                        onError={(errMsg) => {
-                          setPaymentFeedback({ type: 'error', message: errMsg });
-                        }}
-                      />
-                    </div>
-
-                    <p className="mt-2 text-center text-[10px] leading-tight text-slate-400">
-                      Cobro recurrente seguro con PayPal. Puedes cancelar tu suscripción en cualquier momento; conservarás tu acceso hasta el final del período pagado.
+              {/* Tarjeta de Precios Dinámica */}
+              {selectedPlan === 'annual' ? (
+                <div className="flex items-baseline justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="font-display text-lg font-black text-white sm:text-xl">
+                      Plan Anual Pro
+                    </h2>
+                    <p className="mt-0.5 text-xs text-slate-400">
+                      Acceso profesional por 365 días con máxima economía
                     </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <span className="text-xs text-slate-500 line-through">$60</span>
+                      <span className="text-2xl font-black text-white sm:text-3xl">$48</span>
+                    </div>
+                    <span className="block text-[10px] font-bold text-mint">
+                      Ahorras $12/año (20% descuento)
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-baseline justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="font-display text-lg font-black text-white sm:text-xl">
+                      Plan Mensual Pro
+                    </h2>
+                    <p className="mt-0.5 text-xs text-slate-400">
+                      Suscripción recurrente mes a mes
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <span className="text-2xl font-black text-white sm:text-3xl">$5</span>
+                    <span className="ml-1 text-xs text-slate-400">USD / mes</span>
+                  </div>
+                </div>
+              )}
 
-                    {paymentFeedback && (
-                      <div className="mt-2.5 rounded-xl border border-coral/30 bg-coral/15 p-2.5 text-center text-xs font-bold text-coral">
-                        {paymentFeedback.message}
-                      </div>
-                    )}
-                  </>
-                );
-              })()}
+              <ul className="mt-4 space-y-2 text-xs text-slate-300">
+                <li className="flex items-start gap-2">
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-mint" />
+                  <span>Catálogo reglamentario de figuras y cálculo de BV</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-mint" />
+                  <span>Trazado cinemático 2D y zoom gestual de precisión</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-mint" />
+                  <span>Modo Entrenamiento 100% Offline (sin red en la pista)</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-cyan" />
+                  <span>
+                    Hasta 3 dispositivos: <strong>1 PC + 1 Tablet + 1 Celular</strong>
+                  </span>
+                </li>
+              </ul>
+
+              <div className="mt-4 space-y-2 border-t border-white/10 pt-3">
+                <Field
+                  id="buyer-email"
+                  type="email"
+                  required
+                  label={
+                    <>
+                      <span className="text-cyan">*</span> Correo para vincular tu suscripción
+                    </>
+                  }
+                  icon={<Mail className="h-4 w-4" />}
+                  value={buyerEmail}
+                  onChange={(e) => setBuyerEmail(e.target.value)}
+                  placeholder="tu.correo@ejemplo.com"
+                  autoComplete="email"
+                />
+              </div>
+
+              <div className="mt-3">
+                <PayPalButton
+                  amount={selectedPlan === 'monthly' ? '5.00' : '48.00'}
+                  plan={selectedPlan}
+                  buyerEmail={buyerEmail}
+                  onSuccess={(data) => {
+                    setPostPaymentData({
+                      orderID: data.orderID,
+                      payerEmail: data.payerEmail,
+                      payerName: data.payerName,
+                    });
+                    setPostRegName(data.payerName || '');
+                  }}
+                  onError={(errMsg) => {
+                    setPaymentFeedback({ type: 'error', message: errMsg });
+                  }}
+                />
+              </div>
+
+              <p className="mt-2 text-center text-[10px] leading-tight text-slate-400">
+                Cobro recurrente seguro con PayPal. Puedes cancelar tu suscripción en cualquier momento; conservarás tu acceso hasta el final del período pagado.
+              </p>
+
+              {paymentFeedback && (
+                <div className="mt-2.5 rounded-xl border border-coral/30 bg-coral/15 p-2.5 text-center text-xs font-bold text-coral">
+                  {paymentFeedback.message}
+                </div>
+              )}
             </section>
 
             {/* ══════════ CAMINO 2: INICIAR SESIÓN ══════════ */}

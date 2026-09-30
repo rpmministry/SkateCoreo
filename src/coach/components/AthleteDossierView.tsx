@@ -32,6 +32,7 @@ import { CoachAthlete, CoachChoreography, CoachChoreographyVersion } from '../ty
 import { useCoachStore } from '../store/useCoachStore';
 import { ShareCoreoModal } from './ShareCoreoModal';
 import { AthleteEditModal } from './AthleteEditModal';
+import { AthleteEvaluationsList } from './technical/AthleteEvaluationsList';
 import { coachDb } from '../services/coachDb';
 
 interface AthleteDossierViewProps {
@@ -49,12 +50,15 @@ export const AthleteDossierView: React.FC<AthleteDossierViewProps> = ({
 }) => {
   const {
     athleteChoreographies,
+    athleteEvaluations,
+    startEvaluationForAthlete,
     createOrUpdateAthlete,
     syncAthleteToCloud,
     deleteChoreography,
     storageSummary,
   } = useCoachStore();
 
+  const [activeSubTab, setActiveSubTab] = useState<'choreographies' | 'evaluations'>('evaluations');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [sharingVersion, setSharingVersion] = useState<{
     fileName: string;
@@ -185,14 +189,25 @@ export const AthleteDossierView: React.FC<AthleteDossierViewProps> = ({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => onCreateNewChoreography(athlete)}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 py-3 px-5 rounded-2xl bg-cyan text-neon-canvas font-black text-xs shadow-glow-cyan hover:bg-cyan/90 transition-all interactive-tap"
-          >
-            <Compass className="w-4 h-4 stroke-[2.5]" />
-            <span>Crear Nueva Coreografía</span>
-          </button>
+          <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => startEvaluationForAthlete(athlete)}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-cyan text-neon-canvas font-black text-xs shadow-glow-cyan hover:bg-cyan/90 transition-all interactive-tap"
+            >
+              <Award className="w-4 h-4 stroke-[2.5]" />
+              <span>Evaluar Rutina</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onCreateNewChoreography(athlete)}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-bold text-xs transition-all interactive-tap border border-white/10"
+            >
+              <Compass className="w-4 h-4 stroke-[2.5]" />
+              <span>Nueva Coreografía</span>
+            </button>
+          </div>
         </div>
 
         {/* Rejilla de Parámetros Deportivos */}
@@ -278,8 +293,43 @@ export const AthleteDossierView: React.FC<AthleteDossierViewProps> = ({
         )}
       </div>
 
-      {/* Sección de Coreografías y Archivos .coreo */}
-      <div className="space-y-4">
+      {/* Selector de Pestañas del Expediente: Evaluaciones vs Coreografías */}
+      <div className="flex items-center gap-2 border-b border-white/10 pb-3">
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('evaluations')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-black transition-all interactive-tap ${
+            activeSubTab === 'evaluations'
+              ? 'bg-cyan text-neon-canvas shadow-glow-cyan'
+              : 'bg-white/5 text-slate-300 hover:text-white'
+          }`}
+        >
+          <Award className="w-4 h-4" />
+          <span>Puntajes y Evaluaciones ({athleteEvaluations.length})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('choreographies')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-black transition-all interactive-tap ${
+            activeSubTab === 'choreographies'
+              ? 'bg-cyan text-neon-canvas shadow-glow-cyan'
+              : 'bg-white/5 text-slate-300 hover:text-white'
+          }`}
+        >
+          <Compass className="w-4 h-4" />
+          <span>Coreografías y Archivos .coreo ({athleteChoreographies.length})</span>
+        </button>
+      </div>
+
+      {activeSubTab === 'evaluations' ? (
+        <AthleteEvaluationsList
+          athlete={athlete}
+          onStartNewEvaluation={() => startEvaluationForAthlete(athlete)}
+        />
+      ) : (
+        /* Sección de Coreografías y Archivos .coreo */
+        <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-base font-black text-white flex items-center gap-2">
@@ -436,6 +486,7 @@ export const AthleteDossierView: React.FC<AthleteDossierViewProps> = ({
           </div>
         )}
       </div>
+      )}
 
       {/* Modal de Compartir */}
       {sharingVersion && (

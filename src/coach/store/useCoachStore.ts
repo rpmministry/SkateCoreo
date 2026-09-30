@@ -16,12 +16,13 @@ import {
   CloudProviderId,
   StorageSummary,
   CoachChoreographyVersion,
+  CoachEvaluation,
 } from '../types';
 import { coachDb } from '../services/coachDb';
 import { storageManager } from '../services/storage/StorageManager';
 import { calculateCategoryDetails } from '../services/categoryService';
 
-export type CoachTab = 'dashboard' | 'athletes' | 'dossier' | 'storage' | 'backup' | 'settings';
+export type CoachTab = 'dashboard' | 'athletes' | 'dossier' | 'storage' | 'backup' | 'settings' | 'technical_panel';
 
 export interface CoachStoreState {
   // Estado
@@ -30,6 +31,10 @@ export interface CoachStoreState {
   selectedAthlete: CoachAthlete | null;
   selectedChoreography: CoachChoreography | null;
   athleteChoreographies: CoachChoreography[];
+  athleteEvaluations: CoachEvaluation[];
+  selectedEvaluation: CoachEvaluation | null;
+  evaluationTargetAthlete: CoachAthlete | null;
+  evaluationTargetChoreography: CoachChoreography | null;
   storageSummary: StorageSummary | null;
   activeCoachTab: CoachTab;
   isLoading: boolean;
@@ -51,7 +56,15 @@ export interface CoachStoreState {
   createOrUpdateAthlete: (data: Partial<CoachAthlete> & { firstName: string; lastName: string; birthDate: string }) => Promise<CoachAthlete>;
   deleteAthlete: (athleteId: string) => Promise<void>;
 
+  // Panel Técnico y Evaluaciones
+  startEvaluationForAthlete: (athlete: CoachAthlete, choreo?: CoachChoreography) => void;
+  loadEvaluationsForAthlete: (athleteId: string) => Promise<CoachEvaluation[]>;
+  saveEvaluation: (evaluation: CoachEvaluation) => Promise<CoachEvaluation>;
+  deleteEvaluation: (evaluationId: string) => Promise<void>;
+  selectEvaluation: (evaluation: CoachEvaluation | null) => void;
+
   // Gestión de Coreografías y Archivos .coreo
+  loadChoreographiesForAthlete: (athleteId: string) => Promise<void>;
   saveChoreographyToDossier: (params: {
     athleteId: string;
     title: string;
@@ -83,6 +96,10 @@ export const useCoachStore = create<CoachStoreState>((set, get) => ({
   selectedAthlete: null,
   selectedChoreography: null,
   athleteChoreographies: [],
+  athleteEvaluations: [],
+  selectedEvaluation: null,
+  evaluationTargetAthlete: null,
+  evaluationTargetChoreography: null,
   storageSummary: null,
   activeCoachTab: 'dashboard',
   isLoading: false,
@@ -130,10 +147,58 @@ export const useCoachStore = create<CoachStoreState>((set, get) => ({
     set({ selectedAthlete: athlete });
     if (athlete) {
       const choreos = await coachDb.getChoreographiesByAthlete(athlete.id);
-      set({ athleteChoreographies: choreos, activeCoachTab: 'dossier' });
+      const evals = await coachDb.getEvaluationsByAthlete(athlete.id);
+      set({
+        athleteChoreographies: choreos,
+        athleteEvaluations: evals,
+        activeCoachTab: 'dossier',
+      });
     } else {
-      set({ athleteChoreographies: [], selectedChoreography: null });
+      set({
+        athleteChoreographies: [],
+        athleteEvaluations: [],
+        selectedChoreography: null,
+      });
     }
+  },
+
+  startEvaluationForAthlete: (athlete: CoachAthlete, choreo?: CoachChoreography) => {
+    set({
+      evaluationTargetAthlete: athlete,
+      evaluationTargetChoreography: choreo || null,
+      activeCoachTab: 'technical_panel',
+    });
+  },
+
+  loadEvaluationsForAthlete: async (athleteId: string) => {
+    const evals = await coachDb.getEvaluationsByAthlete(athleteId);
+    set({ athleteEvaluations: evals });
+    return evals;
+  },
+
+  saveEvaluation: async (evaluation: CoachEvaluation) => {
+    await coachDb.saveEvaluation(evaluation);
+    const athleteId = evaluation.athleteId;
+    const evals = await coachDb.getEvaluationsByAthlete(athleteId);
+    set({
+      athleteEvaluations: evals,
+      selectedEvaluation: evaluation,
+      statusMessage: { text: `Evaluación guardada y vinculada a la ficha de ${evaluation.athleteName}` },
+    });
+    return evaluation;
+  },
+
+  deleteEvaluation: async (evaluationId: string) => {
+    await coachDb.deleteEvaluation(evaluationId);
+    const sel = get().selectedAthlete;
+    if (sel) {
+      const evals = await coachDb.getEvaluationsByAthlete(sel.id);
+      set({ athleteEvaluations: evals });
+    }
+  },
+
+  selectEvaluation: (evaluation: CoachEvaluation | null) => {
+    set({ selectedEvaluation: evaluation });
   },
 
   createOrUpdateAthlete: async (data) => {
@@ -200,12 +265,18 @@ export const useCoachStore = create<CoachStoreState>((set, get) => ({
         athletes,
         selectedAthlete: get().selectedAthlete?.id === athleteId ? null : get().selectedAthlete,
         athleteChoreographies: get().selectedAthlete?.id === athleteId ? [] : get().athleteChoreographies,
+        athleteEvaluations: get().selectedAthlete?.id === athleteId ? [] : get().athleteEvaluations,
         storageSummary: summary,
         statusMessage: { text: `Atleta "${athlete?.name || athleteId}" eliminado.` },
       });
     } catch (e: any) {
       set({ statusMessage: { text: 'Error al eliminar atleta: ' + e.message, isError: true } });
     }
+  },
+
+  loadChoreographiesForAthlete: async (athleteId: string) => {
+    const choreos = await coachDb.getChoreographiesByAthlete(athleteId);
+    set({ athleteChoreographies: choreos });
   },
 
   saveChoreographyToDossier: async (params) => {

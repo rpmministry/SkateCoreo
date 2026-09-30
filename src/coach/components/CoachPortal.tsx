@@ -18,11 +18,13 @@ import {
   Archive,
   Settings,
   ArrowLeft,
+  Award,
 } from 'lucide-react';
 import { useCoachStore, CoachTab } from '../store/useCoachStore';
 import { CoachDashboard } from './CoachDashboard';
 import { AthleteDirectory } from './AthleteDirectory';
 import { AthleteDossierView } from './AthleteDossierView';
+import { TechnicalPanel } from './technical/TechnicalPanel';
 import { CoachStorageView } from './CoachStorageView';
 import { CoachBackupView } from './CoachBackupView';
 import { CoachSettingsView } from './CoachSettingsView';
@@ -67,6 +69,7 @@ export const CoachPortal: React.FC<CoachPortalProps> = ({
       icon: <FileText className="w-4 h-4" />,
       disabled: !selectedAthlete,
     },
+    { id: 'technical_panel', label: 'Panel Técnico', icon: <Award className="w-4 h-4" /> },
     { id: 'storage', label: 'Mi Almacenamiento & Nube', icon: <HardDrive className="w-4 h-4" /> },
     { id: 'backup', label: 'Copias de Seguridad', icon: <Archive className="w-4 h-4" /> },
     { id: 'settings', label: 'Ajustes', icon: <Settings className="w-4 h-4" /> },
@@ -195,6 +198,8 @@ export const CoachPortal: React.FC<CoachPortalProps> = ({
               onCreateNewChoreography={(athlete) => onOpenEditorForAthlete(athlete)}
             />
           )}
+
+          {activeCoachTab === 'technical_panel' && <TechnicalPanel />}
 
           {activeCoachTab === 'storage' && <CoachStorageView />}
 

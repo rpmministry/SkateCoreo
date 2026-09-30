@@ -32,6 +32,11 @@ export interface CoreoManifest {
     totalCues: number;
     hasVoiceCues: boolean;
   };
+  evaluationsMeta?: {
+    totalEvaluations: number;
+    latestEvaluationDate?: number;
+    latestScore?: number;
+  };
 }
 
 export interface CoreoProjectData {
@@ -39,11 +44,13 @@ export interface CoreoProjectData {
   points: ChoreographyPathPoint[];
   audioBlob: Blob | null;
   ttsCachedCount: number;
+  evaluations?: any[];
 }
 
 /**
  * Exporta el proyecto completo a un archivo .coreo (ZIP comprimido)
  * incluyendo la música, los nodos coreográficos y todos los audios TTS pre-cacheados.
+ * Soporta de forma opcional y retrocompatible el historial de evaluaciones del atleta.
  */
 export async function exportCoreoProject(
   programTitle: string,
@@ -55,7 +62,8 @@ export async function exportCoreoProject(
   bpm?: number,
   beatsPerMeasure?: number,
   playbackRate: number = 1.0,
-  subdivision: number = 1
+  subdivision: number = 1,
+  evaluations?: any[]
 ): Promise<Blob> {
   const zip = new JSZip();
 
@@ -112,7 +120,12 @@ export async function exportCoreoProject(
     ttsMeta: {
       totalCues: ttsSavedCount,
       hasVoiceCues: ttsSavedCount > 0
-    }
+    },
+    evaluationsMeta: evaluations && evaluations.length > 0 ? {
+      totalEvaluations: evaluations.length,
+      latestEvaluationDate: evaluations[0]?.updated_at || Date.now(),
+      latestScore: evaluations[0]?.scoresSummary?.totalScore
+    } : undefined
   };
 
   zip.file('manifest.json', JSON.stringify(manifest, null, 2));
@@ -120,6 +133,11 @@ export async function exportCoreoProject(
 
   if (ttsSavedCount > 0) {
     zip.file('tts_manifest.json', JSON.stringify(ttsManifest, null, 2));
+  }
+
+  // Guardar evaluaciones asociadas si existen
+  if (evaluations && evaluations.length > 0) {
+    zip.file('evaluations.json', JSON.stringify(evaluations, null, 2));
   }
 
   // 3. Añadir pista de música si existe
@@ -189,10 +207,23 @@ export async function importCoreoProject(file: File | Blob): Promise<CoreoProjec
     }
   }
 
+  // 5. Leer evaluaciones si existen en el paquete
+  let evaluations: any[] | undefined = undefined;
+  const evalsFile = zip.file('evaluations.json');
+  if (evalsFile) {
+    try {
+      const evalsText = await evalsFile.async('string');
+      evaluations = JSON.parse(evalsText);
+    } catch (e) {
+      console.warn('[coreoPackage] No se pudieron leer las evaluaciones:', e);
+    }
+  }
+
   return {
     manifest,
     points,
     audioBlob,
-    ttsCachedCount
+    ttsCachedCount,
+    evaluations
   };
 }

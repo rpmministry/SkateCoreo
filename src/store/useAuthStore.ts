@@ -10,15 +10,7 @@ import { create } from 'zustand';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 import { getDeviceId, getDeviceType, getDeviceName, DeviceType } from '../utils/deviceDetector';
 
-export type UserRole = 'skater' | 'coach' | 'club_admin' | 'superadmin' | 'tester' | 'user';
-
-export const isCoachRole = (role?: UserRole | string | null): boolean => {
-  return role === 'coach' || role === 'club_admin' || role === 'superadmin';
-};
-
-export const isSkaterRole = (role?: UserRole | string | null): boolean => {
-  return role === 'skater' || role === 'user';
-};
+export type UserRole = 'user' | 'tester' | 'club_admin' | 'superadmin';
 export type SubscriptionStatus = 'active' | 'inactive' | 'trial';
 export type SubscriptionPlan = 'individual' | 'club' | 'beta_tester' | null;
 
@@ -74,7 +66,7 @@ export interface AuthStoreState {
 
   // Acciones de Autenticación y Registro Condicionado
   loginWithCredentials: (email: string, password: string) => Promise<{ success: boolean; message: string; expired?: boolean }>;
-  registerWithPayment: (email: string, password: string, fullName: string, paypalOrderId: string, role?: UserRole) => Promise<{ success: boolean; message: string }>;
+  registerWithPayment: (email: string, password: string, fullName: string, paypalOrderId: string) => Promise<{ success: boolean; message: string }>;
   registerWithCode: (email: string, password: string, fullName: string, code: string) => Promise<{ success: boolean; message: string }>;
   /**
    * Canje de código promocional de campaña (p. ej. BETA_TESTER · 30 días).
@@ -87,6 +79,8 @@ export interface AuthStoreState {
   /** Listado de códigos/canjes de una campaña (solo superadmin). */
   listPromoCodes: (campaign?: string) => Promise<{ success: boolean; message?: string; codes?: PromoCodeRecord[] }>;
   recoverPaymentLookup: (query: string) => Promise<{ found: boolean; error?: string; paypal_order_id?: string; payer_email?: string; payer_name?: string; amount?: number; currency?: string; created_at?: string }>;
+  adminListUsers: () => Promise<{ success: boolean; users?: any[]; error?: string }>;
+  adminChangeUserRole: (targetUserId: string, newRole: UserRole) => Promise<{ success: boolean; error?: string }>;
 
   // Gestión de Dispositivos y Seguridad
   fetchDevices: () => Promise<void>;
@@ -95,19 +89,6 @@ export interface AuthStoreState {
 
   logout: () => void;
   refreshProfile: () => Promise<void>;
-
-  // Modal de Mejora / Upgrade
-  isUpgradeModalOpen: boolean;
-  setUpgradeModalOpen: (open: boolean) => void;
-
-  // Verificación de roles y permisos
-  isCoach: () => boolean;
-  isSkater: () => boolean;
-  isAdmin: () => boolean;
-
-  // Administración de usuarios
-  adminListUsers: () => Promise<{ success: boolean; users?: any[]; error?: string }>;
-  adminChangeUserRole: (targetUserId: string, newRole: UserRole) => Promise<{ success: boolean; error?: string }>;
 
   // Verificación de acceso para el Soft Paywall
   hasActiveAccess: () => boolean;
@@ -191,8 +172,6 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
   user: initialSession.user,
   role: initialSession.role,
   isLoading: false,
-  isUpgradeModalOpen: false,
-  setUpgradeModalOpen: (open: boolean) => set({ isUpgradeModalOpen: open }),
 
   access_expires_at: initialSession.access_expires_at,
   subscription_status: initialSession.status,
@@ -365,7 +344,7 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
   /**
    * Registro Condicionado Post-Pago PayPal (Crea cuenta e inmediatamente activa acceso por 1 año)
    */
-  registerWithPayment: async (email: string, password: string, fullName: string, paypalOrderId: string, role: UserRole = 'skater') => {
+  registerWithPayment: async (email: string, password: string, fullName: string, paypalOrderId: string) => {
     const cleanEmail = email.toLowerCase().trim();
     if (!cleanEmail || !password || !paypalOrderId) {
       return { success: false, message: 'Todos los campos son obligatorios.' };
@@ -391,7 +370,6 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
           p_device_id: deviceId,
           p_device_type: deviceType,
           p_device_name: deviceName,
-          p_role: role,
         });
 
         if (error) {
@@ -410,23 +388,20 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
           nombre: data.user.full_name,
         };
 
-        const assignedRole: UserRole = (data.user?.role as UserRole) || role;
-
         set({
           user: newUser,
-          role: assignedRole,
+          role: 'user',
           subscription_status: 'active',
           subscription_plan: 'individual',
           access_expires_at: data.user.access_expires_at,
           isLoading: false,
-          isUpgradeModalOpen: false,
         });
 
         localStorage.setItem(
           STORAGE_KEY,
           JSON.stringify({
             user: newUser,
-            role: assignedRole,
+            role: 'user',
             subscription_status: 'active',
             subscription_plan: 'individual',
             access_expires_at: data.user.access_expires_at,
@@ -910,71 +885,35 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
     }
   },
 
-  isCoach: () => {
-    const s = get();
-    if (isOwnerOrAdmin(s.user?.email)) return true;
-    return isCoachRole(s.role) || isCoachRole((s.user as any)?.role);
-  },
-
-  isSkater: () => {
-    const s = get();
-    return !s.isCoach();
-  },
-
-  isAdmin: () => {
-    const s = get();
-    return s.role === 'superadmin' || isOwnerOrAdmin(s.user?.email);
-  },
-
   adminListUsers: async () => {
-    const s = get();
-    if (!s.isAdmin()) {
-      return { success: false, error: 'No autorizado.' };
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: false, error: 'Supabase no configurado' };
     }
     try {
-      if (isSupabaseConfigured && supabase) {
-        const { data, error } = await supabase.rpc('admin_list_users');
-        if (error) {
-          const { data: tableUsers, error: tableErr } = await supabase
-            .from('users')
-            .select('id, email, full_name, role, subscription_plan, subscription_status, access_expires_at, created_at')
-            .order('created_at', { ascending: false });
-          if (!tableErr && tableUsers) {
-            return { success: true, users: tableUsers };
-          }
-          return { success: false, error: error.message };
-        }
-        return { success: true, users: data };
-      }
-      return { success: false, error: 'Supabase no configurado.' };
-    } catch (err: any) {
-      return { success: false, error: err.message };
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, email, role, subscription_status, subscription_plan, access_expires_at, created_at')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return { success: true, users: data || [] };
+    } catch (e: any) {
+      return { success: false, error: e?.message || 'Error al listar usuarios' };
     }
   },
 
   adminChangeUserRole: async (targetUserId: string, newRole: UserRole) => {
-    const s = get();
-    if (!s.isAdmin()) {
-      return { success: false, error: 'No autorizado.' };
+    if (!isSupabaseConfigured || !supabase) {
+      return { success: false, error: 'Supabase no configurado' };
     }
     try {
-      if (isSupabaseConfigured && supabase) {
-        const { error } = await supabase.rpc('admin_change_user_role', {
-          p_target_user_id: targetUserId,
-          p_new_role: newRole,
-        });
-        if (error) {
-          const { error: updErr } = await supabase
-            .from('users')
-            .update({ role: newRole })
-            .eq('id', targetUserId);
-          if (updErr) return { success: false, error: updErr.message };
-        }
-        return { success: true };
-      }
-      return { success: false, error: 'Supabase no configurado.' };
-    } catch (err: any) {
-      return { success: false, error: err.message };
+      const { error } = await supabase
+        .from('users')
+        .update({ role: newRole })
+        .eq('id', targetUserId);
+      if (error) throw error;
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e?.message || 'Error al actualizar rol' };
     }
   },
 }));
