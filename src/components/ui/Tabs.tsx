@@ -45,8 +45,8 @@ export const Tabs: React.FC<TabsProps> = ({
   };
 
   const sizeClasses = {
-    sm: 'text-xs py-1.5 px-3 gap-1.5 min-h-[34px]',
-    md: 'text-sm py-2 px-4 gap-2 min-h-[40px]',
+    sm: 'text-xs py-1.5 px-3 gap-1.5 min-h-[32px]',
+    md: 'text-xs sm:text-[13px] py-2 px-3.5 gap-2 min-h-[38px]',
   }[size];
 
   if (variant === 'underline') {
@@ -67,18 +67,22 @@ export const Tabs: React.FC<TabsProps> = ({
               tabIndex={isActive ? 0 : -1}
               onClick={() => onChange(tab.id)}
               onKeyDown={(e) => handleKeyDown(e, idx)}
-              className={`relative flex items-center font-medium transition-all whitespace-nowrap -mb-px pb-3 px-3.5 pt-1.5 ${sizeClasses} ${
+              className={`relative flex items-center font-medium transition-colors whitespace-nowrap -mb-px pb-2.5 px-3 pt-1 ${sizeClasses} ${
                 isActive
-                  ? 'text-white border-b-2 border-cobalt-400 font-semibold'
-                  : 'text-slate-400 hover:text-slate-200 border-b-2 border-transparent'
+                  ? 'text-[#f4f4f4] border-b-2 border-[#0f62fe] font-semibold'
+                  : 'text-[#c6c6c6] hover:text-[#f4f4f4] border-b-2 border-transparent'
               }`}
             >
-              {tab.icon && <span className={`shrink-0 ${isActive ? 'text-cobalt-400' : 'text-slate-400'}`}>{tab.icon}</span>}
+              {tab.icon && (
+                <span className={`shrink-0 ${isActive ? 'text-[#78a9ff]' : 'text-[#8d8d8d]'}`}>
+                  {tab.icon}
+                </span>
+              )}
               <span>{tab.label}</span>
               {tab.badge !== undefined && (
                 <span
-                  className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
-                    isActive ? 'bg-cobalt-500/30 text-cobalt-300' : 'bg-surface-3 text-slate-400'
+                  className={`ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold ${
+                    isActive ? 'bg-[#0f62fe]/25 text-[#78a9ff]' : 'bg-surface-3 text-[#c6c6c6]'
                   }`}
                 >
                   {tab.badge}
@@ -95,7 +99,7 @@ export const Tabs: React.FC<TabsProps> = ({
     <div
       role="tablist"
       aria-orientation="horizontal"
-      className={`inline-flex items-center p-1 rounded-xl bg-surface-2 border border-white/[0.08] shadow-inner overflow-x-auto scrollbar-none ${className}`}
+      className={`inline-flex items-center p-1 rounded-lg bg-surface-1 border border-white/[0.08] overflow-x-auto scrollbar-none ${className}`}
     >
       {tabs.map((tab, idx) => {
         const isActive = tab.id === activeTab;
@@ -108,22 +112,22 @@ export const Tabs: React.FC<TabsProps> = ({
             tabIndex={isActive ? 0 : -1}
             onClick={() => onChange(tab.id)}
             onKeyDown={(e) => handleKeyDown(e, idx)}
-            className={`flex items-center rounded-lg font-medium transition-all whitespace-nowrap select-none ${sizeClasses} ${
+            className={`flex items-center rounded-md font-medium transition-colors whitespace-nowrap select-none ${sizeClasses} ${
               isActive
-                ? 'bg-cobalt-600/30 text-white font-semibold shadow-elevation-1 border border-cobalt-400/40 text-glow-cobalt'
-                : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
+                ? 'bg-surface-3 text-[#f4f4f4] font-semibold border border-white/10 shadow-sm'
+                : 'text-[#c6c6c6] hover:text-[#f4f4f4] hover:bg-white/[0.04]'
             }`}
           >
             {tab.icon && (
-              <span className={`shrink-0 ${isActive ? 'text-cobalt-400' : 'text-slate-400'}`}>
+              <span className={`shrink-0 ${isActive ? 'text-[#78a9ff]' : 'text-[#8d8d8d]'}`}>
                 {tab.icon}
               </span>
             )}
             <span>{tab.label}</span>
             {tab.badge !== undefined && (
               <span
-                className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
-                  isActive ? 'bg-cobalt-500 text-white' : 'bg-surface-3 text-slate-400'
+                className={`ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold ${
+                  isActive ? 'bg-[#0f62fe] text-white' : 'bg-surface-3 text-[#c6c6c6]'
                 }`}
               >
                 {tab.badge}

@@ -16,8 +16,8 @@ export interface FieldProps extends React.InputHTMLAttributes<HTMLInputElement> 
 }
 
 /**
- * Field — campo de formulario con etiqueta, iconos, validación y soporte de accesibilidad,
- * alineado al sistema visual Obsidian Precision Tech (surface-2, borde sutil, foco de marca).
+ * Field — campo de formulario accesible alineado a Carbon Design System
+ * (fondo neutro, borde nítido, foco interactivo IBM Blue 60 y tipografía legible).
  */
 export const Field = React.forwardRef<HTMLInputElement, FieldProps>(
   (
@@ -39,64 +39,58 @@ export const Field = React.forwardRef<HTMLInputElement, FieldProps>(
     const errorId = error ? `${inputId}-error` : undefined;
     const helperId = helperText ? `${inputId}-helper` : undefined;
 
-    const toneClasses = {
-      cobalt: 'focus:border-cobalt-400 focus:ring-cobalt-400/30',
-      cyan: 'focus:border-cobalt-400 focus:ring-cobalt-400/30', // Aliased for backward compatibility
-      mint: 'focus:border-mint-400 focus:ring-mint-400/30',
-      coral: 'focus:border-coral-400 focus:ring-coral-400/30',
-      danger: 'focus:border-danger focus:ring-danger/30',
-    }[error ? 'danger' : tone];
-
-    const borderClass = error
-      ? 'border-danger/60 text-white'
-      : 'border-white/[0.12] hover:border-white/20 text-white';
+    const borderFocusClass = error
+      ? 'border-[#da1e28] focus:border-[#da1e28] focus:ring-1 focus:ring-[#da1e28] text-white'
+      : 'border-white/[0.12] hover:border-white/20 focus:border-[#0f62fe] focus:ring-1 focus:ring-[#0f62fe] text-[#f4f4f4]';
 
     return (
       <div className="min-w-0 flex flex-col gap-1.5">
         {label && (
-          <label htmlFor={inputId} className="block text-xs font-semibold text-slate-300 select-none">
+          <label htmlFor={inputId} className="block text-xs font-medium text-[#c6c6c6] select-none">
             {label}
           </label>
         )}
+
         <div className="relative flex items-center">
           {icon && (
             <span
+              className="absolute left-3 flex items-center pointer-events-none text-[#8d8d8d]"
               aria-hidden="true"
-              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
             >
               {icon}
             </span>
           )}
+
           <input
             ref={ref}
             id={inputId}
-            aria-invalid={!!error}
-            aria-describedby={errorId || helperId}
+            aria-invalid={Boolean(error)}
+            aria-describedby={[errorId, helperId].filter(Boolean).join(' ') || undefined}
             className={[
-              'w-full min-h-[44px] rounded-xl border bg-surface-2/90 py-2.5 text-sm transition-all focus:outline-none focus:ring-2',
-              'placeholder:text-slate-500 shadow-inner',
-              'disabled:cursor-not-allowed disabled:opacity-60 disabled:bg-surface-1',
-              icon ? 'pl-10' : 'pl-3.5',
-              rightElement ? 'pr-10' : 'pr-3.5',
-              borderClass,
-              toneClasses,
+              'w-full bg-[#161b24] rounded-md py-2 text-xs text-[#f4f4f4] placeholder-[#8d8d8d] outline-none transition-colors border shadow-inner',
+              icon ? 'pl-9' : 'pl-3',
+              rightElement ? 'pr-9' : 'pr-3',
+              borderFocusClass,
               className,
-            ].join(' ')}
+            ]
+              .filter(Boolean)
+              .join(' ')}
             {...rest}
           />
+
           {rightElement && (
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center">
-              {rightElement}
-            </div>
+            <div className="absolute right-2.5 flex items-center">{rightElement}</div>
           )}
         </div>
+
         {error && (
-          <p id={errorId} className="text-xs text-danger font-medium animate-fade-in">
+          <p id={errorId} role="alert" className="text-[11px] font-medium text-[#ff8389]">
             {error}
           </p>
         )}
+
         {!error && helperText && (
-          <p id={helperId} className="text-[11px] text-slate-400">
+          <p id={helperId} className="text-[11px] text-[#8d8d8d]">
             {helperText}
           </p>
         )}

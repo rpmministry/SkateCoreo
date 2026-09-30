@@ -5,28 +5,28 @@ export type BadgeSize = 'xs' | 'sm' | 'md';
 
 const BADGE_VARIANTS: Record<BadgeVariant, { container: string; dot: string }> = {
   neutral: {
-    container: 'bg-white/[0.06] text-slate-300 border-white/10',
-    dot: 'bg-slate-400',
+    container: 'bg-[#283243] text-[#f4f4f4] border-white/10',
+    dot: 'bg-[#c6c6c6]',
   },
   cobalt: {
-    container: 'bg-[#0072FF]/15 text-[#338EFF] border-[#0072FF]/30',
-    dot: 'bg-[#0072FF]',
+    container: 'bg-[#0f62fe]/15 text-[#78a9ff] border-[#0f62fe]/30',
+    dot: 'bg-[#78a9ff]',
   },
   mint: {
-    container: 'bg-[#00E599]/15 text-[#00E599] border-[#00E599]/30',
-    dot: 'bg-[#00E599]',
+    container: 'bg-[#009d9a]/15 text-[#3ddbd9] border-[#009d9a]/30',
+    dot: 'bg-[#3ddbd9]',
   },
   coral: {
-    container: 'bg-[#FF3366]/15 text-[#FF3366] border-[#FF3366]/30',
-    dot: 'bg-[#FF3366]',
+    container: 'bg-[#ee5396]/15 text-[#ff7eb6] border-[#ee5396]/30',
+    dot: 'bg-[#ff7eb6]',
   },
   amber: {
-    container: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
-    dot: 'bg-amber-400',
+    container: 'bg-[#f1c21b]/15 text-[#f1c21b] border-[#f1c21b]/30',
+    dot: 'bg-[#f1c21b]',
   },
   danger: {
-    container: 'bg-red-500/15 text-red-400 border-red-500/30',
-    dot: 'bg-red-400',
+    container: 'bg-[#da1e28]/15 text-[#ff8389] border-[#da1e28]/30',
+    dot: 'bg-[#ff8389]',
   },
 };
 
@@ -57,16 +57,23 @@ export const Badge: React.FC<BadgeProps> = ({
   return (
     <span
       className={[
-        'inline-flex items-center font-mono uppercase tracking-wider rounded-full border',
+        'inline-flex items-center font-mono font-medium uppercase tracking-wider rounded-md border',
         styles.container,
         BADGE_SIZES[size],
         className,
-      ].join(' ')}
+      ]
+        .filter(Boolean)
+        .join(' ')}
       {...rest}
     >
-      {dot && <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${styles.dot}`} />}
+      {dot && (
+        <span
+          className={`h-1.5 w-1.5 rounded-full shrink-0 ${styles.dot}`}
+          aria-hidden="true"
+        />
+      )}
       {icon && <span className="shrink-0">{icon}</span>}
-      <span>{children}</span>
+      {children}
     </span>
   );
 };

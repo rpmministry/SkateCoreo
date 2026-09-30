@@ -109,7 +109,7 @@ export const AthleteDirectory: React.FC<AthleteDirectoryProps> = ({
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-black tracking-tight text-white flex items-center gap-2">
-            <Users className="w-6 h-6 text-cobalt-pro" />
+            <Users className="w-6 h-6 text-[#78a9ff]" />
             Directorio de Atletas ({filteredAthletes.length})
           </h2>
           <p className="text-xs text-slate-400">
@@ -138,7 +138,7 @@ export const AthleteDirectory: React.FC<AthleteDirectoryProps> = ({
               placeholder="Buscar por nombre, club o notas técnicas..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-surface-1 border border-white/10 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-cobalt-pro transition-colors"
+              className="w-full bg-surface-1 border border-white/10 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-[#0f62fe] transition-colors"
             />
           </div>
 
@@ -148,7 +148,7 @@ export const AthleteDirectory: React.FC<AthleteDirectoryProps> = ({
               <select
                 value={clubFilter}
                 onChange={(e) => setClubFilter(e.target.value)}
-                className="w-full bg-surface-1 border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-cobalt-pro transition-colors"
+                className="w-full bg-surface-1 border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-[#0f62fe] transition-colors"
               >
                 <option value="ALL">Todos los Clubes</option>
                 {uniqueClubs.map((club) => (
@@ -175,7 +175,7 @@ export const AthleteDirectory: React.FC<AthleteDirectoryProps> = ({
                 onClick={() => setCategoryFilter(cat)}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 interactive-tap ${
                   isSelected
-                    ? 'bg-cobalt-pro text-white font-bold shadow-glow-cobalt'
+                    ? 'bg-[#0f62fe] text-white font-bold shadow-sm'
                     : 'bg-white/[0.04] text-slate-300 hover:bg-white/[0.08] hover:text-white'
                 }`}
               >
@@ -191,7 +191,7 @@ export const AthleteDirectory: React.FC<AthleteDirectoryProps> = ({
         <EmptyState
           title="No se encontraron atletas"
           description="No hay atletas que coincidan con los filtros de búsqueda aplicados."
-          icon={<Users className="w-8 h-8 text-cobalt-pro" />}
+          icon={<Users className="w-8 h-8 text-[#78a9ff]" />}
           action={
             <Button
               variant="outline"
@@ -212,7 +212,7 @@ export const AthleteDirectory: React.FC<AthleteDirectoryProps> = ({
             <div
               key={athlete.id}
               onClick={() => onSelectAthlete(athlete)}
-              className="group bg-surface-2 border border-white/[0.08] rounded-2xl p-5 shadow-elevation-1 hover:border-cobalt-pro/50 transition-all cursor-pointer flex flex-col justify-between space-y-4 hover:shadow-elevation-2"
+              className="group bg-surface-2 border border-white/[0.08] rounded-2xl p-5 shadow-elevation-1 hover:border-[#0f62fe]/50 transition-all cursor-pointer flex flex-col justify-between space-y-4 hover:shadow-elevation-2"
             >
               <div className="space-y-3">
                 <div className="flex items-start justify-between gap-3">
@@ -226,7 +226,7 @@ export const AthleteDirectory: React.FC<AthleteDirectoryProps> = ({
                     </div>
 
                     <div>
-                      <h3 className="font-bold text-base text-white group-hover:text-cobalt-pro transition-colors tracking-tight">
+                      <h3 className="font-bold text-base text-white group-hover:text-[#78a9ff] transition-colors tracking-tight">
                         {athlete.name}
                       </h3>
                       <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-0.5">
@@ -270,7 +270,7 @@ export const AthleteDirectory: React.FC<AthleteDirectoryProps> = ({
               <div className="flex items-center justify-between pt-3 border-t border-white/5 text-xs">
                 <span className="text-slate-400 font-medium group-hover:text-white flex items-center gap-1 transition-colors">
                   Abrir expediente
-                  <ArrowRight className="w-3.5 h-3.5 text-cobalt-pro transition-transform group-hover:translate-x-1" />
+                  <ArrowRight className="w-3.5 h-3.5 text-[#78a9ff] transition-transform group-hover:translate-x-1" />
                 </span>
 
                 <Button

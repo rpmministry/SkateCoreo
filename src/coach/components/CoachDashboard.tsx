@@ -76,7 +76,7 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({
   return (
     <div className="space-y-6 animate-fade-in text-white pb-12">
       {/* Saludo y acciones rápidas */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-6 rounded-3xl bg-gradient-to-r from-cobalt-pro/15 via-white/[0.02] to-transparent border border-cobalt-pro/20 shadow-elevation-1 rounded-2xl">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-6 rounded-3xl bg-surface-1 border border-white/[0.08] border border-[#0f62fe]/20 shadow-elevation-1 rounded-2xl">
         <div>
           <h2 className="text-xl font-black text-white tracking-tight">
             Bienvenido, {profile?.name || 'Entrenador/a'}
@@ -103,14 +103,14 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({
         {/* Atletas Registrados */}
         <div
           onClick={onNavigateToAthletes}
-          className="p-5 rounded-2xl bg-surface-2 border border-white/[0.08] shadow-elevation-1 space-y-2 cursor-pointer hover:border-cobalt-pro/40 transition-all group"
+          className="p-5 rounded-2xl bg-surface-2 border border-white/[0.08] shadow-elevation-1 space-y-2 cursor-pointer hover:border-[#0f62fe]/40 transition-all group"
         >
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[10px] font-black uppercase tracking-wider">Mis Atletas</span>
-            <Users className="w-4 h-4 text-cobalt-pro" />
+            <Users className="w-4 h-4 text-[#78a9ff]" />
           </div>
           <div className="text-3xl font-black text-white font-mono">{athletes.length}</div>
-          <div className="text-[11px] text-slate-400 flex items-center justify-between group-hover:text-cobalt-pro transition-colors">
+          <div className="text-[11px] text-slate-400 flex items-center justify-between group-hover:text-[#78a9ff] transition-colors">
             <span>Ver directorio completo</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </div>
@@ -123,7 +123,7 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({
         >
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[10px] font-black uppercase tracking-wider">Almacenamiento</span>
-            <HardDrive className="w-4 h-4 text-laser-mint" />
+            <HardDrive className="w-4 h-4 text-[#3ddbd9]" />
           </div>
           <div className="text-2xl font-black text-white font-mono">
             {formatSize(storageSummary?.totalStorageBytes || 0)}
@@ -173,7 +173,7 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({
         >
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[10px] font-black uppercase tracking-wider">Último Respaldo</span>
-            <Archive className="w-4 h-4 text-coral-flame" />
+            <Archive className="w-4 h-4 text-[#ff7eb6]" />
           </div>
           <div className="text-xs font-bold text-white truncate">
             {formatTime(profile?.lastBackupDate)}

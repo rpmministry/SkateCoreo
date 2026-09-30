@@ -95,7 +95,7 @@ export const CoachPortal: React.FC<CoachPortalProps> = ({
 
             <div className="flex items-center gap-2 border-l border-white/10 pl-3">
               <span className="text-sm font-black tracking-tight text-white flex items-center gap-1.5">
-                <span className="text-cyan font-black">Panel</span> Entrenadores
+                <span className="text-[#78a9ff] font-bold">Panel</span> Entrenadores
               </span>
               <Badge variant="cobalt" size="xs" className="hidden md:inline-flex">
                 PRO 2026
@@ -104,7 +104,7 @@ export const CoachPortal: React.FC<CoachPortalProps> = ({
           </div>
 
           {/* Centro: Navegación de Pestañas del Entrenador */}
-          <nav className="hidden lg:flex items-center gap-1 bg-white/[0.03] p-1 rounded-2xl border border-white/5">
+          <nav className="hidden lg:flex items-center gap-1 bg-white/[0.03] p-1 rounded-xl border border-white/5">
             {navItems.map((item) => {
               const isActive = activeCoachTab === item.id;
               return (
@@ -115,7 +115,7 @@ export const CoachPortal: React.FC<CoachPortalProps> = ({
                   onClick={() => setActiveCoachTab(item.id)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all disabled:opacity-30 disabled:pointer-events-none interactive-tap ${
                     isActive
-                      ? 'bg-cobalt-pro text-white font-bold shadow-glow-cobalt'
+                      ? 'bg-surface-3 text-[#f4f4f4] font-semibold border border-white/10 shadow-sm'
                       : 'text-slate-300 hover:text-white hover:bg-white/[0.06]'
                   }`}
                 >
@@ -157,7 +157,7 @@ export const CoachPortal: React.FC<CoachPortalProps> = ({
                 onClick={() => setActiveCoachTab(item.id)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 disabled:opacity-30 interactive-tap ${
                   isActive
-                    ? 'bg-cobalt-pro text-white font-bold shadow-glow-cobalt'
+                    ? 'bg-surface-3 text-[#f4f4f4] font-semibold border border-white/10 shadow-sm'
                     : 'bg-white/[0.04] text-slate-300 hover:text-white'
                 }`}
               >

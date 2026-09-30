@@ -19,6 +19,7 @@ export default {
     extend: {
       fontFamily: {
         sans: [
+          '"IBM Plex Sans"',
           'Inter',
           '-apple-system',
           'BlinkMacSystemFont',
@@ -32,72 +33,90 @@ export default {
           'BlinkMacSystemFont',
           'sans-serif',
         ],
-        mono: ['"JetBrains Mono"', 'monospace'],
+        mono: ['"IBM Plex Mono"', '"JetBrains Mono"', 'monospace'],
       },
       colors: {
-        // Nueva Identidad «Obsidian Precision Tech»
-        obsidian: {
-          deep: '#070A10',    // Lienzo más profundo
-          surface: '#0D131F', // Capa 1: Paneles y sidebars
-          card: '#131B2B',    // Capa 2: Tarjetas y listas
-          raised: '#1A2438',  // Capa 3: Tarjetas activas / Modales
-          hover: '#22304A',   // Estado hover
-          active: '#2A3C5C',  // Estado presionado
-        },
-        cobalt: {
-          DEFAULT: '#0072FF',
-          hover: '#005ECC',
-          light: '#338EFF',
-          muted: 'rgba(0, 114, 255, 0.15)',
-          glow: 'rgba(0, 114, 255, 0.35)',
-        },
-
-        // Mapeo retrocompatible refinado
-        neon: {
-          canvas: '#070A10',       // Obsidian Deep
-          surface: '#0D131F',      // Titanium Slate L1
-          card: '#131B2B',         // Titanium Slate L2
-          hover: '#22304A',
-          active: '#2A3C5C',
-          glass: 'rgba(13, 19, 31, 0.85)',
-        },
-        coral: {
-          DEFAULT: '#FF3366',      // Coral Flame deportivo
-          hover: '#E61E52',
-          glow: 'rgba(255, 51, 102, 0.35)',
-        },
-        cyan: {
-          DEFAULT: '#0072FF',      // Cobalt Pro precisión
-          hover: '#005ECC',
-          glow: 'rgba(0, 114, 255, 0.35)',
-        },
-        mint: {
-          DEFAULT: '#00E599',      // Laser Mint deportivo
-          hover: '#00C782',
-          glow: 'rgba(0, 229, 153, 0.35)',
+        // ── Carbon Design System Dark Theme Tokens (Gray 100/90) ──
+        canvas: {
+          DEFAULT: '#12161f',   // Base Carbon dark slate
+          deep: '#0d1117',
         },
         surface: {
-          canvas: '#070A10',
-          card: '#0D131F',
-          hover: '#131B2B',
-          active: '#22304A',
+          1: '#1a2130',         // Carbon Layer 01 (Sidebars, Header, Tables)
+          2: '#222b3d',         // Carbon Layer 02 (Cards, Dialogs)
+          3: '#2c374d',         // Carbon Layer 03 (Elevated, Hover)
+          hover: '#273247',
+          active: '#313e57',
+        },
+        // IBM Blue 60 Primary (Authoritative, precise, zero neon glare)
+        carbon: {
+          blue: '#0f62fe',
+          'blue-hover': '#0353e9',
+          'blue-active': '#002d9c',
+          'blue-light': '#78a9ff',
+          'blue-muted': 'rgba(15, 98, 254, 0.12)',
+        },
+        // Functional / Semantic
+        support: {
+          success: '#24a148',
+          warning: '#f1c21b',
+          error: '#da1e28',
+          info: '#4589ff',
+        },
+        // Mapeo retrocompatible refinado a tokens Carbon
+        cobalt: {
+          DEFAULT: '#0f62fe',   // IBM Blue 60
+          hover: '#0353e9',     // IBM Blue 70
+          light: '#78a9ff',     // IBM Blue 40 (readable text)
+          muted: 'rgba(15, 98, 254, 0.12)',
+          '400': '#78a9ff',
+          '500': '#0f62fe',
+          '600': '#0353e9',
+          'pro': '#0f62fe',
+        },
+        cyan: {
+          DEFAULT: '#0f62fe',   // Reemplaza el cian neón agresivo por IBM Blue 60
+          hover: '#0353e9',
+          light: '#78a9ff',
+          glow: 'rgba(15, 98, 254, 0.2)',
+        },
+        mint: {
+          DEFAULT: '#009d9a',   // Carbon Teal 50 deportivo controlado
+          hover: '#007d79',
+          light: '#3ddbd9',
+          glow: 'rgba(0, 157, 154, 0.2)',
+          'laser': '#009d9a',
+          '400': '#3ddbd9',
+        },
+        coral: {
+          DEFAULT: '#ee5396',   // Carbon Magenta 50 profesional (Panel de Entrenador)
+          hover: '#d12771',
+          light: '#ff7eb6',
+          glow: 'rgba(238, 83, 150, 0.2)',
+          'flame': '#ee5396',
+          '400': '#ff7eb6',
+          '500': '#ee5396',
+        },
+        neon: {
+          canvas: '#12161f',
+          surface: '#1a2130',
+          card: '#222b3d',
+          hover: '#273247',
+          active: '#313e57',
+          glass: 'rgba(26, 33, 48, 0.92)',
         },
         border: {
           subtle: 'rgba(255, 255, 255, 0.08)',
           medium: 'rgba(255, 255, 255, 0.14)',
           strong: 'rgba(255, 255, 255, 0.22)',
+          interactive: '#0f62fe',
         },
         text: {
-          primary: '#F8FAFC',
-          secondary: '#94A3B8',
-          tertiary: '#64748B',
+          primary: '#F4F4F4',   // Carbon Text Primary (alto contraste)
+          secondary: '#C6C6C6', // Carbon Text Secondary
+          helper: '#8D8D8D',    // Carbon Text Helper
+          disabled: '#525252',  // Carbon Text Disabled
         },
-        accent: {
-          DEFAULT: '#0072FF',
-          hover: '#005ECC',
-          contrast: '#FFFFFF',
-          glow: 'rgba(0, 114, 255, 0.35)',
-        }
       },
       spacing: {
         touch: '48px',
@@ -109,34 +128,35 @@ export default {
         touch: '48px',
       },
       borderRadius: {
-        xs: '6px',
-        sm: '8px',
-        md: '12px',
-        lg: '16px',
-        xl: '20px',
-        '2xl': '24px',
-        '3xl': '28px',
-        subtle: '10px',
-        card: '16px',
-        sheet: '24px',
+        xs: '4px',
+        sm: '6px',
+        md: '8px',
+        lg: '12px',
+        xl: '16px',
+        '2xl': '20px',
+        '3xl': '24px',
+        card: '12px',
+        subtle: '8px',
+        sheet: '20px',
       },
       boxShadow: {
-        'elevation-1': '0 2px 8px -1px rgba(0, 0, 0, 0.5), 0 1px 3px -1px rgba(0, 0, 0, 0.4)',
-        'elevation-2': '0 8px 24px -4px rgba(0, 0, 0, 0.65), 0 3px 8px -2px rgba(0, 0, 0, 0.5)',
-        'elevation-3': '0 16px 48px -8px rgba(0, 0, 0, 0.8), 0 6px 16px -4px rgba(0, 0, 0, 0.6)',
-        'soft-elevation': '0 16px 40px -4px rgba(0, 0, 0, 0.7), 0 4px 12px -2px rgba(0, 0, 0, 0.5)',
-        'glass-hud': '0 8px 32px 0 rgba(0, 0, 0, 0.6)',
-        'glow-coral': '0 0 24px -2px rgba(255, 51, 102, 0.35), 0 4px 12px -2px rgba(255, 51, 102, 0.2)',
-        'glow-cyan': '0 0 24px -2px rgba(0, 114, 255, 0.35), 0 4px 12px -2px rgba(0, 114, 255, 0.2)',
-        'glow-mint': '0 0 24px -2px rgba(0, 229, 153, 0.35), 0 4px 12px -2px rgba(0, 229, 153, 0.2)',
-        'glow-cobalt': '0 0 24px -2px rgba(0, 114, 255, 0.35), 0 4px 12px -2px rgba(0, 114, 255, 0.2)',
-        'accent-glow': '0 0 24px -2px rgba(0, 114, 255, 0.35)',
+        'elevation-1': '0 2px 4px 0 rgba(0, 0, 0, 0.35), 0 1px 2px 0 rgba(0, 0, 0, 0.25)',
+        'elevation-2': '0 4px 12px 0 rgba(0, 0, 0, 0.45), 0 2px 4px 0 rgba(0, 0, 0, 0.35)',
+        'elevation-3': '0 12px 32px 0 rgba(0, 0, 0, 0.6), 0 4px 8px 0 rgba(0, 0, 0, 0.4)',
+        'soft-elevation': '0 4px 16px 0 rgba(0, 0, 0, 0.45)',
+        'glass-hud': '0 4px 16px 0 rgba(0, 0, 0, 0.5)',
+        // Se reemplazan los halos neón difusos por bordes sutiles y sombras nítidas
+        'glow-coral': '0 2px 8px 0 rgba(238, 83, 150, 0.25)',
+        'glow-cyan': '0 2px 8px 0 rgba(15, 98, 254, 0.25)',
+        'glow-mint': '0 2px 8px 0 rgba(0, 157, 154, 0.25)',
+        'glow-cobalt': '0 2px 8px 0 rgba(15, 98, 254, 0.25)',
+        'accent-glow': '0 2px 8px 0 rgba(15, 98, 254, 0.25)',
       },
       transitionTimingFunction: {
         spring: 'cubic-bezier(0.16, 1, 0.3, 1)',
       },
       transitionDuration: {
-        ui: '180ms',
+        ui: '150ms',
       },
       keyframes: {
         'fade-in': {
@@ -144,18 +164,13 @@ export default {
           '100%': { opacity: '1' },
         },
         'scale-in': {
-          '0%': { opacity: '0', transform: 'scale(0.97)' },
+          '0%': { opacity: '0', transform: 'scale(0.98)' },
           '100%': { opacity: '1', transform: 'scale(1)' },
-        },
-        'glow-pulse': {
-          '0%, 100%': { opacity: '0.55' },
-          '50%': { opacity: '1' },
         },
       },
       animation: {
-        'fade-in': 'fade-in 200ms ease-out both',
-        'scale-in': 'scale-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both',
-        'glow-pulse': 'glow-pulse 3.2s ease-in-out infinite',
+        'fade-in': 'fade-in 150ms ease-out both',
+        'scale-in': 'scale-in 150ms cubic-bezier(0.16, 1, 0.3, 1) both',
       },
     },
   },
@@ -168,4 +183,3 @@ export default {
     }),
   ],
 }
-

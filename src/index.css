@@ -8,54 +8,54 @@
      ═══════════════════════════════════════════════════════════════════ */
 
   :root {
-    /* ── Colors: Canvas depth (darkest → elevated) ── */
-    --color-canvas: #070A10;
-    --color-surface: #0D131F;
-    --color-card: #131B2B;
-    --color-raised: #1A2438;
-    --color-hover: #22304A;
-    --color-active: #2A3C5C;
-    --color-glass: rgba(13, 19, 31, 0.88);
+    /* ── Carbon Design System Dark Tokens (Gray 100/90) ── */
+    --color-canvas: #12161f;
+    --color-surface: #1a2130;
+    --color-card: #222b3d;
+    --color-raised: #2c374d;
+    --color-hover: #273247;
+    --color-active: #313e57;
+    --color-glass: rgba(26, 33, 48, 0.92);
 
-    /* ── Obsidian Layered System ── */
-    --bg-canvas: #070A10;
-    --bg-surface-1: #0D131F;
-    --bg-surface-2: #131B2B;
-    --bg-surface-3: #1A2438;
+    /* ── Layered System ── */
+    --bg-canvas: #12161f;
+    --bg-surface-1: #1a2130;
+    --bg-surface-2: #222b3d;
+    --bg-surface-3: #2c374d;
     --border-subtle: rgba(255, 255, 255, 0.08);
     --border-medium: rgba(255, 255, 255, 0.14);
     --border-strong: rgba(255, 255, 255, 0.22);
 
-    /* ── Colors: Text (WCAG AA/AAA on --color-canvas) ── */
-    --color-text-primary: #FFFFFF;
-    --color-text-secondary: #94A3B8;
-    --color-text-tertiary: #64748B;
-    --color-text-disabled: #475569;
+    /* ── Carbon High-Contrast Accessible Text ── */
+    --color-text-primary: #F4F4F4;
+    --color-text-secondary: #C6C6C6;
+    --color-text-tertiary: #8D8D8D;
+    --color-text-disabled: #525252;
 
-    /* ── Colors: Interactive accent triad ── */
-    --color-accent-coral: #FF3366;
-    --color-accent-coral-hover: #E61E52;
-    --color-accent-cyan: #0072FF;
-    --color-accent-cyan-hover: #005ECC;
-    --color-accent-mint: #00E599;
-    --color-accent-mint-hover: #00C782;
-    --color-accent-amber: #F59E0B;
+    /* ── Carbon Interactive Tokens ── */
+    --color-accent-cyan: #0f62fe; /* IBM Blue 60 */
+    --color-accent-cyan-hover: #0353e9;
+    --color-accent-mint: #009d9a; /* Carbon Teal 50 */
+    --color-accent-mint-hover: #007d79;
+    --color-accent-coral: #ee5396; /* Carbon Magenta 50 */
+    --color-accent-coral-hover: #d12771;
+    --color-accent-amber: #f1c21b; /* Carbon Yellow 30 */
 
-    /* ── Colors: Semantic ── */
-    --color-danger: #EF4444;
-    --color-danger-hover: #DC2626;
-    --color-success: #10F49C;
-    --color-warning: #F59E0B;
+    /* ── Semantic Support ── */
+    --color-danger: #da1e28; /* Carbon Red 60 */
+    --color-danger-hover: #ba1b23;
+    --color-success: #24a148; /* Carbon Green 60 */
+    --color-warning: #f1c21b;
 
     /* ── Border radius scale ── */
-    --radius-xs: 6px;
-    --radius-sm: 10px;
-    --radius-md: 14px;
-    --radius-lg: 18px;
-    --radius-xl: 24px;
+    --radius-xs: 4px;
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
     --radius-full: 9999px;
 
-    /* ── Spacing scale (8px base, Carbon-ish) ── */
+    /* ── Spacing scale (Carbon 8-point grid) ── */
     --space-1: 0.25rem;
     --space-2: 0.5rem;
     --space-3: 0.75rem;
@@ -66,26 +66,26 @@
     --space-10: 2.5rem;
     --space-12: 3rem;
 
-    /* ── Elevation shadows (layered depth) ── */
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
-    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
-    --shadow-xl: 0 12px 36px -4px rgba(0, 0, 0, 0.65);
+    /* ── Elevation shadows (Carbon layered depth) ── */
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.35);
+    --shadow-md: 0 4px 12px 0 rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 12px 32px 0 rgba(0, 0, 0, 0.6);
+    --shadow-xl: 0 16px 40px 0 rgba(0, 0, 0, 0.75);
 
-    /* ── Typography scale (major third) ── */
-    --text-xs: 0.72rem;
-    --text-sm: 0.81rem;
-    --text-base: 0.9rem;
-    --text-md: 1.05rem;
-    --text-lg: 1.2rem;
-    --text-xl: 1.4rem;
-    --text-2xl: 1.7rem;
+    /* ── Typography scale (IBM Plex style) ── */
+    --text-xs: 0.75rem;
+    --text-sm: 0.8125rem;
+    --text-base: 0.875rem;
+    --text-md: 1rem;
+    --text-lg: 1.125rem;
+    --text-xl: 1.375rem;
+    --text-2xl: 1.625rem;
 
     /* ── Layout ── */
-    --header-height: 54px;
-    --header-height-lg: 60px;
+    --header-height: 52px;
+    --header-height-lg: 56px;
     --header-height-landscape: 40px;
-    --bottom-nav-height: 56px;
+    --bottom-nav-height: 52px;
     --touch-target: 48px;
     --sidebar-width: 272px;
     --sidebar-width-xl: 288px;
@@ -157,9 +157,9 @@ body {
    ═══════════════════════════════════════════════════════════════════ */
 
 :focus-visible {
-  outline: 2px solid var(--color-accent-cyan);
+  outline: 2px solid #0f62fe;
   outline-offset: 2px;
-  border-radius: var(--radius-xs);
+  border-radius: 4px;
 }
 
 :focus:not(:focus-visible) {
@@ -230,11 +230,11 @@ body {
 
 /* ── Glass morphism surfaces ── */
 .glass-panel {
-  background: linear-gradient(180deg, rgba(13, 19, 31, 0.88) 0%, rgba(7, 10, 16, 0.94) 100%);
-  backdrop-filter: blur(20px) saturate(150%);
-  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  background: rgba(26, 33, 48, 0.94);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.75);
+  box-shadow: 0 8px 32px -4px rgba(0, 0, 0, 0.5);
 }
 
 .glass-card {
@@ -258,7 +258,7 @@ body {
 }
 
 .text-gradient-brand {
-  background: linear-gradient(96deg, #FFFFFF 6%, #7FDBFF 52%, #00D2FF 100%);
+  background: linear-gradient(135deg, #FFFFFF 30%, #A6C8FF 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;

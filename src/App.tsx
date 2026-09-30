@@ -984,7 +984,7 @@ export function App() {
               type="button"
               onClick={requestClearRink}
               disabled={points.length === 0 && unplacedNodes.length === 0 && !hasPaperTraceOverlay}
-              className="press hidden min-h-touch min-w-touch items-center justify-center gap-2 rounded-xl border border-danger/30 bg-danger/10 px-3 text-xs font-bold text-danger hover:bg-danger/20 disabled:pointer-events-none disabled:opacity-30 lg:flex transition-colors"
+              className="press hidden min-h-touch min-w-touch items-center justify-center gap-2 rounded-xl border border-danger/30 bg-[#da1e28]/10 border border-[#da1e28]/30 px-3 text-xs font-medium text-[#ff8389] hover:bg-[#da1e28] hover:text-white disabled:pointer-events-none disabled:opacity-30 lg:flex transition-colors"
               title={
                 points.length === 0 && unplacedNodes.length === 0 && !hasPaperTraceOverlay
                   ? 'La pista ya está vacía'
@@ -1002,7 +1002,7 @@ export function App() {
           <button
             type="button"
             onClick={() => audioInputRef.current?.click()}
-            className="press hidden min-h-touch items-center justify-center gap-2 rounded-xl border border-cobalt-500/30 bg-cobalt-500/15 px-3 text-xs font-bold text-cobalt-300 shadow-soft-elevation hover:bg-cobalt-500/25 lg:flex lg:px-3.5 transition-colors"
+            className="press hidden min-h-touch items-center justify-center gap-2 rounded-xl border border-cobalt-500/30 bg-[#0f62fe]/10 border border-[#0f62fe]/30 px-3 text-xs font-medium text-[#78a9ff] hover:bg-[#0f62fe] hover:text-white lg:flex lg:px-3.5 transition-colors"
             title="Subir una pista de audio directamente al visor de la Pista 2D"
             aria-label="Subir pista al visor"
           >
@@ -1246,7 +1246,7 @@ export function App() {
                 <button
                   type="button"
                   onClick={() => setIsCoachSaveModalOpen(true)}
-                  className="press flex items-center gap-1 px-2.5 py-1 rounded-lg bg-cyan text-neon-canvas text-[11px] font-black shadow-glow-cyan hover:bg-cyan/90 transition-all"
+                  className="press flex items-center gap-1 px-2.5 py-1 rounded-lg bg-cyan text-neon-canvas text-[11px] font-black shadow-sm hover:bg-cyan/90 transition-all"
                   title="Guardar coreografía actual directamente en la ficha del atleta"
                 >
                   <Save className="w-3 h-3" />
