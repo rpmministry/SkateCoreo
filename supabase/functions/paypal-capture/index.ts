@@ -40,7 +40,7 @@ serve(async (req) => {
       }
     }
 
-    const { orderID } = await req.json();
+    const { orderID, plan: clientPlan, role: clientRole } = await req.json();
     if (!orderID) {
       return new Response(
         JSON.stringify({ success: false, error: 'orderID es requerido' }),
@@ -96,19 +96,63 @@ serve(async (req) => {
     // 4. Extraer metadata de la transacción
     const purchaseUnit = captureData.purchase_units?.[0];
     const capture = purchaseUnit?.payments?.captures?.[0];
-    const amountPaid = parseFloat(capture?.amount?.value || '48.00');
+    const amountPaid = parseFloat(capture?.amount?.value || '47.90');
     const currencyPaid = capture?.amount?.currency_code || 'USD';
     const captureId = capture?.id || captureData.id;
     const payerEmail = captureData.payer?.email_address || '';
     const payerName = `${captureData.payer?.name?.given_name || ''} ${captureData.payer?.name?.surname || ''}`.trim();
     const payerId = captureData.payer?.payer_id || null;
 
-    // Detectar plan individual según monto ($5 mensual o $48 anual)
-    const isMonthly = amountPaid <= 15.0;
-    const planType = isMonthly ? 'monthly' : 'individual';
-    const accessDays = isMonthly ? 30 : 365;
+    // 5. Validación y Detección de Plan según Importes Oficiales de SkateCoreo
+    // Precios oficiales vigentes:
+    //   Patinador Mensual: $4.99 USD / mes (30 días)
+    //   Patinador Anual:   $47.90 USD / año (365 días, 20% descuento sobre $59.88)
+    //   Entrenador Mensual: $9.99 USD / mes (30 días)
+    //   Entrenador Anual:   $83.92 USD / año (365 días, 30% descuento sobre $119.88)
+    let resolvedRole: 'skater' | 'coach' = 'skater';
+    let resolvedPeriod: 'monthly' | 'annual' = 'annual';
+    let accessDays = 365;
 
-    // 5. Registrar en pending_payments para habilitar la creación o recuperación de cuenta
+    if (Math.abs(amountPaid - 83.92) <= 1.0 || Math.abs(amountPaid - 67.20) <= 1.0) {
+      resolvedRole = 'coach';
+      resolvedPeriod = 'annual';
+      accessDays = 365;
+    } else if (Math.abs(amountPaid - 9.99) <= 0.5 || Math.abs(amountPaid - 8.00) <= 0.5) {
+      resolvedRole = 'coach';
+      resolvedPeriod = 'monthly';
+      accessDays = 30;
+    } else if (Math.abs(amountPaid - 4.99) <= 0.5 || Math.abs(amountPaid - 5.00) <= 0.5) {
+      resolvedRole = 'skater';
+      resolvedPeriod = 'monthly';
+      accessDays = 30;
+    } else if (Math.abs(amountPaid - 47.90) <= 1.0 || Math.abs(amountPaid - 48.00) <= 1.0) {
+      resolvedRole = 'skater';
+      resolvedPeriod = 'annual';
+      accessDays = 365;
+    } else {
+      // Si el cliente especificó rol y período, verificar coherencia o usar umbrales seguros
+      if (clientRole === 'coach' && clientPlan === 'monthly') {
+        resolvedRole = 'coach';
+        resolvedPeriod = 'monthly';
+        accessDays = 30;
+      } else if (clientRole === 'coach') {
+        resolvedRole = 'coach';
+        resolvedPeriod = 'annual';
+        accessDays = 365;
+      } else if (clientPlan === 'monthly' || amountPaid <= 15.0) {
+        resolvedRole = 'skater';
+        resolvedPeriod = 'monthly';
+        accessDays = 30;
+      } else {
+        resolvedRole = 'skater';
+        resolvedPeriod = 'annual';
+        accessDays = 365;
+      }
+    }
+
+    const planType = `${resolvedRole}_${resolvedPeriod}`;
+
+    // 6. Registrar en pending_payments para habilitar la creación o recuperación de cuenta
     await supabase.from('pending_payments').upsert({
       paypal_order_id: orderID,
       paypal_capture_id: captureId,
@@ -122,7 +166,7 @@ serve(async (req) => {
       created_at: new Date().toISOString(),
     }, { onConflict: 'paypal_order_id' });
 
-    // 6. Registrar en payments para auditoría histórica
+    // 7. Registrar en payments para auditoría histórica
     await supabase.from('payments').upsert({
       user_id: currentUser?.id || null,
       paypal_order_id: orderID,
@@ -136,12 +180,12 @@ serve(async (req) => {
       raw_response: captureData,
     }, { onConflict: 'paypal_order_id' }).catch((e: any) => console.warn('Audit insert notice:', e));
 
-    // 7. Si ya existía un usuario registrado y autenticado, extender su suscripción de inmediato
+    // 8. Si ya existía un usuario registrado y autenticado, extender su suscripción de inmediato
     let newExpiryDate: string | null = null;
     if (currentUser?.id) {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('access_expires_at')
+        .select('access_expires_at, role')
         .eq('id', currentUser.id)
         .maybeSingle();
 
@@ -153,17 +197,22 @@ serve(async (req) => {
       const baseTimeMs = Math.max(now, currentExpiryMs);
       newExpiryDate = new Date(baseTimeMs + (accessDays * 24 * 60 * 60 * 1000)).toISOString();
 
+      const updatedRole = resolvedRole === 'coach' ? 'coach' : (profile?.role === 'coach' ? 'coach' : 'user');
+      const updatedPlan = resolvedRole === 'coach' ? 'coach' : 'individual';
+
       await supabase.from('profiles').update({
         access_expires_at: newExpiryDate,
         subscription_status: 'active',
-        subscription_plan: planType,
+        subscription_plan: updatedPlan,
+        role: updatedRole,
         updated_at: new Date().toISOString(),
       }).eq('id', currentUser.id);
 
       await supabase.from('users').update({
         access_expires_at: newExpiryDate,
         subscription_status: 'active',
-        subscription_plan: planType,
+        subscription_plan: updatedPlan,
+        role: updatedRole,
         updated_at: new Date().toISOString(),
       }).eq('id', currentUser.id).catch(() => {});
 
@@ -180,6 +229,8 @@ serve(async (req) => {
           paypal_capture_id: captureId,
           amount: amountPaid,
           currency: currencyPaid,
+          role: resolvedRole,
+          period: resolvedPeriod,
         },
       }).catch((e: any) => console.warn('Entitlement insert notice:', e));
     }
@@ -195,6 +246,9 @@ serve(async (req) => {
         amount: amountPaid,
         currency: currencyPaid,
         access_expires_at: newExpiryDate,
+        role: resolvedRole,
+        period: resolvedPeriod,
+        plan: planType,
         is_existing_user: !!currentUser,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

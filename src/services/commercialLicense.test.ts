@@ -25,17 +25,17 @@ async function runTests() {
   console.log('1. Verificando precios base individuales...');
   {
     const pricingAnnual = await commercialLicenseService.calculatePricing(1, 'annual');
-    assert.equal(pricingAnnual.unit_base_price, 48);
-    assert.equal(pricingAnnual.subtotal, 48);
+    assert.equal(pricingAnnual.unit_base_price, 47.90);
+    assert.equal(pricingAnnual.subtotal, 47.90);
     assert.equal(pricingAnnual.discount_percent, 0);
-    assert.equal(pricingAnnual.total_amount, 48);
+    assert.equal(pricingAnnual.total_amount, 47.90);
 
     const pricingMonthly = await commercialLicenseService.calculatePricing(1, 'monthly');
-    assert.equal(pricingMonthly.unit_base_price, 5);
-    assert.equal(pricingMonthly.subtotal, 5);
+    assert.equal(pricingMonthly.unit_base_price, 4.99);
+    assert.equal(pricingMonthly.subtotal, 4.99);
     assert.equal(pricingMonthly.discount_percent, 0);
-    assert.equal(pricingMonthly.total_amount, 5);
-    console.log('   ✓ Planes individuales correctos: Anual $48/año, Mensual $5/mes (sin referencia a $20).');
+    assert.equal(pricingMonthly.total_amount, 4.99);
+    console.log('   ✓ Planes individuales correctos: Anual $47.90/año (20% desc.), Mensual $4.99/mes.');
   }
 
   // ── 2. Tramos de Descuento por Volumen para Clubes ───────────────────────
@@ -44,42 +44,42 @@ async function runTests() {
     // 4 licencias (tramo base < 5 -> 0%)
     const p4 = await commercialLicenseService.calculatePricing(4, 'annual');
     assert.equal(p4.discount_percent, 0);
-    assert.equal(p4.total_amount, 4 * 48); // $192
+    assert.equal(p4.total_amount, 191.60);
 
     // 5 licencias (tramo 5-9 -> 10%)
     const p5 = await commercialLicenseService.calculatePricing(5, 'annual');
     assert.equal(p5.discount_percent, 10);
-    assert.equal(p5.subtotal, 240);
-    assert.equal(p5.discount_amount, 24);
-    assert.equal(p5.total_amount, 216);
+    assert.equal(p5.subtotal, 239.50);
+    assert.equal(p5.discount_amount, 23.95);
+    assert.equal(p5.total_amount, 215.55);
 
     // 10 licencias (tramo 10-19 -> 20%)
     const p10 = await commercialLicenseService.calculatePricing(10, 'annual');
     assert.equal(p10.discount_percent, 20);
-    assert.equal(p10.subtotal, 480);
-    assert.equal(p10.discount_amount, 96);
-    assert.equal(p10.total_amount, 384);
+    assert.equal(p10.subtotal, 479.00);
+    assert.equal(p10.discount_amount, 95.80);
+    assert.equal(p10.total_amount, 383.20);
 
     // 25 licencias por volumen (tramo 20-49 -> 35%)
     const p25 = await commercialLicenseService.calculatePricing(25, 'annual');
     assert.equal(p25.discount_percent, 35);
-    assert.equal(p25.subtotal, 1200);
-    assert.equal(p25.discount_amount, 420);
-    assert.equal(p25.total_amount, 780);
+    assert.equal(p25.subtotal, 1197.50);
+    assert.equal(p25.discount_amount, 419.13);
+    assert.equal(p25.total_amount, 778.37);
 
     // 50 licencias (tramo 50+ -> 50%)
     const p50 = await commercialLicenseService.calculatePricing(50, 'annual');
     assert.equal(p50.discount_percent, 50);
-    assert.equal(p50.subtotal, 2400);
-    assert.equal(p50.discount_amount, 1200);
-    assert.equal(p50.total_amount, 1200);
+    assert.equal(p50.subtotal, 2395.00);
+    assert.equal(p50.discount_amount, 1197.50);
+    assert.equal(p50.total_amount, 1197.50);
 
     console.log('   ✓ Tramos automáticos verificados:');
-    console.log('     · 1-4: 0% ($192)');
-    console.log('     · 5-9: 10% ($216 para 5)');
-    console.log('     · 10-19: 20% ($384 para 10)');
-    console.log('     · 20-49: 35% ($780 para 25)');
-    console.log('     · 50+: 50% ($1200 para 50)');
+    console.log('     · 1-4: 0% ($191.60)');
+    console.log('     · 5-9: 10% ($215.55 para 5)');
+    console.log('     · 10-19: 20% ($383.20 para 10)');
+    console.log('     · 20-49: 35% ($778.37 para 25)');
+    console.log('     · 50+: 50% ($1197.50 para 50)');
   }
 
   // ── 3. Descuento Negociado / Acordado (Caso de Estudio: 25 licencias al 50%)
@@ -88,11 +88,11 @@ async function runTests() {
     const pNegotiated = await commercialLicenseService.calculatePricing(25, 'annual', 50);
     assert.equal(pNegotiated.discount_type, 'negotiated');
     assert.equal(pNegotiated.discount_percent, 50);
-    assert.equal(pNegotiated.subtotal, 1200);
-    assert.equal(pNegotiated.discount_amount, 600);
-    assert.equal(pNegotiated.total_amount, 600);
-    assert.equal(pNegotiated.savings_amount, 600);
-    console.log('   ✓ Caso comercial verificado: 25 licencias @ 50% negociado = $600 total (ahorro de $600).');
+    assert.equal(pNegotiated.subtotal, 1197.50);
+    assert.equal(pNegotiated.discount_amount, 598.75);
+    assert.equal(pNegotiated.total_amount, 598.75);
+    assert.equal(pNegotiated.savings_amount, 598.75);
+    console.log('   ✓ Caso comercial verificado: 25 licencias @ 50% negociado = $598.75 total.');
   }
 
   // ── 4. Generación Criptográfica de Códigos Únicos SKC-XXXX-XXXX ───────────

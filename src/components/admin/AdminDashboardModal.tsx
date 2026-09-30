@@ -29,8 +29,11 @@ import {
   History,
   Tag,
   Percent,
+  CreditCard,
+  Sparkles,
 } from 'lucide-react';
 import { useAuthStore, isOwnerOrAdmin } from '../../store/useAuthStore';
+import { SKATER_PLAN, COACH_PLAN } from '../../services/pricingService';
 import {
   commercialLicenseService,
   LicensePackage,
@@ -48,7 +51,7 @@ interface AdminDashboardModalProps {
   onClose: () => void;
 }
 
-type AdminTab = 'packages' | 'new-package' | 'codes' | 'audit' | 'tiers' | 'users';
+type AdminTab = 'packages' | 'new-package' | 'codes' | 'audit' | 'tiers' | 'users' | 'plans';
 
 export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen, onClose }) => {
   const currentUser = useAuthStore((s) => s.user);
@@ -462,6 +465,21 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
           >
             <History className="h-4 w-4" />
             <span>Auditoría</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab('plans');
+            }}
+            className={`press flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
+              activeTab === 'plans'
+                ? 'bg-cyan text-neon-canvas shadow-glow-cyan'
+                : 'text-slate-300 hover:bg-white/5'
+            }`}
+          >
+            <CreditCard className="h-4 w-4" />
+            <span>Tarifas & Planes</span>
           </button>
         </div>
 
@@ -1160,6 +1178,254 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ══════════ TAB 6: TARIFAS & PLANES OFICIALES ══════════ */}
+          {activeTab === 'plans' && (
+            <div className="space-y-6 animate-fade-in">
+              {/* Encabezado */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="rounded-lg bg-cyan/20 px-2 py-0.5 font-mono text-[10px] font-bold text-cyan uppercase tracking-wider">
+                      Fuente Única de Verdad
+                    </span>
+                    <span className="rounded-lg bg-slate-800 px-2 py-0.5 font-mono text-[10px] text-slate-400">
+                      pricingService.ts
+                    </span>
+                  </div>
+                  <h2 className="text-base sm:text-lg font-black text-white">
+                    Planes y Precios Oficiales de SkateCoreo
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Tarifas vigentes certificadas, descuentos anuales y parámetros consumidos por Frontend, Backend y Pasarela PayPal.
+                  </p>
+                </div>
+              </div>
+
+              {/* Tarjetas comparativas de los 2 planes oficiales */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                {/* 1. Plan Patinadora / Patinador */}
+                <div className="rounded-2xl border border-blue-500/30 bg-slate-900/60 p-5 shadow-elevation-2 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/20 text-blue-400">
+                          <Sparkles className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-white">{SKATER_PLAN.name}</h3>
+                          <span className="text-[10px] font-mono text-blue-400 uppercase">Rol: {SKATER_PLAN.role}</span>
+                        </div>
+                      </div>
+                      <span className="rounded-full bg-blue-500/20 px-2.5 py-0.5 text-[10px] font-bold text-blue-300">
+                        Ahorro {SKATER_PLAN.annualDiscountPercent}% Anual
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-slate-300 mb-4">{SKATER_PLAN.tagline}</p>
+
+                    {/* Desglose de Precios */}
+                    <div className="grid grid-cols-2 gap-2.5 rounded-xl bg-slate-950/60 border border-white/5 p-3 mb-4">
+                      <div>
+                        <span className="block text-[10px] font-mono uppercase text-slate-400">Precio Mensual</span>
+                        <div className="flex items-baseline gap-1 mt-0.5">
+                          <span className="text-lg font-black font-mono text-white">
+                            ${SKATER_PLAN.monthlyPrice.toFixed(2)}
+                          </span>
+                          <span className="text-[10px] text-slate-400">USD/mes</span>
+                        </div>
+                        <span className="text-[10px] text-slate-500 block mt-0.5">Vigencia: 30 días</span>
+                      </div>
+
+                      <div className="border-l border-white/10 pl-3">
+                        <span className="block text-[10px] font-mono uppercase text-cyan">Plan Anual (-{SKATER_PLAN.annualDiscountPercent}%)</span>
+                        <div className="flex items-baseline gap-1 mt-0.5">
+                          <span className="text-lg font-black font-mono text-white">
+                            ${SKATER_PLAN.annualPrice.toFixed(2)}
+                          </span>
+                          <span className="text-[10px] text-slate-400">USD/año</span>
+                        </div>
+                        <span className="text-[10px] text-cyan block font-semibold mt-0.5">
+                          Ahorras ${SKATER_PLAN.annualSavings.toFixed(2)}/año
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Fórmulas matemáticas de auditoría */}
+                    <div className="rounded-xl border border-white/5 bg-slate-950/40 p-2.5 mb-4 text-[11px] font-mono space-y-1 text-slate-400">
+                      <div className="flex justify-between">
+                        <span>Base 12 meses ({SKATER_PLAN.monthlyPrice.toFixed(2)} × 12):</span>
+                        <span className="text-slate-300">${SKATER_PLAN.baseAnnualPrice.toFixed(2)} USD</span>
+                      </div>
+                      <div className="flex justify-between text-cyan">
+                        <span>Descuento aplicado ({SKATER_PLAN.annualDiscountPercent}%):</span>
+                        <span>-${SKATER_PLAN.annualSavings.toFixed(2)} USD</span>
+                      </div>
+                      <div className="flex justify-between border-t border-white/10 pt-1 font-bold text-white">
+                        <span>Total Anual Facturado:</span>
+                        <span>${SKATER_PLAN.annualPrice.toFixed(2)} USD</span>
+                      </div>
+                      <div className="flex justify-between text-[10px] text-slate-500">
+                        <span>Equivalente mensual:</span>
+                        <span>${SKATER_PLAN.monthlyEquivalent.toFixed(2)} USD/mes</span>
+                      </div>
+                    </div>
+
+                    {/* Características */}
+                    <div className="space-y-1.5 text-xs text-slate-300">
+                      <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 block mb-1">
+                        Capacidades Incluidas
+                      </span>
+                      {SKATER_PLAN.features.map((feat, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <Check className="h-3 w-3 text-cyan shrink-0" />
+                          <span>{feat}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Plan Entrenador */}
+                <div className="rounded-2xl border border-pink-500/30 bg-slate-900/60 p-5 shadow-elevation-2 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-pink-500/20 text-pink-400">
+                          <Users className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-white">{COACH_PLAN.name}</h3>
+                          <span className="text-[10px] font-mono text-pink-400 uppercase">Rol: {COACH_PLAN.role}</span>
+                        </div>
+                      </div>
+                      <span className="rounded-full bg-pink-500/20 px-2.5 py-0.5 text-[10px] font-bold text-pink-300">
+                        Ahorro {COACH_PLAN.annualDiscountPercent}% Anual
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-slate-300 mb-4">{COACH_PLAN.tagline}</p>
+
+                    {/* Desglose de Precios */}
+                    <div className="grid grid-cols-2 gap-2.5 rounded-xl bg-slate-950/60 border border-white/5 p-3 mb-4">
+                      <div>
+                        <span className="block text-[10px] font-mono uppercase text-slate-400">Precio Mensual</span>
+                        <div className="flex items-baseline gap-1 mt-0.5">
+                          <span className="text-lg font-black font-mono text-white">
+                            ${COACH_PLAN.monthlyPrice.toFixed(2)}
+                          </span>
+                          <span className="text-[10px] text-slate-400">USD/mes</span>
+                        </div>
+                        <span className="text-[10px] text-slate-500 block mt-0.5">Vigencia: 30 días</span>
+                      </div>
+
+                      <div className="border-l border-white/10 pl-3">
+                        <span className="block text-[10px] font-mono uppercase text-pink-400">Plan Anual (-{COACH_PLAN.annualDiscountPercent}%)</span>
+                        <div className="flex items-baseline gap-1 mt-0.5">
+                          <span className="text-lg font-black font-mono text-white">
+                            ${COACH_PLAN.annualPrice.toFixed(2)}
+                          </span>
+                          <span className="text-[10px] text-slate-400">USD/año</span>
+                        </div>
+                        <span className="text-[10px] text-pink-400 block font-semibold mt-0.5">
+                          Ahorras ${COACH_PLAN.annualSavings.toFixed(2)}/año
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Fórmulas matemáticas de auditoría */}
+                    <div className="rounded-xl border border-white/5 bg-slate-950/40 p-2.5 mb-4 text-[11px] font-mono space-y-1 text-slate-400">
+                      <div className="flex justify-between">
+                        <span>Base 12 meses ({COACH_PLAN.monthlyPrice.toFixed(2)} × 12):</span>
+                        <span className="text-slate-300">${COACH_PLAN.baseAnnualPrice.toFixed(2)} USD</span>
+                      </div>
+                      <div className="flex justify-between text-pink-400">
+                        <span>Descuento aplicado ({COACH_PLAN.annualDiscountPercent}%):</span>
+                        <span>-${COACH_PLAN.annualSavings.toFixed(2)} USD</span>
+                      </div>
+                      <div className="flex justify-between border-t border-white/10 pt-1 font-bold text-white">
+                        <span>Total Anual Facturado:</span>
+                        <span>${COACH_PLAN.annualPrice.toFixed(2)} USD</span>
+                      </div>
+                      <div className="flex justify-between text-[10px] text-slate-500">
+                        <span>Equivalente mensual:</span>
+                        <span>${COACH_PLAN.monthlyEquivalent.toFixed(2)} USD/mes</span>
+                      </div>
+                    </div>
+
+                    {/* Características */}
+                    <div className="space-y-1.5 text-xs text-slate-300">
+                      <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 block mb-1">
+                        Capacidades Incluidas
+                      </span>
+                      {COACH_PLAN.features.map((feat, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <Check className="h-3 w-3 text-pink-400 shrink-0" />
+                          <span>{feat}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Matriz de Reglas Comerciales de Auditoría */}
+              <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-5 space-y-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-cyan" />
+                  Reglas de Facturación, Separación de Roles y Pasarela PayPal
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs text-slate-300">
+                    <thead className="border-b border-white/10 text-[11px] uppercase text-slate-500">
+                      <tr>
+                        <th className="pb-2">Plan</th>
+                        <th className="pb-2">Rol Asignado</th>
+                        <th className="pb-2">Período</th>
+                        <th className="pb-2">Importe Exacto</th>
+                        <th className="pb-2">Días Otorgados</th>
+                        <th className="pb-2">Validación Backend</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5 font-mono text-[11px]">
+                      <tr>
+                        <td className="py-2 font-bold text-white">Patinador Mensual</td>
+                        <td className="py-2 text-blue-400">skater</td>
+                        <td className="py-2">monthly</td>
+                        <td className="py-2 font-bold text-cyan">$4.99 USD</td>
+                        <td className="py-2">30 días</td>
+                        <td className="py-2 text-mint">Verificado por monto PayPal</td>
+                      </tr>
+                      <tr>
+                        <td className="py-2 font-bold text-white">Patinador Anual</td>
+                        <td className="py-2 text-blue-400">skater</td>
+                        <td className="py-2">annual</td>
+                        <td className="py-2 font-bold text-cyan">$47.90 USD</td>
+                        <td className="py-2">365 días</td>
+                        <td className="py-2 text-mint">Verificado (-20% sobre $59.88)</td>
+                      </tr>
+                      <tr>
+                        <td className="py-2 font-bold text-white">Entrenador Mensual</td>
+                        <td className="py-2 text-pink-400">coach</td>
+                        <td className="py-2">monthly</td>
+                        <td className="py-2 font-bold text-cyan">$9.99 USD</td>
+                        <td className="py-2">30 días</td>
+                        <td className="py-2 text-mint">Verificado por monto PayPal</td>
+                      </tr>
+                      <tr>
+                        <td className="py-2 font-bold text-white">Entrenador Anual</td>
+                        <td className="py-2 text-pink-400">coach</td>
+                        <td className="py-2">annual</td>
+                        <td className="py-2 font-bold text-cyan">$83.92 USD</td>
+                        <td className="py-2">365 días</td>
+                        <td className="py-2 text-mint">Verificado (-30% sobre $119.88)</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           )}
         </div>

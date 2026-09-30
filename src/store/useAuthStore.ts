@@ -20,7 +20,7 @@ export const isSkaterRole = (role?: UserRole | string | null): boolean => {
   return role === 'skater' || role === 'user';
 };
 export type SubscriptionStatus = 'active' | 'inactive' | 'trial';
-export type SubscriptionPlan = 'individual' | 'club' | 'beta_tester' | null;
+export type SubscriptionPlan = 'individual' | 'club' | 'beta_tester' | 'coach' | 'skater' | null;
 
 /** Registro de código promocional (solo administradores pueden consultarlo). */
 export interface PromoCodeRecord {
@@ -363,7 +363,7 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
   /**
    * Registro Condicionado Post-Pago PayPal (Crea cuenta e inmediatamente activa acceso por 1 año)
    */
-  registerWithPayment: async (email: string, password: string, fullName: string, paypalOrderId: string, _planRole: 'skater' | 'coach' = 'skater') => {
+  registerWithPayment: async (email: string, password: string, fullName: string, paypalOrderId: string, planRole: 'skater' | 'coach' = 'skater') => {
     const cleanEmail = email.toLowerCase().trim();
     if (!cleanEmail || !password || !paypalOrderId) {
       return { success: false, message: 'Todos los campos son obligatorios.' };
@@ -389,6 +389,7 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
           p_device_id: deviceId,
           p_device_type: deviceType,
           p_device_name: deviceName,
+          p_plan_role: planRole,
         });
 
         if (error) {
@@ -407,11 +408,14 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
           nombre: data.user.full_name,
         };
 
+        const assignedRole: UserRole = (data.user?.role as UserRole) || (planRole === 'coach' ? 'coach' : 'user');
+        const assignedPlan: SubscriptionPlan = (data.user?.subscription_plan as SubscriptionPlan) || (planRole === 'coach' ? 'coach' : 'individual');
+
         set({
           user: newUser,
-          role: 'user',
+          role: assignedRole,
           subscription_status: 'active',
-          subscription_plan: 'individual',
+          subscription_plan: assignedPlan,
           access_expires_at: data.user.access_expires_at,
           isLoading: false,
         });
@@ -420,16 +424,16 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
           STORAGE_KEY,
           JSON.stringify({
             user: newUser,
-            role: 'user',
+            role: assignedRole,
             subscription_status: 'active',
-            subscription_plan: 'individual',
+            subscription_plan: assignedPlan,
             access_expires_at: data.user.access_expires_at,
           })
         );
 
         get().fetchDevices().catch(() => {});
 
-        return { success: true, message: '¡Cuenta creada y activada por 1 año con éxito!' };
+        return { success: true, message: `¡Cuenta ${planRole === 'coach' ? 'de Entrenador' : 'de Patinador'} activada con éxito!` };
       } else {
         set({ isLoading: false });
         return { success: true, message: 'Cuenta creada localmente.' };

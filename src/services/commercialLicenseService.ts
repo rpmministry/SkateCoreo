@@ -10,6 +10,7 @@
  */
 
 import { supabase, isSupabaseConfigured } from './supabase';
+import { SKATER_PLAN } from './pricingService';
 
 export interface CommercialPricing {
   success: boolean;
@@ -144,9 +145,9 @@ export const commercialLicenseService = {
       // Continuar al cálculo local
     }
 
-    // Cálculo local certificado con las mismas reglas del backend
-    const unitPrice = plan === 'monthly' ? 5.0 : 48.0;
-    const subtotal = unitPrice * totalLicenses;
+    // Cálculo local certificado con las mismas reglas oficiales del backend
+    const unitPrice = plan === 'monthly' ? SKATER_PLAN.monthlyPrice : SKATER_PLAN.annualPrice;
+    const subtotal = Number((unitPrice * totalLicenses).toFixed(2));
     let discountPercent = 0.0;
     let discountType: 'tiered' | 'negotiated' = 'tiered';
 

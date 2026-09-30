@@ -36,7 +36,7 @@ import {
   User,
   KeyRound,
 } from 'lucide-react';
-import { PRICING_PLANS, PlanRole, PlanPeriod } from '../services/pricingService';
+import { PRICING_PLANS, SKATER_PLAN, COACH_PLAN, PlanRole, PlanPeriod } from '../services/pricingService';
 import { useAuthStore } from '../store/useAuthStore';
 import { PayPalButton } from './PayPalButton';
 import { getDeviceType, getDeviceTypeLabel } from '../utils/deviceDetector';
@@ -628,7 +628,7 @@ export const AuthModal: React.FC = () => {
                           <span className="text-xs font-semibold">Patinador(a)</span>
                         </div>
                         <span className="text-[11px] font-mono text-[#78a9ff] font-bold mt-0.5">
-                          $5.00 USD / mes
+                          ${SKATER_PLAN.monthlyPrice.toFixed(2)} USD / mes
                         </span>
                       </button>
 
@@ -647,7 +647,7 @@ export const AuthModal: React.FC = () => {
                           <span className="text-xs font-semibold">Entrenador(a)</span>
                         </div>
                         <span className="text-[11px] font-mono text-[#ff7eb6] font-bold mt-0.5">
-                          $8.00 USD / mes
+                          ${COACH_PLAN.monthlyPrice.toFixed(2)} USD / mes
                         </span>
                       </button>
                     </div>
@@ -811,6 +811,7 @@ export const AuthModal: React.FC = () => {
                       <PayPalButton
                         amount={paypalAmount}
                         plan={selectedPlan}
+                        role={selectedRole}
                         buyerEmail={buyerEmail}
                         onSuccess={(data) => {
                           setPostPaymentData({

@@ -9,6 +9,7 @@
 
 import { supabase, isSupabaseConfigured } from './supabase';
 import { useAuthStore } from '../store/useAuthStore';
+import { getPlanDetails, PlanRole, PlanPeriod } from './pricingService';
 
 export interface PayPalCaptureResult {
   success: boolean;
@@ -19,6 +20,8 @@ export interface PayPalCaptureResult {
   amount?: number;
   currency?: string;
   access_expires_at?: string;
+  role?: PlanRole;
+  plan?: string;
   error?: string;
 }
 
@@ -26,7 +29,11 @@ export const paypalService = {
   /**
    * Captura y valida una orden o suscripción de PayPal en el backend seguro
    */
-  async captureOrder(orderID: string, plan: 'annual' | 'monthly' = 'annual'): Promise<PayPalCaptureResult> {
+  async captureOrder(
+    orderID: string,
+    plan: PlanPeriod = 'annual',
+    role: PlanRole = 'skater'
+  ): Promise<PayPalCaptureResult> {
     if (!orderID) {
       return { success: false, error: 'El ID de orden de PayPal es obligatorio.' };
     }
@@ -55,7 +62,7 @@ export const paypalService = {
             'apikey': anonKey,
             'Authorization': authHeader,
           },
-          body: JSON.stringify({ orderID, plan }),
+          body: JSON.stringify({ orderID, plan, role }),
         });
 
         const data = await response.json();
@@ -81,11 +88,13 @@ export const paypalService = {
           amount: data.amount,
           currency: data.currency,
           access_expires_at: data.access_expires_at,
+          role: data.role || role,
+          plan: data.plan || `${role}_${plan}`,
         };
       } else {
         // Fallback para pruebas locales (sandbox / demo)
-        const isMonthly = plan === 'monthly';
-        const days = isMonthly ? 30 : 365;
+        const planDetails = getPlanDetails(role, plan);
+        const days = planDetails.durationDays;
         const mockNewExpiry = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
         return {
           success: true,
@@ -93,9 +102,11 @@ export const paypalService = {
           orderID,
           payer_email: 'demo@skatecoreo.app',
           payer_name: 'Patinador Demo',
-          amount: isMonthly ? 5.00 : 48.00,
+          amount: planDetails.amount,
           currency: 'USD',
           access_expires_at: mockNewExpiry,
+          role,
+          plan: planDetails.planId,
         };
       }
     } catch (err: any) {

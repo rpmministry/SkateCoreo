@@ -15,6 +15,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { paypalService, PayPalCaptureResult } from '../services/paypalService';
+import { getPlanDetails, PlanRole, PlanPeriod } from '../services/pricingService';
 import { Mail, ShieldCheck } from 'lucide-react';
 
 interface PayPalSuccessData {
@@ -25,16 +26,18 @@ interface PayPalSuccessData {
 }
 
 interface PayPalButtonProps {
-  amount?: string; // '48.00' | '5.00'
-  plan?: 'annual' | 'monthly';
+  amount?: string;
+  plan?: PlanPeriod;
+  role?: PlanRole;
   buyerEmail: string;
   onSuccess: (data: PayPalSuccessData) => void;
   onError: (errorMsg: string) => void;
 }
 
 export const PayPalButton: React.FC<PayPalButtonProps> = ({
-  amount = '48.00',
+  amount,
   plan = 'annual',
+  role = 'skater',
   buyerEmail,
   onSuccess,
   onError,
@@ -84,9 +87,9 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
 
           createOrder: (_data: any, actions: any) => {
             const cleanEmail = buyerEmail.trim().toLowerCase();
-            const description = plan === 'monthly'
-              ? 'SkateCoreo Pro - Suscripción Mensual ($5/mes recurrente)'
-              : 'SkateCoreo Pro - Suscripción Anual ($48/año con 20% descuento)';
+            const planDetails = getPlanDetails(role, plan);
+            const finalAmount = amount || planDetails.amount.toFixed(2);
+            const description = planDetails.description;
 
             return actions.order.create({
               purchase_units: [
@@ -95,7 +98,7 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
                   description,
                   amount: {
                     currency_code: currency,
-                    value: amount,
+                    value: finalAmount,
                   },
                 },
               ],
@@ -105,7 +108,7 @@ export const PayPalButton: React.FC<PayPalButtonProps> = ({
           onApprove: async (data: any) => {
             setIsProcessing(true);
             try {
-              const result: PayPalCaptureResult = await paypalService.captureOrder(data.orderID, plan);
+              const result: PayPalCaptureResult = await paypalService.captureOrder(data.orderID, plan, role);
 
               if (result.success) {
                 onSuccess({

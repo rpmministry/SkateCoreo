@@ -3,11 +3,11 @@
  *
  * Precios oficiales vigentes:
  *   - Patinadora / Patinador:
- *       • Mensual: $5.00 USD/mes
- *       • Anual: $48.00 USD/año (20% descuento, ahorras $12.00/año, equivalente a $4.00/mes)
+ *       • Mensual: $4.99 USD/mes
+ *       • Anual: $47.90 USD/año (20% descuento, ahorras $11.98/año, equivalente a $3.99/mes)
  *   - Entrenador / Entrenadora:
- *       • Mensual: $8.00 USD/mes
- *       • Anual: $67.20 USD/año (30% descuento, ahorras $28.80/año, equivalente a $5.60/mes)
+ *       • Mensual: $9.99 USD/mes
+ *       • Anual: $83.92 USD/año (30% descuento, ahorras $35.96/año, equivalente a $6.99/mes)
  */
 
 export type PlanPeriod = 'monthly' | 'annual';
@@ -34,12 +34,12 @@ export const SKATER_PLAN: PricingPlan = {
   name: 'Plan Patinadora / Patinador',
   shortName: 'Patinador(a)',
   tagline: 'Acceso completo al diseño coreográfico individual y sincronización musical',
-  monthlyPrice: 5.0,
-  annualPrice: 48.0,
-  baseAnnualPrice: 60.0,
+  monthlyPrice: 4.99,
+  annualPrice: 47.90,
+  baseAnnualPrice: 59.88,
   annualDiscountPercent: 20,
-  monthlyEquivalent: 4.0,
-  annualSavings: 12.0,
+  monthlyEquivalent: 3.99,
+  annualSavings: 11.98,
   features: [
     'Pista 2D con trazado cinemático y curvas Bézier',
     'Estudio de Audio con sincronización musical y BPM',
@@ -56,13 +56,13 @@ export const COACH_PLAN: PricingPlan = {
   shortName: 'Entrenador(a)',
   tagline: 'Ecosistema profesional de gestión de atletas, evaluaciones oficiales y nube',
   badge: 'Recomendado para Entrenadores',
-  monthlyPrice: 8.0,
-  annualPrice: 67.2,
-  baseAnnualPrice: 96.0,
+  monthlyPrice: 9.99,
+  annualPrice: 83.92,
+  baseAnnualPrice: 119.88,
   annualDiscountPercent: 30,
-  monthlyEquivalent: 5.6,
-  annualSavings: 28.8,
-  highlight: 'Ahorras $28.80/año con el 30% de descuento anual',
+  monthlyEquivalent: 6.99,
+  annualSavings: 35.96,
+  highlight: 'Ahorras $35.96/año con el 30% de descuento anual',
   features: [
     'Todo lo incluido en el Plan Patinadora/Patinador',
     'Panel de Entrenador profesional desacoplado y local-first',
@@ -82,6 +82,71 @@ export const PRICING_PLANS: Record<PlanRole, PricingPlan> = {
 };
 
 export const SKATECOREO_PLANS = PRICING_PLANS;
+
+export interface SubscriptionPlanDetails {
+  role: PlanRole;
+  period: PlanPeriod;
+  planId: string;
+  name: string;
+  amount: number;
+  currency: 'USD';
+  description: string;
+  durationDays: number;
+  monthlyEquivalent: number;
+  savings: number;
+  discountPercent: number;
+}
+
+export const getPlanDetails = (role: PlanRole = 'skater', period: PlanPeriod = 'annual'): SubscriptionPlanDetails => {
+  const plan = PRICING_PLANS[role] || SKATER_PLAN;
+  const isMonthly = period === 'monthly';
+  const amount = isMonthly ? plan.monthlyPrice : plan.annualPrice;
+  const durationDays = isMonthly ? 30 : 365;
+  const planId = `${role}_${period}`;
+  const description = isMonthly
+    ? `${plan.name} - Suscripción Mensual ($${amount.toFixed(2)} USD/mes)`
+    : `${plan.name} - Suscripción Anual ($${amount.toFixed(2)} USD/año con ${plan.annualDiscountPercent}% descuento)`;
+  const monthlyEquivalent = isMonthly ? plan.monthlyPrice : plan.monthlyEquivalent;
+  const savings = isMonthly ? 0 : plan.annualSavings;
+  const discountPercent = isMonthly ? 0 : plan.annualDiscountPercent;
+
+  return {
+    role,
+    period,
+    planId,
+    name: plan.name,
+    amount,
+    currency: 'USD',
+    description,
+    durationDays,
+    monthlyEquivalent,
+    savings,
+    discountPercent,
+  };
+};
+
+export const getPlanFromAmount = (
+  amount: number
+): { role: PlanRole; period: PlanPeriod; plan: PricingPlan; durationDays: number } | null => {
+  // Coincidencias exactas y tolerancias para importes oficiales
+  // Patinador mensual: $4.99 (soporta legacy $5.00)
+  if (Math.abs(amount - SKATER_PLAN.monthlyPrice) <= 0.05 || Math.abs(amount - 5.0) <= 0.05) {
+    return { role: 'skater', period: 'monthly', plan: SKATER_PLAN, durationDays: 30 };
+  }
+  // Patinador anual: $47.90 (soporta legacy $48.00)
+  if (Math.abs(amount - SKATER_PLAN.annualPrice) <= 0.15 || Math.abs(amount - 48.0) <= 0.15) {
+    return { role: 'skater', period: 'annual', plan: SKATER_PLAN, durationDays: 365 };
+  }
+  // Entrenador mensual: $9.99 (soporta legacy $8.00)
+  if (Math.abs(amount - COACH_PLAN.monthlyPrice) <= 0.05 || Math.abs(amount - 8.0) <= 0.05) {
+    return { role: 'coach', period: 'monthly', plan: COACH_PLAN, durationDays: 30 };
+  }
+  // Entrenador anual: $83.92 (soporta legacy $67.20)
+  if (Math.abs(amount - COACH_PLAN.annualPrice) <= 0.15 || Math.abs(amount - 67.2) <= 0.15) {
+    return { role: 'coach', period: 'annual', plan: COACH_PLAN, durationDays: 365 };
+  }
+  return null;
+};
 
 export interface VolumeDiscountTier {
   minLicenses: number;
@@ -138,4 +203,5 @@ export const calculatePrice = (
 export const formatCurrency = (amount: number): string => {
   return `$${amount.toFixed(2)}`;
 };
+
 
