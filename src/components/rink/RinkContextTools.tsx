@@ -21,13 +21,13 @@ interface RinkContextToolsProps {
 }
 
 const ACTIVE_STYLES: Record<string, string> = {
-  node: 'bg-amber-500 text-black shadow-glow-amber',
-  curve: 'bg-cyan text-black shadow-glow-cyan',
-  erase: 'bg-red-500 text-white shadow-lg shadow-red-500/35',
+  node: 'bg-surface-3 text-white border border-amber-400/50 shadow-sm',
+  curve: 'bg-surface-3 text-white border border-[#0f62fe]/60 shadow-sm',
+  erase: 'bg-surface-3 text-white border border-red-500/50 shadow-sm',
 };
 
 const IDLE_STYLES =
-  'bg-white/[0.04] text-slate-300 hover:bg-white/[0.09] hover:text-white border border-white/10';
+  'bg-surface-1 text-slate-400 hover:bg-surface-2 hover:text-white border border-white/5';
 
 /**
  * RinkContextTools — Única fuente de los controles de edición de pista

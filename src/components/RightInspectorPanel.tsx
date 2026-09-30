@@ -193,10 +193,10 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
               <span>Herramienta Activa</span>
-              <span className="font-mono text-cyan">{points.length} {points.length === 1 ? 'nodo' : 'nodos'}</span>
+              <span className="font-mono text-slate-300 font-semibold">{points.length} {points.length === 1 ? 'nodo' : 'nodos'}</span>
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-1.5 bg-black/30 p-1.5 rounded-xl border border-white/5">
               {/* Botón 1: Colocar Nodos (Siempre visible) */}
               <button
                 type="button"
@@ -205,14 +205,14 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                   setSelectedPointId(null);
                 }}
                 className={[
-                  'flex flex-col items-center justify-center gap-1 py-2.5 px-1 rounded-xl text-[11px] font-black transition-all interactive-tap shadow-soft-elevation text-center',
+                  'flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-lg text-[11px] transition-all interactive-tap text-center',
                   phase === 'plot'
-                    ? 'bg-amber-500 text-black shadow-glow-amber ring-2 ring-amber-400'
-                    : 'bg-neon-card hover:bg-neon-hover text-slate-300 hover:text-white',
+                    ? 'bg-surface-3 text-white border border-amber-400/50 shadow-sm font-semibold'
+                    : 'text-slate-400 hover:text-white hover:bg-white/5 font-medium',
                 ].join(' ')}
                 title="Modo Nodos: Un clic en el lienzo coloca nodos. Las líneas están ocultas."
               >
-                <PenTool className="w-4 h-4 stroke-[2.5]" />
+                <PenTool className={`w-4 h-4 stroke-[2] ${phase === 'plot' ? 'text-amber-400' : 'text-slate-400'}`} />
                 <span>Nodos</span>
               </button>
 
@@ -226,14 +226,14 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                   setSelectedPointId(null);
                 }}
                 className={[
-                  'flex flex-col items-center justify-center gap-1 py-2.5 px-1 rounded-xl text-[11px] font-black transition-all interactive-tap shadow-soft-elevation text-center',
+                  'flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-lg text-[11px] transition-all interactive-tap text-center',
                   phase === 'curve'
-                    ? 'bg-cyan text-black shadow-glow-cyan ring-2 ring-cyan-400'
-                    : 'bg-neon-card hover:bg-neon-hover text-slate-300 hover:text-white',
+                    ? 'bg-surface-3 text-white border border-[#0f62fe]/60 shadow-sm font-semibold'
+                    : 'text-slate-400 hover:text-white hover:bg-white/5 font-medium',
                 ].join(' ')}
                 title="Modo Trazado: conecta nodos y esculpe curvas. Arrastra sobre el trazo para curvarlo."
               >
-                <Route className="w-4 h-4 stroke-[2.5]" />
+                <Route className={`w-4 h-4 stroke-[2] ${phase === 'curve' ? 'text-[#78a9ff]' : 'text-slate-400'}`} />
                 <span>Trazar</span>
               </button>
 
@@ -249,34 +249,34 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                   setSelectedPointId(null);
                 }}
                 className={[
-                  'flex flex-col items-center justify-center gap-1 py-2.5 px-1 rounded-xl text-[11px] font-black transition-all interactive-tap shadow-soft-elevation text-center',
+                  'flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-lg text-[11px] transition-all interactive-tap text-center',
                   phase === 'erase'
-                    ? 'bg-red-500 text-white shadow-lg shadow-red-500/40 ring-2 ring-red-400'
-                    : 'bg-neon-card hover:bg-neon-hover text-slate-300 hover:text-red-400',
+                    ? 'bg-surface-3 text-white border border-red-500/50 shadow-sm font-semibold'
+                    : 'text-slate-400 hover:text-red-400 hover:bg-white/5 font-medium',
                 ].join(' ')}
                 title="Modo Borrador: Toca cualquier nodo en la pista para eliminarlo al instante."
               >
-                <Eraser className="w-4 h-4 stroke-[2.5]" />
+                <Eraser className={`w-4 h-4 stroke-[2] ${phase === 'erase' ? 'text-red-400' : 'text-slate-400'}`} />
                 <span>Borrador</span>
               </button>
             </div>
           </div>
 
           {/* Feedback interactivo de la herramienta seleccionada */}
-          <div className="p-2.5 rounded-xl bg-neon-card text-[11px] leading-snug">
+          <div className="p-2.5 rounded-xl bg-surface-2 border border-white/5 text-[11px] leading-snug">
             {phase === 'plot' ? (
-              <p className="text-amber-300 flex items-center gap-1.5 font-medium">
-                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
-                Modo Nodos: toca un espacio vacío para crear y arrastra un nodo para moverlo. El trazado está desactivado.
+              <p className="text-slate-300 flex items-center gap-1.5 font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                Modo Nodos: toca un espacio vacío para crear y arrastra un nodo para moverlo.
               </p>
             ) : phase === 'curve' ? (
-              <p className="text-cyan flex items-center gap-1.5 font-medium">
-                <span className="w-2 h-2 rounded-full bg-cyan shrink-0" />
-                Modo Trazado: dibuja/conecta desde un nodo o sobre la pista. Arrastra el trazo para esculpir curvas.
+              <p className="text-slate-300 flex items-center gap-1.5 font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#0f62fe] shrink-0" />
+                Modo Trazado: dibuja/conecta desde un nodo o sobre la pista. Arrastra para esculpir curvas.
               </p>
             ) : (
-              <p className="text-red-300 flex items-center gap-1.5 font-medium">
-                <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+              <p className="text-slate-300 flex items-center gap-1.5 font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
                 Modo Borrador: toca un nodo para eliminarlo.
               </p>
             )}

@@ -159,11 +159,11 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
       {/* ═══ 0. Reglamento & Categoría 2026 ═══════════════ */}
         <section className="px-4 py-3.5 space-y-3 bg-white/[0.02]">
           <div className="flex items-center justify-between">
-            <h3 className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-cyan">
-              <BookOpen className="w-3.5 h-3.5 text-cyan" />
+            <h3 className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+              <BookOpen className="w-3.5 h-3.5 text-slate-400" />
               Reglamento 2026
             </h3>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-cyan/15 text-cyan border border-cyan/30 tracking-wider">
+            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-white/5 text-slate-300 border border-white/10 tracking-wider">
               {categoria}
             </span>
           </div>
@@ -183,11 +183,11 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
                 max={99}
                 value={edad}
                 onChange={(e) => setEdad(parseInt(e.target.value) || 0)}
-                className="w-20 px-3 py-1.5 rounded-xl bg-neon-card border border-white/10 text-white font-mono font-bold text-xs focus:outline-none focus:border-cyan transition-all text-center"
+                className="w-20 px-3 py-1.5 rounded-xl bg-surface-2 border border-white/10 text-white font-mono font-bold text-xs focus:outline-none focus:border-[#0f62fe] transition-all text-center"
               />
-              <div className="flex-1 min-w-0 px-3 py-1.5 rounded-xl bg-neon-card border border-white/5 flex items-center justify-between gap-1">
+              <div className="flex-1 min-w-0 px-3 py-1.5 rounded-xl bg-surface-2 border border-white/5 flex items-center justify-between gap-1">
                 <span className="text-[10px] text-slate-400 font-semibold truncate-safe">Categoría:</span>
-                <span className="text-xs font-black text-mint tracking-wide truncate-safe">{categoria}</span>
+                <span className="text-xs font-bold text-white tracking-wide truncate-safe">{categoria}</span>
               </div>
             </div>
           </div>
@@ -196,19 +196,19 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
           <div className="space-y-1.5">
             <label className="text-[11px] text-slate-400 font-medium flex items-center justify-between">
               <span className="truncate-safe">Nivel de Eficiencia</span>
-              <span className="text-[10px] text-cyan font-mono font-bold shrink-0">{eficiencia}</span>
+              <span className="text-[10px] text-slate-300 font-mono font-semibold shrink-0">{eficiencia}</span>
             </label>
-            <div className="grid grid-cols-3 gap-1">
+            <div className="grid grid-cols-3 gap-1 bg-black/30 p-1 rounded-xl border border-white/5">
               {EFICIENCIAS_DISPONIBLES.map((eff) => (
                 <button
                   key={eff}
                   type="button"
                   onClick={() => setEficiencia(eff)}
                   className={[
-                    'press min-w-0 min-h-touch overflow-hidden rounded-xl px-1 py-1.5 text-center text-[9px] font-bold leading-[1.15] wrap-anywhere',
+                    'press min-w-0 min-h-touch overflow-hidden rounded-lg px-1 py-1.5 text-center text-[10px] leading-[1.15] wrap-anywhere transition-all',
                     eficiencia === eff
-                      ? 'bg-cyan text-neon-canvas shadow-glow-cyan font-black'
-                      : 'bg-neon-card text-slate-400 hover:text-white hover:bg-neon-hover shadow-soft-elevation',
+                      ? 'bg-surface-3 text-white border border-[#0f62fe]/60 shadow-sm font-semibold'
+                      : 'text-slate-400 hover:text-white hover:bg-white/5 font-medium',
                   ].join(' ')}
                   title={`Eficiencia ${eff}`}
                 >
@@ -226,21 +226,21 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
         {/* ═══ 1. Intro countdown ═══════════════════════════ */}
         <section className="px-4 py-3.5 space-y-2.5">
           <h3 className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-            <Timer className="w-3.5 h-3.5 text-cyan" />
+            <Timer className="w-3.5 h-3.5 text-slate-400" />
             Intro &amp; Pre-Inicio
           </h3>
 
-          <div className="flex gap-1.5">
+          <div className="flex gap-1 bg-black/30 p-1 rounded-xl border border-white/5">
             {[0, 3, 5, 8].map((val) => (
               <button
                 key={val}
                 type="button"
                 onClick={() => onPreRollSecChange(val)}
                 className={[
-                  'flex-1 py-2 rounded-xl text-xs font-bold interactive-tap transition-all',
+                  'flex-1 py-1.5 rounded-lg text-xs transition-all interactive-tap',
                   preRollSec === val
-                    ? 'bg-cyan text-neon-canvas shadow-glow-cyan font-black'
-                    : 'bg-neon-card text-slate-400 hover:text-white hover:bg-neon-hover shadow-soft-elevation',
+                    ? 'bg-surface-3 text-white border border-[#0f62fe]/60 shadow-sm font-semibold'
+                    : 'text-slate-400 hover:text-white hover:bg-white/5 font-medium',
                 ].join(' ')}
               >
                 {val === 0 ? 'Off' : `${val}s`}
@@ -258,7 +258,7 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
         <section className="px-4 py-3.5 space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-              <Music className="w-3.5 h-3.5 text-cyan" />
+              <Music className="w-3.5 h-3.5 text-slate-400" />
               Mezclador de Audio
             </h3>
             <span className="text-[10px] text-slate-500 font-mono">3 canales</span>
@@ -269,11 +269,11 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
 
           {/* Channel routing */}
           <div className="space-y-1.5">
-            <label className="text-[10px] font-semibold text-slate-500 flex items-center gap-1">
-              <Headphones className="w-3 h-3" />
+            <label className="text-[10px] font-semibold text-slate-400 flex items-center gap-1">
+              <Headphones className="w-3 h-3 text-slate-400" />
               Modo de Salida
             </label>
-            <div className="flex gap-1.5">
+            <div className="flex gap-1 bg-black/30 p-1 rounded-xl border border-white/5">
               {(
                 [
                   { mode: 'stereo', label: 'Estéreo' },
@@ -286,10 +286,10 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
                   aria-pressed={audio.channelMode === mode}
                   onClick={() => audio.setChannelMode(mode)}
                   className={[
-                    'flex-1 py-2 rounded-xl text-xs font-bold interactive-tap transition-all',
+                    'flex-1 py-1.5 rounded-lg text-xs transition-all interactive-tap',
                     audio.channelMode === mode
-                      ? 'bg-cyan text-neon-canvas shadow-glow-cyan font-black'
-                      : 'bg-neon-card text-slate-400 hover:text-white hover:bg-neon-hover shadow-soft-elevation',
+                      ? 'bg-surface-3 text-white border border-[#0f62fe]/60 shadow-sm font-semibold'
+                      : 'text-slate-400 hover:text-white hover:bg-white/5 font-medium',
                   ].join(' ')}
                 >
                   {label}
@@ -320,7 +320,7 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
           />
 
           {/* Metronome Controls */}
-          <div className="bg-neon-card shadow-soft-elevation rounded-2xl p-3 space-y-2">
+          <div className="bg-surface-2 border border-white/5 rounded-2xl p-3 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-slate-300">
                 Metrónomo
@@ -329,10 +329,10 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
                 type="button"
                 onClick={() => audio.metronome.toggle()}
                 className={[
-                  'px-3 py-1 rounded-lg text-xs font-extrabold interactive-tap transition-all',
+                  'px-3 py-1 rounded-lg text-xs font-bold interactive-tap transition-all',
                   audio.metronome.enabled
-                    ? 'bg-mint text-neon-canvas shadow-glow-mint'
-                    : 'bg-neon-surface text-slate-500',
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'bg-surface-1 text-slate-400 border border-white/5',
                 ].join(' ')}
               >
                 {audio.metronome.enabled ? 'ON' : 'OFF'}
@@ -345,7 +345,7 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between text-[11px]">
                     <label className="text-slate-400 font-medium">Tempo</label>
-                    <span className="font-mono font-bold text-mint">
+                    <span className="font-mono font-bold text-white">
                       {audio.metronome.bpm} BPM
                     </span>
                   </div>
@@ -355,19 +355,16 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
                     max={240}
                     value={audio.metronome.bpm}
                     onChange={(e) => audio.metronome.setBpm(parseInt(e.target.value, 10))}
-                    className="w-full h-1.5 accent-mint bg-neon-surface rounded-full cursor-pointer"
+                    className="w-full h-1.5 accent-[#0f62fe] bg-slate-800 rounded-full cursor-pointer"
                     aria-label="Tempo del metrónomo en BPM"
                   />
                 </div>
 
-                {/* ── Compás (Time Signature) — fila completa.
-                    Rejilla de 4 columnas: cada celda mide ≥44px de alto y el
-                    ancho se reparte al 100% del panel, así los números nunca
-                    se apilan ni se salen en móvil, tablet ni escritorio. ── */}
+                {/* ── Compás (Time Signature) — fila completa. ── */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between text-[11px]">
                     <label className="text-slate-400 font-medium">Compás</label>
-                    <span className="font-mono font-bold text-mint">
+                    <span className="font-mono font-bold text-white">
                       {currentTimeSigLabel}
                     </span>
                   </div>
@@ -387,10 +384,10 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
                           aria-label={`Compás ${ts.label}`}
                           title={`Compás ${ts.label}`}
                           className={[
-                            'min-h-[44px] w-full min-w-0 flex items-center justify-center rounded-lg px-1 text-[11px] font-bold tabular-nums interactive-tap transition-all',
+                            'min-h-[44px] w-full min-w-0 flex items-center justify-center rounded-lg px-1 text-[11px] tabular-nums interactive-tap transition-all',
                             isActive
-                              ? 'bg-mint text-neon-canvas shadow-glow-mint font-black'
-                              : 'bg-neon-surface text-slate-400 hover:text-white hover:bg-neon-hover',
+                              ? 'bg-surface-3 text-white border border-[#0f62fe]/60 shadow-sm font-semibold'
+                              : 'bg-surface-1 text-slate-400 hover:text-white hover:bg-surface-2 border border-white/5 font-medium',
                           ].join(' ')}
                         >
                           {ts.label}
@@ -404,7 +401,7 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between text-[11px]">
                     <label className="text-slate-400 font-medium">Subdivisión</label>
-                    <span className="font-mono font-bold text-mint">
+                    <span className="font-mono font-bold text-white">
                       {METRONOME_SUBDIVISIONS.find(
                         (s) => s.value === audio.metronome.subdivision
                       )?.label ?? '1/1'}
@@ -426,10 +423,10 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
                           aria-label={`Subdivisión ${sub.label}`}
                           title={`Subdivisión ${sub.label}`}
                           className={[
-                            'min-h-[44px] w-full min-w-0 flex items-center justify-center rounded-lg px-1 text-[11px] font-bold tabular-nums interactive-tap transition-all',
+                            'min-h-[44px] w-full min-w-0 flex items-center justify-center rounded-lg px-1 text-[11px] tabular-nums interactive-tap transition-all',
                             isActive
-                              ? 'bg-mint text-neon-canvas shadow-glow-mint font-black'
-                              : 'bg-neon-surface text-slate-400 hover:text-white hover:bg-neon-hover',
+                              ? 'bg-surface-3 text-white border border-[#0f62fe]/60 shadow-sm font-semibold'
+                              : 'bg-surface-1 text-slate-400 hover:text-white hover:bg-surface-2 border border-white/5 font-medium',
                           ].join(' ')}
                         >
                           {sub.label}
@@ -450,16 +447,13 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
             onChange={(v) => audio.setCoachVolume(v)}
           />
 
-          {/* Sincronización Anticipada de la Voz Guía (Anticipatory Cues).
-              Sustituye al antiguo selector de género (eliminado): la Voz Guía es
-              siempre femenina latina, así que ese espacio se dedica a un ajuste
-              realmente útil para el patinador. */}
+          {/* Sincronización Anticipada de la Voz Guía */}
           <div className="space-y-1.5">
-            <label className="text-[10px] font-semibold text-slate-500 flex items-center gap-1">
-              <Timer className="w-3 h-3" />
+            <label className="text-[10px] font-semibold text-slate-400 flex items-center gap-1">
+              <Timer className="w-3 h-3 text-slate-400" />
               Anticipación de la Voz
             </label>
-            <div className="grid grid-cols-4 gap-1">
+            <div className="grid grid-cols-4 gap-1 bg-black/30 p-1 rounded-xl border border-white/5">
               {ANTICIPATION_OPTIONS.map((sec) => {
                 const isActive = Math.abs(anticipationSec - sec) < 0.01;
                 return (
@@ -471,10 +465,10 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
                     aria-label={`Anunciar la figura ${sec} segundos antes del nodo`}
                     title={`La figura se anuncia ${sec} s antes del nodo`}
                     className={[
-                      'min-h-[44px] w-full min-w-0 flex items-center justify-center rounded-lg px-1 text-[11px] font-bold tabular-nums interactive-tap transition-all',
+                      'min-h-[38px] w-full min-w-0 flex items-center justify-center rounded-lg px-1 text-[11px] tabular-nums interactive-tap transition-all',
                       isActive
-                        ? 'bg-cyan text-neon-canvas shadow-glow-cyan font-black'
-                        : 'bg-neon-surface text-slate-400 hover:text-white hover:bg-neon-hover',
+                        ? 'bg-surface-3 text-white border border-[#0f62fe]/60 shadow-sm font-semibold'
+                        : 'text-slate-400 hover:text-white hover:bg-white/5 font-medium',
                     ].join(' ')}
                   >
                     {sec}s
@@ -490,14 +484,14 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
 
           {/* Voz Guía ESTÁNDAR (única voz femenina latina, sin selectores) */}
           <div className="space-y-1.5">
-            <label className="flex items-center gap-1 text-[10px] font-semibold text-slate-500">
-              <Sparkles className="w-3 h-3" />
+            <label className="flex items-center gap-1 text-[10px] font-semibold text-slate-400">
+              <Sparkles className="w-3 h-3 text-slate-400" />
               Voz Guía
             </label>
-            <div className="flex items-center gap-2 rounded-xl border border-mint/25 bg-mint/10 px-3 py-2">
-              <CheckCircle2 className="h-4 w-4 shrink-0 text-mint" />
+            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-surface-2 px-3 py-2">
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
               <div className="min-w-0">
-                <p className="text-[11px] font-bold text-mint">Femenina latina estándar</p>
+                <p className="text-[11px] font-semibold text-slate-200">Femenina latina estándar</p>
                 <p className="text-[10px] leading-snug text-slate-400">
                   Voz única y pregenerada para todo el conteo y las figuras.
                 </p>
@@ -506,14 +500,12 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
             <button
               type="button"
               onClick={() => {
-                // La prueba usa el MISMO AudioContext del motor (nunca uno
-                // paralelo): se inicializa aquí dentro del gesto del usuario.
                 audioEngine.initAudioContext();
                 audioEngine.voiceCueEngine.testVoice();
               }}
-              className="press flex min-h-touch w-full items-center justify-center gap-1.5 rounded-xl border border-cyan/30 bg-cyan/15 px-3 py-2 text-[11px] font-bold text-cyan hover:bg-cyan/25"
+              className="press flex min-h-touch w-full items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-surface-2 hover:bg-surface-3 px-3 py-2 text-[11px] font-semibold text-slate-200 hover:text-white transition-colors"
             >
-              <Mic className="h-3.5 w-3.5" />
+              <Mic className="h-3.5 w-3.5 text-slate-400" />
               Probar Voz Guía
             </button>
           </div>
@@ -522,10 +514,10 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
         {/* ═══ 3. Skater avatar ═════════════════════════════ */}
         <section className="px-4 py-3.5 space-y-2.5">
           <h3 className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-            <Layers className="w-3.5 h-3.5 text-cyan" />
+            <Layers className="w-3.5 h-3.5 text-slate-400" />
             Avatar Cinemático
           </h3>
-          <div className="flex gap-1.5">
+          <div className="flex gap-1 bg-black/30 p-1 rounded-xl border border-white/5">
             {(
               [
                 { gender: 'female', label: 'Patinadora' },
@@ -537,10 +529,10 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
                 type="button"
                 onClick={() => setSkaterGender(gender)}
                 className={[
-                  'flex-1 py-2 rounded-xl text-xs font-bold interactive-tap transition-all',
+                  'flex-1 py-1.5 rounded-lg text-xs transition-all interactive-tap',
                   skaterGender === gender
-                    ? 'bg-cyan text-neon-canvas shadow-glow-cyan font-black'
-                    : 'bg-neon-card text-slate-400 hover:text-white hover:bg-neon-hover shadow-soft-elevation',
+                    ? 'bg-surface-3 text-white border border-[#0f62fe]/60 shadow-sm font-semibold'
+                    : 'text-slate-400 hover:text-white hover:bg-white/5 font-medium',
                 ].join(' ')}
               >
                 {label}
@@ -552,7 +544,7 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
         {/* ═══ 4. Rink view toggles ═════════════════════════ */}
         <section className="px-4 py-3.5 space-y-2">
           <h3 className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-            <Eye className="w-3.5 h-3.5 text-cyan" />
+            <Eye className="w-3.5 h-3.5 text-slate-400" />
             Superposiciones de Pista
           </h3>
           <div className="grid grid-cols-3 gap-1.5">
@@ -592,11 +584,11 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
         {/* ═══ Paper-to-Digital Ecosystem ═══════════════════ */}
         <section className="px-4 py-3.5 space-y-2 bg-gradient-to-b from-white/[0.03] to-transparent">
           <div className="flex items-center justify-between">
-            <h3 className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-cyan">
-              <Camera className="w-3.5 h-3.5 text-cyan" />
+            <h3 className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+              <Camera className="w-3.5 h-3.5 text-slate-400" />
               Paper-to-Digital
             </h3>
-            <span className="text-[9px] font-black text-mint px-1.5 py-0.5 rounded bg-mint/10 border border-mint/20">
+            <span className="text-[9px] font-semibold text-slate-300 px-1.5 py-0.5 rounded bg-white/5 border border-white/10">
               World Skate
             </span>
           </div>
@@ -607,24 +599,23 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
             <button
               type="button"
               onClick={() => {
-                // Import dinámico: jsPDF + html2canvas solo se descargan al pulsar.
                 void import('../services/pdfTemplateGenerator').then((m) =>
                   m.PdfTemplateGenerator.downloadTemplate()
                 );
               }}
-              className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-neon-card hover:bg-neon-hover text-slate-300 hover:text-white border border-white/5 text-xs font-bold transition-all interactive-tap shadow-soft-elevation"
+              className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-surface-2 hover:bg-surface-3 text-slate-300 hover:text-white border border-white/10 text-xs font-semibold transition-all interactive-tap shadow-sm"
               title="Descargar plantilla A4 para imprimir"
             >
-              <FileDown className="w-3.5 h-3.5 text-cyan" />
+              <FileDown className="w-3.5 h-3.5 text-slate-400" />
               <span>Plantilla A4</span>
             </button>
             <button
               type="button"
               onClick={() => setShowPaperModal(true)}
-              className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-cyan/15 hover:bg-cyan/25 text-cyan border border-cyan/30 text-xs font-bold transition-all interactive-tap shadow-soft-elevation"
+              className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-surface-2 hover:bg-surface-3 text-slate-200 hover:text-white border border-white/10 text-xs font-semibold transition-all interactive-tap shadow-sm"
               title="Tomar foto o subir dibujo en papel"
             >
-              <Camera className="w-3.5 h-3.5" />
+              <Camera className="w-3.5 h-3.5 text-slate-400" />
               <span>Digitalizar</span>
             </button>
           </div>
@@ -633,7 +624,7 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
             <button
               type="button"
               onClick={() => clearPaperTraceOverlay()}
-              className="w-full flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-red-500/15 hover:bg-red-500/25 text-red-300 border border-red-500/30 text-xs font-bold transition-all interactive-tap mt-1.5"
+              className="w-full flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-red-500/15 hover:bg-red-500/25 text-red-300 border border-red-500/30 text-xs font-semibold transition-all interactive-tap mt-1.5"
               title="Descartar calco de la plantilla de papel"
             >
               <Trash2 className="w-3.5 h-3.5 text-red-400" />
@@ -642,18 +633,14 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
           )}
         </section>
 
-        {/* «Deshacer» y «Volver al Inicio» se movieron a la barra del VISOR DE
-            AUDIO (su contexto temporal natural). La columna izquierda queda para
-            herramientas estructurales de la coreografía. */}
-
         {/* ═══ SaaS / Sesión AlsizTech ═══════════════════════ */}
         <section className="px-4 py-3 bg-white/[0.02] border-t border-white/5 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
               Cuenta AlsizTech
             </span>
-            <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-mint/15 text-mint border border-mint/20">
-              <ShieldCheck className="w-2.5 h-2.5" />
+            <span className="inline-flex items-center gap-1 text-[9px] font-semibold uppercase px-2 py-0.5 rounded-full bg-white/5 text-slate-300 border border-white/10">
+              <ShieldCheck className="w-2.5 h-2.5 text-slate-400" />
               {role === 'tester' ? 'Beta Tester' : role === 'superadmin' ? 'Admin' : subscription_plan === 'club' ? 'Licencia Club' : 'Individual'}
             </span>
           </div>
@@ -663,13 +650,13 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
             <button
               type="button"
               onClick={() => setShowAdminModal(true)}
-              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-cyan/10 hover:bg-cyan/20 border border-cyan/30 text-[11px] font-semibold text-cyan hover:text-white transition-all interactive-tap"
+              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-surface-2 hover:bg-surface-3 border border-white/10 text-[11px] font-medium text-slate-200 hover:text-white transition-all interactive-tap"
             >
               <span className="flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5 text-cyan" />
+                <Building2 className="w-3.5 h-3.5 text-slate-400" />
                 <span>Panel Clubes &amp; Licencias</span>
               </span>
-              <span className="text-[10px] text-cyan font-bold">Admin &gt;</span>
+              <span className="text-[10px] text-slate-400 font-semibold">Admin &gt;</span>
             </button>
           )}
 
@@ -678,14 +665,14 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
             <button
               type="button"
               onClick={onOpenCoachPortal}
-              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-cyan/10 hover:bg-cyan/20 border border-cyan/30 text-[11px] font-semibold text-cyan hover:text-white transition-all interactive-tap"
+              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-surface-2 hover:bg-surface-3 border border-white/10 text-[11px] font-medium text-slate-200 hover:text-white transition-all interactive-tap"
               title="Panel de Entrenadores: Atletas, Fichas, Coreografías y Almacenamiento"
             >
               <span className="flex items-center gap-1.5">
-                <Users className="w-3.5 h-3.5 text-cyan" />
+                <Users className="w-3.5 h-3.5 text-slate-400" />
                 <span>Panel de Entrenadores</span>
               </span>
-              <span className="text-[10px] text-cyan font-bold">Abrir &gt;</span>
+              <span className="text-[10px] text-slate-400 font-semibold">Abrir &gt;</span>
             </button>
           )}
 
@@ -694,13 +681,13 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
             <button
               type="button"
               onClick={() => setShowDeviceModal(true)}
-              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-white/5 text-[11px] font-medium text-slate-300 hover:text-white transition-all interactive-tap"
+              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-surface-2 hover:bg-surface-3 border border-white/10 text-[11px] font-medium text-slate-300 hover:text-white transition-all interactive-tap"
             >
               <span className="flex items-center gap-1.5">
-                <Smartphone className="w-3.5 h-3.5 text-cyan" />
+                <Smartphone className="w-3.5 h-3.5 text-slate-400" />
                 <span>Mis Dispositivos &amp; Clave</span>
               </span>
-              <span className="text-[10px] text-cyan font-bold">Ver &gt;</span>
+              <span className="text-[10px] text-slate-400 font-semibold">Ver &gt;</span>
             </button>
           )}
 
@@ -902,7 +889,7 @@ function VolumeSlider({
           {icon}
           {label}
         </span>
-        <span className="font-mono text-cyan font-bold text-[11px]">
+        <span className="font-mono text-slate-300 font-semibold text-[11px]">
           {Math.round(value * 100)}%
         </span>
       </div>
@@ -910,7 +897,7 @@ function VolumeSlider({
         type="range" min={0} max={1} step={0.01}
         value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
-        className="w-full h-1.5 accent-cyan bg-neon-surface rounded-full cursor-pointer"
+        className="w-full h-1.5 accent-[#0f62fe] bg-slate-800 rounded-full cursor-pointer"
       />
     </div>
   );
@@ -936,17 +923,17 @@ function ToggleButton({
       onClick={onClick}
       title={title}
       className={[
-        // Columna icono + etiqueta: la etiqueta dispone de todo el ancho del
-        // cajón y puede partirse en dos líneas sin desbordar ni solaparse.
-        'press flex w-full min-w-0 min-h-touch flex-col items-center justify-center gap-1 overflow-hidden rounded-xl px-1 py-1.5 text-center',
+        'press flex w-full min-w-0 min-h-touch flex-col items-center justify-center gap-1 overflow-hidden rounded-xl px-1 py-1.5 text-center transition-all',
         active
-          ? 'bg-cyan text-neon-canvas shadow-glow-cyan font-black'
-          : 'bg-neon-card text-slate-400 hover:text-white hover:bg-neon-hover shadow-soft-elevation',
+          ? 'bg-surface-3 text-white border border-[#0f62fe]/60 shadow-sm font-semibold'
+          : 'bg-surface-2 text-slate-400 hover:text-white hover:bg-surface-hover border border-white/5 font-medium',
       ].join(' ')}
     >
-      <span className="shrink-0 leading-none">{icon}</span>
+      <span className={active ? 'shrink-0 leading-none text-[#78a9ff]' : 'shrink-0 leading-none text-slate-400'}>
+        {icon}
+      </span>
       <span
-        className="wrap-anywhere block w-full text-[10px] font-bold leading-[1.15]"
+        className="wrap-anywhere block w-full text-[10px] leading-[1.15]"
         style={{ overflowWrap: 'anywhere', wordBreak: 'break-word', hyphens: 'auto' }}
       >
         {label}

@@ -56,10 +56,14 @@ export class RinkRenderer {
 
     ctx.save();
 
-    // Superficie de la pista (Pabellón oscuro de alto contraste)
+    // Superficie de la pista (Pabellón deportivo profesional de alto nivel)
     ctx.beginPath();
     roundRectPath(ctx, offsetX, offsetY, renderedW, renderedH, cornerRadiusPx);
-    ctx.fillStyle = '#090D16';
+    const floorGrad = ctx.createLinearGradient(offsetX, offsetY, offsetX, offsetY + renderedH);
+    floorGrad.addColorStop(0, '#111624');
+    floorGrad.addColorStop(0.5, '#0c101a');
+    floorGrad.addColorStop(1, '#090d16');
+    ctx.fillStyle = floorGrad;
     ctx.fill();
 
     // ── Etapa 1: Superposición de Calco de Papel (Paper-to-Digital Overlay) ──
@@ -85,14 +89,17 @@ export class RinkRenderer {
       ctx.restore();
     }
 
-    // Valla perimetral reglamentaria en tono neutro
-    ctx.lineWidth = 2.5;
-    ctx.strokeStyle = '#475569';
+    // Valla perimetral reglamentaria en perfil metálico refinado
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#334155';
     ctx.stroke();
 
-    // Fondo hielo interior sutil
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.4)';
-    ctx.fill();
+    // Línea interior sutil de la barandilla
+    ctx.beginPath();
+    roundRectPath(ctx, offsetX + 1.5, offsetY + 1.5, renderedW - 3, renderedH - 3, Math.max(0, cornerRadiusPx - 1.5));
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.4)';
+    ctx.stroke();
 
     // ── Guías Espaciales Reglamentarias (World Skate / FEP) ──
     const showGuides = options.showReglamentaryGuides !== false;
@@ -102,21 +109,18 @@ export class RinkRenderer {
 
       // 1. Eje Largo (Long Axis) - Evaluación de Skating Skills (>= 3/4 recorrido)
       ctx.save();
-      ctx.setLineDash([6, 6]);
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
-      ctx.lineWidth = 1.5;
+      ctx.setLineDash([8, 6]);
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.35)';
+      ctx.lineWidth = 1.2;
       ctx.beginPath();
       ctx.moveTo(offsetX, offsetY + renderedH / 2);
       ctx.lineTo(offsetX + renderedW, offsetY + renderedH / 2);
       ctx.stroke();
 
-      // Marcas de 3/4 de longitud: SOLO referencia gráfica, sin texto alguno.
-      // La pista debe quedar libre de rótulos obstructivos; el indicador es
-      // puramente visual (tick + punto) y se puede desactivar con
-      // `showReglamentaryGuides: false` desde Ajustes de Pista.
+      // Marcas de 3/4 de longitud: SOLO referencia gráfica técnica en plata/blanco
       ctx.setLineDash([]);
-      ctx.strokeStyle = '#00F0FF';
-      ctx.fillStyle = '#00F0FF';
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.fillStyle = '#e2e8f0';
       ctx.lineWidth = 1.5;
 
       guides.longAxis.threeQuarterMarks.forEach((mark) => {
@@ -125,30 +129,22 @@ export class RinkRenderer {
 
         // Tick perpendicular
         ctx.beginPath();
-        ctx.moveTo(markX, markY - 8);
-        ctx.lineTo(markX, markY + 8);
+        ctx.moveTo(markX, markY - 7);
+        ctx.lineTo(markX, markY + 7);
         ctx.stroke();
 
-        // Punto central de referencia (sustituye al antiguo texto "3/4 (37.5m)")
+        // Punto central de referencia
         ctx.beginPath();
-        ctx.arc(markX, markY, 2.4, 0, Math.PI * 2);
-        ctx.fillStyle = '#00F0FF';
+        ctx.arc(markX, markY, 2, 0, Math.PI * 2);
         ctx.fill();
-
-        // Halo tenue para reforzar la lectura sin añadir ruido tipográfico
-        ctx.beginPath();
-        ctx.arc(markX, markY, 5, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(0, 240, 255, 0.35)';
-        ctx.lineWidth = 1;
-        ctx.stroke();
       });
       ctx.restore();
 
       // 2. Eje Corto (Short Axis) - Línea central transversal
       ctx.save();
-      ctx.setLineDash([4, 4]);
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.3)';
-      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6, 6]);
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.3)';
+      ctx.lineWidth = 1.2;
       ctx.beginPath();
       ctx.moveTo(offsetX + renderedW / 2, offsetY);
       ctx.lineTo(offsetX + renderedW / 2, offsetY + renderedH);
@@ -158,8 +154,8 @@ export class RinkRenderer {
       // 3. Diagonales Reglamentarias - Evaluación de Scissors (>= 3/4 recorrido)
       ctx.save();
       ctx.setLineDash([4, 6]);
-      ctx.strokeStyle = 'rgba(168, 85, 247, 0.25)'; // Púrpura sutil
-      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.2)';
+      ctx.lineWidth = 1;
 
       guides.diagonals.forEach((diag) => {
         const startX = offsetX + diag.start.x * scale;
@@ -179,21 +175,20 @@ export class RinkRenderer {
 
           ctx.save();
           ctx.setLineDash([]);
-          ctx.strokeStyle = '#A855F7';
-          ctx.fillStyle = '#A855F7';
+          ctx.strokeStyle = '#cbd5e1';
+          ctx.fillStyle = '#cbd5e1';
           ctx.beginPath();
-          ctx.arc(mx, my, 2.5, 0, Math.PI * 2);
+          ctx.arc(mx, my, 2, 0, Math.PI * 2);
           ctx.fill();
-          ctx.stroke();
           ctx.restore();
         });
       });
       ctx.restore();
     }
 
-    // Círculo central reglamentario
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
-    ctx.lineWidth = 1.5;
+    // Círculo central reglamentario (3m radio oficial)
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.35)';
+    ctx.lineWidth = 1.2;
     ctx.beginPath();
     ctx.arc(offsetX + renderedW / 2, offsetY + renderedH / 2, 3 * scale, 0, Math.PI * 2);
     ctx.stroke();
@@ -209,23 +204,23 @@ export class RinkRenderer {
         const rPx = fig.radius * scale;
 
         ctx.setLineDash(fig.isLoop ? [2, 2] : [4, 4]);
-        ctx.strokeStyle = fig.isLoop ? 'rgba(245, 158, 11, 0.6)' : 'rgba(0, 240, 255, 0.45)';
-        ctx.lineWidth = fig.isLoop ? 1.5 : 1.2;
+        ctx.strokeStyle = fig.isLoop ? 'rgba(217, 119, 6, 0.6)' : 'rgba(148, 163, 184, 0.4)';
+        ctx.lineWidth = fig.isLoop ? 1.4 : 1.1;
         ctx.beginPath();
         ctx.arc(cx, cy, rPx, 0, Math.PI * 2);
         ctx.stroke();
 
         // Centro del círculo
-        ctx.fillStyle = fig.isLoop ? '#F59E0B' : '#00F0FF';
+        ctx.fillStyle = fig.isLoop ? '#d97706' : '#94a3b8';
         ctx.beginPath();
-        ctx.arc(cx, cy, 2, 0, Math.PI * 2);
+        ctx.arc(cx, cy, 1.8, 0, Math.PI * 2);
         ctx.fill();
 
         // Etiqueta del círculo
-        ctx.font = '8px JetBrains Mono, monospace';
+        ctx.font = '8px "JetBrains Mono", monospace';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        ctx.fillStyle = fig.isLoop ? 'rgba(245, 158, 11, 0.8)' : 'rgba(0, 240, 255, 0.7)';
+        ctx.fillStyle = fig.isLoop ? 'rgba(217, 119, 6, 0.85)' : 'rgba(148, 163, 184, 0.8)';
         ctx.fillText(fig.name, cx, cy + (fig.isLoop ? rPx + 2 : 4));
       });
       ctx.restore();
@@ -236,9 +231,10 @@ export class RinkRenderer {
       // Círculos de saltos y trompos (3 círculos reglamentarios)
       const circleRPx = 6 * scale;
 
-      // Círculo izquierdo
-      ctx.strokeStyle = 'rgba(148, 163, 184, 0.25)';
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.22)';
       ctx.lineWidth = 1;
+
+      // Círculo izquierdo
       ctx.beginPath();
       ctx.arc(offsetX + renderedW * 0.25, offsetY + renderedH / 2, circleRPx, 0, Math.PI * 2);
       ctx.stroke();
@@ -248,29 +244,40 @@ export class RinkRenderer {
       ctx.arc(offsetX + renderedW * 0.75, offsetY + renderedH / 2, circleRPx, 0, Math.PI * 2);
       ctx.stroke();
 
-      // Panel de jueces World Skate con ancho dinámico intrínseco (Text Overflow Fix)
+      // Panel de jueces World Skate oficial (Placa técnica institucional)
       const judgeText = 'PANEL DE JUECES (WORLD SKATE)';
-      ctx.font = 'bold 9px JetBrains Mono, monospace';
+      ctx.font = 'bold 9px "JetBrains Mono", monospace';
       const textMetrics = ctx.measureText(judgeText);
-      const judgePadX = 14;
+      const judgePadX = 12;
       const judgeW = Math.ceil(textMetrics.width + judgePadX * 2);
       const judgeH = 18;
       const judgeX = offsetX + (renderedW - judgeW) / 2;
       const judgeY = Math.max(2, offsetY - 20);
 
-      ctx.fillStyle = 'rgba(245, 158, 11, 0.15)';
+      // Placa técnica oscura elegante
+      ctx.fillStyle = '#161c28';
       ctx.beginPath();
       roundRectPath(ctx, judgeX, judgeY, judgeW, judgeH, 4);
       ctx.fill();
 
-      ctx.strokeStyle = '#F59E0B';
-      ctx.lineWidth = 1.5;
+      // Borde técnico sobrio
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 1;
       ctx.stroke();
 
-      ctx.fillStyle = '#F59E0B';
+      // Línea superior con sutil acento dorado institucional
+      ctx.strokeStyle = '#d97706';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(judgeX + 4, judgeY);
+      ctx.lineTo(judgeX + judgeW - 4, judgeY);
+      ctx.stroke();
+
+      // Texto en plata de alto contraste
+      ctx.fillStyle = '#e2e8f0';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(judgeText, judgeX + judgeW / 2, judgeY + judgeH / 2);
+      ctx.fillText(judgeText, judgeX + judgeW / 2, judgeY + judgeH / 2 + 0.5);
     }
 
     ctx.restore();
@@ -379,18 +386,18 @@ export class RinkRenderer {
 
       if (highContrast) {
         // Reproducción / Modo Didáctico: trazado claro y siempre visible.
-        ctx.strokeStyle = isSegmentSelected ? 'rgba(0, 210, 255, 0.6)' : 'rgba(0, 210, 255, 0.35)';
-        ctx.lineWidth = isSegmentSelected ? 8 : 5;
+        ctx.strokeStyle = isSegmentSelected ? 'rgba(56, 189, 248, 0.3)' : 'rgba(56, 189, 248, 0.15)';
+        ctx.lineWidth = isSegmentSelected ? 6 : 4;
         strokeCurve();
 
-        ctx.strokeStyle = isSegmentSelected ? '#67E8F9' : '#00D2FF';
+        ctx.strokeStyle = isSegmentSelected ? '#78a9ff' : '#38bdf8';
         ctx.lineWidth = isSegmentSelected ? 3 : 2;
         strokeCurve();
       } else {
         // Guía inicial visual suave (no invasiva)
         ctx.setLineDash([5, 5]);
-        ctx.strokeStyle = isSegmentSelected ? 'rgba(0, 210, 255, 0.7)' : 'rgba(56, 189, 248, 0.35)';
-        ctx.lineWidth = isSegmentSelected ? 2.5 : 1.5;
+        ctx.strokeStyle = isSegmentSelected ? 'rgba(56, 189, 248, 0.6)' : 'rgba(56, 189, 248, 0.3)';
+        ctx.lineWidth = isSegmentSelected ? 2 : 1.5;
         strokeCurve();
       }
 
@@ -549,20 +556,20 @@ export class RinkRenderer {
       ctx.stroke();
     };
 
-    // Resplandor neón exterior + línea sólida del tramo activo.
-    ctx.strokeStyle = 'rgba(0, 210, 255, 0.55)';
-    ctx.lineWidth = 8;
+    // Trazo progresivo del tramo activo: nítido y de alta definición
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
+    ctx.lineWidth = 6;
     drawPartial();
 
-    ctx.strokeStyle = '#00D2FF';
-    ctx.lineWidth = 3.5;
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 2.5;
     drawPartial();
 
     // Cabeza luminosa: refuerza la sensación de "dibujado en tiempo real".
     const headPx = RinkMath.metersToPixels(headX, headY, metrics);
     ctx.fillStyle = '#FFFFFF';
     ctx.beginPath();
-    ctx.arc(headPx.px, headPx.py, 3.2, 0, Math.PI * 2);
+    ctx.arc(headPx.px, headPx.py, 3, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.restore();
@@ -625,29 +632,28 @@ export class RinkRenderer {
         ctx.restore();
       }
 
-      // 1. Halo luminoso exterior si está seleccionado (Neón Menta #10F49C)
+      // 1. Halo luminoso exterior si está seleccionado (Refined Carbon Blue highlight)
       if (isSelected) {
-        ctx.fillStyle = 'rgba(16, 244, 156, 0.25)';
+        ctx.fillStyle = 'rgba(15, 98, 254, 0.2)';
         ctx.beginPath();
         ctx.arc(px, py, nodeRadius + 5, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.strokeStyle = 'rgba(16, 244, 156, 0.75)';
+        ctx.strokeStyle = 'rgba(120, 169, 255, 0.7)';
         ctx.lineWidth = 1.5;
         ctx.stroke();
       }
 
-      // 1.b Feedback de ARRASTRE: anillo cian punteado con resplandor para que
-      //     quede inequívoco que el nodo se está MOVIENDO bajo el dedo/cursor.
+      // 1.b Feedback de ARRASTRE: anillo sutil de precisión
       if (isDraggingNode) {
         ctx.save();
         ctx.setLineDash([4, 3]);
-        ctx.strokeStyle = 'rgba(0, 210, 255, 0.95)';
+        ctx.strokeStyle = 'rgba(120, 169, 255, 0.9)';
         ctx.lineWidth = 2;
-        ctx.shadowColor = 'rgba(0, 210, 255, 0.9)';
-        ctx.shadowBlur = 14;
+        ctx.shadowColor = 'rgba(15, 98, 254, 0.6)';
+        ctx.shadowBlur = 8;
         ctx.beginPath();
-        ctx.arc(px, py, nodeRadius + 9, 0, Math.PI * 2);
+        ctx.arc(px, py, nodeRadius + 8, 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
       }
@@ -655,7 +661,7 @@ export class RinkRenderer {
       // 2. Círculo del ancla de alto contraste (radio adaptativo).
       ctx.beginPath();
       ctx.arc(px, py, nodeRadius, 0, Math.PI * 2);
-      ctx.fillStyle = isPending ? '#7C2D12' : isSelected ? '#10F49C' : '#0F172A';
+      ctx.fillStyle = isPending ? '#7C2D12' : isSelected ? '#0f62fe' : '#0F172A';
       ctx.fill();
 
       ctx.lineWidth = isSelected ? 2.5 : 1.8;
@@ -667,8 +673,8 @@ export class RinkRenderer {
 
       // 3. Número de orden del nodo centrado en el interior (legible).
       //    Los nodos pendientes muestran "?" en naranja hasta editarse a mano.
-      ctx.fillStyle = isPending ? '#FDBA74' : isSelected ? '#000000' : '#FFFFFF';
-      ctx.font = `900 ${Math.max(10, Math.round(nodeRadius * 0.95))}px JetBrains Mono, system-ui, monospace`;
+      ctx.fillStyle = isPending ? '#FDBA74' : '#FFFFFF';
+      ctx.font = `900 ${Math.max(10, Math.round(nodeRadius * 0.95))}px "JetBrains Mono", system-ui, monospace`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(isPending ? '?' : `${p.nodeNumber ?? visibleIndex}`, px, py);
@@ -695,16 +701,16 @@ export class RinkRenderer {
         const maxY = metrics.offsetY + metrics.renderedH - badgeH - 2;
         const badgeY = Math.max(minY, Math.min(maxY, py + nodeRadius + 5));
 
-        ctx.fillStyle = isSelected ? 'rgba(16, 244, 156, 0.2)' : 'rgba(18, 24, 38, 0.85)';
+        ctx.fillStyle = isSelected ? 'rgba(15, 98, 254, 0.25)' : 'rgba(18, 24, 38, 0.85)';
         ctx.beginPath();
         roundRectPath(ctx, badgeX, badgeY, badgeW, badgeH, 4);
         ctx.fill();
 
-        ctx.strokeStyle = isSelected ? 'rgba(16, 244, 156, 0.7)' : 'rgba(71, 85, 105, 0.4)';
+        ctx.strokeStyle = isSelected ? 'rgba(120, 169, 255, 0.8)' : 'rgba(71, 85, 105, 0.4)';
         ctx.lineWidth = 1;
         ctx.stroke();
 
-        ctx.fillStyle = isSelected ? '#10F49C' : '#94A3B8';
+        ctx.fillStyle = isSelected ? '#FFFFFF' : '#94A3B8';
         ctx.fillText(labelText, badgeX + badgeW / 2, badgeY + 2.5);
       }
 

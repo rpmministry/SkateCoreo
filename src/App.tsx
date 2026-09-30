@@ -984,7 +984,7 @@ export function App() {
               type="button"
               onClick={requestClearRink}
               disabled={points.length === 0 && unplacedNodes.length === 0 && !hasPaperTraceOverlay}
-              className="press hidden min-h-touch min-w-touch items-center justify-center gap-2 rounded-xl border border-danger/30 bg-[#da1e28]/10 border border-[#da1e28]/30 px-3 text-xs font-medium text-[#ff8389] hover:bg-[#da1e28] hover:text-white disabled:pointer-events-none disabled:opacity-30 lg:flex transition-colors"
+              className="press hidden min-h-touch min-w-touch items-center justify-center gap-2 rounded-xl bg-[#da1e28]/10 border border-[#da1e28]/30 px-3 text-xs font-medium text-[#ff8389] hover:bg-[#da1e28] hover:text-white disabled:pointer-events-none disabled:opacity-30 lg:flex transition-colors"
               title={
                 points.length === 0 && unplacedNodes.length === 0 && !hasPaperTraceOverlay
                   ? 'La pista ya está vacía'
@@ -1002,11 +1002,11 @@ export function App() {
           <button
             type="button"
             onClick={() => audioInputRef.current?.click()}
-            className="press hidden min-h-touch items-center justify-center gap-2 rounded-xl border border-cobalt-500/30 bg-[#0f62fe]/10 border border-[#0f62fe]/30 px-3 text-xs font-medium text-[#78a9ff] hover:bg-[#0f62fe] hover:text-white lg:flex lg:px-3.5 transition-colors"
+            className="press hidden min-h-touch items-center justify-center gap-2 rounded-xl border border-white/10 bg-surface-2 px-3 text-xs font-semibold text-slate-200 hover:bg-surface-3 hover:text-white lg:flex lg:px-3.5 transition-colors shadow-sm"
             title="Subir una pista de audio directamente al visor de la Pista 2D"
             aria-label="Subir pista al visor"
           >
-            <Upload className="h-4 w-4 shrink-0 stroke-[2]" />
+            <Upload className="h-4 w-4 shrink-0 stroke-[2] text-slate-400" />
             <span className="lg:inline fm-compact-label">Subir pista al visor</span>
           </button>
 
@@ -1144,11 +1144,11 @@ export function App() {
               <button
                 type="button"
                 onClick={() => audioInputRef.current?.click()}
-                className="press flex min-h-touch min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-cobalt-500/30 bg-cobalt-500/15 px-2.5 text-[11px] font-bold text-cobalt-300 hover:bg-cobalt-500/25 transition-colors"
+                className="press flex min-h-touch min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-surface-2 px-2.5 text-[11px] font-semibold text-slate-200 hover:bg-surface-3 hover:text-white transition-colors shadow-sm"
                 title="Subir una pista de audio directamente al visor de la Pista 2D"
                 aria-label="Subir pista al visor"
               >
-                <Upload className="h-4 w-4 shrink-0 stroke-[2]" />
+                <Upload className="h-4 w-4 shrink-0 stroke-[2] text-slate-400" />
                 <span className="truncate">Subir pista al visor</span>
               </button>
             </div>
