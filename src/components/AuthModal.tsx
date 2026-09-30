@@ -260,8 +260,8 @@ export const AuthModal: React.FC = () => {
 
   return (
     <>
-      {/* ── Overlay Principal con Fondo Neutro y Scroll Seguro ── */}
-      <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-[#12161f]/94 backdrop-blur-md animate-fade-in">
+      {/* ── Overlay Principal con Fondo Sólido Neutro Bear (Sin difuminado ni sombras grises) ── */}
+      <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-[#121417] animate-fade-in">
         {/* Botón de cierre cuando se abre como Modal de Upgrade/Planes */}
         {isUpgradeModalOpen && (
           <button
@@ -275,12 +275,12 @@ export const AuthModal: React.FC = () => {
           </button>
         )}
 
-        {/* Contenedor flexible con altura mínima de viewport y centrado seguro */}
-        <div className="flex min-h-full w-full items-center justify-center p-3 sm:p-5 md:p-6 lg:p-8">
-          <div className="my-auto w-full max-w-5xl flex flex-col">
+        {/* Contenedor flexible con altura mínima de viewport y centrado equilibrado */}
+        <div className="flex min-h-full w-full items-center justify-center p-3 sm:p-4 md:p-6 lg:p-7">
+          <div className="my-auto w-full max-w-6xl flex flex-col py-2 sm:py-3">
             {/* ── NIVEL 1 & 2: Encabezado e Identidad de Marca ── */}
-            <header className="mb-4 sm:mb-6 flex flex-col items-center text-center">
-              <div className="mb-2 inline-flex items-center gap-1.5 rounded-md border border-white/10 bg-surface-1 px-2.5 py-0.5 shadow-sm">
+            <header className="mb-3 sm:mb-4 lg:mb-5 flex flex-col items-center text-center">
+              <div className="mb-1.5 inline-flex items-center gap-1.5 rounded-md border border-white/10 bg-surface-1 px-2.5 py-0.5 shadow-sm">
                 <img
                   src="/alsiztech_app_icon_dark.svg"
                   alt=""
@@ -297,7 +297,7 @@ export const AuthModal: React.FC = () => {
 
               <SkateCoreoBrand size="lg" />
 
-              <p className="mt-1.5 max-w-lg text-xs sm:text-sm text-[#c6c6c6] leading-relaxed">
+              <p className="mt-1 max-w-lg text-xs sm:text-sm text-[#c6c6c6] leading-relaxed">
                 Plataforma profesional de trazado coreográfico, sincronización musical y evaluaciones oficiales.
               </p>
             </header>
@@ -341,7 +341,7 @@ export const AuthModal: React.FC = () => {
             )}
 
             {/* ── COMPOSICIÓN DE DOS COLUMNAS (Desktop) / UNA COLUMNA (Mobile/Tablet) ── */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-start">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 xl:gap-8 items-start">
               {/* ══════════ COLUMNA IZQUIERDA: AUTENTICACIÓN (Nivel 3 & 5) ══════════ */}
               <section
                 aria-label="Acceso a la cuenta"
@@ -571,8 +571,7 @@ export const AuthModal: React.FC = () => {
                     </a>
                   </div>
 
-                  <div className="flex items-center justify-between text-[11px] text-[#8d8d8d] pt-1">
-                    <span>SkateCoreo Pro v2.6</span>
+                  <div className="flex items-center justify-end text-[11px] text-[#8d8d8d] pt-1">
                     <a
                       href="https://alsiztech.com"
                       target="_blank"

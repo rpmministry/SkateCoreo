@@ -165,13 +165,9 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     const id = window.setTimeout(() => setLastCutSec(null), 1800);
     return () => window.clearTimeout(id);
   }, [lastCutSec, setLastCutSec]);
-  const RULER_HEIGHT = 48;
   const playheadLineRef = useRef<HTMLDivElement | null>(null);
-  const playheadNeedleRef = useRef<HTMLDivElement | null>(null);
   const tracksContainerRef = useRef<HTMLDivElement | null>(null);
-  const updatePlayheadVerticalRef = useRef<() => void>(() => {});
-  // La aguja es SOLO visual (pointer-events: none): nunca intercepta rueda, pan,
-  // drag de clips ni scroll. Este ref permite reapuntarla desde `onScroll`.
+  // La aguja es visual y compositada por GPU: se posiciona en coordenadas de contenido.
   const applyPlayheadRef = useRef<(timeMs: number) => void>(() => {});
   const workspaceRef = useRef<HTMLDivElement | null>(null);
   const addTrackFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -202,11 +198,6 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     // rueda requiere Shift; solo Ctrl/⌘+rueda hace zoom.
     wheelPanRequiresShift: true,
     onZoomChange: (z) => useAudioStudioStore.getState().setZoom(z),
-    // Al hacer scroll horizontal o vertical, la aguja se reposiciona y su límite vertical se actualiza.
-    onScroll: () => {
-      applyPlayheadRef.current(audioEngine.getCurrentTimeMs());
-      updatePlayheadVerticalRef.current();
-    },
   });
 
   /**
@@ -247,16 +238,13 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
    */
   const applyPlayheadFromHardwareClock = useCallback(
     (timeMs: number) => {
-      // `px` = coordenada de CONTENIDO (incluye headerWidth). La aguja vive en un
-      // overlay del VIEWPORT de la timeline (a la derecha del header), así que se
-      // resta `scrollLeft` + `headerWidth` para confinarla: nunca invade la columna
-      // de nombres y el `overflow-hidden` del overlay la recorta al salir.
+      // `px` = coordenada de CONTENIDO (incluye headerWidth). La aguja vive en el
+      // contenedor del área temporal (confinada a la regla + pistas de audio existentes).
       const px = playheadPxFor(timeMs);
 
       const line = playheadLineRef.current;
       if (line) {
-        const scrollLeft = timelineContainerRef.current?.scrollLeft ?? 0;
-        line.style.transform = `translateX(${px - scrollLeft - headerWidth}px) translateX(-50%)`;
+        line.style.transform = `translateX(${px}px) translateX(-50%)`;
       }
 
       const container = timelineContainerRef.current;
@@ -270,7 +258,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
         }
       }
     },
-    [playheadPxFor, isPlaying, zoom, isInteracting, headerWidth]
+    [playheadPxFor, isPlaying, zoom, isInteracting]
   );
   applyPlayheadRef.current = applyPlayheadFromHardwareClock;
 
@@ -990,57 +978,6 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
     [timelineViewport.height, timelineViewport.width, arrangementTracks.length]
   );
 
-  // Altura base calculada de la aguja: parte de la regla (48px) y cubre exactamente
-  // los canales de audio existentes. Si no existen pistas, se limita estrictamente a la regla (48px).
-  const playheadHeight = useMemo(() => {
-    if (arrangementTracks.length === 0) return RULER_HEIGHT;
-    return Math.max(RULER_HEIGHT, RULER_HEIGHT + arrangementTracks.length * trackLaneHeight);
-  }, [arrangementTracks.length, trackLaneHeight]);
-
-  // Actualización milimétrica del límite vertical de la aguja:
-  // Se confina estrictamente al área donde realmente existen canales de audio.
-  // Termina exactamente en el límite inferior del último canal visible, sin
-  // continuar por debajo ni invadir "+ Añadir Pista", controles o pestañas.
-  const updatePlayheadVerticalExtent = useCallback(() => {
-    const container = timelineContainerRef.current;
-    const needle = playheadNeedleRef.current;
-    if (!container || !needle) return;
-
-    if (arrangementTracks.length === 0) {
-      needle.style.height = `${RULER_HEIGHT}px`;
-      return;
-    }
-
-    const containerRect = container.getBoundingClientRect();
-    const tracksContainer = tracksContainerRef.current;
-    if (tracksContainer) {
-      const tracksRect = tracksContainer.getBoundingClientRect();
-      const visibleBottom = tracksRect.bottom - containerRect.top;
-      needle.style.height = `${Math.max(RULER_HEIGHT, Math.round(visibleBottom))}px`;
-    } else {
-      const calc = Math.max(
-        RULER_HEIGHT,
-        Math.round(RULER_HEIGHT + arrangementTracks.length * trackLaneHeight - container.scrollTop)
-      );
-      needle.style.height = `${calc}px`;
-    }
-  }, [arrangementTracks.length, trackLaneHeight]);
-
-  updatePlayheadVerticalRef.current = updatePlayheadVerticalExtent;
-
-  useLayoutEffect(() => {
-    updatePlayheadVerticalExtent();
-  }, [updatePlayheadVerticalExtent, arrangementTracks.length, trackLaneHeight]);
-
-  useEffect(() => {
-    updatePlayheadVerticalExtent();
-    window.addEventListener('resize', updatePlayheadVerticalExtent);
-    window.addEventListener('orientationchange', updatePlayheadVerticalExtent);
-    return () => {
-      window.removeEventListener('resize', updatePlayheadVerticalExtent);
-      window.removeEventListener('orientationchange', updatePlayheadVerticalExtent);
-    };
-  }, [updatePlayheadVerticalExtent]);
 
   return (
     <div 
@@ -1086,7 +1023,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
               hacer scroll vertical (y estos por encima de los clips). */}
           <div className="sticky top-0 z-50 flex items-stretch bg-surface-1 border-b border-white/[0.06] backdrop-blur-md">
             <div
-              className="sticky left-0 z-10 shrink-0 border-r border-white/[0.06] flex flex-col items-center justify-center gap-0.5 bg-surface-1 text-[9px] font-mono font-semibold text-slate-400 leading-none"
+              className="sticky left-0 z-40 shrink-0 border-r border-white/[0.06] flex flex-col items-center justify-center gap-0.5 bg-surface-1 text-[9px] font-mono font-semibold text-slate-400 leading-none"
               style={{ width: `${headerWidth}px` }}
               title="Marcadores temporales (doble clic en la regla para crear)"
             >
@@ -1224,6 +1161,31 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             </div>
           )}
 
+          {/* ── AGUJA DEL PLAYHEAD (Contenida estrictamente en regla + pistas de audio) ── */}
+          <div
+            ref={playheadLineRef}
+            className="absolute top-0 bottom-0 pointer-events-none z-30 select-none flex justify-center will-change-transform"
+            style={{
+              left: 0,
+              transform: `translateX(${timelineGeometry.timeToPx(0)}px) translateX(-50%)`,
+            }}
+          >
+            <div className="w-[2px] h-full bg-white shadow-sm relative flex justify-center">
+              <div
+                role="slider"
+                aria-label="Posición del cabezal"
+                aria-valuemin={0}
+                onPointerDown={handlePlayheadPointerDown}
+                className="pointer-events-auto absolute top-12 left-1/2 flex h-8 w-8 -translate-x-1/2 cursor-ew-resize items-center justify-center rounded-full transition-transform active:scale-110"
+                style={{ touchAction: 'none' }}
+                title="Arrastra para mover el cabezal"
+              >
+                <div className="w-3.5 h-3.5 bg-white rotate-45 rounded-xs shadow-md" />
+                <span className="absolute -bottom-1 h-1 w-4 rounded-full bg-white/70" />
+              </div>
+            </div>
+          </div>
+
           </div>
 
           {/* ── BOTÓN + AÑADIR PISTA ── */}
@@ -1256,37 +1218,6 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
               </button>
             </div>
           )}
-        </div>
-      </div>
-
-      {/* PLAYHEAD OVERLAY */}
-      <div
-        className="absolute inset-y-0 right-0 z-40 overflow-hidden pointer-events-none"
-        style={{ left: `${headerWidth}px` }}
-      >
-        <div
-          ref={playheadLineRef}
-          className="absolute top-0 w-8 pointer-events-none flex justify-center select-none"
-          style={{ left: 0, transform: `translateX(0px) translateX(-50%)` }}
-        >
-          <div
-            ref={playheadNeedleRef}
-            className="w-[2px] bg-white shadow-sm relative flex justify-center"
-            style={{ height: `${playheadHeight}px` }}
-          >
-            <div
-              role="slider"
-              aria-label="Posición del cabezal"
-              aria-valuemin={0}
-              onPointerDown={handlePlayheadPointerDown}
-              className="pointer-events-auto absolute top-12 left-1/2 flex h-9 w-9 -translate-x-1/2 cursor-ew-resize items-center justify-center rounded-full transition-transform active:scale-110"
-              style={{ touchAction: 'none' }}
-              title="Arrastra para mover el cabezal"
-            >
-              <div className="w-3.5 h-3.5 bg-white rotate-45 rounded-xs shadow-md" />
-              <span className="absolute -bottom-1 h-1 w-4 rounded-full bg-white/70" />
-            </div>
-          </div>
         </div>
       </div>
       </div>

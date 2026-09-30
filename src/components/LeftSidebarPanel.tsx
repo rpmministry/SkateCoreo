@@ -25,8 +25,6 @@ import {
   Users,
 } from 'lucide-react';
 import { audioEngine } from '../services/audioEngine';
-import { getBuildLabel } from '../core/audio/buildInfo';
-import { tabAudioCoordinator } from '../core/audio/tabAudioCoordinator';
 import { TIME_SIGNATURES, METRONOME_SUBDIVISIONS } from '../core/audio/Metronome';
 import { useAudioEngine } from '../hooks/useAudioEngine';
 import { useChoreographyStore } from '../store/useChoreographyStore';
@@ -707,44 +705,6 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
           </div>
         </section>
 
-        {/* ═══ Versión instalada / actualización (diagnóstico Android) ═══════ */}
-        <section className="px-4 py-3 space-y-2 border-t border-white/5">
-          <div className="flex items-center justify-between gap-2">
-            <span
-              className="truncate text-[10px] font-mono text-slate-500"
-              title={`Build ${getBuildLabel()} · tab ${tabAudioCoordinator.tabId}`}
-            >
-              Versión {getBuildLabel()}
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                // Forzar comprobación de actualización del Service Worker:
-                // garantiza que Android/Brave no queden atrapados en una versión
-                // cacheada anterior.
-                void (async () => {
-                  try {
-                    if ('serviceWorker' in navigator) {
-                      const reg = await navigator.serviceWorker.getRegistration();
-                      if (reg) {
-                        await reg.update();
-                        if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-                      }
-                    }
-                  } catch {
-                    /* sin Service Worker (dev o navegador antiguo) */
-                  } finally {
-                    window.setTimeout(() => window.location.reload(), 350);
-                  }
-                })();
-              }}
-              className="press shrink-0 rounded-lg border border-white/10 px-2 py-1 text-[10px] font-semibold text-slate-300 hover:bg-white/5"
-              title="Comprueba si hay una versión nueva y recarga la aplicación"
-            >
-              Buscar actualización
-            </button>
-          </div>
-        </section>
 
         {/* ═══ Footer Attribution (Carbon Design System) ═════════════════════════ */}
         <section className="px-4 py-3 bg-white/[0.01] border-t border-white/5 text-center">

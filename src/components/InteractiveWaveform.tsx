@@ -595,11 +595,11 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
               type="button"
               onClick={onUndo}
               disabled={!canUndo}
-              className="flex min-h-touch items-center justify-center gap-1.5 rounded-subtle border border-border-subtle bg-surface-hover/80 px-2.5 font-sans text-[11px] font-bold text-text-secondary press hover:bg-surface-active hover:text-text-primary disabled:pointer-events-none disabled:opacity-30 sm:px-3"
+              className="flex min-h-[34px] items-center justify-center gap-1.5 rounded-lg border border-white/[0.08] bg-surface-2 hover:bg-surface-3 px-2.5 font-sans text-xs font-medium text-neutral-200 hover:text-white transition-colors press disabled:opacity-30 disabled:pointer-events-none sm:px-3"
               title="Deshacer el último cambio de la coreografía"
               aria-label="Deshacer"
             >
-              <Undo2 className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
+              <Undo2 className="h-3.5 w-3.5 shrink-0 text-ice-light" />
               <span className="hidden sm:inline">Deshacer</span>
             </button>
           )}
