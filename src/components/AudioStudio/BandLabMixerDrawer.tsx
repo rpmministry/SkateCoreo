@@ -50,38 +50,38 @@ export const BandLabMixerDrawer: React.FC<BandLabMixerDrawerProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-[80] flex items-end justify-center bg-black/75 backdrop-blur-md animate-in fade-in duration-150"
+      className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-150"
       onClick={onClose}
       onTouchStart={(e) => e.stopPropagation()}
     >
       <div 
-        className="w-full max-w-4xl bg-zinc-950/98 border-t border-white/10 rounded-t-3xl shadow-2xl p-4 flex flex-col gap-3 text-white max-h-[75vh]"
+        className="w-full max-w-4xl bg-surface-1 border-t border-white/[0.08] rounded-t-3xl shadow-elevation p-4 flex flex-col gap-3 text-white max-h-[75vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Cabecera del Mezclador BandLab */}
-        <div className="flex items-center justify-between pb-2 border-b border-white/10">
+        {/* Cabecera del Mezclador */}
+        <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
           <div className="flex items-center gap-2">
-            <Sliders className="w-5 h-5 text-[#78a9ff]" />
-            <h2 className="text-sm font-black uppercase tracking-wider text-white">
-              Mezclador Multitrack (Mix Editor)
+            <Sliders className="w-4 h-4 text-ice-primary" />
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+              Mezclador Multitrack
             </h2>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1 rounded-full text-slate-400 hover:text-white hover:bg-white/10"
+            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.06] transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Selector de Modo de Salida (Stereo vs Split L/R) */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 p-3 rounded-2xl bg-zinc-900/90 border border-white/10 shrink-0">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 p-3 rounded-xl bg-surface-2/60 border border-white/[0.06] shrink-0">
           <div className="flex flex-col text-left w-full sm:w-auto">
-            <span className="text-xs font-black uppercase tracking-wider text-slate-200">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-200">
               Modo de Salida
             </span>
-            <span className="text-[11px] text-slate-400 font-medium">
+            <span className="text-[11px] text-slate-400 font-normal">
               {channelMode === 'split-coach'
                 ? 'L: 100% Música (pista limpia) · R: 100% Metrónomo + Voz Guía (0% Música)'
                 : 'L + R: Mezcla estéreo balanceada completa en ambos canales'}
@@ -92,10 +92,10 @@ export const BandLabMixerDrawer: React.FC<BandLabMixerDrawerProps> = ({
               type="button"
               aria-pressed={channelMode === 'stereo'}
               onClick={() => handleSetChannelMode('stereo')}
-              className={`py-2 px-3.5 rounded-xl text-center text-xs font-bold transition-all border active:scale-[0.97] ${
+              className={`py-1.5 px-3 rounded-xl text-center text-xs font-medium transition-all border ${
                 channelMode === 'stereo'
-                  ? 'bg-[#0f62fe] text-white font-bold border-[#78a9ff]/40 shadow-sm ring-1 ring-[#0f62fe]/30'
-                  : 'bg-zinc-800/80 border-white/5 text-zinc-300 hover:bg-zinc-700 hover:text-white'
+                  ? 'bg-ice-primary text-white font-semibold border-ice-primary/40 shadow-subtle'
+                  : 'bg-surface-1 border-white/[0.06] text-slate-300 hover:bg-surface-3 hover:text-white'
               }`}
             >
               🔊 Stereo
@@ -104,10 +104,10 @@ export const BandLabMixerDrawer: React.FC<BandLabMixerDrawerProps> = ({
               type="button"
               aria-pressed={channelMode === 'split-coach'}
               onClick={() => handleSetChannelMode('split-coach')}
-              className={`py-2 px-3.5 rounded-xl text-center text-xs font-bold transition-all border active:scale-[0.97] ${
+              className={`py-1.5 px-3 rounded-xl text-center text-xs font-medium transition-all border ${
                 channelMode === 'split-coach'
-                  ? 'bg-[#0f62fe] text-white font-bold border-[#78a9ff]/40 shadow-sm ring-1 ring-[#0f62fe]/30'
-                  : 'bg-zinc-800/80 border-white/5 text-zinc-300 hover:bg-zinc-700 hover:text-white'
+                  ? 'bg-ice-primary text-white font-semibold border-ice-primary/40 shadow-subtle'
+                  : 'bg-surface-1 border-white/[0.06] text-slate-300 hover:bg-surface-3 hover:text-white'
               }`}
             >
               🎧 Split L/R
@@ -115,7 +115,7 @@ export const BandLabMixerDrawer: React.FC<BandLabMixerDrawerProps> = ({
           </div>
         </div>
 
-        {/* Canales Verticales (Estilo Consola de Mezclas BandLab) */}
+        {/* Canales Verticales */}
         <div className="flex-1 overflow-x-auto py-2 flex items-stretch justify-center gap-3">
           {/* Canales de Pistas de Audio */}
           {tracks.map((t, idx) => {
@@ -123,11 +123,11 @@ export const BandLabMixerDrawer: React.FC<BandLabMixerDrawerProps> = ({
             return (
               <div 
                 key={t.id}
-                className="w-20 sm:w-24 shrink-0 flex flex-col items-center justify-between p-2 rounded-xl bg-zinc-900/90 border border-white/5 select-none"
-                style={{ borderTop: `4px solid ${t.color}` }}
+                className="w-20 sm:w-24 shrink-0 flex flex-col items-center justify-between p-2 rounded-xl bg-surface-2/60 border border-white/[0.06] select-none shadow-subtle"
+                style={{ borderTop: `3px solid ${t.color}` }}
               >
                 <div className="w-full text-center">
-                  <span className="text-[10px] font-mono font-black" style={{ color: t.color }}>
+                  <span className="text-[10px] font-mono font-semibold" style={{ color: t.color }}>
                     {isMaster ? 'MASTER' : `PISTA ${idx + 1}`}
                   </span>
                   <p className="text-[10px] text-slate-300 truncate w-full font-medium">
@@ -144,11 +144,11 @@ export const BandLabMixerDrawer: React.FC<BandLabMixerDrawerProps> = ({
                     step="0.02"
                     value={t.volume}
                     onChange={(e) => setTrackVolume(t.id, parseFloat(e.target.value))}
-                    className="w-28 accent-[#0f62fe] cursor-pointer -rotate-90"
+                    className="w-28 accent-[#2E7CF6] cursor-pointer -rotate-90"
                   />
                 </div>
 
-                <span className="font-mono text-[10px] text-[#78a9ff] font-bold mb-2">
+                <span className="font-mono text-[10px] text-ice-primary font-semibold mb-2">
                   {Math.round(t.volume * 100)}%
                 </span>
 
@@ -157,8 +157,8 @@ export const BandLabMixerDrawer: React.FC<BandLabMixerDrawerProps> = ({
                   <button
                     type="button"
                     {...press(() => toggleTrackMute(t.id))}
-                    className={`press min-h-touch flex-1 rounded text-[9px] font-black uppercase ${
-                      t.muted ? 'bg-rose-500 text-white shadow-sm' : 'bg-white/10 text-slate-400 hover:text-white'
+                    className={`press min-h-touch flex-1 rounded-md text-[9px] font-semibold uppercase transition-colors ${
+                      t.muted ? 'bg-red-500/20 text-red-400 ring-1 ring-red-500/30' : 'bg-surface-1 border border-white/[0.06] text-slate-400 hover:text-white'
                     }`}
                   >
                     M
@@ -166,8 +166,8 @@ export const BandLabMixerDrawer: React.FC<BandLabMixerDrawerProps> = ({
                   <button
                     type="button"
                     onClick={() => toggleTrackSolo(t.id)}
-                    className={`flex-1 py-1 rounded text-[9px] font-black uppercase transition-all ${
-                      t.solo ? 'bg-amber-400 text-black shadow-sm' : 'bg-white/10 text-slate-400 hover:text-white'
+                    className={`flex-1 py-1 rounded-md text-[9px] font-semibold uppercase transition-colors ${
+                      t.solo ? 'bg-amber-400/20 text-amber-300 ring-1 ring-amber-400/30' : 'bg-surface-1 border border-white/[0.06] text-slate-400 hover:text-white'
                     }`}
                   >
                     S
@@ -182,11 +182,11 @@ export const BandLabMixerDrawer: React.FC<BandLabMixerDrawerProps> = ({
             const isMetroActive = globalControls.metronome.enabled && !globalControls.metronome.muted;
             return (
               <div 
-                className="w-20 sm:w-24 shrink-0 flex flex-col items-center justify-between p-2 rounded-xl bg-zinc-900/90 border border-white/5 select-none"
-                style={{ borderTop: `4px solid ${isMetroActive ? '#F59E0B' : '#64748B'}` }}
+                className="w-20 sm:w-24 shrink-0 flex flex-col items-center justify-between p-2 rounded-xl bg-surface-2/60 border border-white/[0.06] select-none shadow-subtle"
+                style={{ borderTop: `3px solid ${isMetroActive ? '#F59E0B' : '#64748B'}` }}
               >
                 <div className="w-full text-center">
-                  <span className={`text-[10px] font-mono font-black flex items-center justify-center gap-1 transition-colors ${isMetroActive ? 'text-amber-400' : 'text-slate-400'}`}>
+                  <span className={`text-[10px] font-mono font-semibold flex items-center justify-center gap-1 transition-colors ${isMetroActive ? 'text-amber-400' : 'text-slate-400'}`}>
                     <Bell className="w-2.5 h-2.5" /> METRO
                   </span>
                   <p className="text-[10px] text-slate-400 truncate">Sintético</p>
@@ -200,11 +200,11 @@ export const BandLabMixerDrawer: React.FC<BandLabMixerDrawerProps> = ({
                     step="0.02"
                     value={globalControls.metronome.volume}
                     onChange={(e) => setMetronomeVolume(parseFloat(e.target.value))}
-                    className="w-28 accent-amber-400 cursor-pointer -rotate-90"
+                    className="w-28 accent-[#F59E0B] cursor-pointer -rotate-90"
                   />
                 </div>
 
-                <span className={`font-mono text-[10px] font-bold mb-2 ${isMetroActive ? 'text-amber-400' : 'text-slate-400'}`}>
+                <span className={`font-mono text-[10px] font-semibold mb-2 ${isMetroActive ? 'text-amber-400' : 'text-slate-400'}`}>
                   {Math.round(globalControls.metronome.volume * 100)}%
                 </span>
 
@@ -212,8 +212,8 @@ export const BandLabMixerDrawer: React.FC<BandLabMixerDrawerProps> = ({
                   type="button"
                   {...press(toggleMetronomeMute)}
                   aria-pressed={isMetroActive}
-                  className={`press min-h-touch w-full rounded text-[9px] font-black uppercase transition-colors ${
-                    isMetroActive ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-white/5 text-slate-400 border border-white/5'
+                  className={`press min-h-touch w-full rounded-md text-[9px] font-semibold uppercase transition-colors ${
+                    isMetroActive ? 'bg-amber-400/15 text-amber-400 border border-amber-400/25' : 'bg-surface-1 border border-white/[0.06] text-slate-400 hover:text-white'
                   }`}
                 >
                   {isMetroActive ? 'Activo' : 'Inactivo'}
@@ -224,11 +224,11 @@ export const BandLabMixerDrawer: React.FC<BandLabMixerDrawerProps> = ({
 
           {/* Canal Global: Voces Guía */}
           <div 
-            className="w-20 sm:w-24 shrink-0 flex flex-col items-center justify-between p-2 rounded-xl bg-zinc-900/90 border border-white/5 select-none"
-            style={{ borderTop: '4px solid #D946EF' }}
+            className="w-20 sm:w-24 shrink-0 flex flex-col items-center justify-between p-2 rounded-xl bg-surface-2/60 border border-white/[0.06] select-none shadow-subtle"
+            style={{ borderTop: '3px solid #0D9488' }}
           >
             <div className="w-full text-center">
-              <span className="text-[10px] font-mono font-black text-fuchsia-400 flex items-center justify-center gap-1">
+              <span className="text-[10px] font-mono font-semibold text-studio-mint flex items-center justify-center gap-1">
                 <Mic className="w-2.5 h-2.5" /> GUÍAS
               </span>
               <p className="text-[10px] text-slate-400 truncate" title="Voz Guía automática (IA). Independiente de la voz grabada.">Voz Guía IA</p>
@@ -242,19 +242,19 @@ export const BandLabMixerDrawer: React.FC<BandLabMixerDrawerProps> = ({
                 step="0.02"
                 value={globalControls.voiceGuide.volume}
                 onChange={(e) => setVoiceGuideVolume(parseFloat(e.target.value))}
-                className="w-28 accent-fuchsia-400 cursor-pointer -rotate-90"
+                className="w-28 accent-[#0D9488] cursor-pointer -rotate-90"
               />
             </div>
 
-            <span className="font-mono text-[10px] text-fuchsia-400 font-bold mb-2">
+            <span className="font-mono text-[10px] text-studio-mint font-semibold mb-2">
               {Math.round(globalControls.voiceGuide.volume * 100)}%
             </span>
 
             <button
               type="button"
               {...press(toggleVoiceGuideMute)}
-              className={`press min-h-touch w-full rounded text-[9px] font-black uppercase ${
-                globalControls.voiceGuide.muted ? 'bg-rose-500 text-white' : 'bg-white/10 text-fuchsia-400'
+              className={`press min-h-touch w-full rounded-md text-[9px] font-semibold uppercase transition-colors ${
+                globalControls.voiceGuide.muted ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-surface-1 border border-white/[0.06] text-studio-mint hover:text-white'
               }`}
             >
               {globalControls.voiceGuide.muted ? 'Muted' : 'Activo'}

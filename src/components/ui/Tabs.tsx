@@ -72,13 +72,13 @@ export const Tabs: React.FC<TabsProps> = ({
               className={`relative flex items-center font-medium transition-colors whitespace-nowrap -mb-px pb-2.5 px-3 pt-1 ${sizeClasses} ${
                 isActive
                   ? accentColor === 'coral'
-                    ? 'text-white border-b-2 border-[#ee5396] font-bold'
+                    ? 'text-[#F7F8F9] border-b-2 border-[#e11d48] font-medium'
                     : accentColor === 'mint'
-                    ? 'text-white border-b-2 border-[#009d9a] font-bold'
+                    ? 'text-[#F7F8F9] border-b-2 border-[#0d9488] font-medium'
                     : accentColor === 'amber'
-                    ? 'text-white border-b-2 border-[#f1c21b] font-bold'
-                    : 'text-white border-b-2 border-[#0f62fe] font-bold'
-                  : 'text-[#c6c6c6] hover:text-white border-b-2 border-transparent'
+                    ? 'text-[#F7F8F9] border-b-2 border-[#f59e0b] font-medium'
+                    : 'text-[#F7F8F9] border-b-2 border-[#2e7cf6] font-medium'
+                  : 'text-[#9CA3AF] hover:text-[#F7F8F9] border-b-2 border-transparent'
               }`}
             >
               {tab.icon && (
@@ -86,13 +86,13 @@ export const Tabs: React.FC<TabsProps> = ({
                   className={`shrink-0 ${
                     isActive
                       ? accentColor === 'coral'
-                        ? 'text-[#ff7eb6]'
+                        ? 'text-[#fb7185]'
                         : accentColor === 'mint'
-                        ? 'text-[#3ddbd9]'
+                        ? 'text-[#2dd4bf]'
                         : accentColor === 'amber'
-                        ? 'text-[#f1c21b]'
-                        : 'text-[#78a9ff]'
-                      : 'text-[#8d8d8d]'
+                        ? 'text-[#f59e0b]'
+                        : 'text-[#60a5fa]'
+                      : 'text-[#6B7280]'
                   }`}
                 >
                   {tab.icon}
@@ -101,8 +101,8 @@ export const Tabs: React.FC<TabsProps> = ({
               <span>{tab.label}</span>
               {tab.badge !== undefined && (
                 <span
-                  className={`ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold ${
-                    isActive ? 'bg-[#0f62fe]/25 text-[#78a9ff]' : 'bg-surface-3 text-[#c6c6c6]'
+                  className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-mono font-medium ${
+                    isActive ? 'bg-[#2e7cf6]/20 text-[#60a5fa]' : 'bg-white/[0.06] text-[#9CA3AF]'
                   }`}
                 >
                   {tab.badge}
@@ -117,18 +117,18 @@ export const Tabs: React.FC<TabsProps> = ({
 
   const activePillStyle =
     accentColor === 'coral'
-      ? 'bg-surface-3 text-white font-bold border border-[#ee5396] shadow-sm ring-1 ring-[#ee5396]/40'
+      ? 'bg-[#e11d48]/15 text-white font-medium border border-[#e11d48]/40 shadow-sm'
       : accentColor === 'mint'
-      ? 'bg-surface-3 text-white font-bold border border-[#009d9a] shadow-sm ring-1 ring-[#009d9a]/40'
+      ? 'bg-[#0d9488]/15 text-white font-medium border border-[#0d9488]/40 shadow-sm'
       : accentColor === 'amber'
-      ? 'bg-surface-3 text-white font-bold border border-[#f1c21b] shadow-sm ring-1 ring-[#f1c21b]/40'
-      : 'bg-surface-3 text-white font-bold border border-[#0f62fe] shadow-sm ring-1 ring-[#0f62fe]/40';
+      ? 'bg-[#f59e0b]/15 text-white font-medium border border-[#f59e0b]/40 shadow-sm'
+      : 'bg-[#2e7cf6]/15 text-white font-medium border border-[#2e7cf6]/40 shadow-sm';
 
   return (
     <div
       role="tablist"
       aria-orientation="horizontal"
-      className={`inline-flex items-center p-1 rounded-lg bg-surface-1 border border-white/[0.08] overflow-x-auto scrollbar-none ${className}`}
+      className={`inline-flex items-center p-1 rounded-lg bg-surface-1 border border-white/[0.07] overflow-x-auto scrollbar-none ${className}`}
     >
       {tabs.map((tab, idx) => {
         const isActive = tab.id === activeTab;
@@ -144,7 +144,7 @@ export const Tabs: React.FC<TabsProps> = ({
             className={`flex items-center rounded-md font-medium transition-all whitespace-nowrap select-none ${sizeClasses} ${
               isActive
                 ? activePillStyle
-                : 'text-[#c6c6c6] hover:text-white hover:bg-white/[0.04]'
+                : 'text-[#9CA3AF] hover:text-[#F7F8F9] hover:bg-white/[0.04] border border-transparent'
             }`}
           >
             {tab.icon && (
@@ -152,13 +152,13 @@ export const Tabs: React.FC<TabsProps> = ({
                 className={`shrink-0 ${
                   isActive
                     ? accentColor === 'coral'
-                      ? 'text-[#ff7eb6]'
+                      ? 'text-[#fb7185]'
                       : accentColor === 'mint'
-                      ? 'text-[#3ddbd9]'
+                      ? 'text-[#2dd4bf]'
                       : accentColor === 'amber'
-                      ? 'text-[#f1c21b]'
-                      : 'text-[#78a9ff]'
-                    : 'text-[#8d8d8d]'
+                      ? 'text-[#f59e0b]'
+                      : 'text-[#60a5fa]'
+                    : 'text-[#6B7280]'
                 }`}
               >
                 {tab.icon}
@@ -167,8 +167,8 @@ export const Tabs: React.FC<TabsProps> = ({
             <span>{tab.label}</span>
             {tab.badge !== undefined && (
               <span
-                className={`ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold ${
-                  isActive ? 'bg-[#0f62fe] text-white' : 'bg-surface-3 text-[#c6c6c6]'
+                className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-mono font-medium ${
+                  isActive ? 'bg-[#2e7cf6] text-white' : 'bg-white/[0.06] text-[#9CA3AF]'
                 }`}
               >
                 {tab.badge}

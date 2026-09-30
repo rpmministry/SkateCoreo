@@ -947,12 +947,12 @@ export function App() {
           {/* Insignia Beta Tester (acceso de 30 días) */}
           {authPlan === 'beta_tester' && (
             <div
-              className="ml-2 hidden items-center gap-1.5 rounded-full border border-coral/40 bg-coral/15 px-2.5 py-1 sm:flex"
+              className="ml-2 hidden items-center gap-1.5 rounded-full border border-amber-500/25 bg-amber-500/10 px-2.5 py-0.5 sm:flex"
               title={`Acceso Beta Tester · vence el ${getFormattedExpiration() ?? '—'}`}
             >
-              <Sparkles className="h-3.5 w-3.5 shrink-0 text-coral" />
-              <span className="text-[10px] font-black uppercase tracking-wide text-coral">Beta Tester</span>
-              <span className="rounded-full bg-black/30 px-1.5 py-0.5 font-mono text-[10px] font-bold text-white">
+              <Sparkles className="h-3 w-3 shrink-0 text-amber-400" />
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-300">Beta Tester</span>
+              <span className="rounded-full bg-white/[0.08] px-1.5 py-0.5 font-mono text-[9px] font-medium text-neutral-200">
                 {getDaysRemaining()}d
               </span>
             </div>
@@ -984,7 +984,7 @@ export function App() {
               type="button"
               onClick={requestClearRink}
               disabled={points.length === 0 && unplacedNodes.length === 0 && !hasPaperTraceOverlay}
-              className="press hidden min-h-touch min-w-touch items-center justify-center gap-2 rounded-xl border border-danger/30 bg-[#da1e28]/10 border border-[#da1e28]/30 px-3 text-xs font-medium text-[#ff8389] hover:bg-[#da1e28] hover:text-white disabled:pointer-events-none disabled:opacity-30 lg:flex transition-colors"
+              className="press hidden min-h-[36px] items-center justify-center gap-1.5 rounded-lg border border-danger/25 bg-danger/10 px-3 text-xs font-medium text-red-300 hover:bg-danger/20 hover:text-white disabled:pointer-events-none disabled:opacity-30 lg:flex transition-colors"
               title={
                 points.length === 0 && unplacedNodes.length === 0 && !hasPaperTraceOverlay
                   ? 'La pista ya está vacía'
@@ -992,7 +992,7 @@ export function App() {
               }
               aria-label="Limpiar toda la pista 2D"
             >
-              <Trash2 className="h-4 w-4 shrink-0 stroke-[2]" />
+              <Trash2 className="h-3.5 w-3.5 shrink-0 stroke-[1.8]" />
               <span className="hidden xl:inline">Limpiar Pista</span>
             </button>
           )}
@@ -1002,11 +1002,11 @@ export function App() {
           <button
             type="button"
             onClick={() => audioInputRef.current?.click()}
-            className="press hidden min-h-touch items-center justify-center gap-2 rounded-xl border border-cobalt-500/30 bg-[#0f62fe]/10 border border-[#0f62fe]/30 px-3 text-xs font-medium text-[#78a9ff] hover:bg-[#0f62fe] hover:text-white lg:flex lg:px-3.5 transition-colors"
+            className="press hidden min-h-[36px] items-center justify-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 text-xs font-medium text-neutral-200 hover:bg-white/[0.08] hover:text-white lg:flex lg:px-3.5 transition-colors"
             title="Subir una pista de audio directamente al visor de la Pista 2D"
             aria-label="Subir pista al visor"
           >
-            <Upload className="h-4 w-4 shrink-0 stroke-[2]" />
+            <Upload className="h-3.5 w-3.5 shrink-0 text-ice-primary stroke-[1.8]" />
             <span className="lg:inline fm-compact-label">Subir pista al visor</span>
           </button>
 
@@ -1014,12 +1014,12 @@ export function App() {
               menú de desbordamiento y en el panel de Preparación) */}
           <button
             type="button"
-                  onClick={() => { void handleLogout(); }}
-            className="press hidden h-10 w-10 min-h-touch min-w-touch items-center justify-center rounded-xl border border-white/10 bg-surface-2 text-slate-300 hover:border-danger/30 hover:bg-danger/10 hover:text-danger sm:flex transition-colors"
+            onClick={() => { void handleLogout(); }}
+            className="press hidden h-9 w-9 items-center justify-center rounded-lg border border-white/[0.07] bg-surface-2 text-neutral-400 hover:border-danger/30 hover:bg-danger/10 hover:text-danger sm:flex transition-colors"
             title="Cerrar sesión y salir de la aplicación"
             aria-label="Cerrar sesión"
           >
-            <LogOut className="w-5 h-5 stroke-[1.8]" />
+            <LogOut className="w-4 h-4 stroke-[1.75]" />
           </button>
 
           {/* Menú de Desbordamiento Unificado (...) */}
@@ -1027,11 +1027,11 @@ export function App() {
             <button
               type="button"
               onClick={() => setShowExportMenu((v) => !v)}
-              className="press flex h-10 w-10 min-h-touch min-w-touch items-center justify-center rounded-xl border border-white/10 bg-surface-2 text-slate-300 hover:bg-surface-3 hover:text-white transition-colors"
+              className="press flex h-9 w-9 items-center justify-center rounded-lg border border-white/[0.07] bg-surface-2 text-neutral-400 hover:bg-surface-3 hover:text-white transition-colors"
               title="Más opciones del proyecto"
               aria-label="Más opciones del proyecto"
             >
-              <MoreVertical className="w-5 h-5 stroke-[2]" />
+              <MoreVertical className="w-4 h-4 stroke-[1.8]" />
             </button>
 
             {showExportMenu && (
@@ -1041,8 +1041,8 @@ export function App() {
                   onClick={() => setShowExportMenu(false)}
                   aria-hidden="true"
                 />
-                <div className="absolute right-0 mt-2 flex w-[min(19rem,calc(100vw-1.5rem))] flex-col gap-1 overflow-hidden rounded-2xl p-2 bg-surface-2/95 border border-white/[0.12] backdrop-blur-xl shadow-elevation-3 animate-scale-in z-50">
-                  <p className="px-2 pb-1 pt-0.5 text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">
+                <div className="absolute right-0 mt-2 flex w-[min(19rem,calc(100vw-1.5rem))] flex-col gap-0.5 overflow-hidden rounded-xl p-1.5 bg-surface-2/95 border border-white/[0.08] backdrop-blur-xl shadow-elevation-3 animate-scale-in z-50">
+                  <p className="px-2.5 pb-1 pt-1 text-[9px] font-semibold uppercase tracking-wider text-neutral-400">
                     Proyecto
                   </p>
 
@@ -1050,36 +1050,36 @@ export function App() {
                     type="button"
                     onClick={() => { setShowExportMenu(false); handleExportMixdown(); }}
                     disabled={!audioState.hasAudioLoaded || isExportingMix}
-                    className="press flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-medium text-slate-200 hover:bg-white/5 hover:text-white disabled:opacity-40"
+                    className="press flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-neutral-200 hover:bg-white/[0.05] hover:text-white disabled:opacity-40 transition-colors"
                   >
-                    <Music className="w-4 h-4 text-coral shrink-0 stroke-[1.75]" />
+                    <Music className="w-4 h-4 text-coach-primary shrink-0 stroke-[1.75]" />
                     <span>
-                      <span className="block font-semibold leading-tight">Exportar Mezcla (.WAV)</span>
-                      <span className="block text-[10px] font-normal text-slate-400">Mixdown con metrónomo y cues</span>
+                      <span className="block font-medium leading-tight">Exportar Mezcla (.WAV)</span>
+                      <span className="block text-[10px] font-normal text-neutral-400">Mixdown con metrónomo y cues</span>
                     </span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => { setShowExportMenu(false); handleExportCoreo(); }}
-                    className="press flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-medium text-slate-200 hover:bg-white/5 hover:text-white"
+                    className="press flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-neutral-200 hover:bg-white/[0.05] hover:text-white transition-colors"
                   >
-                    <Save className="w-4 h-4 text-[#78a9ff] shrink-0 stroke-[1.75]" />
+                    <Save className="w-4 h-4 text-ice-primary shrink-0 stroke-[1.75]" />
                     <span>
-                      <span className="block font-semibold leading-tight">Exportar Paquete (.coreo)</span>
-                      <span className="block text-[10px] font-normal text-slate-400">Bundle completo con audio y nodos 2D</span>
+                      <span className="block font-medium leading-tight">Exportar Paquete (.coreo)</span>
+                      <span className="block text-[10px] font-normal text-neutral-400">Bundle completo con audio y nodos 2D</span>
                     </span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => { setShowExportMenu(false); coreoInputRef.current?.click(); }}
-                    className="press flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-medium text-slate-200 hover:bg-white/5 hover:text-white"
+                    className="press flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-neutral-200 hover:bg-white/[0.05] hover:text-white transition-colors"
                   >
-                    <Upload className="w-4 h-4 text-mint shrink-0 stroke-[1.75]" />
+                    <Upload className="w-4 h-4 text-studio-primary shrink-0 stroke-[1.75]" />
                     <span>
-                      <span className="block font-semibold leading-tight">Importar Paquete (.coreo)</span>
-                      <span className="block text-[10px] font-normal text-slate-400">Cargar rutina previamente guardada</span>
+                      <span className="block font-medium leading-tight">Importar Paquete (.coreo)</span>
+                      <span className="block text-[10px] font-normal text-neutral-400">Cargar rutina previamente guardada</span>
                     </span>
                   </button>
 
@@ -1089,41 +1089,41 @@ export function App() {
                       setShowExportMenu(false);
                       startTransition(() => setActiveView('coach'));
                     }}
-                    className="press flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-medium text-slate-200 hover:bg-white/5 hover:text-white"
+                    className="press flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-neutral-200 hover:bg-white/[0.05] hover:text-white transition-colors"
                   >
-                    <Users className="w-4 h-4 text-[#78a9ff] shrink-0 stroke-[1.75]" />
+                    <Users className="w-4 h-4 text-ice-primary shrink-0 stroke-[1.75]" />
                     <span>
-                      <span className="block font-semibold leading-tight">Panel de Entrenadores</span>
-                      <span className="block text-[10px] font-normal text-slate-400">Atletas, fichas y almacenamiento personal</span>
+                      <span className="block font-medium leading-tight">Panel de Entrenadores</span>
+                      <span className="block text-[10px] font-normal text-neutral-400">Atletas, fichas y almacenamiento personal</span>
                     </span>
                   </button>
 
-                  <span aria-hidden="true" className="my-1 h-px bg-white/5" />
+                  <span aria-hidden="true" className="my-1 h-px bg-white/[0.06]" />
 
                   <button
                     type="button"
                     onClick={() => { setShowExportMenu(false); handleSaveOffline(); }}
                     disabled={!audioState.hasAudioLoaded || isSavingOffline}
-                    className="press flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-medium text-slate-200 hover:bg-white/5 hover:text-white disabled:opacity-40"
+                    className="press flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-neutral-200 hover:bg-white/[0.05] hover:text-white disabled:opacity-40 transition-colors"
                   >
-                    <HardDrive className="w-4 h-4 text-mint shrink-0 stroke-[1.75]" />
+                    <HardDrive className="w-4 h-4 text-studio-primary shrink-0 stroke-[1.75]" />
                     <span>
-                      <span className="block font-semibold leading-tight">{savedOfflineSuccess ? '¡Guardado!' : 'Modo Offline'}</span>
-                      <span className="block text-[10px] font-normal text-slate-400">Guardar en el dispositivo para usar sin red</span>
+                      <span className="block font-medium leading-tight">{savedOfflineSuccess ? '¡Guardado!' : 'Modo Offline'}</span>
+                      <span className="block text-[10px] font-normal text-neutral-400">Guardar en el dispositivo para usar sin red</span>
                     </span>
                   </button>
 
-                  <span aria-hidden="true" className="my-1 h-px bg-white/5" />
+                  <span aria-hidden="true" className="my-1 h-px bg-white/[0.06]" />
 
                   <button
                     type="button"
-                        onClick={() => { setShowExportMenu(false); void handleLogout(); }}
-                    className="press flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-medium text-slate-200 hover:bg-coral/10 hover:text-coral"
+                    onClick={() => { setShowExportMenu(false); void handleLogout(); }}
+                    className="press flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-neutral-200 hover:bg-danger/10 hover:text-danger transition-colors"
                   >
-                    <LogOut className="w-4 h-4 text-coral shrink-0 stroke-[1.75]" />
+                    <LogOut className="w-4 h-4 text-danger shrink-0 stroke-[1.75]" />
                     <span>
-                      <span className="block font-semibold leading-tight">Cerrar Sesión</span>
-                      <span className="block text-[10px] font-normal text-slate-400">Salir de la aplicación de forma segura</span>
+                      <span className="block font-medium leading-tight">Cerrar Sesión</span>
+                      <span className="block text-[10px] font-normal text-neutral-400">Salir de la aplicación de forma segura</span>
                     </span>
                   </button>
                 </div>
@@ -1144,11 +1144,11 @@ export function App() {
               <button
                 type="button"
                 onClick={() => audioInputRef.current?.click()}
-                className="press flex min-h-touch min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl border border-cobalt-500/30 bg-cobalt-500/15 px-2.5 text-[11px] font-bold text-cobalt-300 hover:bg-cobalt-500/25 transition-colors"
+                className="press flex min-h-[40px] min-w-0 flex-1 items-center justify-center gap-2 rounded-lg border border-white/[0.08] bg-surface-2 px-3 text-xs font-medium text-neutral-200 hover:bg-surface-3 transition-colors"
                 title="Subir una pista de audio directamente al visor de la Pista 2D"
                 aria-label="Subir pista al visor"
               >
-                <Upload className="h-4 w-4 shrink-0 stroke-[2]" />
+                <Upload className="h-4 w-4 shrink-0 text-ice-primary stroke-[1.8]" />
                 <span className="truncate">Subir pista al visor</span>
               </button>
             </div>

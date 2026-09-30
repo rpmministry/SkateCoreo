@@ -77,34 +77,34 @@ export const CoachPortal: React.FC<CoachPortalProps> = ({
   ];
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col bg-neon-canvas text-white overflow-hidden select-none">
+    <div className="flex-1 min-h-0 flex flex-col bg-canvas text-white overflow-hidden select-none">
       {/* ═══ Header Propio del Panel de Entrenadores ═══ */}
-      <header className="shrink-0 z-30 bg-surface-1/90 backdrop-blur-md border-b border-white/[0.08] px-4 py-2.5">
+      <header className="shrink-0 z-30 bg-surface-1 border-b border-white/[0.06] px-4 py-2.5">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           {/* Izquierda: Marca y Salida */}
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={onExitCoachPortal}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/10 text-slate-300 hover:text-white text-xs font-bold transition-all interactive-tap"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-2 hover:bg-surface-3 border border-white/[0.06] text-slate-300 hover:text-white text-xs font-medium transition-colors interactive-tap"
               title="Volver a la vista principal de SkateCoreo"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-4 h-4 text-coach-rose" />
               <span className="hidden sm:inline">SkateCoreo</span>
             </button>
 
-            <div className="flex items-center gap-2 border-l border-white/10 pl-3">
-              <span className="text-sm font-black tracking-tight text-white flex items-center gap-1.5">
-                <span className="text-[#78a9ff] font-bold">Panel</span> Entrenadores
+            <div className="flex items-center gap-2 border-l border-white/[0.06] pl-3">
+              <span className="text-sm font-semibold tracking-normal text-white flex items-center gap-1.5">
+                <span className="text-coach-rose font-medium">Panel</span> Entrenadores
               </span>
-              <Badge variant="cobalt" size="xs" className="hidden md:inline-flex">
+              <Badge variant="rose" size="xs" className="hidden md:inline-flex">
                 PRO 2026
               </Badge>
             </div>
           </div>
 
           {/* Centro: Navegación de Pestañas del Entrenador */}
-          <nav className="hidden lg:flex items-center gap-1 bg-surface-1 p-1 rounded-xl border border-white/10">
+          <nav className="hidden lg:flex items-center gap-0.5 bg-surface-2/60 p-0.5 rounded-xl border border-white/[0.06]">
             {navItems.map((item) => {
               const isActive = activeCoachTab === item.id;
               return (
@@ -113,13 +113,13 @@ export const CoachPortal: React.FC<CoachPortalProps> = ({
                   type="button"
                   disabled={item.disabled}
                   onClick={() => setActiveCoachTab(item.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-30 disabled:pointer-events-none interactive-tap ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-30 disabled:pointer-events-none interactive-tap ${
                     isActive
-                      ? 'bg-surface-3 text-white font-bold border border-[#ee5396] shadow-sm ring-1 ring-[#ee5396]/40'
-                      : 'text-slate-300 hover:text-white hover:bg-white/[0.06] border border-transparent'
+                      ? 'bg-surface-1 text-coach-rose font-semibold shadow-subtle border border-white/[0.08]'
+                      : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
                   }`}
                 >
-                  <span className={isActive ? 'text-[#ff7eb6]' : 'text-slate-400'}>{item.icon}</span>
+                  <span className={isActive ? 'text-coach-rose' : 'text-slate-400'}>{item.icon}</span>
                   <span>{item.label}</span>
                 </button>
               );
@@ -130,12 +130,12 @@ export const CoachPortal: React.FC<CoachPortalProps> = ({
           <div className="flex items-center gap-2 text-xs">
             <div
               onClick={() => setActiveCoachTab('storage')}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-surface-2 border border-white/[0.08] text-slate-300 cursor-pointer hover:bg-surface-3 transition-all text-[11px]"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-surface-2 border border-white/[0.06] text-slate-300 cursor-pointer hover:bg-surface-3 transition-colors text-[11px]"
               title={`Proveedor actual: ${storageSummary?.activeProvider}`}
             >
               <span
                 className={`w-2 h-2 rounded-full ${
-                  storageSummary?.activeProvider !== 'local' ? 'bg-[#009d9a] animate-pulse' : 'bg-[#0f62fe]'
+                  storageSummary?.activeProvider !== 'local' ? 'bg-studio-mint' : 'bg-ice-primary'
                 }`}
               />
               <span className="hidden sm:inline capitalize">
@@ -155,13 +155,13 @@ export const CoachPortal: React.FC<CoachPortalProps> = ({
                 type="button"
                 disabled={item.disabled}
                 onClick={() => setActiveCoachTab(item.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0 disabled:opacity-30 interactive-tap ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0 disabled:opacity-30 interactive-tap ${
                   isActive
-                    ? 'bg-surface-3 text-white font-bold border border-[#ee5396] shadow-sm ring-1 ring-[#ee5396]/40'
-                    : 'bg-white/[0.04] text-slate-300 hover:text-white border border-transparent'
+                    ? 'bg-surface-2 text-coach-rose font-semibold border border-coach-rose/30 shadow-subtle'
+                    : 'bg-surface-1 text-slate-400 hover:text-white border border-white/[0.06]'
                 }`}
               >
-                <span className={isActive ? 'text-[#ff7eb6]' : 'text-slate-400'}>{item.icon}</span>
+                <span className={isActive ? 'text-coach-rose' : 'text-slate-400'}>{item.icon}</span>
                 <span>{item.label}</span>
               </button>
             );

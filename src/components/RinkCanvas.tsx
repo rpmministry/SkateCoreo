@@ -748,7 +748,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
           const tip = activeStroke[activeStroke.length - 1];
           const tipPx = RinkMath.metersToPixels(tip.x, tip.y, metrics);
           ctx.fillStyle = '#FFFFFF';
-          ctx.shadowColor = '#0f62fe';
+          ctx.shadowColor = '#2E7CF6';
           ctx.shadowBlur = 8;
           ctx.beginPath();
           ctx.arc(tipPx.px, tipPx.py, 5, 0, Math.PI * 2);
@@ -1817,9 +1817,9 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       >
         {/* Pre-roll countdown overlay — always shown regardless of layout mode */}
         {audio.isPreRollActive && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 bg-zinc-950/95 border-2 border-teal-400 px-6 py-2.5 rounded-2xl shadow-2xl backdrop-blur-md animate-bounce pointer-events-none">
-            <span className="text-xs font-bold text-zinc-300 uppercase tracking-wider">¡En Posición!</span>
-            <span className="text-3xl font-black font-mono text-teal-400">
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 bg-surface-2/95 border border-studio-mint/40 px-5 py-2 rounded-xl shadow-elevation-2 backdrop-blur-xl animate-bounce pointer-events-none">
+            <span className="text-xs font-medium text-neutral-300 uppercase tracking-wider">¡En Posición!</span>
+            <span className="text-3xl font-semibold font-mono text-studio-mint">
               {audio.preRollCountdown > 0 ? audio.preRollCountdown : '¡YA!'}
             </span>
           </div>
@@ -1827,25 +1827,25 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
 
         {/* Floating Paper Trace Overlay Control Panel */}
         {paperTraceOverlay && (
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 bg-slate-950/90 backdrop-blur-md border border-[#0f62fe]/40 px-3 py-1.5 rounded-2xl shadow-soft-elevation text-xs select-none">
-            <div className="flex items-center gap-1.5 pr-2 border-r border-white/10">
-              <span className="w-2 h-2 rounded-full bg-[#0f62fe] animate-pulse" />
-              <span className="font-bold text-white tracking-wide text-[11px]">Calco Papel 1:1</span>
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 bg-surface-2/95 backdrop-blur-xl border border-white/[0.08] px-3 py-1.5 rounded-xl shadow-elevation-2 text-xs select-none">
+            <div className="flex items-center gap-1.5 pr-2 border-r border-white/[0.08]">
+              <span className="w-2 h-2 rounded-full bg-ice-primary animate-pulse" />
+              <span className="font-medium text-white tracking-wide text-[11px]">Calco Papel 1:1</span>
             </div>
             
             <button
               type="button"
               onClick={togglePaperTraceVisibility}
-              className={`press flex h-12 w-12 min-h-touch min-w-touch shrink-0 items-center justify-center rounded-lg ${
-                paperTraceOverlay.visible ? 'text-[#78a9ff] bg-[#0f62fe]/15' : 'text-slate-400 hover:text-white bg-slate-900'
+              className={`press flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                paperTraceOverlay.visible ? 'text-ice-light bg-ice-primary/15' : 'text-neutral-400 hover:text-white bg-surface-3'
               }`}
               title={paperTraceOverlay.visible ? "Ocultar calco de papel" : "Mostrar calco de papel"}
             >
-              <Eye className="w-3.5 h-3.5" />
+              <Eye className="w-3.5 h-3.5 stroke-[1.75]" />
             </button>
 
             <div className="flex items-center gap-1.5 px-1">
-              <span className="text-[10px] text-slate-400 font-mono">{Math.round(paperTraceOverlay.opacity * 100)}%</span>
+              <span className="text-[10px] text-neutral-400 font-mono">{Math.round(paperTraceOverlay.opacity * 100)}%</span>
               <input
                 type="range"
                 min={0.1}
@@ -1853,7 +1853,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
                 step={0.05}
                 value={paperTraceOverlay.opacity}
                 onChange={(e) => updatePaperTraceOpacity(parseFloat(e.target.value))}
-                className="w-16 h-1 accent-[#0f62fe] bg-slate-800 rounded-full cursor-pointer"
+                className="w-16 h-1 accent-ice-primary bg-surface-3 rounded-full cursor-pointer"
                 title="Opacidad del calco de papel"
               />
             </div>
@@ -1861,7 +1861,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
             <button
               type="button"
               onClick={clearPaperTraceOverlay}
-              className="press ml-1 flex h-12 w-12 min-h-touch min-w-touch shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-coral/10 hover:text-coral"
+              className="press ml-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-neutral-400 hover:bg-danger/10 hover:text-danger transition-colors"
               title="Quitar imagen de calco"
             >
               <X className="w-3.5 h-3.5" />
@@ -2201,14 +2201,14 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
                 }
                 setSelectedPointId(null);
               }}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs transition-all active:scale-95 ${
                 phase === 'curve'
-                  ? 'bg-[#0f62fe] text-white shadow-sm ring-1 ring-[#0f62fe]/30 font-bold'
-                  : 'text-slate-300 hover:text-white hover:bg-zinc-800'
+                  ? 'bg-ice-primary text-white shadow-elevation-1 font-medium'
+                  : 'text-neutral-300 hover:text-white hover:bg-white/[0.06]'
               }`}
               title="Modo Trazado: Muestra las líneas conectadas y puntos para esculpir la ruta."
             >
-              <Route className="w-3.5 h-3.5 stroke-[2.5]" />
+              <Route className="w-3.5 h-3.5 stroke-[2]" />
               <span>Trazar Líneas</span>
             </button>
             <button
@@ -2221,27 +2221,27 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
                 }
                 setSelectedPointId(null);
               }}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs transition-all active:scale-95 ${
                 phase === 'erase'
-                  ? 'bg-[#da1e28] text-white shadow-sm ring-1 ring-[#fa4d56]/40 font-bold'
-                  : 'text-slate-300 hover:text-red-400 hover:bg-zinc-800'
+                  ? 'bg-danger text-white shadow-elevation-1 font-medium'
+                  : 'text-neutral-300 hover:text-danger hover:bg-danger/10'
               }`}
               title="Modo Borrador: Toca cualquier nodo en la pista para eliminarlo instantáneamente."
             >
-              <Eraser className="w-3.5 h-3.5 stroke-[2.5]" />
+              <Eraser className="w-3.5 h-3.5 stroke-[2]" />
               <span>Borrador</span>
             </button>
 
             {/* Zoom de cámara consolidado en ESTA barra (única ubicación): el % ya no
                 es un overlay en las esquinas del canvas. Solo escritorio; en móvil el
                 zoom es por pinza. */}
-            <div className="hidden lg:flex items-center gap-1 pl-1.5 ml-1 border-l border-white/10">
+            <div className="hidden lg:flex items-center gap-1 pl-1.5 ml-1 border-l border-white/[0.08]">
               <button
                 type="button"
                 onClick={() => zoomOut(canvasRef.current)}
                 title="Alejar (Zoom Out)"
                 aria-label="Alejar"
-                className="press flex h-7 w-7 items-center justify-center rounded-lg text-slate-300 hover:bg-zinc-800 hover:text-white"
+                className="press flex h-7 w-7 items-center justify-center rounded-lg text-neutral-300 hover:bg-white/[0.06] hover:text-white transition-colors"
               >
                 <Minus className="w-3.5 h-3.5" />
               </button>
@@ -2250,7 +2250,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
                 onClick={resetCamera}
                 title="Restablecer vista (100% y centrar)"
                 aria-label={`Zoom actual ${Math.round(camera.zoom * 100)} por ciento. Restablecer`}
-                className="press h-7 px-1.5 rounded-lg font-mono text-[10px] font-bold text-[#78a9ff] hover:bg-zinc-800"
+                className="press h-7 px-1.5 rounded-lg font-mono text-[10px] font-medium text-ice-light hover:bg-white/[0.06] transition-colors"
               >
                 {Math.round(camera.zoom * 100)}%
               </button>
@@ -2259,7 +2259,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
                 onClick={() => zoomIn(canvasRef.current)}
                 title="Acercar (Zoom In)"
                 aria-label="Acercar"
-                className="press flex h-7 w-7 items-center justify-center rounded-lg text-slate-300 hover:bg-zinc-800 hover:text-white"
+                className="press flex h-7 w-7 items-center justify-center rounded-lg text-neutral-300 hover:bg-white/[0.06] hover:text-white transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
               </button>
@@ -2268,25 +2268,25 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
 
           {/* Floating Paper Trace Overlay Control Panel */}
           {paperTraceOverlay && (
-            <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 bg-slate-950/90 backdrop-blur-md border border-[#0f62fe]/40 px-3 py-1.5 rounded-2xl shadow-soft-elevation text-xs select-none">
-              <div className="flex items-center gap-1.5 pr-2 border-r border-white/10">
-                <span className="w-2 h-2 rounded-full bg-[#0f62fe] animate-pulse" />
-                <span className="font-bold text-white tracking-wide text-[11px]">Calco Papel 1:1</span>
+            <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 bg-surface-2/95 backdrop-blur-xl border border-white/[0.08] px-3 py-1.5 rounded-xl shadow-elevation-2 text-xs select-none">
+              <div className="flex items-center gap-1.5 pr-2 border-r border-white/[0.08]">
+                <span className="w-2 h-2 rounded-full bg-ice-primary animate-pulse" />
+                <span className="font-medium text-white tracking-wide text-[11px]">Calco Papel 1:1</span>
               </div>
               
               <button
                 type="button"
                 onClick={togglePaperTraceVisibility}
-                className={`p-1.5 rounded-lg transition-all ${
-                  paperTraceOverlay.visible ? 'text-[#78a9ff] bg-[#0f62fe]/15' : 'text-slate-400 hover:text-white bg-slate-900'
+                className={`press p-1.5 rounded-lg transition-colors ${
+                  paperTraceOverlay.visible ? 'text-ice-light bg-ice-primary/15' : 'text-neutral-400 hover:text-white bg-surface-3'
                 }`}
                 title={paperTraceOverlay.visible ? "Ocultar calco de papel" : "Mostrar calco de papel"}
               >
-                <Eye className="w-3.5 h-3.5" />
+                <Eye className="w-3.5 h-3.5 stroke-[1.75]" />
               </button>
 
               <div className="flex items-center gap-1.5 px-1">
-                <span className="text-[10px] text-slate-400 font-mono">{Math.round(paperTraceOverlay.opacity * 100)}%</span>
+                <span className="text-[10px] text-neutral-400 font-mono">{Math.round(paperTraceOverlay.opacity * 100)}%</span>
                 <input
                   type="range"
                   min={0.1}
@@ -2294,7 +2294,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
                   step={0.05}
                   value={paperTraceOverlay.opacity}
                   onChange={(e) => updatePaperTraceOpacity(parseFloat(e.target.value))}
-                  className="w-16 h-1 accent-[#0f62fe] bg-slate-800 rounded-full cursor-pointer"
+                  className="w-16 h-1 accent-ice-primary bg-surface-3 rounded-full cursor-pointer"
                   title="Opacidad del calco de papel"
                 />
               </div>
@@ -2302,7 +2302,7 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
               <button
                 type="button"
                 onClick={clearPaperTraceOverlay}
-                className="p-1.5 text-slate-400 hover:text-coral rounded-lg hover:bg-coral/10 transition-colors ml-1"
+                className="press p-1.5 text-neutral-400 hover:text-danger rounded-lg hover:bg-danger/10 transition-colors ml-1"
                 title="Quitar imagen de calco"
               >
                 <X className="w-3.5 h-3.5" />

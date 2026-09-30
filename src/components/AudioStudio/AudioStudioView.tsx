@@ -1084,19 +1084,19 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
           {/* Regla de tiempo superior */}
           {/* z-50: la regla queda SIEMPRE por encima de los headers de fila al
               hacer scroll vertical (y estos por encima de los clips). */}
-          <div className="sticky top-0 z-50 flex items-stretch bg-zinc-950/95 border-b border-white/10 backdrop-blur-md">
+          <div className="sticky top-0 z-50 flex items-stretch bg-surface-1 border-b border-white/[0.06] backdrop-blur-md">
             <div
-              className="sticky left-0 z-10 shrink-0 border-r border-white/10 flex flex-col items-center justify-center gap-0.5 bg-zinc-900 text-[9px] font-mono font-black text-slate-400 leading-none"
+              className="sticky left-0 z-10 shrink-0 border-r border-white/[0.06] flex flex-col items-center justify-center gap-0.5 bg-surface-1 text-[9px] font-mono font-semibold text-slate-400 leading-none"
               style={{ width: `${headerWidth}px` }}
               title="Marcadores temporales (doble clic en la regla para crear)"
             >
               <span>TRACKS</span>
               <span
                 className={[
-                  'px-1.5 py-0.5 rounded-full border text-[9px] font-bold',
+                  'px-1.5 py-0.5 rounded-full border text-[9px] font-medium',
                   audioNodes.length > 0
-                    ? 'bg-[#0f62fe]/15 text-[#78a9ff] border-[#0f62fe]/30'
-                    : 'bg-white/5 text-slate-500 border-white/10',
+                    ? 'bg-ice-primary/10 text-ice-primary border-ice-primary/20'
+                    : 'bg-white/[0.04] text-slate-500 border-white/[0.06]',
                 ].join(' ')}
               >
                 {audioNodes.length} {audioNodes.length === 1 ? 'nodo' : 'nodos'}
@@ -1144,12 +1144,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
 
           </div>
 
-          {/* ── STUDIO TIME MARKERS: línea vertical anclada al TIEMPO ──
-              Misma `AudioTimelineGeometry` (timeToPx) que regla, clips y playhead.
-              Se dibuja dentro del timeline (x ≥ headerWidth), por debajo de la regla
-              (top-12) y por encima de los clips (z-30): nunca invade la columna de
-              nombres ni la regla. Es distinta del PLAYHEAD (z-40) y de la marca de
-              CORTE. Al mover un marcador, la línea se desplaza con él en tiempo real. */}
+          {/* ── STUDIO TIME MARKERS: línea vertical anclada al TIEMPO ── */}
           {audioNodes.map((node) => {
             const isSelectedNode = selectedNodeId === node.id;
             return (
@@ -1166,30 +1161,27 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
               >
                 <span
                   className={[
-                    'flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-mono text-[9px] font-black',
-                    isSelectedNode ? 'bg-[#0f62fe] text-white' : 'bg-[#0f62fe]/20 text-[#78a9ff]',
+                    'flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-mono text-[9px] font-semibold',
+                    isSelectedNode ? 'bg-ice-primary text-white' : 'bg-ice-primary/15 text-ice-primary',
                   ].join(' ')}
                 >
                   {node.numeroSecuencial}
                 </span>
                 <div
                   className={
-                    isSelectedNode ? 'w-[2px] flex-1 bg-[#0f62fe]' : 'w-px flex-1 bg-[#0f62fe]/45'
+                    isSelectedNode ? 'w-[2px] flex-1 bg-ice-primary' : 'w-px flex-1 bg-ice-primary/40'
                   }
                 />
               </div>
             );
           })}
 
-          {/* Referencia vertical durante el arrastre de un clip (dentro del área
-              temporal): guía magnética si hay snap, o referencia de posición si no.
-              Usa la MISMA geometría que regla, playhead y clips → alineación exacta. */}
+          {/* Referencia vertical durante el arrastre de un clip */}
           {!trashDrag.active && draggingGhost && (
             <div
               className="absolute top-0 bottom-0 pointer-events-none z-[35] flex flex-col items-center select-none"
               style={{
                 left: 0,
-                // `-50%` centra la guía (ancho de contenido) sobre el tiempo exacto.
                 transform: `translateX(${timelineGeometry.timeToPx(
                   draggingGhost.snapLineSec ?? draggingGhost.startOffsetSec
                 )}px) translateX(-50%)`,
@@ -1197,10 +1189,10 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             >
               <div
                 className={[
-                  'px-1.5 py-0.5 rounded font-mono font-black text-[9px] shadow-md -translate-y-1 whitespace-nowrap',
+                  'px-1.5 py-0.5 rounded font-mono font-semibold text-[9px] shadow-subtle -translate-y-1 whitespace-nowrap',
                   draggingGhost.snapLineSec != null
-                    ? 'bg-[#0f62fe] text-white'
-                    : 'bg-black/80 text-[#78a9ff] border border-[#0f62fe]/40',
+                    ? 'bg-ice-primary text-white'
+                    : 'bg-surface-1 text-ice-primary border border-ice-primary/30',
                 ].join(' ')}
               >
                 {draggingGhost.snapLineSec != null
@@ -1210,45 +1202,41 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
               <div
                 className={[
                   'w-[2px] h-full',
-                  draggingGhost.snapLineSec != null ? 'bg-[#0f62fe] shadow-sm' : 'bg-white/40',
+                  draggingGhost.snapLineSec != null ? 'bg-ice-primary shadow-subtle' : 'bg-white/40',
                 ].join(' ')}
               />
             </div>
           )}
 
-          {/* Marca del ÚLTIMO CORTE: misma geometría que regla/playhead/clips, así
-              el punto de corte queda matemáticamente alineado con ambos bordes. */}
+          {/* Marca del ÚLTIMO CORTE */}
           {lastCutSec !== null && (
             <div
               className="absolute top-0 bottom-0 pointer-events-none z-[35] flex flex-col items-center select-none"
               style={{
                 left: 0,
-                // `-50%` centra la marca (ancho de contenido) sobre el corte exacto.
                 transform: `translateX(${timelineGeometry.timeToPx(lastCutSec)}px) translateX(-50%)`,
               }}
             >
-              <div className="px-1.5 py-0.5 rounded bg-white text-slate-950 font-mono font-black text-[9px] shadow-md -translate-y-1 whitespace-nowrap">
+              <div className="px-1.5 py-0.5 rounded bg-white text-slate-950 font-mono font-semibold text-[9px] shadow-subtle -translate-y-1 whitespace-nowrap">
                 CORTE {lastCutSec.toFixed(3)} s
               </div>
-              <div className="w-[2px] h-full bg-white/90 shadow-sm" />
+              <div className="w-[2px] h-full bg-white/90 shadow-subtle" />
             </div>
           )}
 
           </div>
 
-          {/* ── BOTÓN + AÑADIR PISTA (Estilo BandLab 2_Arrangement-View-1.webp) ──
-              Fuera del área temporal: el playhead nunca lo atraviesa y queda
-              totalmente libre para el toque. */}
+          {/* ── BOTÓN + AÑADIR PISTA ── */}
           {arrangementTracks.length < 5 && (
             <div 
-              className="p-3 border-b border-white/5 flex items-center gap-3"
+              className="p-3 border-b border-white/[0.06] flex items-center gap-3"
               style={{ width: `${headerWidth + contentWidth + overscrollPx}px` }}
             >
               <label 
                 htmlFor="add-track-input"
-                className="cursor-pointer h-11 px-5 rounded-2xl border border-dashed border-white/20 hover:border-[#0f62fe]/60 bg-zinc-950 hover:bg-zinc-900 flex items-center gap-2 text-xs font-bold text-slate-300 hover:text-white transition-all shadow-md active:scale-98"
+                className="cursor-pointer h-10 px-4 rounded-xl border border-dashed border-white/[0.12] hover:border-ice-primary/40 bg-surface-1 hover:bg-surface-2 flex items-center gap-2 text-xs font-medium text-slate-300 hover:text-white transition-all shadow-subtle interactive-tap"
               >
-                <Plus className="w-4 h-4 text-[#78a9ff]" />
+                <Plus className="w-4 h-4 text-ice-primary" />
                 <span>Añadir Pista ({arrangementTracks.filter((t) => (t.clips && t.clips.length > 0) || !!t.buffer).length}/5)</span>
               </label>
               <input
@@ -1262,7 +1250,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
               <button
                 type="button"
                 onClick={() => addAudioTrack()}
-                className="h-11 px-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors"
+                className="h-10 px-3 rounded-xl bg-surface-2 hover:bg-surface-3 border border-white/[0.06] text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors"
               >
                 + Pista Vacía
               </button>
@@ -1271,10 +1259,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
         </div>
       </div>
 
-      {/* PLAYHEAD OVERLAY — confinado al VIEWPORT de la timeline (a la derecha del
-          header). `left: headerWidth` + `overflow-hidden` garantizan que la aguja
-          NUNCA invade la columna de nombres; su posición resta `scrollLeft`. Es
-          `pointer-events-none`: no bloquea rueda, pan, drag de clips ni scroll. */}
+      {/* PLAYHEAD OVERLAY */}
       <div
         className="absolute inset-y-0 right-0 z-40 overflow-hidden pointer-events-none"
         style={{ left: `${headerWidth}px` }}
@@ -1289,11 +1274,6 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             className="w-[2px] bg-white shadow-sm relative flex justify-center"
             style={{ height: `${playheadHeight}px` }}
           >
-            {/* HIT AREA DEL PLAYHEAD — independiente del marker. Es un blanco
-                cómodo (~36px) sobre la aguja que SOLO modifica `currentTimeSec`.
-                `touch-action:none`: el navegador no lo interpreta como scroll ni
-                como zoom, así el scrub llega íntegro. No cubre toda la timeline:
-                es una zona pequeña centrada en la aguja. */}
             <div
               role="slider"
               aria-label="Posición del cabezal"
@@ -1311,35 +1291,31 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
       </div>
       </div>
 
-      {/* ── 3. BARRA INFERIOR DE TRANSPORTE BANDLAB (BandLab Bottom Dock) ──
-          Mobile-first: `flex-wrap` garantiza CERO desbordamiento horizontal y
-          CERO recorte. La altura es automática (no fija) para que la safe-area
-          inferior nunca corte los botones. Todos los controles quedan siempre
-          visibles y alcanzables en pantallas estrechas. */}
+      {/* ── 3. BARRA INFERIOR DE TRANSPORTE (Bottom Dock) ── */}
       <footer
-        className="relative z-40 shrink-0 flex flex-wrap items-center justify-center gap-x-1 gap-y-1 border-t border-white/10 bg-zinc-950 px-1.5 py-1.5 text-xs select-none studio-dock-safe sm:justify-between sm:gap-x-3 sm:px-4 sm:py-2"
+        className="relative z-40 shrink-0 flex flex-wrap items-center justify-center gap-x-1 gap-y-1 border-t border-white/[0.06] bg-canvas/95 backdrop-blur-md px-1.5 py-1.5 text-xs select-none studio-dock-safe sm:justify-between sm:gap-x-3 sm:px-4 sm:py-2"
       >
         {/* Izquierda: Mezclador + Rewind + Stop + Tijeras */}
         <div className="flex shrink-0 items-center gap-0.5 sm:gap-1.5">
-          {/* Botón Mezclador (Abre BandLabMixerDrawer) */}
+          {/* Botón Mezclador */}
           <button
             type="button"
             onClick={() => setShowMixerDrawer(true)}
-            className="w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white transition-all active:scale-95 shadow-sm"
+            className="w-10 h-10 sm:w-11 sm:h-11 shrink-0 rounded-xl flex items-center justify-center bg-surface-1 hover:bg-surface-2 border border-white/[0.06] text-slate-300 hover:text-white transition-all shadow-subtle interactive-tap"
             title="Abrir Mezclador de Pistas (Volumen, Mute, Solo, Modo de Salida)"
             aria-label="Abrir mezclador de pistas"
           >
-            <Sliders className="w-5 h-5 text-[#78a9ff]" />
+            <Sliders className="w-4 h-4 text-ice-primary" />
           </button>
 
           {/* Selector rápido Stereo / Split L/R */}
           <button
             type="button"
             onClick={handleToggleChannelMode}
-            className={`w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex flex-col items-center justify-center transition-all active:scale-95 shadow-sm border ${
+            className={`w-10 h-10 sm:w-11 sm:h-11 shrink-0 rounded-xl flex flex-col items-center justify-center transition-all shadow-subtle border ${
               channelMode === 'split-coach'
-                ? 'bg-teal-400 text-zinc-950 font-black border-teal-300 shadow-teal-400/25'
-                : 'bg-white/10 hover:bg-white/20 border-white/10 text-slate-200 hover:text-white'
+                ? 'bg-studio-mint/15 text-studio-mint font-semibold border-studio-mint/30'
+                : 'bg-surface-1 hover:bg-surface-2 border-white/[0.06] text-slate-300 hover:text-white'
             }`}
             title={
               channelMode === 'split-coach'
@@ -1350,57 +1326,53 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
               channelMode === 'split-coach' ? 'Cambiar a modo Estéreo' : 'Cambiar a modo Split L/R'
             }
           >
-            <span className="text-[10px] font-black leading-none tracking-tight">
+            <span className="text-[10px] font-semibold leading-none tracking-tight">
               {channelMode === 'split-coach' ? 'SPLIT' : 'STEREO'}
             </span>
-            <span className="text-[8px] font-mono leading-none mt-0.5 opacity-80">
+            <span className="text-[8px] font-mono leading-none mt-0.5 opacity-70">
               {channelMode === 'split-coach' ? 'L / R' : '2-CH'}
             </span>
           </button>
 
-          {/* Stop / Detener — detiene todo (fuente, pre-roll, metrónomo y voz)
-              y devuelve la posición a 0:00. Es el único botón de parada/inicio:
-              hace ambas cosas, así que no se duplica con un "volver al inicio". */}
+          {/* Stop / Detener */}
           <button
             type="button"
             {...press(handleStop, { enabled: hasTransportAudio })}
             disabled={!hasTransportAudio}
-            className={`press w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 active:bg-white/15 disabled:pointer-events-none disabled:opacity-40`}
+            className={`press w-10 h-10 sm:w-11 sm:h-11 shrink-0 rounded-xl flex items-center justify-center text-slate-400 hover:text-white bg-surface-1 hover:bg-surface-2 border border-white/[0.06] shadow-subtle disabled:pointer-events-none disabled:opacity-30 transition-colors`}
             title="Detener todo y volver al inicio (0:00)"
             aria-label="Detener y volver al inicio"
           >
             <Square className="w-4 h-4 fill-current" />
           </button>
 
-          {/* Cortar en cabezal (precisión al cruce por cero).
-              Habilitado siempre: si no hay clip seleccionado, corta el clip que
-              está bajo el cabezal; si no hay ninguno, muestra un aviso. */}
+          {/* Cortar en cabezal */}
           <button
             type="button"
             {...press(handleSplitAtPlayhead, { enabled: hasTransportAudio })}
             disabled={!hasTransportAudio}
-            className={`press w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 active:bg-white/15 disabled:pointer-events-none disabled:opacity-40`}
+            className={`press w-10 h-10 sm:w-11 sm:h-11 shrink-0 rounded-xl flex items-center justify-center text-slate-400 hover:text-white bg-surface-1 hover:bg-surface-2 border border-white/[0.06] shadow-subtle disabled:pointer-events-none disabled:opacity-30 transition-colors`}
             title="Dividir clip en el cabezal (corte milimétrico)"
             aria-label="Dividir clip en el cabezal"
           >
-            <Scissors className="w-5 h-5 text-mint" />
+            <Scissors className="w-4 h-4 text-studio-mint" />
           </button>
         </div>
 
-        {/* Centro: BOTÓN CIRCULAR PRINCIPAL (BandLab Big Action Centerpiece) */}
-        <div className="flex items-center gap-3 shrink-0">
+        {/* Centro: BOTÓN PRINCIPAL */}
+        <div className="flex items-center gap-2.5 shrink-0">
           <button
             type="button"
             {...press(handlePlayToggle, { enabled: hasStudioAudio && !isRecording })}
             disabled={!hasStudioAudio || isRecording}
             aria-pressed={isPlaying}
             aria-label={isPlaying ? 'Pausar reproducción' : 'Reproducir'}
-            className={`press w-12 h-12 sm:w-14 sm:h-14 shrink-0 rounded-full flex items-center justify-center shadow-lg transition-all ${
+            className={`press w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-xl flex items-center justify-center shadow-subtle transition-all ${
               !hasStudioAudio || isRecording
-                ? 'bg-zinc-800 text-zinc-600 opacity-40 cursor-not-allowed pointer-events-none shadow-none'
+                ? 'bg-surface-2 text-slate-600 opacity-40 cursor-not-allowed pointer-events-none shadow-none'
                 : isPlaying 
-                  ? 'bg-amber-400 text-black shadow-amber-400/30' 
-                  : 'bg-red-500 text-white shadow-red-500/30 hover:bg-red-600'
+                  ? 'bg-amber-400 text-canvas font-semibold shadow-subtle' 
+                  : 'bg-ice-primary text-white hover:bg-ice-primary/90 shadow-subtle'
             }`}
             title={
               !hasStudioAudio
@@ -1409,13 +1381,13 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             }
           >
             {isPlaying ? (
-              <Pause className="w-6 h-6 fill-current" />
+              <Pause className="w-5 h-5 fill-current" />
             ) : (
-              <Play className="w-6 h-6 fill-current ml-0.5" />
+              <Play className="w-5 h-5 fill-current ml-0.5" />
             )}
           </button>
 
-          {/* REC — Grabación de voz (tomas múltiples, no destructivo) */}
+          {/* REC — Grabación de voz */}
           <button
             type="button"
             onClick={() => {
@@ -1424,22 +1396,22 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             aria-pressed={isRecording}
             aria-label={isRecording ? 'Detener grabación de voz' : 'Grabar voz'}
             title={isRecording ? 'Detener grabación (R / Esc)' : 'Grabar voz desde el micrófono (R)'}
-            className={`press shrink-0 rounded-full flex items-center justify-center gap-2 shadow-lg ${
+            className={`press shrink-0 rounded-xl flex items-center justify-center gap-2 shadow-subtle transition-all ${
               isRecording
-                ? 'bg-rose-500 text-white shadow-rose-500/40 animate-pulse px-3 h-12 sm:h-14'
-                : 'w-12 h-12 sm:w-14 sm:h-14 bg-white/5 text-rose-400 border border-rose-500/40 hover:bg-rose-500/15'
+                ? 'bg-red-500 text-white shadow-subtle animate-pulse px-3 h-11 sm:h-12'
+                : 'w-11 h-11 sm:w-12 sm:h-12 bg-red-500/10 text-red-400 border border-red-500/25 hover:bg-red-500/15'
             }`}
           >
-            <Mic className="w-5 h-5" />
+            <Mic className="w-4 h-4" />
             {isRecording && (
-              <span className="font-mono text-xs font-bold tabular-nums">
+              <span className="font-mono text-xs font-semibold tabular-nums">
                 {Math.floor(recordingElapsedSec / 60)}:
                 {String(Math.floor(recordingElapsedSec % 60)).padStart(2, '0')}
               </span>
             )}
           </button>
 
-          {/* Monitorización de entrada (por defecto OFF; auriculares recomendados) */}
+          {/* Monitorización de entrada */}
           <button
             type="button"
             onClick={() => setRecordingMonitor(!recordingMonitorEnabled)}
@@ -1450,29 +1422,29 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
                 ? 'Monitorización activada (usa auriculares para evitar realimentación)'
                 : 'Escucharte por los auriculares (monitorización)'
             }
-            className={`press w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center ${
-              recordingMonitorEnabled ? 'text-[#78a9ff] bg-[#0f62fe]/15' : 'text-slate-500 hover:bg-white/5'
+            className={`press w-10 h-10 sm:w-11 sm:h-11 shrink-0 rounded-xl flex items-center justify-center transition-colors ${
+              recordingMonitorEnabled ? 'text-ice-primary bg-ice-primary/10 border border-ice-primary/20' : 'text-slate-500 hover:bg-white/[0.04]'
             }`}
           >
-            <Headphones className="w-5 h-5" />
+            <Headphones className="w-4 h-4" />
           </button>
 
-          {/* Pre-inicio (cuenta atrás) antes de capturar */}
+          {/* Pre-inicio (cuenta atrás) */}
           <button
             type="button"
             onClick={() => setRecordingCountdownEnabled(!recordingCountdownEnabled)}
             aria-pressed={recordingCountdownEnabled}
             aria-label="Pre-inicio antes de grabar"
-            title="Cuenta atrás antes de iniciar la grabación (sin offsets mágicos)"
-            className={`press h-11 sm:h-12 shrink-0 rounded-full flex items-center justify-center gap-1 ${
+            title="Cuenta atrás antes de iniciar la grabación"
+            className={`press h-10 sm:h-11 shrink-0 rounded-xl flex items-center justify-center gap-1 transition-colors ${
               recordingCountdownEnabled
-                ? 'text-amber-400 bg-amber-500/15 px-2'
-                : 'w-11 sm:w-12 text-slate-500 hover:bg-white/5'
+                ? 'text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2'
+                : 'w-10 sm:w-11 text-slate-500 hover:bg-white/[0.04]'
             }`}
           >
-            <Timer className="w-5 h-5" />
+            <Timer className="w-4 h-4" />
             {recordingCountdownEnabled && (
-              <span className="font-mono text-xs font-bold">{recordingCountdownSec}s</span>
+              <span className="font-mono text-xs font-semibold">{recordingCountdownSec}s</span>
             )}
           </button>
           {recordingCountdownEnabled && (
@@ -1480,7 +1452,7 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
               value={recordingCountdownSec}
               onChange={(e) => setRecordingCountdownSec(Number(e.target.value))}
               aria-label="Segundos de pre-inicio"
-              className="h-9 shrink-0 rounded-lg bg-white/5 px-1 text-xs text-slate-200"
+              className="h-8 shrink-0 rounded-lg bg-surface-2 border border-white/[0.06] px-1 text-xs text-slate-200"
             >
               {[3, 5, 10].map((s) => (
                 <option key={s} value={s}>
@@ -1500,21 +1472,21 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
               <button
                 type="button"
                 {...press(toggleMetronomeMute)}
-                className={`w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center press transition-colors ${
+                className={`w-10 h-10 sm:w-11 sm:h-11 shrink-0 rounded-xl flex items-center justify-center press transition-colors ${
                   isMetroActive 
-                    ? 'text-amber-400 bg-amber-500/15 ring-1 ring-amber-500/30' 
-                    : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
+                    ? 'text-amber-400 bg-amber-400/10 border border-amber-400/25' 
+                    : 'text-slate-500 hover:text-slate-300 hover:bg-white/[0.04]'
                 }`}
                 aria-pressed={isMetroActive}
                 aria-label={isMetroActive ? 'Silenciar metrónomo' : 'Activar metrónomo'}
                 title={isMetroActive ? 'Metrónomo activo (clic para silenciar)' : 'Metrónomo inactivo (clic para activar)'}
               >
-                <Bell className="w-5 h-5" />
+                <Bell className="w-4 h-4" />
               </button>
             );
           })()}
 
-          {/* Loop — repetir la mezcla (bucle nativo sin clics) */}
+          {/* Loop */}
           <button
             type="button"
             onClick={toggleLoop}
@@ -1522,22 +1494,22 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             aria-pressed={loopEnabled}
             aria-label={loopEnabled ? 'Desactivar repetición' : 'Activar repetición'}
             title={loopEnabled ? 'Repetir activado (L)' : 'Repetir (L)'}
-            className={`w-11 h-11 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center press disabled:opacity-30 disabled:pointer-events-none ${
-              loopEnabled ? 'text-[#78a9ff] bg-[#0f62fe]/15' : 'text-slate-500 hover:bg-white/5'
+            className={`w-10 h-10 sm:w-11 sm:h-11 shrink-0 rounded-xl flex items-center justify-center press disabled:opacity-30 disabled:pointer-events-none transition-colors ${
+              loopEnabled ? 'text-ice-primary bg-ice-primary/10 border border-ice-primary/20' : 'text-slate-500 hover:bg-white/[0.04]'
             }`}
           >
-            <Repeat className="w-5 h-5" />
+            <Repeat className="w-4 h-4" />
           </button>
 
           {/* + Marcador temporal */}
           <button
             type="button"
             onClick={handleAddTimeNode}
-            className="press flex h-11 sm:h-12 shrink-0 items-center gap-1.5 rounded-full border border-[#0f62fe]/30 bg-[#0f62fe]/15 px-2.5 text-xs font-bold text-[#78a9ff] hover:bg-[#0f62fe]/25 sm:px-3"
+            className="press flex h-10 sm:h-11 shrink-0 items-center gap-1.5 rounded-xl border border-ice-primary/25 bg-ice-primary/10 px-2.5 text-xs font-semibold text-ice-primary hover:bg-ice-primary/20 sm:px-3 transition-colors"
             title="Añadir marcador temporal"
             aria-label="Añadir marcador temporal"
           >
-            <MapPin className="w-4 h-4 shrink-0" />
+            <MapPin className="w-3.5 h-3.5 shrink-0" />
             <span className="hidden sm:inline">Nodo</span>
             <span className="font-mono">({audioNodes.length})</span>
           </button>
@@ -1547,26 +1519,26 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
             <button
               type="button"
               onClick={() => zoomOut()}
-              className="w-10 h-10 sm:w-9 sm:h-9 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10"
+              className="w-8 h-8 sm:w-9 sm:h-9 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-surface-2 transition-colors"
               title="Alejar Zoom"
               aria-label="Alejar zoom"
             >
-              <ZoomOut className="w-4 h-4" />
+              <ZoomOut className="w-3.5 h-3.5" />
             </button>
             <button
               type="button"
               onClick={() => zoomIn()}
-              className="w-10 h-10 sm:w-9 sm:h-9 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10"
+              className="w-8 h-8 sm:w-9 sm:h-9 shrink-0 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-surface-2 transition-colors"
               title="Acercar Zoom"
               aria-label="Acercar zoom"
             >
-              <ZoomIn className="w-4 h-4" />
+              <ZoomIn className="w-3.5 h-3.5" />
             </button>
             {zoom > 1.05 && (
               <button
                 type="button"
                 onClick={resetZoom}
-                className="px-2 py-1 rounded-lg text-[10px] bg-white/10 text-slate-300 font-bold shrink-0"
+                className="px-2 py-1 rounded-lg text-[10px] bg-surface-2 border border-white/[0.06] text-slate-300 font-medium shrink-0"
                 aria-label="Restablecer zoom"
               >
                 1x
@@ -1576,23 +1548,21 @@ export const AudioStudioView: React.FC<AudioStudioViewProps> = ({
         </div>
       </footer>
 
-      {/* ── DROPZONE DE BASURA (modo pulsación larga en móvil/táctil) ──
-          `pointer-events-none`: el objetivo se detecta por geometría desde el
-          gesto del clip, así la zona nunca intercepta ni bloquea el arrastre. */}
+      {/* ── DROPZONE DE BASURA ── */}
       {trashDrag.active && (
         <div
           id={TRASH_ZONE_ID}
-          className={`pointer-events-none fixed bottom-24 left-1/2 z-[70] flex -translate-x-1/2 flex-col items-center gap-1.5 rounded-3xl border-2 px-6 py-4 backdrop-blur-md transition-all duration-200 ${
+          className={`pointer-events-none fixed bottom-24 left-1/2 z-[70] flex -translate-x-1/2 flex-col items-center gap-1.5 rounded-2xl border px-6 py-4 backdrop-blur-md transition-all duration-200 ${
             trashDrag.overTrash
-              ? 'scale-110 border-rose-400 bg-rose-500/25 shadow-2xl shadow-rose-500/40'
-              : 'border-rose-500/50 bg-rose-950/70'
+              ? 'scale-105 border-red-400/80 bg-red-500/20 shadow-elevation'
+              : 'border-red-500/30 bg-surface-1/95'
           }`}
         >
-          <Trash2 className={`h-8 w-8 ${trashDrag.overTrash ? 'text-rose-100' : 'text-rose-400'}`} />
-          <span className="text-[11px] font-black uppercase tracking-wider text-rose-100">
+          <Trash2 className={`h-6 w-6 ${trashDrag.overTrash ? 'text-red-200' : 'text-red-400'}`} />
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-red-200">
             {trashDrag.overTrash ? 'Suelta para borrar' : 'Arrastra aquí'}
           </span>
-          <span className="text-[9px] font-mono text-rose-300/80">
+          <span className="text-[9px] font-mono text-red-300/80">
             {trashDrag.clipId ? 'Fragmento seleccionado' : ''}
           </span>
         </div>

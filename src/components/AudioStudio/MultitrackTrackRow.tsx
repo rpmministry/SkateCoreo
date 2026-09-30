@@ -141,13 +141,13 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
   return (
     <>
       <div 
-        className={`relative flex items-stretch border-b border-white/5 transition-all ${
+        className={`relative flex items-stretch border-b border-white/[0.06] transition-all ${
           isMasterDropTarget
-            ? 'bg-[#0f62fe]/20 ring-2 ring-inset ring-[#0f62fe] shadow-lg shadow-[#0f62fe]/20'
+            ? 'bg-ice-primary/10 ring-1 ring-inset ring-ice-primary/50'
             : isDropTarget
-              ? 'bg-[#0f62fe]/10 ring-2 ring-inset ring-[#0f62fe]/60'
+              ? 'bg-ice-primary/5 ring-1 ring-inset ring-ice-primary/30'
               : isActive
-                ? 'bg-surface-2/90 ring-1 ring-inset ring-[#0f62fe]/40'
+                ? 'bg-surface-2/60 ring-1 ring-inset ring-white/[0.06]'
                 : 'bg-canvas/80 hover:bg-canvas'
         }`}
         style={{ height: `${trackLaneHeight}px` }}
@@ -160,33 +160,32 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
             setActiveTrackId(track.id);
             setShowTrackMenu(true);
           }}
-          className={`sticky left-0 z-40 shrink-0 border-r border-white/10 flex flex-col justify-center gap-1 px-2 py-1.5 cursor-pointer select-none transition-colors group overflow-hidden ${
+          className={`sticky left-0 z-40 shrink-0 border-r border-white/[0.06] flex flex-col justify-center gap-1 px-2 py-1.5 cursor-pointer select-none transition-colors group overflow-hidden ${
             isActive ? 'bg-surface-2' : 'bg-surface-1 hover:bg-surface-2'
           }`}
-          style={{ width: `${headerWidth}px`, borderLeft: `3.5px solid ${track.color}` }}
+          style={{ width: `${headerWidth}px`, borderLeft: `3px solid ${track.color}` }}
           title={displayName}
         >
           {/* ── Fila 1: IDENTIDAD ── icono + NOMBRE COMPLETO */}
           <div className="flex items-start gap-1.5 min-w-0">
             <div
-              className="mt-0.5 w-6 h-6 rounded-full flex items-center justify-center shrink-0 shadow-sm relative"
-              style={{ backgroundColor: `${track.color}25`, color: track.color }}
+              className="mt-0.5 w-5 h-5 rounded-full flex items-center justify-center shrink-0 shadow-subtle relative"
+              style={{ backgroundColor: `${track.color}20`, color: track.color }}
             >
-              <IconComponent className="w-3.5 h-3.5" />
+              <IconComponent className="w-3 h-3" />
               {isActive && (
-                <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#0f62fe] ring-1 ring-black animate-pulse" />
+                <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-ice-primary ring-1 ring-black" />
               )}
             </div>
             <span
-              className="min-w-0 flex-1 font-bold text-[12px] sm:text-[13px] leading-[1.15] text-white break-words line-clamp-2"
+              className="min-w-0 flex-1 font-semibold text-[11px] sm:text-[12px] leading-[1.2] text-white break-words line-clamp-2"
               title={displayName}
             >
               {displayName}
             </span>
           </div>
 
-          {/* ── Fila 2: ESTADO + CONTROLES reales de la pista (Mute / Solo) + menú.
-              En pantallas estrechas se apila aquí en vez de robarle sitio al nombre. */}
+          {/* ── Fila 2: ESTADO + CONTROLES reales de la pista (Mute / Solo) + menú ── */}
           <div className="flex items-center gap-1 min-w-0">
             <span className="text-[8px] sm:text-[9px] font-mono uppercase tracking-wide text-slate-400 truncate shrink">
               {isActive ? 'Activa' : isMasterTrack ? 'MASTER' : 'PISTA'}
@@ -201,10 +200,10 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
                 aria-pressed={track.muted}
                 aria-label={track.muted ? `Quitar silencio a ${displayName}` : `Silenciar ${displayName}`}
                 title="Silenciar pista (Mute)"
-                className={`flex h-7 w-7 items-center justify-center rounded text-[10px] font-bold transition-all ${
+                className={`flex h-6 w-6 items-center justify-center rounded-md text-[10px] font-semibold transition-all ${
                   track.muted
-                    ? 'bg-[#da1e28] text-white shadow-sm ring-1 ring-[#da1e28]/50'
-                    : 'bg-surface-1 border border-white/10 text-slate-400 hover:bg-surface-3 hover:text-white'
+                    ? 'bg-red-500/20 text-red-400 ring-1 ring-red-500/30'
+                    : 'bg-surface-2 border border-white/[0.06] text-slate-400 hover:text-white'
                 }`}
               >
                 M
@@ -218,10 +217,10 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
                 aria-pressed={track.solo}
                 aria-label={track.solo ? `Quitar solo a ${displayName}` : `Escuchar solo ${displayName}`}
                 title="Escuchar solo esta pista (Solo)"
-                className={`flex h-7 w-7 items-center justify-center rounded text-[10px] font-bold transition-all ${
+                className={`flex h-6 w-6 items-center justify-center rounded-md text-[10px] font-semibold transition-all ${
                   track.solo
-                    ? 'bg-[#f1c21b] text-slate-950 shadow-sm ring-1 ring-[#f1c21b]/50'
-                    : 'bg-surface-1 border border-white/10 text-slate-400 hover:bg-surface-3 hover:text-white'
+                    ? 'bg-amber-400/20 text-amber-300 ring-1 ring-amber-400/30'
+                    : 'bg-surface-2 border border-white/[0.06] text-slate-400 hover:text-white'
                 }`}
               >
                 S
@@ -238,10 +237,10 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
           className="relative flex-1 overflow-hidden"
           style={{ width: `${totalLaneWidth}px` }}
         >
-          {/* Zona de Espacio Vacío Continuo (Overscroll / Canvas de Ensamblaje Libre) */}
+          {/* Zona de Espacio Vacío Continuo */}
           {overscrollPx > 0 && (
             <div 
-              className="absolute top-0 bottom-0 pointer-events-none border-l border-dashed border-white/10 bg-white/[0.015] flex items-center justify-start pl-3 select-none z-0"
+              className="absolute top-0 bottom-0 pointer-events-none border-l border-dashed border-white/[0.06] bg-white/[0.01] flex items-center justify-start pl-3 select-none z-0"
               style={{
                 left: `${contentWidth}px`,
                 width: `${overscrollPx}px`,
@@ -257,10 +256,10 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
           {isDropTarget && (
             <div className={`absolute inset-0 z-30 pointer-events-none border-2 border-dashed flex items-center justify-center transition-all ${
               isMasterTrack
-                ? 'border-[#0f62fe] bg-[#0f62fe]/10 shadow-[inset_0_0_15px_rgba(15,98,254,0.2)]'
-                : 'border-white/40 bg-white/5'
+                ? 'border-ice-primary/50 bg-ice-primary/10'
+                : 'border-white/30 bg-white/[0.03]'
             }`}>
-              <span className="px-3 py-1 rounded-full bg-[#0f62fe] text-white text-[11px] font-bold shadow-md flex items-center gap-1.5">
+              <span className="px-3 py-1 rounded-full bg-ice-primary text-white text-[10px] font-medium shadow-subtle flex items-center gap-1.5">
                 {isMasterTrack ? '🎯 Soltar en Master (Ensamblaje)' : `↳ Soltar en ${displayName}`}
               </span>
             </div>
@@ -289,19 +288,19 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
             />
           ))}
 
-          {/* Estado vacío: Condicional de Pista Master vs Pista Única / Pistas Adicionales */}
+          {/* Estado vacío */}
           {(!track.clips || track.clips.length === 0) && (
             isMasterTrack && totalTracks > 1 ? (
               <div className="absolute inset-0 flex items-center justify-center p-2 pointer-events-auto">
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#0f62fe]/15 border border-[#0f62fe]/30 text-[#78a9ff] text-xs font-medium backdrop-blur-xs">
-                  <Layers className="w-3.5 h-3.5 text-[#78a9ff] shrink-0" />
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-ice-primary/10 border border-ice-primary/20 text-ice-primary text-xs font-normal">
+                  <Layers className="w-3.5 h-3.5 text-ice-primary shrink-0" />
                   <span className="hidden sm:inline">Lienzo Master: Pega clips cortados de las pistas auxiliares</span>
                   <span className="sm:hidden">Lienzo Master (Ensamblaje)</span>
                   {audioClipboard && (
                     <button
                       type="button"
                       onClick={() => pasteClip(track.id, 0, geometry.pixelsPerSecond)}
-                      className="ml-1 px-2.5 py-0.5 rounded-full bg-[#0f62fe] text-white text-[11px] font-bold hover:bg-[#0353e9] transition-all shadow-md active:scale-95"
+                      className="ml-1 px-2.5 py-0.5 rounded-full bg-ice-primary text-white text-[10px] font-medium hover:bg-ice-primary/90 transition-all shadow-subtle active:scale-95"
                       title="Pegar clip copiado al inicio de la Pista Master"
                     >
                       Pegar Clip (Ctrl+V)
@@ -313,9 +312,9 @@ export const MultitrackTrackRow: React.FC<MultitrackTrackRowProps> = ({
               <div className="absolute inset-0 flex items-center justify-center p-2 pointer-events-auto">
                 <label 
                   htmlFor={`file-upload-${track.id}`}
-                  className="cursor-pointer h-8 px-3 rounded-full flex items-center gap-1.5 text-xs font-bold text-slate-300 hover:text-white bg-white/10 hover:bg-white/20 border border-white/15 transition-all shadow-sm active:scale-95"
+                  className="cursor-pointer h-8 px-3 rounded-xl flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-white bg-surface-2 hover:bg-surface-3 border border-white/[0.06] transition-all shadow-subtle active:scale-95"
                 >
-                  <Upload className="w-3.5 h-3.5 text-[#78a9ff]" />
+                  <Upload className="w-3.5 h-3.5 text-ice-primary" />
                   <span>Cargar archivo de audio</span>
                 </label>
                 <input

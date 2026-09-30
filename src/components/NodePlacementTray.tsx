@@ -47,18 +47,18 @@ export const NodePlacementTray: React.FC = () => {
   };
 
   return (
-    <div className="node-tray fm-tablet-tray flex min-h-0 max-h-[42%] shrink-0 flex-col overflow-hidden border-b border-cobalt-500/30 bg-surface-1 shadow-elevation-1 lg:max-h-none lg:h-full lg:w-60 lg:border-b-0 lg:border-r lg:border-white/[0.08] xl:w-64">
+    <div className="node-tray fm-tablet-tray flex min-h-0 max-h-[42%] shrink-0 flex-col overflow-hidden border-b border-white/[0.07] bg-surface-1 shadow-elevation-1 lg:max-h-none lg:h-full lg:w-60 lg:border-b-0 lg:border-r lg:border-white/[0.07] xl:w-64">
       {/* ── Cabecera de la Bandeja ── */}
-      <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-white/[0.08] bg-surface-2/80 px-3 py-2.5">
+      <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-white/[0.07] bg-surface-2/90 px-3 py-2">
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <span className="h-2 w-2 shrink-0 rounded-full bg-[#0f62fe] animate-pulse" />
-          <span className="min-w-0 text-xs font-bold uppercase tracking-wider text-white">
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-ice-primary" />
+          <span className="min-w-0 text-xs font-medium uppercase tracking-wider text-white">
             Nodos por colocar
           </span>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <span
-            className="rounded-full border border-cobalt-400/30 bg-cobalt-500/15 px-2 py-0.5 font-mono text-[10px] font-bold text-cobalt-300"
+            className="rounded-full border border-ice-primary/25 bg-ice-primary/10 px-2 py-0.5 font-mono text-[10px] font-medium text-ice-light"
             title={`${currentStep} de ${totalCount} pendientes`}
           >
             {totalCount}
@@ -67,7 +67,7 @@ export const NodePlacementTray: React.FC = () => {
             type="button"
             onClick={() => setCollapsed((v) => !v)}
             aria-expanded={!collapsed}
-            className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-300 hover:bg-white/10 hover:text-white transition-colors"
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-neutral-400 hover:bg-white/[0.06] hover:text-white transition-colors"
             title={collapsed ? 'Expandir bandeja de nodos' : 'Minimizar bandeja de nodos'}
             aria-label={collapsed ? 'Expandir bandeja de nodos' : 'Minimizar bandeja de nodos'}
           >
@@ -76,7 +76,7 @@ export const NodePlacementTray: React.FC = () => {
           <button
             type="button"
             onClick={clearUnplacedNodes}
-            className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-danger/10 hover:text-danger"
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-neutral-400 transition-colors hover:bg-danger/10 hover:text-danger"
             title="Descartar bandeja de nodos"
             aria-label="Descartar bandeja de nodos"
           >
@@ -88,17 +88,17 @@ export const NodePlacementTray: React.FC = () => {
       {!collapsed && (
         <>
           {/* ── Banner de Instrucción: Bloqueo Secuencial Estricto ── */}
-          <div className="shrink-0 border-b border-cobalt-500/20 bg-cobalt-500/[0.05] p-3">
+          <div className="shrink-0 border-b border-white/[0.06] bg-ice-primary/[0.03] p-3">
             <div className="flex items-start gap-2">
-              <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-cobalt-400 animate-bounce" />
+              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ice-primary" />
               <div className="text-xs">
-                <p className="font-semibold leading-tight text-slate-200">
+                <p className="font-medium leading-tight text-neutral-200">
                   Toca la pista para ubicar el{' '}
-                  <span className="font-bold text-cobalt-300 underline underline-offset-2">
+                  <span className="font-semibold text-ice-light underline underline-offset-2">
                     Nodo {currentNode ? currentNode.numeroSecuencial : currentStep}
                   </span>
                 </p>
-                <p className="mt-0.5 text-[11px] text-slate-400 leading-relaxed">
+                <p className="mt-0.5 text-[11px] text-neutral-400 leading-relaxed">
                   Orden estricto: cada nodo se desbloquea tras posicionar el anterior.
                 </p>
               </div>
@@ -109,10 +109,10 @@ export const NodePlacementTray: React.FC = () => {
               <button
                 type="button"
                 onClick={handlePlaceAtCenter}
-                className="flex min-h-[38px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-cobalt-500/30 bg-cobalt-500/15 px-3 py-1.5 text-xs font-semibold text-cobalt-300 transition-all hover:bg-cobalt-500/25 active:scale-[0.98]"
+                className="flex min-h-[34px] flex-1 items-center justify-center gap-1.5 rounded-lg border border-white/[0.08] bg-surface-2 px-3 py-1.5 text-xs font-medium text-neutral-200 transition-all hover:bg-surface-3 active:scale-[0.98]"
                 title="Ubicar automáticamente en el centro de la pista"
               >
-                <Sparkles className="h-3.5 w-3.5 text-cobalt-300" />
+                <Sparkles className="h-3.5 w-3.5 text-ice-primary" />
                 <span>Colocar en Centro</span>
               </button>
             </div>
@@ -137,12 +137,12 @@ export const NodePlacementTray: React.FC = () => {
                     }`}
                     aria-label={`Nodo ${node.numeroSecuencial}${isPlaced ? ' (colocado)' : isCurrent ? ' (siguiente)' : ''}`}
                     className={[
-                      'flex h-10 min-h-[40px] items-center justify-center rounded-xl text-xs font-bold transition-all',
+                      'flex h-9 min-h-[36px] items-center justify-center rounded-lg text-xs font-medium transition-all',
                       isCurrent
-                        ? 'bg-[#0f62fe] text-white ring-2 ring-[#78a9ff]/80 shadow-sm active:scale-[0.96]'
+                        ? 'bg-ice-primary text-white border border-ice-light/40 shadow-elevation-1 active:scale-[0.96]'
                         : isPlaced
-                        ? 'bg-mint-500/15 text-mint-300 border border-mint-500/30'
-                        : 'bg-surface-2 text-slate-500 border border-white/[0.04]',
+                        ? 'bg-studio-primary/15 text-studio-light border border-studio-primary/25'
+                        : 'bg-surface-2 text-neutral-500 border border-white/[0.04]',
                     ].join(' ')}
                   >
                     {isPlaced ? '✓' : node.numeroSecuencial}
@@ -153,8 +153,8 @@ export const NodePlacementTray: React.FC = () => {
 
             {/* Guía del paso actual */}
             {currentNode && (
-              <p className="mt-2.5 flex items-center gap-1.5 font-mono text-[11px] text-slate-400">
-                <Clock className="h-3 w-3 shrink-0 text-cobalt-400" />
+              <p className="mt-2.5 flex items-center gap-1.5 font-mono text-[11px] text-neutral-400">
+                <Clock className="h-3 w-3 shrink-0 text-ice-primary" />
                 <span>Nodo {currentNode.numeroSecuencial} · {fmtTimeWithMs(currentNode.timestampSec)}s</span>
               </p>
             )}

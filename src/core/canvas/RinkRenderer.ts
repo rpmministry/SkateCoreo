@@ -60,9 +60,9 @@ export class RinkRenderer {
     ctx.beginPath();
     roundRectPath(ctx, offsetX, offsetY, renderedW, renderedH, cornerRadiusPx);
     const floorGrad = ctx.createLinearGradient(offsetX, offsetY, offsetX, offsetY + renderedH);
-    floorGrad.addColorStop(0, '#111624');
-    floorGrad.addColorStop(0.5, '#0c101a');
-    floorGrad.addColorStop(1, '#090d16');
+    floorGrad.addColorStop(0, '#16191E');
+    floorGrad.addColorStop(0.5, '#121417');
+    floorGrad.addColorStop(1, '#0E1013');
     ctx.fillStyle = floorGrad;
     ctx.fill();
 
@@ -90,15 +90,15 @@ export class RinkRenderer {
     }
 
     // Valla perimetral reglamentaria en perfil metálico refinado
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = '#282C34';
     ctx.stroke();
 
     // Línea interior sutil de la barandilla
     ctx.beginPath();
     roundRectPath(ctx, offsetX + 1.5, offsetY + 1.5, renderedW - 3, renderedH - 3, Math.max(0, cornerRadiusPx - 1.5));
     ctx.lineWidth = 1;
-    ctx.strokeStyle = 'rgba(148, 163, 184, 0.4)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
     ctx.stroke();
 
     // ── Guías Espaciales Reglamentarias (World Skate / FEP) ──
@@ -386,18 +386,18 @@ export class RinkRenderer {
 
       if (highContrast) {
         // Reproducción / Modo Didáctico: trazado claro y siempre visible.
-        ctx.strokeStyle = isSegmentSelected ? 'rgba(56, 189, 248, 0.3)' : 'rgba(56, 189, 248, 0.15)';
-        ctx.lineWidth = isSegmentSelected ? 6 : 4;
+        ctx.strokeStyle = isSegmentSelected ? 'rgba(46, 124, 246, 0.3)' : 'rgba(46, 124, 246, 0.15)';
+        ctx.lineWidth = isSegmentSelected ? 5 : 3.5;
         strokeCurve();
 
-        ctx.strokeStyle = isSegmentSelected ? '#78a9ff' : '#38bdf8';
-        ctx.lineWidth = isSegmentSelected ? 3 : 2;
+        ctx.strokeStyle = isSegmentSelected ? '#2E7CF6' : '#5E9BFA';
+        ctx.lineWidth = isSegmentSelected ? 2.5 : 1.75;
         strokeCurve();
       } else {
         // Guía inicial visual suave (no invasiva)
         ctx.setLineDash([5, 5]);
-        ctx.strokeStyle = isSegmentSelected ? 'rgba(56, 189, 248, 0.6)' : 'rgba(56, 189, 248, 0.3)';
-        ctx.lineWidth = isSegmentSelected ? 2 : 1.5;
+        ctx.strokeStyle = isSegmentSelected ? 'rgba(46, 124, 246, 0.6)' : 'rgba(46, 124, 246, 0.3)';
+        ctx.lineWidth = isSegmentSelected ? 1.75 : 1.25;
         strokeCurve();
       }
 
@@ -557,12 +557,12 @@ export class RinkRenderer {
     };
 
     // Trazo progresivo del tramo activo: nítido y de alta definición
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.25)';
-    ctx.lineWidth = 6;
+    ctx.strokeStyle = 'rgba(46, 124, 246, 0.25)';
+    ctx.lineWidth = 5;
     drawPartial();
 
-    ctx.strokeStyle = '#38bdf8';
-    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = '#2E7CF6';
+    ctx.lineWidth = 2;
     drawPartial();
 
     // Cabeza luminosa: refuerza la sensación de "dibujado en tiempo real".
@@ -632,14 +632,14 @@ export class RinkRenderer {
         ctx.restore();
       }
 
-      // 1. Halo luminoso exterior si está seleccionado (Refined Carbon Blue highlight)
+      // 1. Halo luminoso exterior si está seleccionado (Refined Ice Ultramarine highlight)
       if (isSelected) {
-        ctx.fillStyle = 'rgba(15, 98, 254, 0.2)';
+        ctx.fillStyle = 'rgba(46, 124, 246, 0.18)';
         ctx.beginPath();
         ctx.arc(px, py, nodeRadius + 5, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.strokeStyle = 'rgba(120, 169, 255, 0.7)';
+        ctx.strokeStyle = 'rgba(46, 124, 246, 0.6)';
         ctx.lineWidth = 1.5;
         ctx.stroke();
       }
@@ -648,9 +648,9 @@ export class RinkRenderer {
       if (isDraggingNode) {
         ctx.save();
         ctx.setLineDash([4, 3]);
-        ctx.strokeStyle = 'rgba(120, 169, 255, 0.9)';
+        ctx.strokeStyle = 'rgba(46, 124, 246, 0.9)';
         ctx.lineWidth = 2;
-        ctx.shadowColor = 'rgba(15, 98, 254, 0.6)';
+        ctx.shadowColor = 'rgba(46, 124, 246, 0.4)';
         ctx.shadowBlur = 8;
         ctx.beginPath();
         ctx.arc(px, py, nodeRadius + 8, 0, Math.PI * 2);
@@ -661,14 +661,14 @@ export class RinkRenderer {
       // 2. Círculo del ancla de alto contraste (radio adaptativo).
       ctx.beginPath();
       ctx.arc(px, py, nodeRadius, 0, Math.PI * 2);
-      ctx.fillStyle = isPending ? '#7C2D12' : isSelected ? '#0f62fe' : '#0F172A';
+      ctx.fillStyle = isPending ? '#7C2D12' : isSelected ? '#2E7CF6' : '#181B20';
       ctx.fill();
 
       ctx.lineWidth = isSelected ? 2.5 : 1.8;
       // Nodo pendiente: se conserva el COLOR de tinta con el que se dibujó (rojo/azul)
       // para que el usuario reconozca el trazo original aunque falte el número.
       const pendingStroke = p.inkColor === 'blue' ? '#60A5FA' : p.inkColor === 'red' ? '#F87171' : '#FB923C';
-      ctx.strokeStyle = isPending ? pendingStroke : isSelected ? '#FFFFFF' : '#38BDF8';
+      ctx.strokeStyle = isPending ? pendingStroke : isSelected ? '#FFFFFF' : '#2E7CF6';
       ctx.stroke();
 
       // 3. Número de orden del nodo centrado en el interior (legible).
@@ -701,16 +701,16 @@ export class RinkRenderer {
         const maxY = metrics.offsetY + metrics.renderedH - badgeH - 2;
         const badgeY = Math.max(minY, Math.min(maxY, py + nodeRadius + 5));
 
-        ctx.fillStyle = isSelected ? 'rgba(15, 98, 254, 0.25)' : 'rgba(18, 24, 38, 0.85)';
+        ctx.fillStyle = isSelected ? 'rgba(46, 124, 246, 0.2)' : 'rgba(24, 27, 32, 0.9)';
         ctx.beginPath();
         roundRectPath(ctx, badgeX, badgeY, badgeW, badgeH, 4);
         ctx.fill();
 
-        ctx.strokeStyle = isSelected ? 'rgba(120, 169, 255, 0.8)' : 'rgba(71, 85, 105, 0.4)';
+        ctx.strokeStyle = isSelected ? 'rgba(46, 124, 246, 0.6)' : 'rgba(255, 255, 255, 0.08)';
         ctx.lineWidth = 1;
         ctx.stroke();
 
-        ctx.fillStyle = isSelected ? '#FFFFFF' : '#94A3B8';
+        ctx.fillStyle = isSelected ? '#FFFFFF' : '#9CA3AF';
         ctx.fillText(labelText, badgeX + badgeW / 2, badgeY + 2.5);
       }
 

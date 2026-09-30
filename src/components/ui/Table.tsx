@@ -2,7 +2,7 @@ import React from 'react';
 
 export const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
   ({ className = '', children, ...props }, ref) => (
-    <div className="w-full overflow-x-auto rounded-xl border border-white/[0.08] bg-surface-1 shadow-elevation-1">
+    <div className="w-full overflow-x-auto rounded-xl border border-white/[0.07] bg-surface-1 shadow-elevation-1">
       <table
         ref={ref}
         className={`w-full text-left border-collapse text-sm tabular-nums ${className}`}
@@ -19,7 +19,7 @@ export const TableHeader = React.forwardRef<HTMLTableSectionElement, React.HTMLA
   ({ className = '', children, ...props }, ref) => (
     <thead
       ref={ref}
-      className={`border-b border-white/[0.08] bg-surface-2/80 text-[11px] font-semibold uppercase tracking-wider text-slate-400 select-none ${className}`}
+      className={`border-b border-white/[0.06] bg-surface-2/60 text-[11px] font-medium uppercase tracking-wider text-[#9CA3AF] select-none ${className}`}
       {...props}
     >
       {children}
@@ -32,7 +32,7 @@ export const TableBody = React.forwardRef<HTMLTableSectionElement, React.HTMLAtt
   ({ className = '', children, ...props }, ref) => (
     <tbody
       ref={ref}
-      className={`divide-y divide-white/[0.04] text-slate-200 ${className}`}
+      className={`divide-y divide-white/[0.04] text-[#F7F8F9] ${className}`}
       {...props}
     >
       {children}

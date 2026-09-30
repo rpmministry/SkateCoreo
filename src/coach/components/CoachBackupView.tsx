@@ -97,21 +97,21 @@ export const CoachBackupView: React.FC = () => {
   return (
     <div className="space-y-6 animate-fade-in text-white pb-12">
       <div>
-        <h2 className="text-xl font-black tracking-tight text-white flex items-center gap-2">
-          <Archive className="w-6 h-6 text-coral" />
+        <h2 className="text-xl font-bold tracking-tight text-white flex items-center gap-2.5">
+          <Archive className="w-5 h-5 text-coach-rose stroke-[1.75]" />
           Copias de Seguridad (Backup &amp; Restauración)
         </h2>
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-slate-400 mt-1">
           Crea paquetes portables .zip completos con todos tus atletas, fichas, notas y archivos .coreo para llevarlos a otro dispositivo o conservarlos como respaldo seguro.
         </p>
       </div>
 
       {feedback && (
         <div
-          className={`p-3.5 rounded-2xl border text-xs flex items-center justify-between ${
+          className={`p-3 rounded-xl border text-xs flex items-center justify-between ${
             feedback.isError
-              ? 'bg-red-950/80 border-red-500/40 text-red-200'
-              : 'bg-mint/15 border-mint/30 text-mint'
+              ? 'bg-rose-500/10 border-rose-500/25 text-rose-300'
+              : 'bg-emerald-500/10 border-emerald-500/25 text-emerald-300'
           }`}
         >
           <span>{feedback.text}</span>
@@ -120,14 +120,14 @@ export const CoachBackupView: React.FC = () => {
       )}
 
       {/* Tarjeta de Respaldo Actual */}
-      <div className="p-6 rounded-2xl bg-surface-2 border border-white/[0.08] shadow-elevation-1 space-y-4">
+      <div className="p-6 rounded-2xl bg-surface-1 border border-white/[0.07] shadow-subtle space-y-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
               Estado de Respaldo
             </span>
-            <div className="text-sm font-bold text-white mt-1 flex items-center gap-2">
-              <Clock className="w-4 h-4 text-[#78a9ff]" />
+            <div className="text-sm font-medium text-white mt-1 flex items-center gap-2">
+              <Clock className="w-4 h-4 text-coach-rose stroke-[1.75]" />
               <span>
                 Última copia:{' '}
                 {profile?.lastBackupDate
@@ -145,7 +145,7 @@ export const CoachBackupView: React.FC = () => {
 
           <div className="flex flex-wrap items-center gap-2">
             <Button
-              variant="cobalt"
+              variant="coach"
               size="md"
               onClick={handleExportZip}
               disabled={isExporting}
@@ -156,11 +156,11 @@ export const CoachBackupView: React.FC = () => {
 
             {activeProvider.id !== 'local' && (
               <Button
-                variant="secondary"
+                variant="outline"
                 size="md"
                 onClick={handleSaveToCloud}
                 disabled={isExporting}
-                icon={<CloudUpload className="w-4 h-4 text-[#78a9ff]" />}
+                icon={<CloudUpload className="w-4 h-4 text-slate-300" />}
               >
                 Guardar en {activeProvider.name}
               </Button>
@@ -168,29 +168,31 @@ export const CoachBackupView: React.FC = () => {
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-surface-1 border border-white/5 text-xs space-y-2">
-          <div className="font-bold text-slate-300">Contenido que incluye el archivo de respaldo:</div>
+        <div className="p-4 rounded-xl bg-surface-2/50 border border-white/[0.05] text-xs space-y-2">
+          <div className="font-semibold text-slate-300">Contenido que incluye el archivo de respaldo:</div>
           <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-400 text-[11px]">
             <li className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5 text-mint" /> Todas las fichas de atletas y datos deportivos
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Todas las fichas de atletas y datos deportivos
             </li>
             <li className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5 text-mint" /> Archivos .coreo con música y trazados 2D
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Archivos .coreo con música y trazados 2D
             </li>
             <li className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5 text-mint" /> Categorías oficiales y observaciones técnicas
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Categorías oficiales y observaciones técnicas
             </li>
             <li className="flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5 text-mint" /> Fotografías y avatares de los atletas
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Fotografías y avatares de los atletas
             </li>
           </ul>
         </div>
       </div>
 
       {/* Restauración de Copia de Seguridad */}
-      <div className="p-6 rounded-2xl bg-surface-2 border border-white/[0.08] space-y-4 shadow-elevation-1">
-        <div className="flex items-center gap-2">
-          <FileArchive className="w-5 h-5 text-mint" />
+      <div className="p-6 rounded-2xl bg-surface-1 border border-white/[0.07] space-y-4 shadow-subtle">
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <FileArchive className="w-4 h-4 stroke-[1.75]" />
+          </div>
           <h3 className="text-base font-bold text-white tracking-tight">
             Restaurar Copia de Seguridad
           </h3>
@@ -198,7 +200,7 @@ export const CoachBackupView: React.FC = () => {
 
         <p className="text-xs text-slate-300 leading-relaxed max-w-2xl">
           Si te encuentras en otro equipo, navegador o reinstalaste la aplicación, selecciona un archivo{' '}
-          <code className="text-[#78a9ff] font-mono">SkateCoreo_Backup_*.zip</code> para reconstruir inmediatamente todas tus fichas y coreografías.
+          <code className="text-coach-rose font-mono">SkateCoreo_Backup_*.zip</code> para reconstruir inmediatamente todas tus fichas y coreografías.
         </p>
 
         <div className="pt-2">
@@ -211,7 +213,7 @@ export const CoachBackupView: React.FC = () => {
           />
 
           <Button
-            variant="secondary"
+            variant="outline"
             size="md"
             onClick={() => fileInputRef.current?.click()}
             disabled={isRestoring}

@@ -62,7 +62,7 @@ export const SkateCoreoBrand: React.FC<SkateCoreoBrandProps> = ({
       <span className="relative inline-flex items-center justify-center shrink-0">
         <span
           aria-hidden="true"
-          className="absolute inset-[-18%] rounded-2xl bg-[#0f62fe]/15 blur-md"
+          className="absolute inset-[-15%] rounded-2xl bg-[#2e7cf6]/10 blur-sm"
         />
         <svg
           viewBox="0 0 64 64"
@@ -79,7 +79,7 @@ export const SkateCoreoBrand: React.FC<SkateCoreoBrandProps> = ({
             strokeWidth={s.stroke}
             strokeLinecap="round"
           />
-          <circle cx="47" cy="20" r="6.5" fill="#00D2FF" />
+          <circle cx="47" cy="20" r="6.5" fill="#2e7cf6" />
           <circle cx="17" cy="44" r="6.5" fill="#FFFFFF" />
         </svg>
       </span>
@@ -88,14 +88,14 @@ export const SkateCoreoBrand: React.FC<SkateCoreoBrandProps> = ({
       {!markOnly && (
       <span className={`flex min-w-0 flex-col ${stacked ? 'items-center' : 'items-start'}`}>
         <span
-          className={`font-display font-extrabold leading-none tracking-[-0.02em] ${s.word} whitespace-nowrap`}
+          className={`font-display font-bold leading-none tracking-[-0.02em] ${s.word} whitespace-nowrap`}
         >
-          <span className="text-white">Skate</span>
+          <span className="text-[#F7F8F9]">Skate</span>
           <span className="text-gradient-brand">Coreo</span>
         </span>
         {showTagline && (
           <span
-            className={`mt-1 font-semibold uppercase text-slate-400/90 leading-none whitespace-nowrap ${s.tagline}`}
+            className={`mt-1 font-medium uppercase text-[#9CA3AF] leading-none whitespace-nowrap ${s.tagline}`}
           >
             Choreography Studio
           </span>

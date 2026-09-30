@@ -171,19 +171,19 @@ export const AthleteEditModal: React.FC<AthleteEditModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md overflow-y-auto animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-sm overflow-y-auto animate-fade-in">
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-2xl bg-surface-2 border border-white/[0.08] rounded-2xl p-5 sm:p-6 shadow-elevation-2 space-y-5 my-6 text-white"
+        className="w-full max-w-2xl bg-surface-1 border border-white/[0.08] rounded-2xl p-5 sm:p-6 shadow-elevation space-y-5 my-6 text-white"
       >
         {/* Cabecera */}
-        <div className="flex items-center justify-between pb-3 border-b border-white/10">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-2xl bg-[#0f62fe]/15 text-[#78a9ff] ring-1 ring-[#0f62fe]/30">
-              <User className="w-5 h-5" />
+        <div className="flex items-center justify-between pb-3 border-b border-white/[0.07]">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-coach-rose/10 text-coach-rose border border-coach-rose/20">
+              <User className="w-5 h-5 stroke-[1.75]" />
             </div>
             <div>
-              <h3 className="text-base font-black tracking-tight text-white">
+              <h3 className="text-base font-bold tracking-tight text-white">
                 {initialData ? 'Editar Expediente de Atleta' : 'Registrar Nueva Patinadora / Patinador'}
               </h3>
               <p className="text-[11px] text-slate-400">
@@ -194,14 +194,14 @@ export const AthleteEditModal: React.FC<AthleteEditModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-xl hover:bg-white/10 text-slate-400 hover:text-white"
+            className="p-1.5 rounded-xl hover:bg-surface-2 text-slate-400 hover:text-white transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {error && (
-          <div className="p-3 rounded-xl bg-red-950/80 border border-red-500/40 text-red-200 text-xs flex items-center gap-2">
+          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-300 text-xs flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{error}</span>
           </div>
@@ -209,13 +209,13 @@ export const AthleteEditModal: React.FC<AthleteEditModalProps> = ({
 
         <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
           {/* Avatar y Nombres */}
-          <div className="flex flex-col sm:flex-row items-center gap-4 p-3 rounded-2xl bg-surface-1 border border-white/5">
+          <div className="flex flex-col sm:flex-row items-center gap-4 p-3.5 rounded-xl bg-surface-2/40 border border-white/[0.05]">
             <div className="relative group shrink-0">
-              <div className="w-20 h-20 rounded-2xl bg-surface-2 border border-white/10 flex items-center justify-center overflow-hidden">
+              <div className="w-20 h-20 rounded-2xl bg-surface-2 border border-white/[0.08] flex items-center justify-center overflow-hidden">
                 {photoDataUrl ? (
                   <img src={photoDataUrl} alt="Avatar" className="w-full h-full object-cover" />
                 ) : (
-                  <User className="w-8 h-8 text-slate-500" />
+                  <User className="w-8 h-8 text-slate-500 stroke-[1.5]" />
                 )}
               </div>
               <label className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 rounded-2xl cursor-pointer transition-opacity">
@@ -226,36 +226,36 @@ export const AthleteEditModal: React.FC<AthleteEditModalProps> = ({
 
             <div className="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div>
-                <label className="block text-slate-400 font-bold mb-1">Nombres *</label>
+                <label className="block text-slate-300 font-medium mb-1">Nombres *</label>
                 <input
                   type="text"
                   required
                   placeholder="ej. María"
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
-                  className="w-full bg-surface-1 border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-[#0f62fe] text-xs font-semibold"
+                  className="w-full bg-surface-2 border border-white/[0.08] rounded-xl px-3 py-2 text-white outline-none focus:border-coach-rose/50 focus:ring-1 focus:ring-coach-rose/50 text-xs font-medium transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-400 font-bold mb-1">Apellidos</label>
+                <label className="block text-slate-300 font-medium mb-1">Apellidos</label>
                 <input
                   type="text"
                   placeholder="ej. Andrade Sánchez"
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
-                  className="w-full bg-surface-1 border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-[#0f62fe] text-xs font-semibold"
+                  className="w-full bg-surface-2 border border-white/[0.08] rounded-xl px-3 py-2 text-white outline-none focus:border-coach-rose/50 focus:ring-1 focus:ring-coach-rose/50 text-xs font-medium transition-colors"
                 />
               </div>
             </div>
           </div>
 
           {/* Fecha de Nacimiento y Categoría Automática */}
-          <div className="p-4 rounded-2xl bg-[#0f62fe]/[0.05] border border-[#0f62fe]/20 space-y-3">
+          <div className="p-4 rounded-xl bg-surface-2/60 border border-white/[0.06] space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div>
-                <label className="block text-[#78a9ff] font-bold mb-1 flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5" />
+                <label className="block text-slate-300 font-medium mb-1 flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-coach-rose" />
                   Fecha de Nacimiento *
                 </label>
                 <input
@@ -263,29 +263,29 @@ export const AthleteEditModal: React.FC<AthleteEditModalProps> = ({
                   required
                   value={birthDate}
                   onChange={(e) => setBirthDate(e.target.value)}
-                  className="w-full bg-surface-1 border border-[#0f62fe]/30 rounded-xl px-3 py-2 text-white outline-none focus:border-[#0f62fe] text-xs font-mono"
+                  className="w-full bg-surface-2 border border-white/[0.08] rounded-xl px-3 py-2 text-white outline-none focus:border-coach-rose/50 focus:ring-1 focus:ring-coach-rose/50 text-xs font-mono transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-[#78a9ff] font-bold mb-1 flex items-center justify-between">
+                <label className="block text-slate-300 font-medium mb-1 flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
-                    <Award className="w-3.5 h-3.5" />
+                    <Award className="w-3.5 h-3.5 text-coach-rose" />
                     Categoría Oficial 2026
                   </span>
-                  <label className="text-[10px] text-slate-400 font-normal flex items-center gap-1 cursor-pointer">
+                  <label className="text-[10px] text-slate-400 font-normal flex items-center gap-1.5 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={categoryAuto}
                       onChange={(e) => setCategoryAuto(e.target.checked)}
-                      className="rounded accent-[#0f62fe]"
+                      className="rounded accent-coach-rose"
                     />
                     <span>Automática</span>
                   </label>
                 </label>
 
                 {categoryAuto ? (
-                  <div className="w-full bg-surface-1 border border-[#0f62fe]/30 rounded-xl px-3 py-2 text-white text-xs font-mono flex items-center justify-between">
+                  <div className="w-full bg-surface-2 border border-white/[0.08] rounded-xl px-3 py-2 text-white text-xs font-mono flex items-center justify-between">
                     <span className="font-bold text-amber-300">{calcDetails.category}</span>
                     <span className="text-[11px] text-slate-400">({calcDetails.categoryDescription})</span>
                   </div>
@@ -293,7 +293,7 @@ export const AthleteEditModal: React.FC<AthleteEditModalProps> = ({
                   <select
                     value={category}
                     onChange={(e) => setCategory(e.target.value as CategoriaReglamento)}
-                    className="w-full bg-surface-1 border border-amber-400/40 rounded-xl px-3 py-2 text-white outline-none focus:border-amber-400 text-xs font-mono font-bold text-amber-300"
+                    className="w-full bg-surface-2 border border-amber-400/40 rounded-xl px-3 py-2 text-white outline-none focus:border-amber-400 text-xs font-mono font-bold text-amber-300"
                   >
                     {CATEGORIAS_OFICIALES.map((c) => (
                       <option key={c} value={c}>
@@ -306,7 +306,7 @@ export const AthleteEditModal: React.FC<AthleteEditModalProps> = ({
             </div>
 
             {/* Diagnóstico en vivo de edad y próximo cambio */}
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-[11px] border-t border-[#0f62fe]/15 text-slate-300">
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 text-[11px] border-t border-white/[0.06] text-slate-300">
               <div>
                 Edad calculada:{' '}
                 <strong className="text-white font-mono font-bold">{calcDetails.exactAge} años</strong>
@@ -314,8 +314,8 @@ export const AthleteEditModal: React.FC<AthleteEditModalProps> = ({
               </div>
 
               {calcDetails.nextCategory && (
-                <div className={`${calcDetails.isUpcomingChangeWithin90Days ? 'text-amber-400 font-bold' : 'text-slate-400'}`}>
-                  Próximo cambio a <span className="text-[#78a9ff] font-mono">{calcDetails.nextCategory}</span>: en{' '}
+                <div className={`${calcDetails.isUpcomingChangeWithin90Days ? 'text-amber-400 font-medium' : 'text-slate-400'}`}>
+                  Próximo cambio a <span className="text-coach-rose font-mono">{calcDetails.nextCategory}</span>: en{' '}
                   <strong className="font-mono">{calcDetails.daysUntilNextCategory}</strong> días ({calcDetails.nextCategoryChangeDate})
                 </div>
               )}
@@ -326,13 +326,13 @@ export const AthleteEditModal: React.FC<AthleteEditModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
             <div>
               <label className="block text-slate-400 font-medium mb-1 flex items-center gap-1">
-                <Shield className="w-3 h-3" />
+                <Shield className="w-3 h-3 text-slate-400" />
                 Nivel Eficiencia:
               </label>
               <select
                 value={eficiencia}
                 onChange={(e) => setEficiencia(e.target.value as EficienciaReglamento)}
-                className="w-full bg-surface-1 border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-[#0f62fe] text-xs"
+                className="w-full bg-surface-2 border border-white/[0.08] rounded-xl px-3 py-2 text-white outline-none focus:border-coach-rose/50 text-xs"
               >
                 {EFICIENCIAS_DISPONIBLES.map((eff) => (
                   <option key={eff} value={eff}>
@@ -347,7 +347,7 @@ export const AthleteEditModal: React.FC<AthleteEditModalProps> = ({
               <select
                 value={specialty}
                 onChange={(e) => setSpecialty(e.target.value)}
-                className="w-full bg-surface-1 border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-[#0f62fe] text-xs"
+                className="w-full bg-surface-2 border border-white/[0.08] rounded-xl px-3 py-2 text-white outline-none focus:border-coach-rose/50 text-xs"
               >
                 <option value="Libre">Libre (Single)</option>
                 <option value="Danza">Danza</option>
@@ -362,7 +362,7 @@ export const AthleteEditModal: React.FC<AthleteEditModalProps> = ({
               <select
                 value={level}
                 onChange={(e) => setLevel(e.target.value)}
-                className="w-full bg-surface-1 border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-[#0f62fe] text-xs"
+                className="w-full bg-surface-2 border border-white/[0.08] rounded-xl px-3 py-2 text-white outline-none focus:border-coach-rose/50 text-xs"
               >
                 <option value="Iniciación">Iniciación</option>
                 <option value="Federado">Federado Regional</option>
@@ -381,7 +381,7 @@ export const AthleteEditModal: React.FC<AthleteEditModalProps> = ({
                 placeholder="ej. Club Patinaje Artístico Barcelona"
                 value={club}
                 onChange={(e) => setClub(e.target.value)}
-                className="w-full bg-surface-1 border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-[#0f62fe] text-xs"
+                className="w-full bg-surface-2 border border-white/[0.08] rounded-xl px-3 py-2 text-white outline-none focus:border-coach-rose/50 text-xs"
               />
             </div>
 
@@ -392,15 +392,15 @@ export const AthleteEditModal: React.FC<AthleteEditModalProps> = ({
                 placeholder="ej. Mauricio Andrade"
                 value={trainerName}
                 onChange={(e) => setTrainerName(e.target.value)}
-                className="w-full bg-surface-1 border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-[#0f62fe] text-xs"
+                className="w-full bg-surface-2 border border-white/[0.08] rounded-xl px-3 py-2 text-white outline-none focus:border-coach-rose/50 text-xs"
               />
             </div>
           </div>
 
           {/* Contacto & Emergencia */}
-          <div className="p-3.5 rounded-2xl bg-surface-1 border border-white/5 space-y-2.5">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-              <Phone className="w-3 h-3 text-[#78a9ff]" />
+          <div className="p-3.5 rounded-xl bg-surface-2/40 border border-white/[0.05] space-y-2.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+              <Phone className="w-3 h-3 text-slate-400" />
               Contacto y Representante
             </span>
 
@@ -412,7 +412,7 @@ export const AthleteEditModal: React.FC<AthleteEditModalProps> = ({
                   placeholder="Nombre del apoderado"
                   value={guardianName}
                   onChange={(e) => setGuardianName(e.target.value)}
-                  className="w-full bg-surface-1 border border-white/10 rounded-xl px-3 py-1.5 text-white outline-none focus:border-[#0f62fe] text-xs"
+                  className="w-full bg-surface-2 border border-white/[0.08] rounded-xl px-3 py-1.5 text-white outline-none focus:border-coach-rose/50 text-xs"
                 />
               </div>
 
@@ -423,7 +423,7 @@ export const AthleteEditModal: React.FC<AthleteEditModalProps> = ({
                   placeholder="+34 600 000 000"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="w-full bg-surface-1 border border-white/10 rounded-xl px-3 py-1.5 text-white outline-none focus:border-[#0f62fe] text-xs font-mono"
+                  className="w-full bg-surface-2 border border-white/[0.08] rounded-xl px-3 py-1.5 text-white outline-none focus:border-coach-rose/50 text-xs font-mono"
                 />
               </div>
             </div>
@@ -437,13 +437,13 @@ export const AthleteEditModal: React.FC<AthleteEditModalProps> = ({
               placeholder="Notas sobre estilo, saltos favoritos, objetivos de temporada, etc."
               value={technicalNotes}
               onChange={(e) => setTechnicalNotes(e.target.value)}
-              className="w-full bg-surface-1 border border-white/10 rounded-xl px-3 py-2 text-white outline-none focus:border-[#0f62fe] text-xs"
+              className="w-full bg-surface-2 border border-white/[0.08] rounded-xl px-3 py-2 text-white outline-none focus:border-coach-rose/50 text-xs"
             />
           </div>
         </div>
 
         {/* Botones de acción */}
-        <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/10">
+        <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-white/[0.07]">
           <Button
             type="button"
             variant="ghost"
@@ -455,7 +455,7 @@ export const AthleteEditModal: React.FC<AthleteEditModalProps> = ({
           </Button>
           <Button
             type="submit"
-            variant="cobalt"
+            variant="coach"
             size="md"
             disabled={isSaving}
           >

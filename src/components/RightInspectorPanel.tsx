@@ -172,32 +172,31 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
   // ── Render ─────────────────────────────────────────────────
   const content = (
     <>
-      {/* Acción prioritaria: eliminar el nodo seleccionado, SIEMPRE visible arriba
-          (en móvil el panel es corto y el botón quedaba fuera de pantalla). */}
+      {/* Acción prioritaria: eliminar el nodo seleccionado, SIEMPRE visible arriba */}
       {selectedPoint && (
         <div className="px-4 pt-3">
           <button
             type="button"
             onClick={handleDeleteSelected}
-            className="w-full flex items-center justify-center gap-2 rounded-xl border border-coral/40 bg-coral/15 py-2.5 text-xs font-black text-coral interactive-tap hover:bg-coral/25"
+            className="w-full flex items-center justify-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 py-2.5 text-xs font-semibold text-red-400 interactive-tap hover:bg-red-500/15 transition-colors"
             aria-label="Eliminar nodo seleccionado"
           >
-            <Trash2 className="w-4 h-4 stroke-[2.5]" />
+            <Trash2 className="w-4 h-4 stroke-[2]" />
             Eliminar nodo {displayNumber === '?' ? 'sin número' : `#${displayNumber}`}
           </button>
         </div>
       )}
 
       {/* ── BARRA DE HERRAMIENTAS EXCLUSIVAS: Colocar Nodos vs Conectar Ruta ─── */}
-        <div className="px-4 py-3.5 space-y-3 border-b border-white/5">
+        <div className="px-4 py-3.5 space-y-3 border-b border-white/[0.06]">
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            <div className="flex items-center justify-between text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
               <span>Herramienta Activa</span>
-              <span className="font-mono text-slate-300 font-semibold">{points.length} {points.length === 1 ? 'nodo' : 'nodos'}</span>
+              <span className="font-mono text-slate-300 font-medium">{points.length} {points.length === 1 ? 'nodo' : 'nodos'}</span>
             </div>
 
-            <div className="grid grid-cols-3 gap-1.5 bg-black/30 p-1.5 rounded-xl border border-white/5">
-              {/* Botón 1: Colocar Nodos (Siempre visible) */}
+            <div className="grid grid-cols-3 gap-1.5 bg-surface-2/60 p-1.5 rounded-xl border border-white/[0.06]">
+              {/* Botón 1: Colocar Nodos */}
               <button
                 type="button"
                 onClick={() => {
@@ -207,8 +206,8 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                 className={[
                   'flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-lg text-[11px] transition-all interactive-tap text-center',
                   phase === 'plot'
-                    ? 'bg-surface-3 text-white border border-amber-400/50 shadow-sm font-semibold'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5 font-medium',
+                    ? 'bg-surface-3 text-white border border-amber-400/40 shadow-subtle font-semibold'
+                    : 'text-slate-400 hover:text-white hover:bg-white/[0.04] font-medium',
                 ].join(' ')}
                 title="Modo Nodos: Un clic en el lienzo coloca nodos. Las líneas están ocultas."
               >
@@ -216,9 +215,7 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                 <span>Nodos</span>
               </button>
 
-              {/* Botón 2: Trazar Líneas (Toggle mutuamente excluyente).
-                  Herramienta independiente y siempre disponible: separa el
-                  trazado/conexión del modo Nodos (colocar/mover). */}
+              {/* Botón 2: Trazar Líneas */}
               <button
                 type="button"
                 onClick={() => {
@@ -228,16 +225,16 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                 className={[
                   'flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-lg text-[11px] transition-all interactive-tap text-center',
                   phase === 'curve'
-                    ? 'bg-surface-3 text-white border border-[#0f62fe]/60 shadow-sm font-semibold'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5 font-medium',
+                    ? 'bg-surface-3 text-white border border-ice-primary/40 shadow-subtle font-semibold'
+                    : 'text-slate-400 hover:text-white hover:bg-white/[0.04] font-medium',
                 ].join(' ')}
                 title="Modo Trazado: conecta nodos y esculpe curvas. Arrastra sobre el trazo para curvarlo."
               >
-                <Route className={`w-4 h-4 stroke-[2] ${phase === 'curve' ? 'text-[#78a9ff]' : 'text-slate-400'}`} />
+                <Route className={`w-4 h-4 stroke-[2] ${phase === 'curve' ? 'text-ice-primary' : 'text-slate-400'}`} />
                 <span>Trazar</span>
               </button>
 
-              {/* Botón 3: Borrador (Modo Borrador) */}
+              {/* Botón 3: Borrador */}
               <button
                 type="button"
                 onClick={() => {
@@ -251,8 +248,8 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                 className={[
                   'flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-lg text-[11px] transition-all interactive-tap text-center',
                   phase === 'erase'
-                    ? 'bg-surface-3 text-white border border-red-500/50 shadow-sm font-semibold'
-                    : 'text-slate-400 hover:text-red-400 hover:bg-white/5 font-medium',
+                    ? 'bg-surface-3 text-white border border-red-500/40 shadow-subtle font-semibold'
+                    : 'text-slate-400 hover:text-red-400 hover:bg-white/[0.04] font-medium',
                 ].join(' ')}
                 title="Modo Borrador: Toca cualquier nodo en la pista para eliminarlo al instante."
               >
@@ -263,38 +260,36 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
           </div>
 
           {/* Feedback interactivo de la herramienta seleccionada */}
-          <div className="p-2.5 rounded-xl bg-surface-2 border border-white/5 text-[11px] leading-snug">
+          <div className="p-2.5 rounded-xl bg-surface-1 border border-white/[0.06] text-[11px] leading-snug">
             {phase === 'plot' ? (
-              <p className="text-slate-300 flex items-center gap-1.5 font-medium">
+              <p className="text-slate-300 flex items-center gap-1.5 font-normal">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
                 Modo Nodos: toca un espacio vacío para crear y arrastra un nodo para moverlo.
               </p>
             ) : phase === 'curve' ? (
-              <p className="text-slate-300 flex items-center gap-1.5 font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#0f62fe] shrink-0" />
-                Modo Trazado: dibuja/conecta desde un nodo o sobre la pista. Arrastra para esculpir curvas.
+              <p className="text-slate-300 flex items-center gap-1.5 font-normal">
+                <span className="w-1.5 h-1.5 rounded-full bg-ice-primary shrink-0" />
+                Modo Trazado: dibuja o conecta desde un nodo. Arrastra el trazo para esculpir curvas.
               </p>
             ) : (
-              <p className="text-slate-300 flex items-center gap-1.5 font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+              <p className="text-slate-300 flex items-center gap-1.5 font-normal">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
                 Modo Borrador: toca un nodo para eliminarlo.
               </p>
             )}
           </div>
 
-          {/* «Retroceder»: deshace SOLO el último paso del trazado en construcción
-              (NO la figura completa; eso es «Eliminar nodo»). Contextual: aparece
-              mientras se construye y se deshabilita al llegar al primer paso. */}
+          {/* «Retroceder»: deshace SOLO el último paso del trazado en construcción */}
           {buildSteps.length > 0 && (
             <button
               type="button"
               onClick={() => retrocederBuildStep()}
               disabled={buildSteps.length < 2}
-              className="w-full flex items-center justify-center gap-2 rounded-xl bg-neon-card py-2.5 text-xs font-bold text-slate-200 shadow-soft-elevation hover:bg-neon-hover hover:text-white interactive-tap disabled:opacity-30 disabled:pointer-events-none"
+              className="w-full flex items-center justify-center gap-2 rounded-xl bg-surface-2 border border-white/[0.06] py-2.5 text-xs font-semibold text-slate-200 shadow-subtle hover:bg-surface-3 hover:text-white interactive-tap disabled:opacity-30 disabled:pointer-events-none transition-colors"
               title="Deshacer el último punto del trazo en construcción"
               aria-label="Retroceder último paso"
             >
-              <Undo2 className="w-4 h-4 text-coral" />
+              <Undo2 className="w-4 h-4 text-ice-primary" />
               Retroceder
             </button>
           )}
@@ -302,8 +297,8 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
 
         {/* ── Telemetría de nodos registrados ─── */}
         {points.length > 0 && !selectedPoint && (
-          <div className="px-4 py-3.5 space-y-2 border-b border-white/5">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+          <div className="px-4 py-3.5 space-y-2 border-b border-white/[0.06]">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
               Nodos en Pista ({points.length})
             </p>
             <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
@@ -312,16 +307,16 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                   key={p.id}
                   type="button"
                   onClick={() => setSelectedPointId(p.id)}
-                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left shadow-soft-elevation interactive-tap group bg-neon-card hover:bg-neon-hover"
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left border border-white/[0.06] bg-surface-1 hover:bg-surface-2 shadow-subtle interactive-tap group transition-colors"
                 >
-                  <span className="w-5 h-5 rounded-lg bg-surface-2 group-hover:bg-[#0f62fe] group-hover:text-white flex items-center justify-center text-[10px] font-mono font-bold text-[#78a9ff] shrink-0 transition-colors">
+                  <span className="w-5 h-5 rounded-lg bg-surface-2 group-hover:bg-ice-primary group-hover:text-white flex items-center justify-center text-[10px] font-mono font-medium text-ice-primary shrink-0 transition-colors">
                     {i + 1}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold truncate-safe text-slate-200">
+                    <p className="text-xs font-medium truncate-safe text-slate-200">
                       {p.label || 'Sin etiqueta'}
                     </p>
-                    <p className="text-[10px] font-mono text-slate-500">
+                    <p className="text-[10px] font-mono text-slate-400">
                       {formatTime(p.time_ms)}
                     </p>
                   </div>
@@ -334,29 +329,29 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
         {/* ── Estado vacío ─── */}
         {points.length === 0 && (
           <div className="px-4 py-12 flex flex-col items-center gap-3 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-neon-card shadow-soft-elevation flex items-center justify-center">
-              <PenTool className="w-5 h-5 text-slate-600" />
+            <div className="w-12 h-12 rounded-2xl bg-surface-1 border border-white/[0.06] shadow-subtle flex items-center justify-center">
+              <PenTool className="w-5 h-5 text-slate-500" />
             </div>
             <div>
-              <p className="text-xs font-bold text-slate-400">Pista sin nodos</p>
-              <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+              <p className="text-xs font-semibold text-slate-300">Pista sin nodos</p>
+              <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
                 Haz un clic en cualquier zona de la pista 2D<br />para crear un nuevo nodo.
               </p>
             </div>
           </div>
         )}
 
-        {/* ── Inspector para Nodos Coreográficos: Carbon IBM Blue ─── */}
+        {/* ── Inspector para Nodos Coreográficos ─── */}
         {selectedPoint && (
           <div className="px-4 py-3.5 space-y-4">
 
-            {/* Identidad del nodo con halo Carbon */}
-            <div className="flex items-center gap-3 bg-neon-card p-3 rounded-2xl shadow-soft-elevation">
-              <span className="w-8 h-8 rounded-xl bg-[#0f62fe] text-white border border-[#78a9ff]/40 shadow-sm ring-1 ring-[#0f62fe]/30 flex items-center justify-center text-xs font-mono font-bold shrink-0">
+            {/* Identidad del nodo */}
+            <div className="flex items-center gap-3 bg-surface-1 border border-white/[0.06] p-3 rounded-2xl shadow-subtle">
+              <span className="w-8 h-8 rounded-xl bg-ice-primary/15 text-ice-primary border border-ice-primary/30 flex items-center justify-center text-xs font-mono font-semibold shrink-0">
                 {displayNumber === '?' ? '?' : `#${displayNumber}`}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-bold text-white truncate-safe">
+                <p className="text-xs font-semibold text-white truncate-safe">
                   {selectedPoint.unrecognized
                     ? 'Nodo pendiente de numerar'
                     : selectedPoint.label || 'Nodo sin asignar'}
@@ -365,7 +360,7 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                   X: {selectedPoint.x.toFixed(1)}m · Y: {selectedPoint.y.toFixed(1)}m
                 </p>
                 {hasConfidence && (
-                  <p className="mt-0.5 text-[9px] font-mono text-slate-500">
+                  <p className="mt-0.5 text-[9px] font-mono text-slate-400">
                     color {(selectedPoint.colorConfidence ?? 0).toFixed(2)} · geom{' '}
                     {(selectedPoint.geometryConfidence ?? 0).toFixed(2)} · pos{' '}
                     {(selectedPoint.positionConfidence ?? 0).toFixed(2)} · nº{' '}
@@ -375,10 +370,10 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
               </div>
             </div>
 
-            {/* Número del nodo (leído por el escáner o escrito a mano) */}
+            {/* Número del nodo */}
             <div className="space-y-1.5">
-              <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                <Hash className="w-3.5 h-3.5 text-[#78a9ff]" />
+              <label className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                <Hash className="w-3.5 h-3.5 text-ice-primary" />
                 Número de nodo
               </label>
               <input
@@ -392,25 +387,24 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                   if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
                 }}
                 placeholder="1, 2, 3…"
-                className="w-full rounded-xl bg-neon-card px-3 py-2.5 font-mono text-sm text-slate-100 outline-none shadow-soft-elevation focus:bg-neon-hover"
+                className="w-full rounded-xl bg-surface-1 border border-white/[0.08] px-3 py-2.5 font-mono text-sm text-slate-100 placeholder:text-slate-500 outline-none shadow-subtle focus:border-ice-primary/50 focus:ring-1 focus:ring-ice-primary/20 transition-all"
               />
-              <p className="text-[10px] text-slate-500 leading-snug">
+              <p className="text-[10px] text-slate-400 leading-snug">
                 Si el número ya existe en otro nodo, se <strong className="text-slate-300">intercambian</strong>.
                 Déjalo vacío para un nodo sin número («?»).
               </p>
               {selectedPoint.unrecognized && (
-                <p className="text-[10px] font-semibold text-orange-400">
+                <p className="text-[10px] font-medium text-amber-400">
                   Nodo pendiente: escribe su número para integrarlo.
                 </p>
               )}
             </div>
 
-            {/* Procedencia Studio: nunca se sobrescribe en silencio el tiempo que el
-                usuario ajustó aquí, aunque el Studio publique otro valor. */}
+            {/* Procedencia Studio */}
             {selectedPoint.studioTimeConflict && (
-              <div className="space-y-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 text-[10px] leading-snug text-amber-200">
+              <div className="space-y-2 rounded-xl border border-amber-500/25 bg-amber-500/10 p-2.5 text-[10px] leading-snug text-amber-200">
                 <p>
-                  <strong className="font-bold">Tiempo editado en la Pista 2D.</strong> El Studio
+                  <strong className="font-semibold">Tiempo editado en la Pista 2D.</strong> El Studio
                   publicó otro valor para este marcador. Se conserva tu ajuste salvo que decidas
                   adoptar el del Studio.
                 </p>
@@ -419,14 +413,14 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                     <button
                       type="button"
                       onClick={handleKeepMyTime}
-                      className="min-h-[40px] rounded-lg border border-white/15 bg-white/5 px-2 text-[11px] font-bold text-slate-100 hover:bg-white/10 interactive-tap"
+                      className="min-h-[40px] rounded-lg border border-white/10 bg-white/5 px-2 text-[11px] font-semibold text-slate-100 hover:bg-white/10 interactive-tap transition-colors"
                     >
                       Mantener el mío
                     </button>
                     <button
                       type="button"
                       onClick={handleAdoptStudioTime}
-                      className="min-h-[40px] rounded-lg border border-amber-400/40 bg-amber-400/20 px-2 text-[11px] font-bold text-amber-100 hover:bg-amber-400/30 interactive-tap"
+                      className="min-h-[40px] rounded-lg border border-amber-400/30 bg-amber-400/15 px-2 text-[11px] font-semibold text-amber-200 hover:bg-amber-400/25 interactive-tap transition-colors"
                     >
                       Usar Studio ({formatTime(selectedPoint.pendingStudioTimestampMs)})
                     </button>
@@ -437,12 +431,12 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
 
             {/* Selector de Figura Técnica Reglamentaria */}
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              <div className="flex items-center justify-between text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
                 <span className="flex items-center gap-1.5">
-                  <Tag className="w-3.5 h-3.5 text-[#78a9ff]" />
+                  <Tag className="w-3.5 h-3.5 text-ice-primary" />
                   Figura Reglamentaria
                 </span>
-                <span className="text-[9px] font-mono text-[#78a9ff] normal-case font-bold">
+                <span className="text-[9px] font-mono text-ice-primary normal-case font-semibold">
                   {eficiencia} · {categoria}
                 </span>
               </div>
@@ -451,7 +445,7 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                 onChange={(e) => {
                   handleUpdateLabel(selectedPoint.id, e.target.value);
                 }}
-                className="w-full bg-neon-card text-slate-100 rounded-xl px-3 py-2.5 text-xs focus:bg-neon-hover outline-none font-medium cursor-pointer shadow-soft-elevation"
+                className="w-full bg-surface-1 border border-white/[0.08] text-slate-100 rounded-xl px-3 py-2.5 text-xs focus:border-ice-primary/50 focus:ring-1 focus:ring-ice-primary/20 outline-none font-medium cursor-pointer shadow-subtle transition-all"
               >
                 <option value="">— Elegir figura reglamentaria —</option>
 
@@ -487,7 +481,7 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
             <div className="space-y-1.5">
               <label
                 htmlFor="node-label-input"
-                className="text-[10px] font-bold text-slate-400 uppercase tracking-wider"
+                className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider"
               >
                 Etiqueta / Guía Vocal
               </label>
@@ -505,25 +499,23 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                 value={selectedPoint.label || ''}
                 onChange={(e) => handleUpdateLabel(selectedPoint.id, e.target.value)}
                 onKeyDown={(e) => {
-                  // «Listo» del teclado móvil: confirma y cierra el teclado sin
-                  // desmontar el panel (evita perder foco/estado en iOS).
                   if (e.key === 'Enter') {
                     e.preventDefault();
                     (e.target as HTMLInputElement).blur();
                   }
                 }}
-                className="w-full bg-neon-card rounded-xl px-3 py-2.5 text-xs text-slate-100 placeholder:text-slate-600 focus:bg-neon-hover outline-none font-mono shadow-soft-elevation"
+                className="w-full bg-surface-1 border border-white/[0.08] rounded-xl px-3 py-2.5 text-xs text-slate-100 placeholder:text-slate-500 focus:border-ice-primary/50 focus:ring-1 focus:ring-ice-primary/20 outline-none font-mono shadow-subtle transition-all"
               />
             </div>
 
             {/* Momento en Audio */}
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              <div className="flex items-center justify-between text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
                 <span className="flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-[#78a9ff]" />
+                  <Clock className="w-3.5 h-3.5 text-ice-primary" />
                   Sincronización
                 </span>
-                <span className="font-mono text-[#78a9ff] font-bold normal-case">
+                <span className="font-mono text-ice-primary font-semibold normal-case">
                   {formatTime(selectedPoint.time_ms)}
                 </span>
               </div>
@@ -537,13 +529,13 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
                     const sec = parseFloat(e.target.value) || 0;
                     handleUpdateTime(selectedPoint.id, Math.round(sec * 1000));
                   }}
-                  className="w-20 bg-neon-card rounded-xl px-2 py-2 text-center font-mono text-[#78a9ff] font-bold text-xs outline-none shadow-soft-elevation border border-white/10 focus:border-[#0f62fe]"
+                  className="w-20 bg-surface-1 border border-white/[0.08] rounded-xl px-2 py-2 text-center font-mono text-ice-primary font-semibold text-xs outline-none shadow-subtle focus:border-ice-primary"
                 />
-                <span className="font-mono text-slate-500 text-xs">seg</span>
+                <span className="font-mono text-slate-400 text-xs">seg</span>
                 <button
                   type="button"
                   onClick={() => audio.seek(selectedPoint.time_ms)}
-                  className="flex-1 px-3 py-2 rounded-xl bg-neon-card hover:bg-neon-hover text-slate-200 hover:text-white text-xs font-bold shadow-soft-elevation interactive-tap"
+                  className="flex-1 px-3 py-2 rounded-xl bg-surface-2 hover:bg-surface-3 border border-white/[0.06] text-slate-200 hover:text-white text-xs font-semibold shadow-subtle interactive-tap transition-colors"
                 >
                   Escuchar
                 </button>
@@ -552,37 +544,29 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
 
             {/* Secuencia Vocal Preview */}
             {collectNodeFigures(selectedPoint).length > 0 && (
-                <div className="bg-neon-card shadow-soft-elevation rounded-2xl p-3 space-y-1.5">
+                <div className="bg-surface-1 border border-white/[0.06] shadow-subtle rounded-2xl p-3 space-y-1.5">
                   <div className="flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-[#78a9ff] shrink-0" />
-                    <span className="text-[10px] font-bold text-[#78a9ff] uppercase tracking-wide">
+                    <Sparkles className="w-3.5 h-3.5 text-ice-primary shrink-0" />
+                    <span className="text-[10px] font-semibold text-ice-primary uppercase tracking-wide">
                       Guía en Pista:
                     </span>
                   </div>
-                  <p className="text-xs text-white font-bold">
+                  <p className="text-xs text-white font-medium">
                     "{collectNodeFigures(selectedPoint).join(', ')}, en tres, dos, uno, ¡ya!"
                   </p>
-                  <p className="text-[10px] text-slate-500">
+                  <p className="text-[10px] text-slate-400">
                     Aviso: {Math.max(0, (selectedPoint.time_ms - 4200) / 1000).toFixed(1)}s →
                     Ejecución: {(selectedPoint.time_ms / 1000).toFixed(1)}s
                   </p>
                 </div>
               )}
 
-            {/* NOTA: la sección «Curvatura del Trazo» se eliminó. El trazado libre
-                ya cubre la necesidad (arrastrar sobre el trazo esculpe la curva),
-                así que esos botones no aportaban al flujo actual. El motor Bézier
-                (FreehandPathEngine / RinkRenderer) sigue intacto.
-
-                «Eliminar Nodo» tiene UNA sola ubicación: el botón superior, siempre
-                visible y contextual al nodo seleccionado (no se duplica aquí). */}
-
             {/* ── ACCIONES DEL NODO ── */}
-            <div className="pt-4 border-t border-white/10">
+            <div className="pt-4 border-t border-white/[0.06]">
               <button
                 type="button"
                 onClick={() => setSelectedPointId(null)}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-neon-card hover:bg-neon-hover text-slate-400 hover:text-white text-xs font-semibold shadow-soft-elevation interactive-tap transition-colors"
+                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-surface-2 border border-white/[0.06] hover:bg-surface-3 text-slate-400 hover:text-white text-xs font-medium shadow-subtle interactive-tap transition-colors"
               >
                 <Move className="w-4 h-4" />
                 Deseleccionar
@@ -611,11 +595,11 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
         onPointerUp={(e) => e.stopPropagation()}
       >
         {showHeader && (
-          <div className="flex-none flex items-center justify-between px-4 py-3 border-b border-white/5">
+          <div className="flex-none flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
             <p
               className={[
-                'text-[10px] font-bold uppercase tracking-widest transition-colors',
-                selectedPoint ? 'text-[#78a9ff]' : 'text-slate-500',
+                'text-[10px] font-semibold uppercase tracking-widest transition-colors',
+                selectedPoint ? 'text-ice-primary' : 'text-slate-400',
               ].join(' ')}
             >
               {selectedPoint ? 'Inspector de Nodo' : 'Sin Selección'}
@@ -629,7 +613,7 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
 
   return (
     <div
-      className="flex flex-col h-full w-full bg-neon-surface text-white select-none"
+      className="flex flex-col h-full w-full bg-surface-1 text-white select-none border-l border-white/[0.06]"
       style={{
         WebkitOverflowScrolling: 'touch',
         overscrollBehavior: 'contain',
@@ -645,11 +629,11 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
     >
       {/* ── Panel header ── */}
       {showHeader && (
-        <div className="flex-none flex items-center justify-between px-4 py-3 border-b border-white/5">
+        <div className="flex-none flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
           <p
             className={[
-              'text-[10px] font-bold uppercase tracking-widest transition-colors',
-              selectedPoint ? 'text-[#78a9ff]' : 'text-slate-500',
+              'text-[10px] font-semibold uppercase tracking-widest transition-colors',
+              selectedPoint ? 'text-ice-primary' : 'text-slate-400',
             ].join(' ')}
           >
             {selectedPoint ? 'Inspector de Nodo' : 'Sin Selección'}

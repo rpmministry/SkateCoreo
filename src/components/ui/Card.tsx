@@ -14,11 +14,11 @@ export const Card = React.forwardRef<HTMLDivElement, CardProps>(
     }[surface];
 
     const variantStyles = {
-      default: `${surfaceStyles} border border-white/[0.08] shadow-elevation-1`,
-      elevated: `${surfaceStyles} border border-white/[0.12] shadow-elevation-2`,
-      glass: 'glass-card border border-white/[0.08] shadow-elevation-1',
-      outline: 'bg-transparent border border-white/[0.12]',
-      interactive: `${surfaceStyles} border border-white/[0.08] shadow-elevation-1 hover:border-[#0f62fe]/50 hover:shadow-elevation-2 transition-colors duration-150 cursor-pointer active:scale-[0.99]`,
+      default: `${surfaceStyles} border border-white/[0.07] shadow-elevation-1`,
+      elevated: `${surfaceStyles} border border-white/[0.11] shadow-elevation-2`,
+      glass: 'glass-card border border-white/[0.07] shadow-elevation-1',
+      outline: 'bg-transparent border border-white/[0.09]',
+      interactive: `${surfaceStyles} border border-white/[0.07] shadow-elevation-1 hover:border-[#2e7cf6]/40 hover:shadow-elevation-2 transition-all duration-150 cursor-pointer active:scale-[0.99]`,
     }[variant];
 
     return (
@@ -51,7 +51,7 @@ export const CardTitle = React.forwardRef<HTMLHeadingElement, React.HTMLAttribut
   ({ className = '', children, ...props }, ref) => (
     <h3
       ref={ref}
-      className={`font-display text-base font-semibold text-[#f4f4f4] tracking-tight ${className}`}
+      className={`font-display text-base font-semibold text-[#F7F8F9] tracking-tight ${className}`}
       {...props}
     >
       {children}
@@ -64,7 +64,7 @@ export const CardDescription = React.forwardRef<HTMLParagraphElement, React.HTML
   ({ className = '', children, ...props }, ref) => (
     <p
       ref={ref}
-      className={`text-xs text-[#c6c6c6] leading-relaxed ${className}`}
+      className={`text-xs text-[#9CA3AF] leading-relaxed ${className}`}
       {...props}
     >
       {children}

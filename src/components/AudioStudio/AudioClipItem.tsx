@@ -620,11 +620,11 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
       }}
       onClick={handleClick}
       className={`absolute top-1 select-none cursor-pointer rounded-lg overflow-hidden transition-all ${
-        isDraggingClip ? 'z-30 shadow-2xl scale-[1.02] opacity-95' : 'z-10'
+        isDraggingClip ? 'z-30 shadow-elevation scale-[1.02] opacity-95' : 'z-10'
       } ${
         isSelected
-          ? 'ring-2 ring-[#0f62fe] shadow-xl shadow-[#0f62fe]/20'
-          : 'hover:brightness-110 shadow-md'
+          ? 'ring-2 ring-ice-primary shadow-subtle'
+          : 'hover:brightness-105 shadow-subtle'
       }`}
       style={{
         left: `${leftPx}px`,
@@ -643,7 +643,7 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
       />
 
       {/* Header del Clip con nombre y duración estilo BandLab */}
-      <div className="absolute top-0 inset-x-0 h-4 px-2 flex items-center justify-between bg-black/25 text-[10px] font-sans font-bold text-white pointer-events-none truncate">
+      <div className="absolute top-0 inset-x-0 h-4 px-2 flex items-center justify-between bg-black/30 text-[10px] font-sans font-medium text-white pointer-events-none truncate">
         <span className="truncate drop-shadow-sm">{clip.name}</span>
         <span className="text-[9px] font-mono text-white/80 ml-1">
           {clipDurationSec.toFixed(1)}s
@@ -659,14 +659,14 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
         aria-label={`Fade In: ${localFadeIn.toFixed(1)}s`}
       >
         <div
-          className={`w-2.5 h-2.5 bg-white rounded-xs shadow-md border border-black/40 transition-transform ${
-            isAdjustingFadeIn ? 'scale-125 ring-2 ring-[#0f62fe] bg-blue-100' : 'group-hover:scale-125'
+          className={`w-2.5 h-2.5 bg-white rounded-xs shadow-subtle border border-black/30 transition-transform ${
+            isAdjustingFadeIn ? 'scale-125 ring-2 ring-ice-primary bg-blue-100' : 'group-hover:scale-125'
           }`}
         />
         {(isAdjustingFadeIn || localFadeIn > 0) && (
           <span
-            className={`absolute top-4 left-1/2 -translate-x-1/2 px-1 py-0.5 rounded text-[8px] font-mono font-bold text-white bg-black/85 border border-white/20 pointer-events-none shadow-sm whitespace-nowrap z-30 ${
-              isAdjustingFadeIn ? 'opacity-100 ring-1 ring-[#0f62fe]' : 'opacity-0 group-hover:opacity-100 transition-opacity'
+            className={`absolute top-4 left-1/2 -translate-x-1/2 px-1 py-0.5 rounded text-[8px] font-mono font-medium text-white bg-black/85 border border-white/20 pointer-events-none shadow-subtle whitespace-nowrap z-30 ${
+              isAdjustingFadeIn ? 'opacity-100 ring-1 ring-ice-primary' : 'opacity-0 group-hover:opacity-100 transition-opacity'
             }`}
           >
             {localFadeIn.toFixed(1)}s
@@ -683,14 +683,14 @@ export const AudioClipItem: React.FC<AudioClipItemProps> = ({
         aria-label={`Fade Out: ${localFadeOut.toFixed(1)}s`}
       >
         <div
-          className={`w-2.5 h-2.5 bg-white rounded-xs shadow-md border border-black/40 transition-transform ${
-            isAdjustingFadeOut ? 'scale-125 ring-2 ring-[#0f62fe] bg-blue-100' : 'group-hover:scale-125'
+          className={`w-2.5 h-2.5 bg-white rounded-xs shadow-subtle border border-black/30 transition-transform ${
+            isAdjustingFadeOut ? 'scale-125 ring-2 ring-ice-primary bg-blue-100' : 'group-hover:scale-125'
           }`}
         />
         {(isAdjustingFadeOut || localFadeOut > 0) && (
           <span
-            className={`absolute top-4 left-1/2 -translate-x-1/2 px-1 py-0.5 rounded text-[8px] font-mono font-bold text-white bg-black/85 border border-white/20 pointer-events-none shadow-sm whitespace-nowrap z-30 ${
-              isAdjustingFadeOut ? 'opacity-100 ring-1 ring-[#0f62fe]' : 'opacity-0 group-hover:opacity-100 transition-opacity'
+            className={`absolute top-4 left-1/2 -translate-x-1/2 px-1 py-0.5 rounded text-[8px] font-mono font-medium text-white bg-black/85 border border-white/20 pointer-events-none shadow-subtle whitespace-nowrap z-30 ${
+              isAdjustingFadeOut ? 'opacity-100 ring-1 ring-ice-primary' : 'opacity-0 group-hover:opacity-100 transition-opacity'
             }`}
           >
             {localFadeOut.toFixed(1)}s

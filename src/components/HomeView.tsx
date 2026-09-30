@@ -42,32 +42,32 @@ export interface HomeViewProps {
   onUpgradeToCoach?: () => void;
 }
 
-/* ── Glifos vectoriales técnicos sobrios (Inspirados en Carbon) ────── */
+/* ── Glifos vectoriales técnicos sobrios (Inspirados en Bear & Herramientas Pro) ────── */
 
 const RinkGlyph: React.FC = () => (
   <svg viewBox="0 0 240 64" className="h-full w-full" fill="none" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
-    <rect x="4" y="4" width="232" height="56" rx="10" fill="rgba(15, 98, 254, 0.06)" />
+    <rect x="4" y="4" width="232" height="56" rx="8" fill="rgba(46, 124, 246, 0.05)" />
     <rect
       x="4"
       y="4"
       width="232"
       height="56"
-      rx="10"
-      stroke="rgba(15, 98, 254, 0.25)"
+      rx="8"
+      stroke="rgba(46, 124, 246, 0.2)"
       strokeWidth="1"
       strokeDasharray="4 4"
     />
-    <line x1="120" y1="4" x2="120" y2="60" stroke="rgba(255, 255, 255, 0.12)" strokeWidth="1" strokeDasharray="3 3" />
-    <circle cx="120" cy="32" r="12" stroke="rgba(15, 98, 254, 0.3)" strokeWidth="1" />
+    <line x1="120" y1="4" x2="120" y2="60" stroke="rgba(255, 255, 255, 0.08)" strokeWidth="1" strokeDasharray="3 3" />
+    <circle cx="120" cy="32" r="12" stroke="rgba(46, 124, 246, 0.25)" strokeWidth="1" />
     <path
       d="M26 44 C 65 14, 95 50, 138 20 S 192 42, 214 18"
-      stroke="#4589ff"
-      strokeWidth="1.8"
+      stroke="#2E7CF6"
+      strokeWidth="1.75"
       strokeLinecap="round"
     />
-    <circle cx="26" cy="44" r="3" fill="#24a148" />
-    <circle cx="138" cy="20" r="3" fill="#ffffff" />
-    <circle cx="214" cy="18" r="3" fill="#ee5396" />
+    <circle cx="26" cy="44" r="2.5" fill="#10B981" />
+    <circle cx="138" cy="20" r="2.5" fill="#FFFFFF" />
+    <circle cx="214" cy="18" r="2.5" fill="#E11D48" />
   </svg>
 );
 
@@ -75,45 +75,45 @@ const WAVE_BARS = [12, 24, 36, 18, 44, 28, 48, 32, 38, 20, 46, 30, 36, 16, 34, 2
 
 const WaveGlyph: React.FC = () => (
   <svg viewBox="0 0 240 64" className="h-full w-full" fill="none" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
-    <rect x="4" y="4" width="232" height="56" rx="10" fill="rgba(0, 157, 154, 0.06)" />
+    <rect x="4" y="4" width="232" height="56" rx="8" fill="rgba(13, 148, 136, 0.05)" />
     {WAVE_BARS.map((h, i) => (
       <rect
         key={i}
         x={16 + i * 10.8}
         y={32 - h / 2}
-        width="3"
+        width="2.5"
         height={h}
         rx="1"
-        fill="#009d9a"
-        opacity={0.4 + (i % 4) * 0.18}
+        fill="#0D9488"
+        opacity={0.35 + (i % 4) * 0.16}
       />
     ))}
-    <line x1="10" y1="32" x2="230" y2="32" stroke="rgba(0, 157, 154, 0.35)" strokeWidth="1" />
+    <line x1="10" y1="32" x2="230" y2="32" stroke="rgba(13, 148, 136, 0.25)" strokeWidth="1" />
   </svg>
 );
 
 const CoachGlyph: React.FC = () => (
   <svg viewBox="0 0 240 64" className="h-full w-full" fill="none" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
-    <rect x="4" y="4" width="232" height="56" rx="10" fill="rgba(238, 83, 150, 0.06)" />
-    <circle cx="120" cy="22" r="10" stroke="#ee5396" strokeWidth="1.5" opacity="0.85" />
+    <rect x="4" y="4" width="232" height="56" rx="8" fill="rgba(225, 29, 72, 0.05)" />
+    <circle cx="120" cy="22" r="9" stroke="#E11D48" strokeWidth="1.5" opacity="0.8" />
     <path
-      d="M96 48 C96 38, 105 34, 120 34 C135 34, 144 38, 144 48"
-      stroke="#ee5396"
+      d="M98 48 C98 39, 106 35, 120 35 C134 35, 142 39, 142 48"
+      stroke="#E11D48"
       strokeWidth="1.5"
       strokeLinecap="round"
-      opacity="0.85"
+      opacity="0.8"
     />
-    <circle cx="72" cy="26" r="7" stroke="rgba(238, 83, 150, 0.45)" strokeWidth="1" />
+    <circle cx="72" cy="26" r="6" stroke="rgba(225, 29, 72, 0.4)" strokeWidth="1" />
     <path
-      d="M56 48 C56 41, 62 38, 72 38 C82 38, 88 41, 88 48"
-      stroke="rgba(238, 83, 150, 0.45)"
+      d="M58 48 C58 42, 63 39, 72 39 C81 39, 86 42, 86 48"
+      stroke="rgba(225, 29, 72, 0.4)"
       strokeWidth="1"
       strokeLinecap="round"
     />
-    <circle cx="168" cy="26" r="7" stroke="rgba(238, 83, 150, 0.45)" strokeWidth="1" />
+    <circle cx="168" cy="26" r="6" stroke="rgba(225, 29, 72, 0.4)" strokeWidth="1" />
     <path
-      d="M152 48 C152 41, 158 38, 168 38 C178 38, 184 41, 184 48"
-      stroke="rgba(238, 83, 150, 0.45)"
+      d="M154 48 C154 42, 159 39, 168 39 C177 39, 182 42, 182 48"
+      stroke="rgba(225, 29, 72, 0.4)"
       strokeWidth="1"
       strokeLinecap="round"
     />
@@ -149,26 +149,26 @@ const AccessModule: React.FC<AccessModuleProps> = ({
 }) => {
   const config = {
     blue: {
-      border: 'border-white/[0.08] hover:border-[#0f62fe]/50',
-      iconBox: 'bg-[#0f62fe]/10 text-[#78a9ff] border border-[#0f62fe]/25',
-      eyebrow: 'text-[#78a9ff]',
-      dot: 'bg-[#0f62fe]',
+      border: 'border-white/[0.07] hover:border-ice-primary/40',
+      iconBox: 'bg-ice-primary/10 text-ice-primary border border-ice-primary/20',
+      eyebrow: 'text-ice-light',
+      dot: 'bg-ice-primary',
       badgeVariant: 'cobalt' as const,
       btnVariant: 'primary' as const,
     },
     teal: {
-      border: 'border-white/[0.08] hover:border-[#009d9a]/50',
-      iconBox: 'bg-[#009d9a]/10 text-[#3ddbd9] border border-[#009d9a]/25',
-      eyebrow: 'text-[#3ddbd9]',
-      dot: 'bg-[#009d9a]',
+      border: 'border-white/[0.07] hover:border-studio-primary/40',
+      iconBox: 'bg-studio-primary/10 text-studio-light border border-studio-primary/20',
+      eyebrow: 'text-studio-light',
+      dot: 'bg-studio-primary',
       badgeVariant: 'mint' as const,
       btnVariant: 'mint' as const,
     },
     magenta: {
-      border: 'border-white/[0.08] hover:border-[#ee5396]/50',
-      iconBox: 'bg-[#ee5396]/10 text-[#ff7eb6] border border-[#ee5396]/25',
-      eyebrow: 'text-[#ff7eb6]',
-      dot: 'bg-[#ee5396]',
+      border: 'border-white/[0.07] hover:border-coach-primary/40',
+      iconBox: 'bg-coach-primary/10 text-coach-light border border-coach-primary/20',
+      eyebrow: 'text-coach-light',
+      dot: 'bg-coach-primary',
       badgeVariant: 'coral' as const,
       btnVariant: locked ? ('outline' as const) : ('coach' as const),
     },
@@ -186,11 +186,11 @@ const AccessModule: React.FC<AccessModuleProps> = ({
         }
       }}
       aria-label={cta}
-      className={`group relative flex flex-col justify-between overflow-hidden rounded-xl bg-surface-1 border p-4 sm:p-5 transition-all duration-150 cursor-pointer select-none hover:-translate-y-0.5 hover:shadow-elevation-2 active:scale-[0.99] h-full ${config.border}`}
+      className={`group relative flex flex-col justify-between overflow-hidden rounded-2xl bg-surface-1 border p-5 sm:p-6 transition-all duration-200 cursor-pointer select-none hover:shadow-elevation-2 active:scale-[0.99] h-full ${config.border}`}
     >
       {/* ── 1. Cabecera de la tarjeta: Icono alineado y Tag Badge ── */}
-      <div className="flex items-center justify-between gap-2 mb-3">
-        <div className={`flex h-9 w-9 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-lg shadow-sm ${config.iconBox}`}>
+      <div className="flex items-center justify-between gap-2 mb-3.5">
+        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-sm ${config.iconBox}`}>
           {icon}
         </div>
         {tag && (
@@ -202,24 +202,24 @@ const AccessModule: React.FC<AccessModuleProps> = ({
 
       {/* ── 2. Cuerpo: Eyebrow + Título + Viñetas de función ── */}
       <div className="flex-1 flex flex-col justify-start">
-        <span className={`text-[10px] font-mono uppercase tracking-wider font-semibold ${config.eyebrow}`}>
+        <span className={`text-[10px] font-mono uppercase tracking-wider font-medium ${config.eyebrow}`}>
           {eyebrow}
         </span>
 
-        <div className="mt-0.5 font-display font-semibold text-base sm:text-lg text-[#f4f4f4] tracking-tight flex items-center justify-between gap-2">
+        <div className="mt-1 font-display font-medium text-lg sm:text-xl text-white tracking-tight flex items-center justify-between gap-2">
           <span>{title}</span>
           {locked && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-[#8d8d8d] bg-surface-2 px-1.5 py-0.5 rounded border border-white/10 shrink-0">
-              <Lock className="h-3 w-3 text-[#8d8d8d]" />
+            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-neutral-400 bg-surface-2 px-2 py-0.5 rounded-full border border-white/[0.08] shrink-0">
+              <Lock className="h-3 w-3 text-neutral-400" />
               <span>Bloqueado</span>
             </span>
           )}
         </div>
 
         {/* Lista de características (flex-1 para absorber cualquier diferencia de texto) */}
-        <div className="mt-2.5 flex flex-col gap-1.5 flex-1 min-h-[44px]">
+        <div className="mt-3 flex flex-col gap-1.5 flex-1 min-h-[44px]">
           {lines.map((line) => (
-            <div key={line} className="flex items-center gap-2 text-xs text-[#c6c6c6] leading-tight">
+            <div key={line} className="flex items-center gap-2 text-xs text-neutral-400 leading-tight">
               <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${config.dot}`} />
               <span className="truncate">{line}</span>
             </div>
@@ -228,7 +228,7 @@ const AccessModule: React.FC<AccessModuleProps> = ({
       </div>
 
       {/* ── 3. Glifo técnico idéntico para las 3 tarjetas ── */}
-      <div className="my-2.5 rounded-lg border border-white/[0.06] bg-[#12161f]/80 p-1 overflow-hidden h-9 sm:h-10 w-full shadow-inner">
+      <div className="my-3 rounded-xl border border-white/[0.05] bg-[#0E1013] p-1 overflow-hidden h-11 w-full">
         {glyph}
       </div>
 
@@ -245,7 +245,7 @@ const AccessModule: React.FC<AccessModuleProps> = ({
         >
           <span>{cta}</span>
           {locked ? (
-            <Sparkles className="h-3.5 w-3.5 text-[#ff7eb6] shrink-0" />
+            <Sparkles className="h-3.5 w-3.5 text-coach-light shrink-0" />
           ) : (
             <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-1 shrink-0" />
           )}
@@ -272,29 +272,29 @@ export const HomeView: React.FC<HomeViewProps> = ({
       className="relative flex-1 min-h-0 overflow-y-auto scroll-touch bg-canvas w-full flex flex-col justify-between"
     >
       <div className="relative mx-auto w-full max-w-6xl px-4 py-4 sm:px-6 sm:py-5 lg:px-8 lg:py-6 flex flex-col flex-1 justify-between min-h-full">
-        {/* ── Header de Marca y Hero (Sleek, Carbon-inspired & High Contrast) ── */}
-        <header className="relative flex flex-col items-center text-center mb-4 sm:mb-5">
-          <div className="flex justify-center mb-1.5">
+        {/* ── Header de Marca y Hero (Sleek, Bear-inspired & High Contrast) ── */}
+        <header className="relative flex flex-col items-center text-center mb-5 sm:mb-6">
+          <div className="flex justify-center mb-2">
             <SkateCoreoBrand size="md" />
           </div>
 
-          <h1 className="mt-0.5 font-display text-lg sm:text-2xl font-bold text-[#f4f4f4] tracking-tight max-w-[28ch]">
+          <h1 className="mt-1 font-display text-xl sm:text-2xl font-semibold text-white tracking-tight max-w-[28ch]">
             Tecnología para crear <span className="text-gradient-brand">el movimiento perfecto</span>.
           </h1>
 
-          <div className="mt-1 flex items-center gap-2 text-[10px] sm:text-xs font-mono font-medium uppercase tracking-[0.2em] text-[#8d8d8d]">
+          <div className="mt-1.5 flex items-center gap-2 text-[10px] sm:text-xs font-mono font-medium uppercase tracking-[0.16em] text-neutral-400">
             <span>Diseña</span>
-            <span className="text-[#0f62fe]">·</span>
+            <span className="text-ice-primary">·</span>
             <span>Sincroniza</span>
-            <span className="text-[#009d9a]">·</span>
+            <span className="text-studio-primary">·</span>
             <span>Visualiza</span>
-            <span className="text-[#ee5396]">·</span>
+            <span className="text-coach-primary">·</span>
             <span>Evalúa</span>
           </div>
         </header>
 
         {/* ── Cuadrícula de las 3 Tarjetas Principales (Proporciones 100% Idénticas) ── */}
-        <div className="relative grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-5 mb-4 items-stretch">
+        <div className="relative grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-5 mb-5 items-stretch">
           <AccessModule
             tone="blue"
             tag="Editor principal"
@@ -337,27 +337,27 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
 
         {/* ── Herramientas complementarias (Discretas y alineadas en el pie) ── */}
-        <div className="relative flex flex-col items-center gap-2 pb-1 pt-1 border-t border-white/[0.06]">
-          <span className="text-[10px] font-mono font-medium uppercase tracking-[0.2em] text-[#8d8d8d]">
+        <div className="relative flex flex-col items-center gap-2 pb-2 pt-3 border-t border-white/[0.06]">
+          <span className="text-[10px] font-mono font-medium uppercase tracking-[0.16em] text-neutral-400">
             Herramientas rápidas
           </span>
 
           <div className="flex w-full flex-wrap items-center justify-center gap-2 sm:w-auto">
             <Button variant="secondary" size="sm" onClick={onImportCoreo}>
-              <FolderOpen className="h-3.5 w-3.5 text-[#78a9ff]" />
+              <FolderOpen className="h-3.5 w-3.5 text-ice-primary" />
               <span>Importar .coreo</span>
             </Button>
 
             {onOpenPaperToDigital && (
               <Button variant="secondary" size="sm" onClick={onOpenPaperToDigital}>
-                <ScanLine className="h-3.5 w-3.5 text-[#3ddbd9]" />
+                <ScanLine className="h-3.5 w-3.5 text-studio-primary" />
                 <span>Digitalizar plantilla A4</span>
               </Button>
             )}
 
             {onOpenCoach && (
               <Button variant="secondary" size="sm" onClick={onOpenCoach}>
-                <Users className="h-3.5 w-3.5 text-[#ff7eb6]" />
+                <Users className="h-3.5 w-3.5 text-coach-primary" />
                 <span>Panel de Entrenadores</span>
               </Button>
             )}

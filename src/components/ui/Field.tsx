@@ -40,13 +40,13 @@ export const Field = React.forwardRef<HTMLInputElement, FieldProps>(
     const helperId = helperText ? `${inputId}-helper` : undefined;
 
     const borderFocusClass = error
-      ? 'border-[#da1e28] focus:border-[#da1e28] focus:ring-1 focus:ring-[#da1e28] text-white'
-      : 'border-white/[0.12] hover:border-white/20 focus:border-[#0f62fe] focus:ring-1 focus:ring-[#0f62fe] text-[#f4f4f4]';
+      ? 'border-[#ef4444] focus:border-[#ef4444] focus:ring-1 focus:ring-[#ef4444]/40 text-white'
+      : 'border-white/[0.08] hover:border-white/15 focus:border-[#2e7cf6] focus:ring-1 focus:ring-[#2e7cf6]/40 text-[#F7F8F9]';
 
     return (
       <div className="min-w-0 flex flex-col gap-1.5">
         {label && (
-          <label htmlFor={inputId} className="block text-xs font-medium text-[#c6c6c6] select-none">
+          <label htmlFor={inputId} className="block text-xs font-medium text-[#9CA3AF] select-none">
             {label}
           </label>
         )}
@@ -54,7 +54,7 @@ export const Field = React.forwardRef<HTMLInputElement, FieldProps>(
         <div className="relative flex items-center">
           {icon && (
             <span
-              className="absolute left-3 flex items-center pointer-events-none text-[#8d8d8d]"
+              className="absolute left-3 flex items-center pointer-events-none text-[#6B7280]"
               aria-hidden="true"
             >
               {icon}
@@ -67,7 +67,7 @@ export const Field = React.forwardRef<HTMLInputElement, FieldProps>(
             aria-invalid={Boolean(error)}
             aria-describedby={[errorId, helperId].filter(Boolean).join(' ') || undefined}
             className={[
-              'w-full bg-[#161b24] rounded-md py-2 text-xs text-[#f4f4f4] placeholder-[#8d8d8d] outline-none transition-colors border shadow-inner',
+              'w-full bg-[#181b20] rounded-lg py-2 text-xs text-[#F7F8F9] placeholder-[#6B7280] outline-none transition-colors border shadow-sm',
               icon ? 'pl-9' : 'pl-3',
               rightElement ? 'pr-9' : 'pr-3',
               borderFocusClass,
@@ -84,13 +84,13 @@ export const Field = React.forwardRef<HTMLInputElement, FieldProps>(
         </div>
 
         {error && (
-          <p id={errorId} role="alert" className="text-[11px] font-medium text-[#ff8389]">
+          <p id={errorId} role="alert" className="text-[11px] font-medium text-[#fca5a5]">
             {error}
           </p>
         )}
 
         {!error && helperText && (
-          <p id={helperId} className="text-[11px] text-[#8d8d8d]">
+          <p id={helperId} className="text-[11px] text-[#6B7280]">
             {helperText}
           </p>
         )}

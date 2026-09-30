@@ -599,35 +599,29 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
               title="Deshacer el último cambio de la coreografía"
               aria-label="Deshacer"
             >
-              <Undo2 className="h-3.5 w-3.5 shrink-0 text-coral" />
+              <Undo2 className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
               <span className="hidden sm:inline">Deshacer</span>
             </button>
           )}
           <button
             type="button"
             onClick={handleRewindToStart}
-            className="flex min-h-touch items-center justify-center gap-1.5 rounded-subtle border border-border-subtle bg-surface-hover/80 px-2.5 font-sans text-[11px] font-bold text-text-secondary press hover:bg-surface-active hover:text-text-primary sm:px-3"
+            className="flex min-h-[34px] items-center justify-center gap-1.5 rounded-lg border border-white/[0.07] bg-surface-2 px-2.5 font-sans text-xs font-medium text-neutral-300 press hover:bg-surface-3 hover:text-white transition-colors sm:px-3"
             title="Parar y volver al inicio del audio (00:00)"
             aria-label="Volver al inicio"
           >
             <SkipBack className="h-3.5 w-3.5 shrink-0" />
             <span className="hidden sm:inline">Volver al inicio</span>
           </button>
-          <span className="hidden h-5 w-px bg-white/10 sm:block" aria-hidden="true" />
+          <span className="hidden h-4 w-px bg-white/[0.08] sm:block" aria-hidden="true" />
 
-          {/* ── ENTRADA ÚNICA AL AUDIO STUDIO (Pista 2D) ──
-              Es la ÚNICA acción que abre el Studio en esta vista: no hay botón
-              duplicado en la barra de acciones ni en el mezclador. Semántica
-              clara (icono + texto completo en TODOS los tamaños), estado
-              `disabled` honesto cuando no hay audio en el visor, feedback táctil
-              (`press`) y accesibilidad. Al pulsar, el Studio recibe el snapshot
-              del audio publicado + sus nodos (ver `syncRinkSnapshotIntoStudio`). */}
+          {/* ── ENTRADA ÚNICA AL AUDIO STUDIO (Pista 2D) ── */}
           {onOpenStudio && (
             <button
               type="button"
               onClick={onOpenStudio}
               disabled={!canOpenStudio}
-              className="press flex min-h-touch items-center justify-center gap-1.5 rounded-subtle border border-[#0f62fe]/40 bg-[#0f62fe]/10 px-2.5 font-sans text-[11px] font-bold text-[#78a9ff] hover:bg-[#0f62fe]/20 disabled:pointer-events-none disabled:opacity-40 sm:px-3"
+              className="press flex min-h-[34px] items-center justify-center gap-1.5 rounded-lg border border-studio-primary/30 bg-studio-primary/10 px-2.5 font-sans text-xs font-medium text-studio-light hover:bg-studio-primary/20 disabled:pointer-events-none disabled:opacity-40 transition-colors sm:px-3"
               title={
                 canOpenStudio
                   ? 'Abrir el Audio Studio para cortar, mezclar y preparar la música'
@@ -645,11 +639,11 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
             <button
               type="button"
               onClick={() => setShowDeleteModal(true)}
-              className="press flex min-h-touch items-center justify-center gap-1.5 rounded-subtle border border-rose-500/25 bg-rose-500/10 px-2.5 font-sans text-[11px] font-bold text-rose-400 hover:bg-rose-500/20 hover:text-rose-300 transition-colors sm:px-3"
+              className="press flex min-h-[34px] items-center justify-center gap-1.5 rounded-lg border border-danger/25 bg-danger/10 px-2.5 font-sans text-xs font-medium text-red-300 hover:bg-danger/20 hover:text-white transition-colors sm:px-3"
               title="Eliminar la pista de audio cargada en el Visor de la Pista 2D"
               aria-label="Eliminar pista"
             >
-              <Trash2 className="h-3.5 w-3.5 shrink-0 text-rose-400" />
+              <Trash2 className="h-3.5 w-3.5 shrink-0 text-red-300" />
               <span className="hidden sm:inline">Eliminar pista</span>
             </button>
           )}
@@ -658,36 +652,36 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
           <button
             type="button"
             onClick={() => setIsMiniMixerOpen((prev) => !prev)}
-            className={`min-h-touch min-w-touch rounded-subtle flex items-center justify-center gap-1.5 border px-2.5 font-sans text-[11px] font-bold press lg:px-3 ${
+            className={`min-h-[34px] min-w-[34px] rounded-lg flex items-center justify-center gap-1.5 border px-2.5 font-sans text-xs font-medium press transition-colors lg:px-3 ${
               isMiniMixerOpen
-                ? 'border-[#0f62fe] bg-[#0f62fe]/15 text-white shadow-sm ring-1 ring-[#0f62fe]/30 font-bold'
-                : 'border-border-subtle bg-surface-hover/80 text-text-secondary hover:bg-surface-active hover:text-text-primary'
+                ? 'border-ice-primary/40 bg-ice-primary/15 text-white shadow-sm font-medium'
+                : 'border-white/[0.07] bg-surface-2 text-neutral-300 hover:bg-surface-3 hover:text-white'
             }`}
             title="Ajustar volúmenes independientes (Música Master, Metrónomo, Voces Guía)"
             aria-label="Abrir mezcla de audio"
           >
-            <Sliders className="h-3.5 w-3.5 text-[#78a9ff]" />
+            <Sliders className="h-3.5 w-3.5 text-ice-primary" />
             <span className="hidden lg:inline">Mezcla</span>
-            <span className="hidden font-mono text-[9px] text-text-tertiary xl:inline">
+            <span className="hidden font-mono text-[9px] text-neutral-400 xl:inline">
               {musicMuted ? 'M' : `${Math.round(musicVolume * 100)}%`}
             </span>
           </button>
 
-          {/* Botones de Zoom In / Zoom Out / Reset (48x48px; 36px en landscape para ceder altura al canvas) */}
-          <div className="flex items-center gap-0.5 rounded-subtle border border-border-subtle bg-surface-hover/80 p-0.5">
+          {/* Botones de Zoom In / Zoom Out / Reset */}
+          <div className="flex items-center gap-0.5 rounded-lg border border-white/[0.07] bg-surface-2 p-0.5">
             <button
               type="button"
               onClick={() => zoomOut()}
               disabled={zoom <= 1.01}
-              className="flex min-h-touch min-w-touch items-center justify-center rounded text-text-secondary press hover:bg-surface-active hover:text-text-primary disabled:pointer-events-none disabled:opacity-25"
+              className="flex h-7 w-7 items-center justify-center rounded text-neutral-400 press hover:bg-surface-3 hover:text-white disabled:pointer-events-none disabled:opacity-25 transition-colors"
               title="Alejar (Ctrl + Rueda abajo)"
               aria-label="Alejar"
             >
-              <ZoomOut className="h-4 w-4" />
+              <ZoomOut className="h-3.5 w-3.5" />
             </button>
 
             <span
-              className="hidden min-w-[34px] px-1 text-center font-mono text-[10px] font-bold text-accent lg:inline"
+              className="hidden min-w-[32px] px-1 text-center font-mono text-[10px] font-medium text-ice-light lg:inline"
               title="Factor de zoom horizontal actual"
             >
               {zoom.toFixed(1)}x
@@ -697,18 +691,18 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
               type="button"
               onClick={() => zoomIn()}
               disabled={zoom >= 34.9}
-              className="flex min-h-touch min-w-touch items-center justify-center rounded text-text-secondary press hover:bg-surface-active hover:text-text-primary disabled:pointer-events-none disabled:opacity-25"
+              className="flex h-7 w-7 items-center justify-center rounded text-neutral-400 press hover:bg-surface-3 hover:text-white disabled:pointer-events-none disabled:opacity-25 transition-colors"
               title="Acercar (Ctrl + Rueda arriba o Pellizco)"
               aria-label="Acercar"
             >
-              <ZoomIn className="h-4 w-4" />
+              <ZoomIn className="h-3.5 w-3.5" />
             </button>
 
             {zoom > 1.05 && (
               <button
                 type="button"
                 onClick={resetZoom}
-                className="flex min-h-touch min-w-touch items-center justify-center gap-0.5 rounded bg-accent/15 px-1 text-[9px] font-bold text-accent press hover:bg-accent/25"
+                className="flex h-7 px-1.5 items-center justify-center gap-0.5 rounded bg-ice-primary/15 text-[9px] font-medium text-ice-light border border-ice-primary/30 press hover:bg-ice-primary/25 transition-colors"
                 title="Restablecer a vista completa (1x)"
                 aria-label="Restablecer zoom"
               >
@@ -723,7 +717,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
       {/* ── Contenedor del Track Desplazable (Scroll & Paneo Nativo Horizontal) ── */}
       <div
         ref={trackRef}
-        className="relative w-full flex-1 min-h-0 overflow-x-auto overflow-y-hidden rounded-subtle border border-border-subtle bg-surface-card group mt-1"
+        className="relative w-full flex-1 min-h-0 overflow-x-auto overflow-y-hidden rounded-xl border border-white/[0.07] bg-[#0E1013] group mt-1"
         style={{
           overflowX: 'auto',
           overflowY: 'hidden',
@@ -746,7 +740,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
             height: '100%',
             cursor: 'crosshair',
           }}
-          className="h-full block select-none rounded-subtle"
+          className="h-full block select-none rounded-xl"
           title="Línea de tiempo de audio. Ctrl + Scroll o Pellizco para Zoom. Toca para reproducir. Arrastra marcadores para sincronizar."
         />
 

@@ -364,16 +364,18 @@ export const AudioTimeRuler: React.FC<AudioTimeRulerProps> = ({
                 'sm:max-w-none sm:gap-1 sm:px-2',
                 isDragging ? 'scale-110 z-40' : '',
                 isSelected
-                  ? 'bg-[#0f62fe] text-white font-bold border-white/60 shadow-sm ring-1 ring-[#0f62fe]/40'
-                  : 'bg-surface-2 text-[#78a9ff] border-[#0f62fe]/40 hover:border-[#0f62fe]',
+                  ? 'bg-ice-primary text-white font-medium border-ice-primary/60 shadow-subtle'
+                  : 'bg-surface-2 text-ice-primary border-ice-primary/30 hover:border-ice-primary/50',
               ].join(' ')}
               style={{ left: `${leftPx}px`, touchAction: 'none' }}
               title={`Nodo ${node.numeroSecuencial} · ${node.timestampSec.toFixed(3)}s (Arrastra para mover)`}
             >
-              <span className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-bold bg-[#0f62fe]/20 text-[#78a9ff] shrink-0 sm:w-4 sm:h-4 sm:text-[10px]">
+              <span className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-semibold shrink-0 sm:w-4 sm:h-4 sm:text-[10px] ${
+                isSelected ? 'bg-white/20 text-white' : 'bg-ice-primary/10 text-ice-primary'
+              }`}>
                 {node.numeroSecuencial}
               </span>
-              <span className="truncate text-[9px] font-mono font-bold whitespace-nowrap sm:text-[10px]">
+              <span className="truncate text-[9px] font-mono font-medium whitespace-nowrap sm:text-[10px]">
                 {formattedTime}
               </span>
 

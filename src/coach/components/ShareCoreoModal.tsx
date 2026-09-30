@@ -105,29 +105,31 @@ export const ShareCoreoModal: React.FC<ShareCoreoModalProps> = ({
   const canShareFiles = typeof navigator !== 'undefined' && !!navigator.share;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-      <div className="w-full max-w-md bg-surface-2 border border-white/[0.08] rounded-3xl p-6 shadow-2xl space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-white/10">
-          <div className="flex items-center gap-2 text-[#78a9ff] font-bold text-sm">
-            <Share2 className="w-4 h-4 text-[#78a9ff]" />
-            <span>Compartir Coreografía (.coreo)</span>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-canvas/80 backdrop-blur-md animate-fade-in">
+      <div className="w-full max-w-md bg-surface-2 border border-white/[0.08] rounded-2xl p-6 shadow-elevation-2 space-y-4">
+        <div className="flex items-center justify-between pb-3.5 border-b border-white/[0.07]">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-coach-rose/10 text-coach-rose border border-coach-rose/20">
+              <Share2 className="w-4 h-4 stroke-[1.75]" />
+            </div>
+            <span className="font-semibold text-sm text-white">Compartir Coreografía (.coreo)</span>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-xl hover:bg-white/10 text-slate-400 hover:text-white"
+            className="p-1.5 rounded-lg hover:bg-white/[0.06] text-neutral-400 hover:text-white transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="bg-surface-1 border border-white/5 rounded-2xl p-4 space-y-2">
-          <div className="text-xs text-slate-400">Archivo:</div>
-          <div className="font-mono text-xs font-bold text-white truncate" title={fileName}>
+        <div className="bg-surface-1 border border-white/[0.06] rounded-xl p-3.5 space-y-1.5">
+          <div className="text-xs text-neutral-400 font-medium">Archivo:</div>
+          <div className="font-mono text-xs font-medium text-white truncate" title={fileName}>
             {fileName}
           </div>
-          <div className="text-[11px] text-slate-400">
-            Atleta: <span className="text-slate-200 font-semibold">{athleteName}</span>
+          <div className="text-[11px] text-neutral-400">
+            Atleta: <span className="text-neutral-200 font-medium">{athleteName}</span>
           </div>
         </div>
 
@@ -135,8 +137,8 @@ export const ShareCoreoModal: React.FC<ShareCoreoModalProps> = ({
           <div
             className={`p-3 rounded-xl border text-xs flex items-center gap-2 ${
               feedback.isError
-                ? 'bg-[#da1e28]/15 border-[#da1e28]/40 text-[#fa4d56]'
-                : 'bg-[#198038]/20 border-[#24a148]/30 text-[#42be65]'
+                ? 'bg-danger/10 border-danger/30 text-red-200'
+                : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
             }`}
           >
             <AlertCircle className="w-4 h-4 shrink-0" />
@@ -144,14 +146,14 @@ export const ShareCoreoModal: React.FC<ShareCoreoModalProps> = ({
           </div>
         )}
 
-        <div className="space-y-2.5 pt-1">
+        <div className="space-y-2 pt-1">
           {canShareFiles && (
             <button
               type="button"
               onClick={handleNativeShare}
-              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[#0f62fe] text-white font-bold text-xs shadow-sm hover:bg-[#0353e9] transition-all interactive-tap"
+              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-coach-rose hover:bg-coach-rose/90 text-white font-medium text-xs shadow-elevation-1 transition-colors"
             >
-              <Share2 className="w-4 h-4" />
+              <Share2 className="w-4 h-4 stroke-[1.75]" />
               <span>Compartir con el Dispositivo (WhatsApp, AirDrop, etc.)</span>
             </button>
           )}
@@ -159,23 +161,27 @@ export const ShareCoreoModal: React.FC<ShareCoreoModalProps> = ({
           <button
             type="button"
             onClick={handleDownload}
-            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-white/[0.06] hover:bg-white/10 border border-white/10 text-slate-200 text-xs font-bold transition-all interactive-tap"
+            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-surface-1 hover:bg-surface-3 border border-white/[0.08] text-neutral-200 text-xs font-medium transition-colors"
           >
-            <Download className="w-4 h-4 text-[#78a9ff]" />
+            <Download className="w-4 h-4 text-ice-light stroke-[1.75]" />
             <span>Descargar archivo .coreo en este equipo</span>
           </button>
 
           <button
             type="button"
             onClick={handleMailto}
-            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] border border-white/5 text-slate-300 text-xs font-semibold transition-all interactive-tap"
+            className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-xl bg-transparent hover:bg-white/[0.04] border border-white/[0.06] text-neutral-400 hover:text-neutral-200 text-xs font-medium transition-colors"
           >
-            {copiedMail ? <Check className="w-4 h-4 text-[#42be65]" /> : <Mail className="w-4 h-4 text-slate-400" />}
+            {copiedMail ? (
+              <Check className="w-4 h-4 text-emerald-400" />
+            ) : (
+              <Mail className="w-4 h-4 text-neutral-400" />
+            )}
             <span>Preparar correo electrónico con plantilla</span>
           </button>
         </div>
 
-        <p className="text-[10px] text-slate-500 text-center pt-2">
+        <p className="text-[11px] text-neutral-500 text-center pt-2 leading-relaxed">
           El archivo conserva su formato .coreo completo con música, trazado 2D y figuras técnicas para abrirse en SkateCoreo.
         </p>
       </div>

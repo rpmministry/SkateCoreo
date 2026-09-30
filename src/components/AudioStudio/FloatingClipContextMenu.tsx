@@ -169,7 +169,7 @@ export const FloatingClipContextMenu: React.FC = () => {
   return (
     <div
       ref={menuRef}
-      className="fixed z-50 flex items-center gap-0.5 p-1 rounded-full bg-zinc-950/95 border border-white/15 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100 max-w-[calc(100vw-1rem)] overflow-x-auto no-scrollbar"
+      className="fixed z-50 flex items-center gap-0.5 p-1 rounded-xl bg-surface-1 border border-white/[0.08] shadow-elevation backdrop-blur-md animate-in fade-in zoom-in-95 duration-100 max-w-[calc(100vw-1rem)] overflow-x-auto no-scrollbar"
       style={{
         // Antes de medir se mantiene invisible para evitar parpadeo en la esquina
         left: `${pos?.left ?? 0}px`,
@@ -179,7 +179,7 @@ export const FloatingClipContextMenu: React.FC = () => {
       onPointerDown={(e) => e.stopPropagation()}
     >
       {notice ? (
-        <span className="px-3 h-8 flex items-center text-[11px] font-bold text-amber-300 whitespace-nowrap">
+        <span className="px-3 h-8 flex items-center text-[11px] font-medium text-amber-300 whitespace-nowrap">
           {notice}
         </span>
       ) : (
@@ -188,10 +188,10 @@ export const FloatingClipContextMenu: React.FC = () => {
       <button
         type="button"
         onClick={handleSelect}
-        className="h-8 px-2.5 rounded-full flex items-center gap-1 text-[11px] font-bold text-slate-200 hover:text-white hover:bg-white/10 transition-colors"
+        className="h-8 px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.06] transition-colors"
         title="Seleccionar clip"
       >
-        <Check className="w-3.5 h-3.5 text-[#78a9ff]" />
+        <Check className="w-3.5 h-3.5 text-ice-primary" />
         <span>Elegir</span>
       </button>
 
@@ -199,7 +199,7 @@ export const FloatingClipContextMenu: React.FC = () => {
       <button
         type="button"
         onClick={handleCopy}
-        className="h-8 px-2.5 rounded-full flex items-center gap-1 text-[11px] font-bold text-slate-200 hover:text-white hover:bg-white/10 transition-colors"
+        className="h-8 px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.06] transition-colors"
         title="Copiar clip al portapapeles"
       >
         <Copy className="w-3.5 h-3.5 text-amber-400" />
@@ -210,10 +210,10 @@ export const FloatingClipContextMenu: React.FC = () => {
       <button
         type="button"
         onClick={handleSplit}
-        className="h-8 px-2.5 rounded-full flex items-center gap-1 text-[11px] font-bold text-slate-200 hover:text-white hover:bg-white/10 transition-colors"
+        className="h-8 px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.06] transition-colors"
         title="Dividir en el cabezal de reproducción"
       >
-        <Scissors className="w-3.5 h-3.5 text-mint" />
+        <Scissors className="w-3.5 h-3.5 text-studio-mint" />
         <span>Dividir</span>
       </button>
 
@@ -221,10 +221,10 @@ export const FloatingClipContextMenu: React.FC = () => {
       <button
         type="button"
         onClick={handlePaste}
-        className="h-8 px-2.5 rounded-full flex items-center gap-1 text-[11px] font-bold text-slate-200 hover:text-white hover:bg-white/10 transition-colors"
+        className="h-8 px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-white hover:bg-white/[0.06] transition-colors"
         title="Pegar clip"
       >
-        <ClipboardPaste className="w-3.5 h-3.5 text-blue-400" />
+        <ClipboardPaste className="w-3.5 h-3.5 text-ice-primary" />
         <span>Pegar</span>
       </button>
 
@@ -232,10 +232,10 @@ export const FloatingClipContextMenu: React.FC = () => {
       <button
         type="button"
         onClick={handleDelete}
-        className="h-8 px-2.5 rounded-full flex items-center gap-1 text-[11px] font-bold text-rose-300 hover:text-rose-100 hover:bg-rose-500/20 transition-colors"
+        className="h-8 px-2.5 rounded-lg flex items-center gap-1.5 text-xs font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors"
         title="Eliminar clip"
       >
-        <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+        <Trash2 className="w-3.5 h-3.5 text-red-400" />
         <span>Borrar</span>
       </button>
 
@@ -243,7 +243,7 @@ export const FloatingClipContextMenu: React.FC = () => {
       <button
         type="button"
         onClick={closeContextMenu}
-        className="h-8 w-7 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10"
+        className="h-8 w-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/[0.06] transition-colors"
         title="Cerrar menú"
       >
         <X className="w-3.5 h-3.5" />

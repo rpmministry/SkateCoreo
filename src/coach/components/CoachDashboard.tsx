@@ -74,24 +74,24 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({
   };
 
   return (
-    <div className="space-y-6 animate-fade-in text-white pb-12">
+    <div className="space-y-5 animate-fade-in text-white pb-12">
       {/* Saludo y acciones rápidas */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-6 rounded-3xl bg-surface-1 border border-white/[0.08] border border-[#0f62fe]/20 shadow-elevation-1 rounded-2xl">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 sm:p-6 rounded-2xl bg-surface-1 border border-white/[0.06] shadow-subtle">
         <div>
-          <h2 className="text-xl font-black text-white tracking-tight">
+          <h2 className="text-lg font-semibold text-white tracking-normal">
             Bienvenido, {profile?.name || 'Entrenador/a'}
           </h2>
-          <p className="text-xs text-slate-300 mt-1 max-w-xl">
+          <p className="text-xs text-slate-400 mt-1 max-w-xl font-normal leading-relaxed">
             Gestiona tus atletas, fichas deportivas y archivos .coreo con persistencia local y sincronización en tu nube personal sin pasar por Supabase Storage.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <Button
-            variant="cobalt"
+            variant="primary"
             size="sm"
             onClick={onRegisterAthlete}
-            icon={<Plus className="w-4 h-4 stroke-[2.5]" />}
+            icon={<Plus className="w-4 h-4 stroke-[2]" />}
           >
             Nueva Atleta
           </Button>
@@ -99,18 +99,18 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({
       </div>
 
       {/* Tarjetas KPI principales */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         {/* Atletas Registrados */}
         <div
           onClick={onNavigateToAthletes}
-          className="p-5 rounded-2xl bg-surface-2 border border-white/[0.08] shadow-elevation-1 space-y-2 cursor-pointer hover:border-[#0f62fe]/40 transition-all group"
+          className="p-4 rounded-xl bg-surface-1 border border-white/[0.06] shadow-subtle space-y-2 cursor-pointer hover:border-white/[0.12] hover:bg-surface-2 transition-all group"
         >
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[10px] font-black uppercase tracking-wider">Mis Atletas</span>
-            <Users className="w-4 h-4 text-[#78a9ff]" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider">Mis Atletas</span>
+            <Users className="w-4 h-4 text-coach-rose" />
           </div>
-          <div className="text-3xl font-black text-white font-mono">{athletes.length}</div>
-          <div className="text-[11px] text-slate-400 flex items-center justify-between group-hover:text-[#78a9ff] transition-colors">
+          <div className="text-2xl font-semibold text-white font-mono">{athletes.length}</div>
+          <div className="text-[11px] text-slate-400 flex items-center justify-between group-hover:text-coach-rose transition-colors">
             <span>Ver directorio completo</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </div>
@@ -119,16 +119,16 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({
         {/* Almacenamiento */}
         <div
           onClick={onNavigateToStorage}
-          className="p-5 rounded-2xl bg-surface-2 border border-white/[0.08] shadow-elevation-1 space-y-2 cursor-pointer hover:border-mint/40 transition-all group"
+          className="p-4 rounded-xl bg-surface-1 border border-white/[0.06] shadow-subtle space-y-2 cursor-pointer hover:border-white/[0.12] hover:bg-surface-2 transition-all group"
         >
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[10px] font-black uppercase tracking-wider">Almacenamiento</span>
-            <HardDrive className="w-4 h-4 text-[#3ddbd9]" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider">Almacenamiento</span>
+            <HardDrive className="w-4 h-4 text-studio-mint" />
           </div>
-          <div className="text-2xl font-black text-white font-mono">
+          <div className="text-2xl font-semibold text-white font-mono">
             {formatSize(storageSummary?.totalStorageBytes || 0)}
           </div>
-          <div className="text-[11px] text-slate-400 flex items-center justify-between group-hover:text-mint transition-colors">
+          <div className="text-[11px] text-slate-400 flex items-center justify-between group-hover:text-studio-mint transition-colors">
             <span className="capitalize">
               {storageSummary?.activeProvider === 'local' ? '100% Local (IndexedDB)' : storageSummary?.activeProvider}
             </span>
@@ -137,18 +137,18 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({
         </div>
 
         {/* Estado Sincronización */}
-        <div className="p-5 rounded-2xl bg-surface-2 border border-white/[0.08] shadow-elevation-1 space-y-2">
+        <div className="p-4 rounded-xl bg-surface-1 border border-white/[0.06] shadow-subtle space-y-2">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[10px] font-black uppercase tracking-wider">Sincronización</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wider">Sincronización</span>
             <FolderSync className="w-4 h-4 text-amber-400" />
           </div>
-          <div className="text-sm font-bold text-slate-200">
+          <div className="text-sm font-medium text-slate-200">
             {storageSummary?.syncState === 'synced' ? (
-              <span className="text-mint flex items-center gap-1.5 font-bold">
+              <span className="text-studio-mint flex items-center gap-1.5 font-medium">
                 <CheckCircle2 className="w-4 h-4" /> Al día con la nube
               </span>
             ) : storageSummary?.pendingSyncCount ? (
-              <span className="text-amber-400 font-bold">
+              <span className="text-amber-400 font-medium">
                 {storageSummary.pendingSyncCount} pendientes
               </span>
             ) : (
@@ -159,7 +159,7 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({
             type="button"
             onClick={() => syncAllToCloud()}
             disabled={isLoading || storageSummary?.activeProvider === 'local'}
-            className="text-[11px] text-[#78a9ff] font-bold hover:underline flex items-center gap-1 disabled:opacity-40"
+            className="text-[11px] text-ice-primary font-medium hover:underline flex items-center gap-1 disabled:opacity-40"
           >
             <RefreshCw className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} />
             <span>Sincronizar ahora</span>
@@ -169,16 +169,16 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({
         {/* Último Backup */}
         <div
           onClick={onNavigateToBackup}
-          className="p-5 rounded-2xl bg-surface-2 border border-white/[0.08] shadow-elevation-1 space-y-2 cursor-pointer hover:border-coral/40 transition-all group"
+          className="p-4 rounded-xl bg-surface-1 border border-white/[0.06] shadow-subtle space-y-2 cursor-pointer hover:border-white/[0.12] hover:bg-surface-2 transition-all group"
         >
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[10px] font-black uppercase tracking-wider">Último Respaldo</span>
-            <Archive className="w-4 h-4 text-[#ff7eb6]" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider">Último Respaldo</span>
+            <Archive className="w-4 h-4 text-coach-rose" />
           </div>
-          <div className="text-xs font-bold text-white truncate">
+          <div className="text-xs font-medium text-white truncate">
             {formatTime(profile?.lastBackupDate)}
           </div>
-          <div className="text-[11px] text-slate-400 flex items-center justify-between group-hover:text-coral transition-colors">
+          <div className="text-[11px] text-slate-400 flex items-center justify-between group-hover:text-coach-rose transition-colors">
             <span>Gestionar copias ZIP</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </div>
@@ -186,22 +186,22 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({
       </div>
 
       {/* Desglose por Categorías del Reglamento 2026 */}
-      <div className="p-6 rounded-2xl bg-surface-2 border border-white/[0.08] shadow-elevation-1 space-y-4">
+      <div className="p-5 rounded-2xl bg-surface-1 border border-white/[0.06] shadow-subtle space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+          <h3 className="text-xs font-semibold text-white uppercase tracking-wider">
             Distribución por Categorías Oficiales 2026
           </h3>
           <span className="text-xs text-slate-400">Reglamento Nacional RollArt</span>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
           {Object.entries(categoryStats).map(([cat, count]) => (
             <div
               key={cat}
-              className="p-3.5 rounded-xl bg-surface-1 border border-white/[0.06] flex flex-col items-center text-center space-y-1"
+              className="p-3 rounded-xl bg-surface-2/60 border border-white/[0.06] flex flex-col items-center text-center space-y-1"
             >
-              <span className="font-mono text-xs font-bold text-[#78a9ff]">{cat}</span>
-              <span className="text-2xl font-black text-white font-mono">{count}</span>
+              <span className="font-mono text-xs font-semibold text-ice-primary">{cat}</span>
+              <span className="text-xl font-semibold text-white font-mono">{count}</span>
               <span className="text-[10px] text-slate-400">atletas</span>
             </div>
           ))}
@@ -209,15 +209,15 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({
       </div>
 
       {/* Atletas Recientes */}
-      <div className="p-6 rounded-2xl bg-surface-2 border border-white/[0.08] shadow-elevation-1 space-y-4">
+      <div className="p-5 rounded-2xl bg-surface-1 border border-white/[0.06] shadow-subtle space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+          <h3 className="text-xs font-semibold text-white uppercase tracking-wider">
             Atletas Recientes
           </h3>
           <button
             type="button"
             onClick={onNavigateToAthletes}
-            className="text-xs text-[#78a9ff] font-bold hover:underline"
+            className="text-xs text-coach-rose font-medium hover:underline"
           >
             Ver todos ({athletes.length})
           </button>
@@ -228,24 +228,24 @@ export const CoachDashboard: React.FC<CoachDashboardProps> = ({
             Aún no has registrado ningún atleta. Haz clic en "Nueva Atleta" para comenzar.
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
             {athletes.slice(0, 6).map((athlete) => (
               <div
                 key={athlete.id}
                 onClick={() => onSelectAthlete(athlete)}
-                className="p-3.5 rounded-2xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/5 flex items-center justify-between cursor-pointer transition-all group"
+                className="p-3.5 rounded-xl bg-surface-2/60 hover:bg-surface-2 border border-white/[0.06] flex items-center justify-between cursor-pointer transition-all group"
               >
                 <div>
-                  <h4 className="font-bold text-sm text-white group-hover:text-[#78a9ff] transition-colors">
+                  <h4 className="font-medium text-sm text-white group-hover:text-coach-rose transition-colors">
                     {athlete.name}
                   </h4>
                   <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
-                    <span className="font-mono text-amber-300 font-bold">{athlete.category}</span>
+                    <span className="font-mono text-amber-300 font-medium">{athlete.category}</span>
                     <span>• {athlete.age} años</span>
                   </div>
                 </div>
 
-                <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-[#78a9ff] transition-colors" />
+                <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-coach-rose transition-colors" />
               </div>
             ))}
           </div>

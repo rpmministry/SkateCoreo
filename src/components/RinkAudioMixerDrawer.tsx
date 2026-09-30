@@ -89,72 +89,72 @@ export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
         - Landscape / Desktop: Sidebar Drawer (sm:h-full sm:w-96 sm:rounded-l-3xl sm:rounded-tr-none)
       */}
       <div
-        className="w-full lg:w-96 max-h-[85vh] lg:max-h-full lg:h-full bg-zinc-950/95 border-t lg:border-t-0 lg:border-l border-white/15 rounded-t-3xl lg:rounded-t-none lg:rounded-l-3xl shadow-2xl flex flex-col p-5 pb-8 lg:p-6 backdrop-blur-xl animate-in slide-in-from-bottom lg:slide-in-from-right duration-250 select-none overflow-y-auto"
+        className="w-full lg:w-96 max-h-[85vh] lg:max-h-full lg:h-full bg-surface-1 border-t lg:border-t-0 lg:border-l border-white/[0.08] rounded-t-3xl lg:rounded-t-none lg:rounded-l-3xl shadow-elevation flex flex-col p-5 pb-8 lg:p-6 select-none overflow-y-auto"
         style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom, 2rem))' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Tirador visual de arrastre exclusivo del bottom sheet móvil/tablet */}
-        <div className="w-12 h-1.5 bg-white/25 rounded-full mx-auto mb-4 lg:hidden shrink-0" />
+        <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-4 lg:hidden shrink-0" />
 
         {/* Cabecera del Mezclador */}
-        <div className="flex items-center justify-between pb-4 border-b border-white/10 shrink-0">
+        <div className="flex items-center justify-between pb-4 border-b border-white/[0.06] shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-full bg-[#0f62fe]/15 border border-[#0f62fe]/30 flex items-center justify-center text-[#78a9ff]">
+            <div className="w-8 h-8 rounded-lg bg-ice-primary/10 border border-ice-primary/20 flex items-center justify-center text-ice-primary">
               <Sliders className="w-4 h-4" />
             </div>
             <div>
-              <h2 id="mixer-title" className="text-base font-black text-white tracking-wide">
+              <h2 id="mixer-title" className="text-sm font-semibold text-white tracking-normal">
                 Mezcla de Audio
               </h2>
-              <span className="text-[11px] font-mono text-[#78a9ff]">Pista 2D · SkateCoreo</span>
+              <span className="text-[11px] font-mono text-slate-400">Pista 2D · SkateCoreo</span>
             </div>
           </div>
 
-          {/* Botón de Cierre accesible (48x48px mínimo) */}
+          {/* Botón de Cierre accesible (44x44px mínimo) */}
           <button
             type="button"
             onClick={onClose}
-            className="w-12 h-12 min-w-touch min-h-touch rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors active:scale-95"
+            className="w-9 h-9 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/[0.06] transition-colors"
             aria-label="Cerrar panel de mezcla"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* ── LISTADO DE CANALES DE VOLUMEN (Áreas táctiles >= 48px) ── */}
-        <div className="flex flex-col gap-4 my-auto py-4">
+        <div className="flex flex-col gap-3 my-auto py-4">
           {/* Canal 1: Música Master */}
-          <div className="flex flex-col gap-2 p-3.5 rounded-2xl bg-zinc-900/80 border border-white/10">
+          <div className="flex flex-col gap-2 p-3 rounded-xl bg-surface-2/60 border border-white/[0.06]">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <Music className="w-4 h-4 text-[#78a9ff]" />
-                <span className="text-xs font-black text-white uppercase tracking-wider">
+              <div className="flex items-center gap-2">
+                <Music className="w-4 h-4 text-ice-primary" />
+                <span className="text-xs font-semibold text-white">
                   Música Master
                 </span>
               </div>
-              <span className={`font-mono text-xs font-bold ${musicMuted ? 'text-rose-400' : 'text-[#78a9ff]'}`}>
+              <span className={`font-mono text-xs font-medium ${musicMuted ? 'text-red-400' : 'text-ice-primary'}`}>
                 {musicMuted ? 'SILENCIADO' : `${Math.round(musicVolume * 100)}%`}
               </span>
             </div>
 
             <div className="flex items-center gap-3">
-              {/* Botón Mute Accesible (48x48px) */}
+              {/* Botón Mute Accesible (44x44px) */}
               <button
                 type="button"
                 {...press(handleMusicMuteToggle)}
-                className={`w-12 h-12 min-w-touch min-h-touch rounded-xl flex items-center justify-center transition-all active:scale-95 shadow-sm ${
+                className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all shadow-subtle ${
                   musicMuted 
-                    ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40' 
-                    : 'bg-[#0f62fe]/15 text-[#78a9ff] border border-[#0f62fe]/30 hover:bg-[#0f62fe]/25'
+                    ? 'bg-red-500/15 text-red-400 border border-red-500/30' 
+                    : 'bg-ice-primary/10 text-ice-primary border border-ice-primary/20 hover:bg-ice-primary/20'
                 }`}
                 title={musicMuted ? 'Activar sonido de Música' : 'Silenciar Música'}
                 aria-label={musicMuted ? 'Activar sonido de Música' : 'Silenciar Música'}
               >
-                {musicMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+                {musicMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
               </button>
 
-              {/* Slider Ergonómico (48px hit height) */}
-              <div className="flex-1 h-12 flex items-center">
+              {/* Slider Ergonómico */}
+              <div className="flex-1 h-10 flex items-center">
                 <input
                   type="range"
                   min="0"
@@ -162,7 +162,7 @@ export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
                   step="0.01"
                   value={musicMuted ? 0 : musicVolume}
                   onChange={(e) => handleMusicVolumeChange(parseFloat(e.target.value))}
-                  className="w-full h-2.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-[#0f62fe]"
+                  className="w-full h-2 bg-surface-3 rounded-lg appearance-none cursor-pointer accent-[#2E7CF6]"
                   aria-label="Volumen de Música Master"
                 />
               </div>
@@ -170,37 +170,37 @@ export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
           </div>
 
           {/* Canal 2: Voces Guía (Cues Coreográficos) */}
-          <div className="flex flex-col gap-2 p-3.5 rounded-2xl bg-zinc-900/80 border border-white/10">
+          <div className="flex flex-col gap-2 p-3 rounded-xl bg-surface-2/60 border border-white/[0.06]">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <Mic className="w-4 h-4 text-fuchsia-400" />
-                <span className="text-xs font-black text-white uppercase tracking-wider">
+              <div className="flex items-center gap-2">
+                <Mic className="w-4 h-4 text-studio-mint" />
+                <span className="text-xs font-semibold text-white">
                   Voces Guía (Cues)
                 </span>
               </div>
-              <span className={`font-mono text-xs font-bold ${voiceMuted ? 'text-rose-400' : 'text-fuchsia-400'}`}>
+              <span className={`font-mono text-xs font-medium ${voiceMuted ? 'text-red-400' : 'text-studio-mint'}`}>
                 {voiceMuted ? 'SILENCIADO' : `${Math.round(voiceVolume * 100)}%`}
               </span>
             </div>
 
             <div className="flex items-center gap-3">
-              {/* Botón Mute Accesible (48x48px) */}
+              {/* Botón Mute Accesible */}
               <button
                 type="button"
                 {...press(toggleVoiceGuideMute)}
-                className={`w-12 h-12 min-w-touch min-h-touch rounded-xl flex items-center justify-center transition-all active:scale-95 shadow-sm ${
+                className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all shadow-subtle ${
                   voiceMuted 
-                    ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40' 
-                    : 'bg-fuchsia-500/15 text-fuchsia-400 border border-fuchsia-500/30 hover:bg-fuchsia-500/25'
+                    ? 'bg-red-500/15 text-red-400 border border-red-500/30' 
+                    : 'bg-studio-mint/10 text-studio-mint border border-studio-mint/20 hover:bg-studio-mint/20'
                 }`}
                 title={voiceMuted ? 'Activar Voces Guía' : 'Silenciar Voces Guía'}
                 aria-label={voiceMuted ? 'Activar Voces Guía' : 'Silenciar Voces Guía'}
               >
-                {voiceMuted ? <VolumeX className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                {voiceMuted ? <VolumeX className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
               </button>
 
-              {/* Slider Ergonómico (48px hit height) */}
-              <div className="flex-1 h-12 flex items-center">
+              {/* Slider Ergonómico */}
+              <div className="flex-1 h-10 flex items-center">
                 <input
                   type="range"
                   min="0"
@@ -208,7 +208,7 @@ export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
                   step="0.01"
                   value={voiceMuted ? 0 : voiceVolume}
                   onChange={(e) => setVoiceGuideVolume(parseFloat(e.target.value))}
-                  className="w-full h-2.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-fuchsia-400"
+                  className="w-full h-2 bg-surface-3 rounded-lg appearance-none cursor-pointer accent-[#0D9488]"
                   aria-label="Volumen de Voces Guía"
                 />
               </div>
@@ -216,38 +216,38 @@ export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
           </div>
 
           {/* Canal 3: Metrónomo */}
-          <div className="flex flex-col gap-2 p-3.5 rounded-2xl bg-zinc-900/80 border border-white/10">
+          <div className="flex flex-col gap-2 p-3 rounded-xl bg-surface-2/60 border border-white/[0.06]">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-2">
                 <Bell className={`w-4 h-4 transition-colors ${isMetroActive ? 'text-amber-400' : 'text-slate-500'}`} />
-                <span className="text-xs font-black text-white uppercase tracking-wider">
+                <span className="text-xs font-semibold text-white">
                   Metrónomo Sintético
                 </span>
               </div>
-              <span className={`font-mono text-xs font-bold ${isMetroActive ? 'text-amber-400' : 'text-slate-500'}`}>
+              <span className={`font-mono text-xs font-medium ${isMetroActive ? 'text-amber-400' : 'text-slate-500'}`}>
                 {isMetroActive ? `${Math.round(metronomeVolume * 100)}%` : 'INACTIVO'}
               </span>
             </div>
 
             <div className="flex items-center gap-3">
-              {/* Botón Mute Accesible (48x48px) */}
+              {/* Botón Mute Accesible */}
               <button
                 type="button"
                 {...press(toggleMetronomeMute)}
-                className={`w-12 h-12 min-w-touch min-h-touch rounded-xl flex items-center justify-center transition-all active:scale-95 shadow-sm ${
+                className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all shadow-subtle ${
                   isMetroActive 
-                    ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25'
-                    : 'bg-white/5 text-slate-500 border border-white/10 hover:bg-white/10'
+                    ? 'bg-amber-400/10 text-amber-400 border border-amber-400/25 hover:bg-amber-400/20' 
+                    : 'bg-white/[0.04] text-slate-500 border border-white/[0.06] hover:bg-white/[0.08]'
                 }`}
                 title={isMetroActive ? 'Silenciar Metrónomo' : 'Activar Metrónomo'}
                 aria-label={isMetroActive ? 'Silenciar Metrónomo' : 'Activar Metrónomo'}
                 aria-pressed={isMetroActive}
               >
-                <Bell className={`w-5 h-5 ${isMetroActive ? 'text-amber-400' : 'text-slate-500'}`} />
+                <Bell className={`w-4 h-4 ${isMetroActive ? 'text-amber-400' : 'text-slate-500'}`} />
               </button>
 
-              {/* Slider Ergonómico (48px hit height) */}
-              <div className="flex-1 h-12 flex items-center">
+              {/* Slider Ergonómico */}
+              <div className="flex-1 h-10 flex items-center">
                 <input
                   type="range"
                   min="0"
@@ -255,7 +255,7 @@ export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
                   step="0.01"
                   value={!isMetroActive ? 0 : metronomeVolume}
                   onChange={(e) => setMetronomeVolume(parseFloat(e.target.value))}
-                  className="w-full h-2.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-amber-400"
+                  className="w-full h-2 bg-surface-3 rounded-lg appearance-none cursor-pointer accent-[#F59E0B]"
                   aria-label="Volumen del Metrónomo"
                 />
               </div>
@@ -264,11 +264,11 @@ export const RinkAudioMixerDrawer: React.FC<RinkAudioMixerDrawerProps> = ({
         </div>
 
         {/* ── BOTONES DE ACCIÓN INFERIOR ── */}
-        <div className="flex flex-col gap-2.5 pt-3 border-t border-white/10 shrink-0">
+        <div className="flex flex-col gap-2.5 pt-3 border-t border-white/[0.06] shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="w-full h-12 min-h-touch rounded-2xl bg-white/10 hover:bg-white/15 text-white font-bold text-xs transition-colors active:scale-98"
+            className="w-full h-11 rounded-xl bg-surface-2 hover:bg-surface-3 border border-white/[0.06] text-white font-medium text-xs transition-colors interactive-tap"
           >
             Aceptar y Cerrar
           </button>

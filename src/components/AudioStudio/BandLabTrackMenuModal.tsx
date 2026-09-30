@@ -102,19 +102,19 @@ export const BandLabTrackMenuModal: React.FC<BandLabTrackMenuModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-md animate-in fade-in duration-150"
+      className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-150"
       onClick={onClose}
       onTouchStart={(e) => e.stopPropagation()}
     >
       <div 
-        className="w-full sm:max-w-md bg-zinc-900/95 border border-white/10 sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden flex flex-col p-4 text-slate-100 max-h-[85vh] overflow-y-auto"
+        className="w-full sm:max-w-md bg-surface-1 border border-white/[0.08] sm:rounded-2xl rounded-t-2xl shadow-elevation overflow-hidden flex flex-col p-4 text-slate-100 max-h-[85vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Cabecera del Menú BandLab */}
-        <div className="flex items-center justify-between pb-3 border-b border-white/10">
+        {/* Cabecera del Menú */}
+        <div className="flex items-center justify-between pb-3 border-b border-white/[0.06]">
           <div className="flex items-center gap-2.5">
             <div 
-              className="w-4 h-4 rounded-full shadow-sm"
+              className="w-3.5 h-3.5 rounded-full shadow-subtle"
               style={{ backgroundColor: track.color }}
             />
             {isEditingName ? (
@@ -123,20 +123,20 @@ export const BandLabTrackMenuModal: React.FC<BandLabTrackMenuModalProps> = ({
                   type="text"
                   value={customName}
                   onChange={(e) => setCustomName(e.target.value)}
-                  className="bg-black/60 border border-cyan/50 rounded px-2 py-0.5 text-xs text-white font-bold"
+                  className="bg-surface-2 border border-ice-primary/50 rounded-lg px-2 py-0.5 text-xs text-white font-medium outline-none"
                   autoFocus
                 />
                 <button
                   type="button"
                   onClick={handleSaveName}
-                  className="p-1 rounded bg-cyan text-black"
+                  className="p-1 rounded-lg bg-ice-primary text-white"
                 >
                   <Check className="w-3 h-3" />
                 </button>
               </div>
             ) : (
               <div>
-                <h3 className="text-sm font-black text-white">{track.name}</h3>
+                <h3 className="text-sm font-semibold text-white">{track.name}</h3>
                 <span className="text-[10px] text-slate-400 font-mono">
                   {track.fileName || (isMaster ? 'Master Track' : 'Pista Adicional')}
                 </span>
@@ -146,20 +146,20 @@ export const BandLabTrackMenuModal: React.FC<BandLabTrackMenuModalProps> = ({
           <button 
             type="button"
             onClick={onClose}
-            className="p-1 rounded-full text-slate-400 hover:text-white hover:bg-white/10"
+            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.06] transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Controles de Fader: Volumen, Mute & Solo */}
-        <div className="py-3 flex flex-col gap-2.5 border-b border-white/10">
+        <div className="py-3 flex flex-col gap-2.5 border-b border-white/[0.06]">
           <div className="flex items-center justify-between text-xs text-slate-300">
-            <span className="flex items-center gap-1 font-bold">
-              {track.muted ? <VolumeX className="w-3.5 h-3.5 text-rose-400" /> : <Volume2 className="w-3.5 h-3.5 text-cyan" />}
+            <span className="flex items-center gap-1 font-medium">
+              {track.muted ? <VolumeX className="w-3.5 h-3.5 text-red-400" /> : <Volume2 className="w-3.5 h-3.5 text-ice-primary" />}
               Volumen
             </span>
-            <span className="font-mono text-cyan font-bold">{Math.round(track.volume * 100)}%</span>
+            <span className="font-mono text-ice-primary font-semibold">{Math.round(track.volume * 100)}%</span>
           </div>
           <input
             type="range"
@@ -168,15 +168,15 @@ export const BandLabTrackMenuModal: React.FC<BandLabTrackMenuModalProps> = ({
             step="0.02"
             value={track.volume}
             onChange={(e) => setTrackVolume(track.id, parseFloat(e.target.value))}
-            className="w-full accent-cyan h-2 bg-white/10 rounded-lg cursor-pointer"
+            className="w-full accent-[#2E7CF6] h-1.5 bg-surface-3 rounded-lg cursor-pointer"
           />
 
           <div className="flex items-center gap-2 pt-1">
             <button
               type="button"
               onClick={() => toggleTrackMute(track.id)}
-              className={`flex-1 py-1.5 rounded-lg text-xs font-black uppercase transition-all ${
-                track.muted ? 'bg-rose-500 text-white shadow-md shadow-rose-500/30' : 'bg-white/10 text-slate-300 hover:bg-white/20'
+              className={`flex-1 py-1.5 rounded-lg text-xs font-semibold uppercase transition-all ${
+                track.muted ? 'bg-red-500/20 text-red-400 ring-1 ring-red-500/30' : 'bg-surface-2 text-slate-300 hover:bg-surface-3'
               }`}
             >
               Mute
@@ -184,8 +184,8 @@ export const BandLabTrackMenuModal: React.FC<BandLabTrackMenuModalProps> = ({
             <button
               type="button"
               onClick={() => toggleTrackSolo(track.id)}
-              className={`flex-1 py-1.5 rounded-lg text-xs font-black uppercase transition-all ${
-                track.solo ? 'bg-amber-400 text-black shadow-md shadow-amber-400/30' : 'bg-white/10 text-slate-300 hover:bg-white/20'
+              className={`flex-1 py-1.5 rounded-lg text-xs font-semibold uppercase transition-all ${
+                track.solo ? 'bg-amber-400/20 text-amber-300 ring-1 ring-amber-400/30' : 'bg-surface-2 text-slate-300 hover:bg-surface-3'
               }`}
             >
               Solo
@@ -193,15 +193,15 @@ export const BandLabTrackMenuModal: React.FC<BandLabTrackMenuModalProps> = ({
           </div>
         </div>
 
-        {/* Acciones de la Pista (Estilo BandLab) */}
+        {/* Acciones de la Pista */}
         <div className="py-2 flex flex-col gap-1">
-          {/* Cargar / Reemplazar Audio (Bloqueado en Master si hay más pistas) */}
+          {/* Cargar / Reemplazar Audio */}
           {isMaster && totalTracks > 1 ? (
-            <div className="w-full py-2.5 px-3 rounded-lg bg-cyan-950/30 border border-cyan/20 text-slate-400 text-xs flex flex-col gap-1">
-              <span className="font-bold text-cyan flex items-center gap-1.5">
+            <div className="w-full py-2.5 px-3 rounded-xl bg-ice-primary/10 border border-ice-primary/20 text-slate-300 text-xs flex flex-col gap-1">
+              <span className="font-semibold text-ice-primary flex items-center gap-1.5">
                 <Layers className="w-3.5 h-3.5" /> Lienzo de Ensamblaje Master
               </span>
-              <span className="text-[11px] text-slate-300 leading-snug">
+              <span className="text-[11px] text-slate-300 leading-snug font-normal">
                 En modo multipista, la Pista Master sirve como lienzo de ensamblaje. Corta trozos en las pistas auxiliares y pégalos aquí.
               </span>
             </div>
@@ -210,7 +210,7 @@ export const BandLabTrackMenuModal: React.FC<BandLabTrackMenuModalProps> = ({
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full py-2.5 px-3 rounded-lg flex items-center justify-between text-xs font-bold text-cyan hover:bg-cyan/10 transition-colors"
+                className="w-full py-2.5 px-3 rounded-xl flex items-center justify-between text-xs font-medium text-ice-primary hover:bg-ice-primary/10 transition-colors"
               >
                 <span className="flex items-center gap-2">
                   <Upload className="w-4 h-4" />
@@ -235,7 +235,7 @@ export const BandLabTrackMenuModal: React.FC<BandLabTrackMenuModalProps> = ({
                 type="button"
                 onClick={onMoveUp}
                 disabled={trackIndex <= 1}
-                className="flex-1 py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 text-xs font-bold bg-white/5 hover:bg-white/10 text-slate-300 disabled:opacity-30"
+                className="flex-1 py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 text-xs font-medium bg-surface-2 hover:bg-surface-3 text-slate-300 disabled:opacity-30 border border-white/[0.06] transition-colors"
               >
                 <ChevronUp className="w-3.5 h-3.5" />
                 <span>Subir Pista</span>
@@ -244,7 +244,7 @@ export const BandLabTrackMenuModal: React.FC<BandLabTrackMenuModalProps> = ({
                 type="button"
                 onClick={onMoveDown}
                 disabled={trackIndex >= totalTracks - 1}
-                className="flex-1 py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 text-xs font-bold bg-white/5 hover:bg-white/10 text-slate-300 disabled:opacity-30"
+                className="flex-1 py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 text-xs font-medium bg-surface-2 hover:bg-surface-3 text-slate-300 disabled:opacity-30 border border-white/[0.06] transition-colors"
               >
                 <ChevronDown className="w-3.5 h-3.5" />
                 <span>Bajar Pista</span>
@@ -256,7 +256,7 @@ export const BandLabTrackMenuModal: React.FC<BandLabTrackMenuModalProps> = ({
           <button
             type="button"
             onClick={() => setIsEditingName(true)}
-            className="w-full py-2.5 px-3 rounded-lg flex items-center gap-2 text-xs font-bold text-slate-200 hover:bg-white/5 transition-colors"
+            className="w-full py-2.5 px-3 rounded-xl flex items-center gap-2 text-xs font-medium text-slate-200 hover:bg-surface-2 transition-colors"
           >
             <Edit3 className="w-4 h-4 text-slate-400" />
             <span>Renombrar Pista</span>
@@ -267,7 +267,7 @@ export const BandLabTrackMenuModal: React.FC<BandLabTrackMenuModalProps> = ({
             <button
               type="button"
               onClick={() => setShowColorPicker((v) => !v)}
-              className="w-full py-2.5 px-3 rounded-lg flex items-center justify-between text-xs font-bold text-slate-200 hover:bg-white/5 transition-colors"
+              className="w-full py-2.5 px-3 rounded-xl flex items-center justify-between text-xs font-medium text-slate-200 hover:bg-surface-2 transition-colors"
             >
               <span className="flex items-center gap-2">
                 <Palette className="w-4 h-4 text-slate-400" />
@@ -279,13 +279,13 @@ export const BandLabTrackMenuModal: React.FC<BandLabTrackMenuModalProps> = ({
               />
             </button>
             {showColorPicker && (
-              <div className="flex items-center justify-around p-2 bg-black/40 rounded-lg my-1 gap-1">
+              <div className="flex items-center justify-around p-2 bg-surface-2 rounded-xl my-1 gap-1 border border-white/[0.06]">
                 {CARBON_TRACK_COLORS.map((c) => (
                   <button
                     key={c}
                     type="button"
                     onClick={() => handleChangeColor(c)}
-                    className="w-6 h-6 rounded-full hover:scale-110 transition-transform flex items-center justify-center"
+                    className="w-6 h-6 rounded-full hover:scale-110 transition-transform flex items-center justify-center shadow-subtle"
                     style={{ backgroundColor: c }}
                   >
                     {track.color === c && <Check className="w-3 h-3 text-black font-black" />}
@@ -303,7 +303,7 @@ export const BandLabTrackMenuModal: React.FC<BandLabTrackMenuModalProps> = ({
                 onDuplicate();
                 onClose();
               }}
-              className="w-full py-2.5 px-3 rounded-lg flex items-center gap-2 text-xs font-bold text-slate-200 hover:bg-white/5 transition-colors"
+              className="w-full py-2.5 px-3 rounded-xl flex items-center gap-2 text-xs font-medium text-slate-200 hover:bg-surface-2 transition-colors"
             >
               <Copy className="w-4 h-4 text-slate-400" />
               <span>Duplicar Pista</span>
@@ -318,7 +318,7 @@ export const BandLabTrackMenuModal: React.FC<BandLabTrackMenuModalProps> = ({
                 onRemove();
                 onClose();
               }}
-              className="w-full py-2.5 px-3 rounded-lg flex items-center gap-2 text-xs font-bold text-rose-400 hover:bg-rose-500/10 transition-colors"
+              className="w-full py-2.5 px-3 rounded-xl flex items-center gap-2 text-xs font-medium text-red-400 hover:bg-red-500/10 transition-colors"
             >
               <Trash2 className="w-4 h-4" />
               <span>Eliminar Pista</span>
@@ -327,11 +327,11 @@ export const BandLabTrackMenuModal: React.FC<BandLabTrackMenuModalProps> = ({
         </div>
 
         {/* Botón Cancelar */}
-        <div className="pt-2 border-t border-white/10">
+        <div className="pt-2 border-t border-white/[0.06]">
           <button
             type="button"
             onClick={onClose}
-            className="w-full py-2 rounded-lg bg-white/5 hover:bg-white/10 text-xs font-bold text-slate-400 hover:text-white transition-colors"
+            className="w-full py-2.5 rounded-xl bg-surface-2 hover:bg-surface-3 border border-white/[0.06] text-xs font-medium text-slate-300 hover:text-white transition-colors"
           >
             Cancelar
           </button>

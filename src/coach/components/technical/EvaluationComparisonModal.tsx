@@ -48,39 +48,41 @@ export const EvaluationComparisonModal: React.FC<EvaluationComparisonModalProps>
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md animate-fade-in">
-      <div className="bg-slate-900 border border-white/10 rounded-3xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden text-white">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/70 backdrop-blur-sm animate-fade-in">
+      <div className="bg-surface-1 border border-white/[0.08] rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-elevation overflow-hidden text-white">
         {/* Cabecera del Modal */}
-        <div className="p-4 sm:p-6 border-b border-white/10 flex items-center justify-between shrink-0 bg-slate-950/60">
-          <div>
-            <div className="flex items-center gap-2">
-              <Award className="w-5 h-5 text-[#78a9ff]" />
-              <h2 className="text-lg font-black tracking-tight text-white">
+        <div className="p-5 sm:p-6 border-b border-white/[0.07] flex items-center justify-between shrink-0 bg-surface-1">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-coach-rose/10 text-coach-rose border border-coach-rose/20">
+              <Award className="w-5 h-5 stroke-[1.75]" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold tracking-tight text-white">
                 Comparativa de Evaluaciones · {athleteName}
               </h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Análisis comparativo de evolución técnica y componentes dentro de SkateCoreo.
+              </p>
             </div>
-            <p className="text-xs text-slate-400 mt-1">
-              Análisis comparativo de evolución técnica y componentes dentro de SkateCoreo.
-            </p>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all"
+            className="p-1.5 rounded-xl hover:bg-surface-2 text-slate-400 hover:text-white transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Selectores de Evaluaciones */}
-        <div className="p-4 sm:p-6 border-b border-white/10 bg-slate-900/80 grid grid-cols-1 sm:grid-cols-2 gap-4 shrink-0">
+        <div className="p-4 sm:p-5 border-b border-white/[0.07] bg-surface-2/40 grid grid-cols-1 sm:grid-cols-2 gap-4 shrink-0">
           <div>
-            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+            <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
               Evaluación Base (Anterior)
             </label>
             <select
               value={firstId}
               onChange={(e) => setFirstId(e.target.value)}
-              className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-[#0f62fe]"
+              className="w-full bg-surface-2 border border-white/[0.08] rounded-xl px-3 py-2 text-xs font-medium text-white focus:outline-none focus:border-coach-rose/50"
             >
               {evaluations.map((ev) => (
                 <option key={ev.id} value={ev.id}>
@@ -91,13 +93,13 @@ export const EvaluationComparisonModal: React.FC<EvaluationComparisonModalProps>
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+            <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
               Evaluación Objetivo (Reciente / Actual)
             </label>
             <select
               value={secondId}
               onChange={(e) => setSecondId(e.target.value)}
-              className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-[#0f62fe]"
+              className="w-full bg-surface-2 border border-white/[0.08] rounded-xl px-3 py-2 text-xs font-medium text-white focus:outline-none focus:border-coach-rose/50"
             >
               {evaluations.map((ev) => (
                 <option key={ev.id} value={ev.id}>
@@ -109,22 +111,22 @@ export const EvaluationComparisonModal: React.FC<EvaluationComparisonModalProps>
         </div>
 
         {/* Contenido Comparativo */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 scroll-touch">
+        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6 scroll-touch">
           {evalA && evalB ? (
             <>
               {/* Tarjetas de Diferencial Global */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {/* TSS */}
-                <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 flex flex-col justify-between">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase">Total Score (TSS)</span>
+                <div className="p-4 rounded-xl bg-surface-2/50 border border-white/[0.06] flex flex-col justify-between">
+                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Total Score (TSS)</span>
                   <div className="flex items-baseline gap-2 mt-1">
-                    <span className="text-xl font-black text-white font-mono">
+                    <span className="text-xl font-bold text-white font-mono">
                       {evalB.scoresSummary.totalScore.toFixed(2)}
                     </span>
                     {comparison && (
                       <span
-                        className={`text-xs font-bold flex items-center ${
-                          comparison.diffTotal >= 0 ? 'text-teal-400' : 'text-rose-400'
+                        className={`text-xs font-semibold flex items-center font-mono ${
+                          comparison.diffTotal >= 0 ? 'text-emerald-400' : 'text-rose-400'
                         }`}
                       >
                         {comparison.diffTotal >= 0 ? (
@@ -136,70 +138,70 @@ export const EvaluationComparisonModal: React.FC<EvaluationComparisonModalProps>
                       </span>
                     )}
                   </div>
-                  <span className="text-[10px] text-slate-500 mt-1">Base: {evalA.scoresSummary.totalScore.toFixed(2)}</span>
+                  <span className="text-[10px] text-slate-500 mt-1 font-mono">Base: {evalA.scoresSummary.totalScore.toFixed(2)}</span>
                 </div>
 
                 {/* TES */}
-                <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 flex flex-col justify-between">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase">Técnico (TES)</span>
+                <div className="p-4 rounded-xl bg-surface-2/50 border border-white/[0.06] flex flex-col justify-between">
+                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Técnico (TES)</span>
                   <div className="flex items-baseline gap-2 mt-1">
-                    <span className="text-xl font-black text-[#78a9ff] font-mono">
+                    <span className="text-xl font-bold text-coach-rose font-mono">
                       {evalB.scoresSummary.tes.toFixed(2)}
                     </span>
                     {comparison && (
                       <span
-                        className={`text-xs font-bold flex items-center ${
-                          comparison.diffTes >= 0 ? 'text-teal-400' : 'text-rose-400'
+                        className={`text-xs font-semibold flex items-center font-mono ${
+                          comparison.diffTes >= 0 ? 'text-emerald-400' : 'text-rose-400'
                         }`}
                       >
                         {comparison.diffTes >= 0 ? `+${comparison.diffTes.toFixed(2)}` : comparison.diffTes.toFixed(2)}
                       </span>
                     )}
                   </div>
-                  <span className="text-[10px] text-slate-500 mt-1">Base: {evalA.scoresSummary.tes.toFixed(2)}</span>
+                  <span className="text-[10px] text-slate-500 mt-1 font-mono">Base: {evalA.scoresSummary.tes.toFixed(2)}</span>
                 </div>
 
                 {/* PCS */}
-                <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 flex flex-col justify-between">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase">Artístico (PCS)</span>
+                <div className="p-4 rounded-xl bg-surface-2/50 border border-white/[0.06] flex flex-col justify-between">
+                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Artístico (PCS)</span>
                   <div className="flex items-baseline gap-2 mt-1">
-                    <span className="text-xl font-black text-slate-200 font-mono">
+                    <span className="text-xl font-bold text-slate-200 font-mono">
                       {evalB.scoresSummary.pcs.toFixed(2)}
                     </span>
                     {comparison && (
                       <span
-                        className={`text-xs font-bold flex items-center ${
-                          comparison.diffPcs >= 0 ? 'text-teal-400' : 'text-rose-400'
+                        className={`text-xs font-semibold flex items-center font-mono ${
+                          comparison.diffPcs >= 0 ? 'text-emerald-400' : 'text-rose-400'
                         }`}
                       >
                         {comparison.diffPcs >= 0 ? `+${comparison.diffPcs.toFixed(2)}` : comparison.diffPcs.toFixed(2)}
                       </span>
                     )}
                   </div>
-                  <span className="text-[10px] text-slate-500 mt-1">Base: {evalA.scoresSummary.pcs.toFixed(2)}</span>
+                  <span className="text-[10px] text-slate-500 mt-1 font-mono">Base: {evalA.scoresSummary.pcs.toFixed(2)}</span>
                 </div>
 
                 {/* Deducciones */}
-                <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 flex flex-col justify-between">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase">Deducciones</span>
+                <div className="p-4 rounded-xl bg-surface-2/50 border border-white/[0.06] flex flex-col justify-between">
+                  <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Deducciones</span>
                   <div className="flex items-baseline gap-2 mt-1">
-                    <span className="text-xl font-black text-rose-400 font-mono">
+                    <span className="text-xl font-bold text-rose-400 font-mono">
                       -{evalB.scoresSummary.deductions.toFixed(2)}
                     </span>
                     {comparison && (
-                      <span className="text-xs font-bold text-slate-400">
+                      <span className="text-xs font-semibold text-slate-400 font-mono">
                         {comparison.diffDeductions === 0 ? 'Sin cambio' : `${comparison.diffDeductions > 0 ? '+' : ''}${comparison.diffDeductions.toFixed(2)}`}
                       </span>
                     )}
                   </div>
-                  <span className="text-[10px] text-slate-500 mt-1">Base: -{evalA.scoresSummary.deductions.toFixed(2)}</span>
+                  <span className="text-[10px] text-slate-500 mt-1 font-mono">Base: -{evalA.scoresSummary.deductions.toFixed(2)}</span>
                 </div>
               </div>
 
               {/* Comparativa Detallada de Componentes Artísticos */}
               {evalA.artisticComponents && evalB.artisticComponents && (
-                <div className="p-4 rounded-2xl bg-slate-950/40 border border-white/10 space-y-3">
-                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-300">
+                <div className="p-4 rounded-xl bg-surface-2/30 border border-white/[0.06] space-y-3">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
                     Evolución en Componentes Artísticos (PCS)
                   </h3>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
@@ -227,14 +229,14 @@ export const EvaluationComparisonModal: React.FC<EvaluationComparisonModalProps>
                     ].map((c) => {
                       const d = c.vB - c.vA;
                       return (
-                        <div key={c.name} className="p-3 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
-                          <span className="text-[10px] text-slate-400 font-bold">{c.name}</span>
+                        <div key={c.name} className="p-3 rounded-lg bg-surface-1 border border-white/[0.04] space-y-1">
+                          <span className="text-[10px] text-slate-400 font-medium">{c.name}</span>
                           <div className="flex items-center justify-between">
                             <span className="font-mono text-slate-400">{c.vA.toFixed(2)}</span>
                             <ArrowRight className="w-3 h-3 text-slate-600" />
                             <span className="font-mono font-bold text-white">{c.vB.toFixed(2)}</span>
                           </div>
-                          <div className={`text-[10px] font-bold text-right ${d >= 0 ? 'text-teal-400' : 'text-rose-400'}`}>
+                          <div className={`text-[10px] font-semibold font-mono text-right ${d >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                             {d >= 0 ? `+${d.toFixed(2)}` : d.toFixed(2)}
                           </div>
                         </div>
@@ -247,22 +249,22 @@ export const EvaluationComparisonModal: React.FC<EvaluationComparisonModalProps>
               {/* Comparación de Feedback Pedagógico */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Evaluación A */}
-                <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-3">
-                  <div className="flex items-center justify-between pb-2 border-b border-white/5">
-                    <span className="text-xs font-bold text-slate-300">Base ({formatDate(evalA.date)})</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-slate-400 font-mono">
+                <div className="p-4 rounded-xl bg-surface-2/40 border border-white/[0.06] space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-white/[0.05]">
+                    <span className="text-xs font-semibold text-slate-300">Base ({formatDate(evalA.date)})</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-surface-1 text-slate-400 font-mono border border-white/[0.05]">
                       {evalA.regulationTitle}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold text-teal-400 uppercase">Fortalezas:</span>
-                    <p className="text-xs text-slate-300 mt-1">
+                    <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">Fortalezas:</span>
+                    <p className="text-xs text-slate-300 mt-1 leading-relaxed">
                       {evalA.feedback.strengths.join(' • ') || 'Sin fortalezas registradas.'}
                     </p>
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold text-rose-400 uppercase">Correcciones Clave:</span>
-                    <ul className="text-xs text-slate-300 mt-1 space-y-1">
+                    <span className="text-[10px] font-semibold text-rose-400 uppercase tracking-wider">Correcciones Clave:</span>
+                    <ul className="text-xs text-slate-300 mt-1 space-y-1 leading-relaxed">
                       {evalA.feedback.technicalCorrections.map((c) => (
                         <li key={c.id}>• [{c.priority}] {c.item}</li>
                       ))}
@@ -271,22 +273,22 @@ export const EvaluationComparisonModal: React.FC<EvaluationComparisonModalProps>
                 </div>
 
                 {/* Evaluación B */}
-                <div className="p-4 rounded-2xl bg-[#0f62fe]/10 border border-[#0f62fe]/30 space-y-3">
-                  <div className="flex items-center justify-between pb-2 border-b border-[#0f62fe]/20">
-                    <span className="text-xs font-bold text-[#78a9ff]">Actual ({formatDate(evalB.date)})</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#0f62fe]/20 text-[#78a9ff] font-mono">
+                <div className="p-4 rounded-xl bg-surface-2/40 border border-coach-rose/25 space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-white/[0.05]">
+                    <span className="text-xs font-semibold text-coach-rose">Actual ({formatDate(evalB.date)})</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-coach-rose/10 text-coach-rose font-mono border border-coach-rose/20">
                       {evalB.regulationTitle}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold text-teal-400 uppercase">Fortalezas:</span>
-                    <p className="text-xs text-slate-300 mt-1">
+                    <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">Fortalezas:</span>
+                    <p className="text-xs text-slate-300 mt-1 leading-relaxed">
                       {evalB.feedback.strengths.join(' • ') || 'Sin fortalezas registradas.'}
                     </p>
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold text-rose-400 uppercase">Correcciones Clave:</span>
-                    <ul className="text-xs text-slate-300 mt-1 space-y-1">
+                    <span className="text-[10px] font-semibold text-rose-400 uppercase tracking-wider">Correcciones Clave:</span>
+                    <ul className="text-xs text-slate-300 mt-1 space-y-1 leading-relaxed">
                       {evalB.feedback.technicalCorrections.map((c) => (
                         <li key={c.id}>• [{c.priority}] {c.item}</li>
                       ))}

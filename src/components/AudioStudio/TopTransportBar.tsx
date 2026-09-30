@@ -116,46 +116,46 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
   return (
     <>
       <header 
-        className="relative z-40 shrink-0 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 px-2 py-1.5 bg-black border-b border-white/10 text-white select-none pt-safe px-safe sm:flex-nowrap sm:justify-between sm:gap-4 sm:px-4 sm:py-2"
+        className="relative z-40 shrink-0 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 px-2 py-1.5 bg-canvas border-b border-white/[0.06] text-white select-none pt-safe px-safe sm:flex-nowrap sm:justify-between sm:gap-4 sm:px-4 sm:py-2"
       >
-        {/* ── IZQUIERDA: Inicio + Regreso a Pista (destinos distintos, sin duplicar) ── */}
+        {/* ── IZQUIERDA: Inicio + Regreso a Pista ── */}
         <div className="flex items-center gap-2 shrink-0">
           {onGoHome && (
             <button
               type="button"
               onClick={onGoHome}
-              className="press flex h-11 w-11 min-h-touch min-w-touch shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10 text-slate-200 hover:bg-white/20 hover:text-white"
+              className="press flex h-10 w-10 min-h-touch min-w-touch shrink-0 items-center justify-center rounded-xl border border-white/[0.06] bg-surface-1 text-slate-300 hover:bg-surface-2 hover:text-white transition-colors"
               title="Ir al Inicio"
               aria-label="Ir al Inicio"
             >
-              <Home className="w-4 h-4 text-[#78a9ff] shrink-0" />
+              <Home className="w-4 h-4 text-ice-primary shrink-0" />
             </button>
           )}
           {onBackToRink && (
             <button
               type="button"
               onClick={onBackToRink}
-              className="press h-11 min-h-touch px-3 rounded-full flex items-center gap-1.5 text-slate-200 hover:text-white bg-white/10 hover:bg-white/20 border border-white/15 shadow-sm font-bold text-xs shrink-0"
+              className="press h-10 min-h-touch px-3 rounded-xl flex items-center gap-1.5 text-slate-300 hover:text-white bg-surface-1 hover:bg-surface-2 border border-white/[0.06] shadow-subtle font-medium text-xs shrink-0 transition-colors"
               title="Salir del Estudio y volver a la Pista 2D"
             >
-              <ArrowLeft className="w-4 h-4 text-[#78a9ff] shrink-0" />
+              <ArrowLeft className="w-4 h-4 text-ice-primary shrink-0" />
               <span className="hidden sm:inline">Volver a Pista 2D</span>
               <span className="sm:hidden">Pista 2D</span>
             </button>
           )}
-          {/* Identidad de pantalla: deja claro que esto es la mesa de edición/mezcla */}
-          <span className="studio-brand-label text-[10px] font-black uppercase tracking-widest text-[#78a9ff] shrink-0">
+          {/* Identidad de pantalla */}
+          <span className="studio-brand-label text-[10px] font-semibold uppercase tracking-widest text-slate-400 shrink-0">
             Audio Studio
           </span>
 
-          {/* Display Digital de Tiempo (BandLab 00:00.0) */}
-          <div className="flex items-center gap-1.5 font-mono text-xs font-black text-white pl-1 shrink-0">
+          {/* Display Digital de Tiempo */}
+          <div className="flex items-center gap-1.5 font-mono text-xs font-semibold text-white pl-1 shrink-0">
             <span>{fmtTimeWithMs(currentTimeSec)}</span>
             <button
               type="button"
               onClick={() => setSnapEnabled((v) => !v)}
-              className={`p-1.5 rounded transition-colors ${
-                snapEnabled ? 'text-[#78a9ff] bg-[#0f62fe]/20' : 'text-slate-500 hover:text-slate-300'
+              className={`p-1.5 rounded-lg transition-colors ${
+                snapEnabled ? 'text-ice-primary bg-ice-primary/10' : 'text-slate-500 hover:text-slate-300'
               }`}
               title={snapEnabled ? 'Snap a la cuadrícula: Activado' : 'Snap desactivado'}
               aria-label={snapEnabled ? 'Desactivar ajuste a la cuadrícula' : 'Activar ajuste a la cuadrícula'}
@@ -165,15 +165,15 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
           </div>
         </div>
 
-        {/* ── CENTRO: Cápsula Flotante Segmentada (Pill: Waveform / Notes / Settings) ── */}
-        <div className="flex items-center p-0.5 rounded-xl bg-surface-1 border border-white/10 shadow-inner shrink-0 gap-0.5">
-          {/* 1. Modo Vista de Arreglos (Arrangement View) */}
+        {/* ── CENTRO: Cápsula Flotante Segmentada ── */}
+        <div className="flex items-center p-0.5 rounded-xl bg-surface-2/60 border border-white/[0.06] shadow-subtle shrink-0 gap-0.5">
+          {/* 1. Modo Vista de Arreglos */}
           <button
             type="button"
             onClick={() => setActiveTab('arrangement')}
             className={`h-8 px-3 rounded-lg flex items-center justify-center transition-all ${
               activeTab === 'arrangement'
-                ? 'bg-surface-3 text-white font-bold border border-[#0f62fe] shadow-sm ring-1 ring-[#0f62fe]/40'
+                ? 'bg-surface-1 text-ice-primary font-semibold shadow-subtle border border-white/[0.08]'
                 : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
             }`}
             title="Vista de Arreglos"
@@ -188,7 +188,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
             onClick={() => setShowNotesModal(true)}
             className={`h-8 px-3 rounded-lg flex items-center justify-center transition-all ${
               showNotesModal
-                ? 'bg-surface-3 text-white font-bold border border-[#0f62fe] shadow-sm ring-1 ring-[#0f62fe]/40'
+                ? 'bg-surface-1 text-ice-primary font-semibold shadow-subtle border border-white/[0.08]'
                 : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
             }`}
             title="Notas del Programa y Coreografía"
@@ -197,13 +197,13 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
             <FileText className="w-4 h-4" />
           </button>
 
-          {/* 3. Ajustes de Proyecto (BPM, Metrónomo, Voces) */}
+          {/* 3. Ajustes de Proyecto */}
           <button
             type="button"
             onClick={() => setShowSettingsModal(true)}
             className={`h-8 px-3 rounded-lg flex items-center justify-center transition-all ${
               showSettingsModal
-                ? 'bg-surface-3 text-white font-bold border border-[#0f62fe] shadow-sm ring-1 ring-[#0f62fe]/40'
+                ? 'bg-surface-1 text-ice-primary font-semibold shadow-subtle border border-white/[0.08]'
                 : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'
             }`}
             title="Configuración de Tempo & Guías"
@@ -219,10 +219,10 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="h-10 min-h-touch px-3 rounded-xl flex items-center gap-1.5 bg-surface-2 hover:bg-surface-3 text-slate-200 hover:text-white text-xs font-semibold border border-white/10 transition-all active:scale-95 shadow-sm"
+            className="h-10 min-h-touch px-3 rounded-xl flex items-center gap-1.5 bg-surface-1 hover:bg-surface-2 text-slate-300 hover:text-white text-xs font-medium border border-white/[0.06] transition-all active:scale-95 shadow-subtle"
             title="Importar archivo de audio (MP3, WAV, M4A)"
           >
-            <Upload className="w-4 h-4 text-[#78a9ff]" />
+            <Upload className="w-4 h-4 text-ice-primary" />
             <span className="hidden sm:inline">Importar</span>
           </button>
           <input
@@ -237,11 +237,11 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
           <button
             type="button"
             onClick={() => setShowClearConfirm(true)}
-            className="h-10 min-h-touch px-3 rounded-xl flex items-center gap-1.5 bg-[#da1e28]/10 hover:bg-[#da1e28]/20 text-[#ff8389] hover:text-white text-xs font-semibold border border-[#da1e28]/30 transition-all active:scale-95 shadow-sm"
+            className="h-10 min-h-touch px-3 rounded-xl flex items-center gap-1.5 bg-red-500/10 hover:bg-red-500/15 text-red-400 hover:text-red-300 text-xs font-medium border border-red-500/20 transition-all active:scale-95 shadow-subtle"
             title="Eliminar todas las pistas y clips del Estudio de Audio"
             aria-label="Limpiar pistas"
           >
-            <Trash2 className="w-4 h-4 text-[#ff8389]" />
+            <Trash2 className="w-4 h-4 text-red-400" />
             <span className="hidden sm:inline">Limpiar pistas</span>
           </button>
 
@@ -249,10 +249,10 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
           <div className="hidden md:flex items-center gap-1.5 mr-1">
             <span
               className={[
-                'h-7 px-2 rounded-lg flex items-center gap-1 text-[10px] font-bold border whitespace-nowrap',
+                'h-7 px-2 rounded-lg flex items-center gap-1 text-[10px] font-medium border whitespace-nowrap',
                 studioDirty
-                  ? 'bg-amber-500/15 text-amber-300 border-amber-400/40'
-                  : 'bg-surface-2 text-slate-400 border-white/10',
+                  ? 'bg-amber-500/10 text-amber-300 border-amber-400/30'
+                  : 'bg-surface-1 text-slate-400 border-white/[0.06]',
               ].join(' ')}
               title="El Audio Studio es un borrador: la música activa de la Pista 2D no cambia hasta enviarlo"
             >
@@ -263,10 +263,10 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
               <button
                 type="button"
                 onClick={() => loadPublishedIntoStudio()}
-                className="h-7 px-2 rounded-lg flex items-center gap-1 text-[10px] font-semibold bg-surface-2 hover:bg-surface-3 text-slate-300 border border-white/10 transition-colors whitespace-nowrap"
+                className="h-7 px-2 rounded-lg flex items-center gap-1 text-[10px] font-medium bg-surface-1 hover:bg-surface-2 text-slate-300 border border-white/[0.06] transition-colors whitespace-nowrap"
                 title="Traer al Estudio una copia del audio activo de la Pista 2D para editarlo (no lo modifica)"
               >
-                <Music className="w-3 h-3 text-[#78a9ff]" />
+                <Music className="w-3 h-3 text-ice-primary" />
                 Importar audio del visor
               </button>
             )}
@@ -278,7 +278,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
               type="button"
               onClick={onExportToRink}
               disabled={isExporting}
-              className="h-10 min-h-touch px-4 rounded-xl flex items-center gap-2 bg-[#0f62fe] hover:bg-[#0353e9] active:bg-[#002d9c] text-white hover:brightness-105 transition-all active:scale-95 shadow-sm font-bold text-xs disabled:opacity-50"
+              className="h-10 min-h-touch px-4 rounded-xl flex items-center gap-2 bg-ice-primary hover:bg-ice-primary/90 text-white transition-all active:scale-95 shadow-subtle font-medium text-xs disabled:opacity-50"
               title="Publicar esta mezcla: pasará a ser la música activa de la Pista 2D (no cambia el borrador)"
               aria-label="Enviar al visor: publicar la mezcla en la Pista 2D"
             >
@@ -303,21 +303,21 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
       {/* ── MODAL DE AJUSTES DE PROYECTO (BPM, METRÓNOMO, VOCES) ── */}
       {showSettingsModal && (
         <div 
-          className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-md p-3 pb-safe animate-in fade-in duration-150"
+          className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-3 pb-safe animate-in fade-in duration-150"
           onClick={() => setShowSettingsModal(false)}
         >
           <div 
-            className="w-full max-w-sm max-h-[85dvh] overflow-y-auto overscroll-contain bg-zinc-900 border border-white/15 rounded-2xl p-4 shadow-2xl flex flex-col gap-3 text-white"
+            className="w-full max-w-sm max-h-[85dvh] overflow-y-auto overscroll-contain bg-surface-1 border border-white/[0.08] rounded-2xl p-4 shadow-elevation flex flex-col gap-3 text-white"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between pb-2 border-b border-white/10">
-              <h3 className="text-sm font-black uppercase tracking-wider text-[#78a9ff] flex items-center gap-1.5">
+            <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-ice-primary flex items-center gap-1.5">
                 <Settings className="w-4 h-4" /> Ajustes del Estudio
               </h3>
               <button 
                 type="button"
                 onClick={() => setShowSettingsModal(false)}
-                className="text-slate-400 hover:text-white p-1"
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/[0.06]"
                 aria-label="Cerrar ajustes del estudio"
               >
                 <X className="w-4 h-4" />
@@ -326,36 +326,36 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
 
             {/* BPM */}
             <div className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between text-xs font-bold text-slate-300">
+              <div className="flex items-center justify-between text-xs font-semibold text-slate-300">
                 <span>Tempo (BPM)</span>
-                <span className="font-mono text-[#78a9ff] text-sm">{globalControls.bpm} BPM</span>
+                <span className="font-mono text-ice-primary text-sm font-medium">{globalControls.bpm} BPM</span>
               </div>
               <div className="flex items-center gap-1">
                 <button
                   type="button"
                   onClick={() => setGlobalBpm(globalControls.bpm - 5)}
-                  className="flex-1 py-1 rounded bg-white/10 hover:bg-white/20 text-xs font-bold"
+                  className="flex-1 py-1 rounded-lg bg-surface-2 hover:bg-surface-3 border border-white/[0.06] text-xs font-medium text-slate-300 hover:text-white"
                 >
                   -5
                 </button>
                 <button
                   type="button"
                   onClick={() => setGlobalBpm(globalControls.bpm - 1)}
-                  className="flex-1 py-1 rounded bg-white/10 hover:bg-white/20 text-xs font-bold"
+                  className="flex-1 py-1 rounded-lg bg-surface-2 hover:bg-surface-3 border border-white/[0.06] text-xs font-medium text-slate-300 hover:text-white"
                 >
                   -1
                 </button>
                 <button
                   type="button"
                   onClick={() => setGlobalBpm(globalControls.bpm + 1)}
-                  className="flex-1 py-1 rounded bg-white/10 hover:bg-white/20 text-xs font-bold"
+                  className="flex-1 py-1 rounded-lg bg-surface-2 hover:bg-surface-3 border border-white/[0.06] text-xs font-medium text-slate-300 hover:text-white"
                 >
                   +1
                 </button>
                 <button
                   type="button"
                   onClick={() => setGlobalBpm(globalControls.bpm + 5)}
-                  className="flex-1 py-1 rounded bg-white/10 hover:bg-white/20 text-xs font-bold"
+                  className="flex-1 py-1 rounded-lg bg-surface-2 hover:bg-surface-3 border border-white/[0.06] text-xs font-medium text-slate-300 hover:text-white"
                 >
                   +5
                 </button>
@@ -364,7 +364,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
                 <button
                   type="button"
                   onClick={handleTapTempo}
-                  className="flex-1 py-1 rounded bg-[#0f62fe]/20 text-[#78a9ff] hover:bg-[#0f62fe]/30 text-xs font-black uppercase tracking-wider"
+                  className="flex-1 py-1.5 rounded-lg bg-ice-primary/10 text-ice-primary border border-ice-primary/20 hover:bg-ice-primary/20 text-xs font-semibold uppercase tracking-wider"
                 >
                   Tap Tempo
                 </button>
@@ -372,7 +372,7 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
                   type="button"
                   onClick={() => analyzeBpm()}
                   disabled={isAnalyzingBpm}
-                  className="flex-1 py-1 rounded bg-white/10 text-xs font-bold text-slate-300"
+                  className="flex-1 py-1.5 rounded-lg bg-surface-2 hover:bg-surface-3 border border-white/[0.06] text-xs font-medium text-slate-300 hover:text-white"
                 >
                   {isAnalyzingBpm ? '...' : 'Auto-BPM (DSP)'}
                 </button>
@@ -383,8 +383,8 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
             {(() => {
               const isMetroActive = globalControls.metronome.enabled && !globalControls.metronome.muted;
               return (
-                <div className="pt-2 border-t border-white/10 flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between text-xs font-bold">
+                <div className="pt-2 border-t border-white/[0.06] flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between text-xs font-semibold">
                     <span className={`flex items-center gap-1 transition-colors ${isMetroActive ? 'text-amber-400' : 'text-slate-400'}`}>
                       <Bell className="w-3.5 h-3.5" /> Metrónomo
                     </span>
@@ -392,8 +392,8 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
                       type="button"
                       {...press(toggleMetronomeMute)}
                       aria-pressed={isMetroActive}
-                      className={`press min-h-touch min-w-touch rounded px-2.5 text-[10px] font-black uppercase transition-colors ${
-                        isMetroActive ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-white/5 text-slate-400 border border-white/5'
+                      className={`press min-h-touch min-w-touch rounded-lg px-2.5 text-[10px] font-semibold uppercase transition-colors ${
+                        isMetroActive ? 'bg-amber-400/10 text-amber-400 border border-amber-400/25' : 'bg-surface-2 text-slate-400 border border-white/[0.06]'
                       }`}
                     >
                       {isMetroActive ? 'Activo' : 'Inactivo'}
@@ -406,15 +406,15 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
                     step="0.05"
                     value={globalControls.metronome.volume}
                     onChange={(e) => setMetronomeVolume(parseFloat(e.target.value))}
-                    className="w-full accent-amber-400 h-1.5 bg-white/10 rounded cursor-pointer"
+                    className="w-full accent-[#F59E0B] h-1.5 bg-surface-3 rounded cursor-pointer"
                   />
                 </div>
               );
             })()}
 
-            {/* Voz Guía automática (IA) — distinta de la voz grabada de la entrenadora */}
-            <div className="pt-2 border-t border-white/10 flex flex-col gap-1.5">
-              <div className="flex items-center justify-between text-xs font-bold text-fuchsia-400">
+            {/* Voz Guía automática (IA) */}
+            <div className="pt-2 border-t border-white/[0.06] flex flex-col gap-1.5">
+              <div className="flex items-center justify-between text-xs font-semibold text-studio-mint">
                 <span
                   className="flex items-center gap-1"
                   title="Voz Guía automática (IA, femenina latina). No afecta a la voz grabada de la entrenadora."
@@ -425,8 +425,8 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
                   type="button"
                   {...press(toggleVoiceGuideMute)}
                   aria-pressed={globalControls.voiceGuide.muted}
-                  className={`press min-h-touch min-w-touch rounded px-2.5 text-[10px] font-black uppercase ${
-                    globalControls.voiceGuide.muted ? 'bg-rose-500/20 text-rose-400' : 'bg-green-500/20 text-green-400'
+                  className={`press min-h-touch min-w-touch rounded-lg px-2.5 text-[10px] font-semibold uppercase ${
+                    globalControls.voiceGuide.muted ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-studio-mint/10 text-studio-mint border border-studio-mint/20'
                   }`}
                 >
                   {globalControls.voiceGuide.muted ? 'Silenciado' : 'Activo'}
@@ -439,15 +439,15 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
                 step="0.05"
                 value={globalControls.voiceGuide.volume}
                 onChange={(e) => setVoiceGuideVolume(parseFloat(e.target.value))}
-                className="w-full accent-fuchsia-400 h-1.5 bg-white/10 rounded cursor-pointer"
+                className="w-full accent-[#0D9488] h-1.5 bg-surface-3 rounded cursor-pointer"
               />
             </div>
 
             {/* Modo de Salida (Stereo vs Split L/R) */}
-            <div className="pt-2 border-t border-white/10 flex flex-col gap-2">
-              <div className="flex items-center justify-between text-xs font-bold text-slate-200">
+            <div className="pt-2 border-t border-white/[0.06] flex flex-col gap-2">
+              <div className="flex items-center justify-between text-xs font-semibold text-slate-200">
                 <span>Modo de Salida</span>
-                <span className="text-[10px] text-zinc-400 font-mono">
+                <span className="text-[10px] text-slate-400 font-mono">
                   {channelMode === 'split-coach' ? 'Split L/R' : 'Stereo'}
                 </span>
               </div>
@@ -456,10 +456,10 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
                   type="button"
                   aria-pressed={channelMode === 'stereo'}
                   onClick={() => handleSetChannelMode('stereo')}
-                  className={`py-2 px-2.5 rounded-xl text-center text-xs font-bold transition-all border active:scale-[0.96] ${
+                  className={`py-2 px-2.5 rounded-xl text-center text-xs font-medium transition-all border ${
                     channelMode === 'stereo'
-                      ? 'bg-surface-3 text-white font-bold border border-[#0f62fe] shadow-sm ring-1 ring-[#0f62fe]/40'
-                      : 'bg-surface-1 border-white/10 text-slate-300 hover:bg-surface-2 hover:text-white'
+                      ? 'bg-surface-2 text-white font-semibold border-ice-primary/40 shadow-subtle'
+                      : 'bg-surface-1 border-white/[0.06] text-slate-300 hover:bg-surface-2 hover:text-white'
                   }`}
                 >
                   🔊 Stereo
@@ -468,16 +468,16 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
                   type="button"
                   aria-pressed={channelMode === 'split-coach'}
                   onClick={() => handleSetChannelMode('split-coach')}
-                  className={`py-2 px-2.5 rounded-xl text-center text-xs font-bold transition-all border active:scale-[0.96] ${
+                  className={`py-2 px-2.5 rounded-xl text-center text-xs font-medium transition-all border ${
                     channelMode === 'split-coach'
-                      ? 'bg-surface-3 text-white font-bold border border-[#0f62fe] shadow-sm ring-1 ring-[#0f62fe]/40'
-                      : 'bg-surface-1 border-white/10 text-slate-300 hover:bg-surface-2 hover:text-white'
+                      ? 'bg-surface-2 text-white font-semibold border-ice-primary/40 shadow-subtle'
+                      : 'bg-surface-1 border-white/[0.06] text-slate-300 hover:bg-surface-2 hover:text-white'
                   }`}
                 >
                   🎧 Split L/R
                 </button>
               </div>
-              <p className="text-[10px] text-zinc-400 font-medium">
+              <p className="text-[10px] text-slate-400 font-normal">
                 {channelMode === 'split-coach'
                   ? 'L: 100% Música · R: 100% Metrónomo + Voz Guía (0% música)'
                   : 'L + R: Mezcla estéreo balanceada en ambos oídos'}
@@ -487,24 +487,24 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
         </div>
       )}
 
-      {/* ── MODAL DE NOTAS / LETRAS DE RUTINA (BandLab Feather Icon) ── */}
+      {/* ── MODAL DE NOTAS / LETRAS DE RUTINA ── */}
       {showNotesModal && (
         <div 
-          className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-md p-3 pb-safe animate-in fade-in duration-150"
+          className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-3 pb-safe animate-in fade-in duration-150"
           onClick={() => setShowNotesModal(false)}
         >
           <div 
-            className="w-full max-w-sm max-h-[85dvh] overflow-y-auto overscroll-contain bg-zinc-900 border border-white/15 rounded-2xl p-4 shadow-2xl flex flex-col gap-3 text-white"
+            className="w-full max-w-sm max-h-[85dvh] overflow-y-auto overscroll-contain bg-surface-1 border border-white/[0.08] rounded-2xl p-4 shadow-elevation flex flex-col gap-3 text-white"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between pb-2 border-b border-white/10">
-              <h3 className="text-sm font-black uppercase tracking-wider text-white flex items-center gap-1.5">
-                <FileText className="w-4 h-4 text-[#78a9ff]" /> Notas de Coreografía
+            <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-white flex items-center gap-1.5">
+                <FileText className="w-4 h-4 text-ice-primary" /> Notas de Coreografía
               </h3>
               <button 
                 type="button"
                 onClick={() => setShowNotesModal(false)}
-                className="text-slate-400 hover:text-white p-1"
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/[0.06]"
                 aria-label="Cerrar notas de coreografía"
               >
                 <X className="w-4 h-4" />
@@ -514,12 +514,12 @@ export const TopTransportBar: React.FC<TopTransportBarProps> = ({
               value={notesText}
               onChange={(e) => setNotesText(e.target.value)}
               placeholder="Escribe notas, conteos o acentos musicales para la rutina..."
-              className="w-full h-32 p-2.5 rounded-lg bg-black/60 border border-white/15 text-xs text-slate-200 resize-none focus:outline-none focus:border-[#0f62fe]"
+              className="w-full h-32 p-2.5 rounded-xl bg-surface-2 border border-white/[0.08] text-xs text-slate-200 placeholder:text-slate-500 resize-none focus:outline-none focus:border-ice-primary/50 focus:ring-1 focus:ring-ice-primary/20"
             />
             <button
               type="button"
               onClick={() => setShowNotesModal(false)}
-              className="w-full py-2 rounded-lg bg-[#0f62fe] hover:bg-[#0353e9] text-white font-bold text-xs shadow-sm transition-colors"
+              className="w-full py-2.5 rounded-xl bg-ice-primary hover:bg-ice-primary/90 text-white font-medium text-xs shadow-subtle transition-colors interactive-tap"
             >
               Listo
             </button>

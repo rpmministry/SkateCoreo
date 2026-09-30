@@ -5,28 +5,28 @@ export type BadgeSize = 'xs' | 'sm' | 'md';
 
 const BADGE_VARIANTS: Record<BadgeVariant, { container: string; dot: string }> = {
   neutral: {
-    container: 'bg-[#283243] text-[#f4f4f4] border-white/10',
-    dot: 'bg-[#c6c6c6]',
+    container: 'bg-white/[0.05] text-[#9CA3AF] border-white/[0.08]',
+    dot: 'bg-[#9CA3AF]',
   },
   cobalt: {
-    container: 'bg-[#0f62fe]/15 text-[#78a9ff] border-[#0f62fe]/30',
-    dot: 'bg-[#78a9ff]',
+    container: 'bg-[#2e7cf6]/10 text-[#60a5fa] border-[#2e7cf6]/25',
+    dot: 'bg-[#2e7cf6]',
   },
   mint: {
-    container: 'bg-[#009d9a]/15 text-[#3ddbd9] border-[#009d9a]/30',
-    dot: 'bg-[#3ddbd9]',
+    container: 'bg-[#0d9488]/10 text-[#2dd4bf] border-[#0d9488]/25',
+    dot: 'bg-[#0d9488]',
   },
   coral: {
-    container: 'bg-[#ee5396]/15 text-[#ff7eb6] border-[#ee5396]/30',
-    dot: 'bg-[#ff7eb6]',
+    container: 'bg-[#e11d48]/10 text-[#fb7185] border-[#e11d48]/25',
+    dot: 'bg-[#e11d48]',
   },
   amber: {
-    container: 'bg-[#f1c21b]/15 text-[#f1c21b] border-[#f1c21b]/30',
-    dot: 'bg-[#f1c21b]',
+    container: 'bg-[#f59e0b]/10 text-[#f59e0b] border-[#f59e0b]/25',
+    dot: 'bg-[#f59e0b]',
   },
   danger: {
-    container: 'bg-[#da1e28]/15 text-[#ff8389] border-[#da1e28]/30',
-    dot: 'bg-[#ff8389]',
+    container: 'bg-[#ef4444]/10 text-[#fca5a5] border-[#ef4444]/25',
+    dot: 'bg-[#ef4444]',
   },
 };
 
@@ -57,7 +57,7 @@ export const Badge: React.FC<BadgeProps> = ({
   return (
     <span
       className={[
-        'inline-flex items-center font-mono font-medium uppercase tracking-wider rounded-md border',
+        'inline-flex items-center font-mono font-medium uppercase tracking-wider rounded-full border',
         styles.container,
         BADGE_SIZES[size],
         className,
