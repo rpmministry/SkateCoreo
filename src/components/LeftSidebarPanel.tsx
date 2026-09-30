@@ -502,11 +502,6 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
                 audioEngine.initAudioContext();
                 audioEngine.voiceCueEngine.testVoice();
               }}
-                // La prueba usa el MISMO AudioContext del motor (nunca uno
-                // paralelo): se inicializa aquí dentro del gesto del usuario.
-                audioEngine.initAudioContext();
-                audioEngine.voiceCueEngine.testVoice();
-              }}
               className="press flex min-h-[36px] w-full items-center justify-center gap-1.5 rounded-lg border border-white/[0.08] bg-surface-2 px-3 py-1.5 text-xs font-medium text-neutral-200 hover:bg-surface-3 hover:text-white transition-colors"
             >
               <Mic className="h-3.5 w-3.5 text-ice-primary" />

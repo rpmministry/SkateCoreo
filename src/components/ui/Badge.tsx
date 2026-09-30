@@ -1,6 +1,15 @@
 import React from 'react';
 
-export type BadgeVariant = 'neutral' | 'cobalt' | 'mint' | 'coral' | 'amber' | 'danger';
+export type BadgeVariant =
+  | 'neutral'
+  | 'cobalt'
+  | 'mint'
+  | 'coral'
+  | 'coach'
+  | 'rose'
+  | 'amber'
+  | 'danger'
+  | 'ghost';
 export type BadgeSize = 'xs' | 'sm' | 'md';
 
 const BADGE_VARIANTS: Record<BadgeVariant, { container: string; dot: string }> = {
@@ -20,6 +29,14 @@ const BADGE_VARIANTS: Record<BadgeVariant, { container: string; dot: string }> =
     container: 'bg-[#e11d48]/10 text-[#fb7185] border-[#e11d48]/25',
     dot: 'bg-[#e11d48]',
   },
+  coach: {
+    container: 'bg-[#e11d48]/10 text-[#fb7185] border-[#e11d48]/25',
+    dot: 'bg-[#e11d48]',
+  },
+  rose: {
+    container: 'bg-[#e11d48]/10 text-[#fb7185] border-[#e11d48]/25',
+    dot: 'bg-[#e11d48]',
+  },
   amber: {
     container: 'bg-[#f59e0b]/10 text-[#f59e0b] border-[#f59e0b]/25',
     dot: 'bg-[#f59e0b]',
@@ -27,6 +44,10 @@ const BADGE_VARIANTS: Record<BadgeVariant, { container: string; dot: string }> =
   danger: {
     container: 'bg-[#ef4444]/10 text-[#fca5a5] border-[#ef4444]/25',
     dot: 'bg-[#ef4444]',
+  },
+  ghost: {
+    container: 'bg-transparent text-[#9CA3AF] border-white/[0.08]',
+    dot: 'bg-[#9CA3AF]',
   },
 };
 
@@ -77,3 +98,4 @@ export const Badge: React.FC<BadgeProps> = ({
     </span>
   );
 };
+
