@@ -3,7 +3,7 @@
  *
  * Mantiene el lienzo y los controles de la aplicación renderizados en el fondo
  * pero superpone el Soft Paywall Glassmorphism si el usuario no tiene una sesión
- * o una suscripción activa.
+ * o una suscripción activa, o si solicita el modal de planes / upgrade.
  */
 
 import React from 'react';
@@ -16,6 +16,7 @@ interface ProtectedLayoutProps {
 
 export const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) => {
   const hasAccess = useAuthStore((s) => s.hasActiveAccess());
+  const isUpgradeModalOpen = useAuthStore((s) => s.isUpgradeModalOpen);
 
   return (
     <div className="relative w-screen app-viewport-height overflow-hidden">
@@ -24,8 +25,9 @@ export const ProtectedLayout: React.FC<ProtectedLayoutProps> = ({ children }) =>
         {children}
       </div>
 
-      {/* Overlay Soft Paywall Glassmorphism (solo visible si no tiene acceso activo) */}
-      {!hasAccess && <AuthModal />}
+      {/* Overlay Soft Paywall Glassmorphism (visible si no tiene acceso activo o si abrió el modal de suscripción/upgrade) */}
+      {(!hasAccess || isUpgradeModalOpen) && <AuthModal />}
     </div>
   );
 };
+

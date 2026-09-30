@@ -166,6 +166,8 @@ export function App() {
   const authPlan = useAuthStore((s) => s.subscription_plan);
   const getDaysRemaining = useAuthStore((s) => s.getDaysRemaining);
   const getFormattedExpiration = useAuthStore((s) => s.getFormattedExpiration);
+  const isCoach = useAuthStore((s) => s.isCoach());
+  const setUpgradeModalOpen = useAuthStore((s) => s.setUpgradeModalOpen);
 
   /**
    * Propiedad de los datos locales: si se entra con una cuenta distinta a la que
@@ -1188,7 +1190,9 @@ export function App() {
             onExportCoreo={handleExportCoreo}
             onSaveOffline={handleSaveOffline}
             onOpenPaperToDigital={() => setPaperOpen(true)}
+            isCoach={isCoach}
             onOpenCoach={() => startTransition(() => setActiveView('coach'))}
+            onUpgradeToCoach={() => setUpgradeModalOpen(true)}
           />
         ) : activeView === 'studio' ? (
           <div className="flex-1 min-h-0 flex flex-col overflow-hidden relative">

@@ -1,15 +1,13 @@
 /**
- * AuthModal.tsx — Pantalla de Acceso / Onboarding de SkateCoreo
+ * AuthModal.tsx — Pantalla de Acceso, Onboarding y Selección de Planes de SkateCoreo
  *
- * Dos caminos claramente diferenciados sobre un mismo lenguaje visual
- * (glass-panel, cyan/mint, 48px touch, safe areas):
- *   · Adquirir licencia (PayPal con correo obligatorio previo).
- *   · Iniciar sesión (correo+contraseña, código de regalo/Beta Tester).
+ * Presentación profesional y centralizada de categorías comerciales:
+ *   · Plan Patinadora / Patinador: $5/mes | Anual: $48/año (20% desc., ahorras $12/año, equiv $4/mes).
+ *   · Plan Entrenador: $8/mes | Anual: $67.20/año (30% desc., ahorras $28.80/año, equiv $5.60/mes).
  *
- * En móvil/tablet (< lg) los dos caminos se presentan con un selector
- * segmentado para no apilar dos tarjetas gigantes; en escritorio se muestran
- * lado a lado. La lógica de autenticación, PayPal, códigos y recuperación de
- * pagos NO se modifica: sólo cambia la presentación.
+ * Dos caminos claramente diferenciados sobre el sistema de diseño de SkateCoreo:
+ *   · Adquirir suscripción (PayPal con correo previo, selección de categoría y período).
+ *   · Iniciar sesión (correo + contraseña, código de regalo/licencia de club).
  */
 
 import React, { useState } from 'react';
@@ -30,7 +28,9 @@ import {
   Sparkles,
   ChevronDown,
   ArrowRight,
+  X,
 } from 'lucide-react';
+import { PRICING_PLANS, PlanRole, PlanPeriod } from '../services/pricingService';
 import { useAuthStore } from '../store/useAuthStore';
 import { PayPalButton } from './PayPalButton';
 import { getDeviceType, getDeviceTypeLabel } from '../utils/deviceDetector';
@@ -48,9 +48,8 @@ const tabClass = (active: boolean) =>
   ].join(' ');
 
 /**
- * Visibilidad de los dos caminos. Una sola fuente de verdad para el mapeo
- * tab→panel y el breakpoint: en <lg sólo se ve el panel activo; en lg+ ambos.
- * (El selector superior usa `lg:hidden`, emparejado con `lg:flex` de aquí.)
+ * Visibilidad de los dos caminos.
+ * En móviles/tablets (<lg) se visualiza la pestaña activa; en escritorio (lg+) se muestran ambos paneles.
  */
 const panelClass = (tab: AuthTab, active: AuthTab) =>
   [
@@ -68,10 +67,13 @@ export const AuthModal: React.FC = () => {
     redeemClubLicense,
     recoverPaymentLookup,
     isLoading,
+    isUpgradeModalOpen,
+    setUpgradeModalOpen,
   } = useAuthStore();
 
   // ── Tarjeta 1: Plan y Email Pre-Pago PayPal ─────────────────────────
-  const [selectedPlan, setSelectedPlan] = useState<'annual' | 'monthly'>('annual');
+  const [selectedRole, setSelectedRole] = useState<PlanRole>(() => isUpgradeModalOpen ? 'coach' : 'skater');
+  const [selectedPlan, setSelectedPlan] = useState<PlanPeriod>('annual');
   const [buyerEmail, setBuyerEmail] = useState('');
   const [paymentFeedback, setPaymentFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
@@ -109,14 +111,14 @@ export const AuthModal: React.FC = () => {
   const [recoverFeedback, setRecoverFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // ── Selector móvil (solo presentación) ──────────────────────────────
-  const [authTab, setAuthTab] = useState<AuthTab>('login');
+  const [authTab, setAuthTab] = useState<AuthTab>(() => isUpgradeModalOpen ? 'buy' : 'login');
 
   // Detección de dispositivo actual para mostrar en la tarjeta de acceso
   const detectedType = getDeviceType();
   const detectedLabel = getDeviceTypeLabel(detectedType);
 
-  // Si el usuario ya tiene acceso activo verificado, no mostrar paywall
-  if (hasActiveAccess()) return null;
+  // Si el usuario ya tiene acceso activo verificado y no está en modo modal de upgrade, no mostrar paywall
+  if (hasActiveAccess() && !isUpgradeModalOpen) return null;
 
   // ── Handler Login ──────────────────────────────────────────────────
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -189,7 +191,8 @@ export const AuthModal: React.FC = () => {
       postPaymentData.payerEmail,
       postRegPassword,
       postRegName || postPaymentData.payerName || '',
-      postPaymentData.orderID
+      postPaymentData.orderID,
+      selectedRole
     );
     setPostRegLoading(false);
 
@@ -197,48 +200,63 @@ export const AuthModal: React.FC = () => {
       setPostRegFeedback({ type: 'error', message: res.message });
     } else {
       setPostPaymentData(null);
+      if (isUpgradeModalOpen) {
+        setUpgradeModalOpen(false);
+      }
     }
   };
 
   // ── Handler Recuperar Pago ─────────────────────────────────────────
   const handleRecoverLookup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!recoverQuery.trim()) return;
-
-    setRecoverLoading(true);
     setRecoverFeedback(null);
+    setRecoverLoading(true);
 
     const res = await recoverPaymentLookup(recoverQuery);
     setRecoverLoading(false);
 
-    if (res.found && res.paypal_order_id && res.payer_email) {
-      setShowRecoverModal(false);
-      setPostPaymentData({
-        orderID: res.paypal_order_id,
-        payerEmail: res.payer_email,
-        payerName: res.payer_name || '',
-      });
-      setPostRegName(res.payer_name || '');
-    } else {
+    if (!res.found) {
       setRecoverFeedback({
         type: 'error',
-        message: res.error || 'No se encontró un pago pendiente con ese dato.',
+        message: res.error || 'No se encontró un pago de PayPal con ese dato.',
       });
+      return;
     }
+
+    setShowRecoverModal(false);
+    setPostPaymentData({
+      orderID: res.paypal_order_id || recoverQuery,
+      payerEmail: res.payer_email || '',
+      payerName: res.payer_name || '',
+    });
+    setPostRegName(res.payer_name || '');
   };
+
+  const currentPlan = PRICING_PLANS[selectedRole];
+  const paypalAmount = selectedPlan === 'monthly'
+    ? currentPlan.monthlyPrice.toFixed(2)
+    : currentPlan.annualPrice.toFixed(2);
 
   return (
     <>
-      <div
-        className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-slate-950/90 backdrop-blur-xl select-none animate-fade-in"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Acceso a SkateCoreo"
-      >
-        <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col justify-center px-3 py-5 sm:px-6 sm:py-8">
-          {/* ── Marca ── */}
+      {/* ── Overlay Principal Glassmorphism ── */}
+      <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-neon-canvas/85 backdrop-blur-xl animate-fade-in p-2 sm:p-4 md:p-6">
+        {/* Botón de cierre cuando se abre como Modal de Upgrade/Planes */}
+        {isUpgradeModalOpen && (
+          <button
+            type="button"
+            onClick={() => setUpgradeModalOpen(false)}
+            className="fixed top-4 right-4 z-50 p-2.5 rounded-full bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white transition-all border border-white/15 shadow-xl"
+            title="Cerrar y volver a SkateCoreo"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        )}
+
+        <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col justify-center px-2 py-4 sm:px-4 sm:py-6 md:px-6">
+          {/* ── Marca y Encabezado ── */}
           <header className="mb-4 flex flex-col items-center text-center sm:mb-6">
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-900/80 px-3 py-1">
+            <div className="mb-2.5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-900/80 px-3 py-1">
               <img
                 src="/alsiztech_app_icon_dark.svg"
                 alt=""
@@ -249,17 +267,16 @@ export const AuthModal: React.FC = () => {
                 }}
               />
               <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-cyan">
-                AlsizTech · SkateCoreo SaaS
+                AlsizTech · SkateCoreo
               </span>
             </div>
             <SkateCoreoBrand size="lg" />
-            <p className="mt-2 max-w-md text-xs leading-relaxed text-slate-400 sm:text-sm">
-              Plataforma profesional de trazado coreográfico, mezcla de audio y catálogo oficial
-              de figuras.
+            <p className="mt-2 max-w-lg text-xs leading-relaxed text-slate-400 sm:text-sm">
+              Plataforma profesional de trazado coreográfico, sincronización musical, evaluaciones oficiales y gestión deportiva.
             </p>
           </header>
 
-          {/* ── Selector compacto (móvil/tablet) ── */}
+          {/* ── Selector Móvil / Tablet (<lg) ── */}
           <div
             role="tablist"
             aria-label="Elige un camino de acceso"
@@ -281,124 +298,215 @@ export const AuthModal: React.FC = () => {
               onClick={() => setAuthTab('buy')}
               className={tabClass(authTab === 'buy')}
             >
-              Crear acceso
+              Planes y Registro
             </button>
           </div>
 
-          {/* ── Dos caminos ── */}
+          {/* ── Dos Paneles: Planes/Registro vs Login ── */}
           <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-2 lg:items-stretch">
             {/* ══════════ CAMINO 1: ADQUIRIR SUSCRIPCIÓN ══════════ */}
             <section
-              aria-label="Adquirir suscripción"
+              aria-label="Planes y Suscripción"
               className={panelClass('buy', authTab)}
             >
               <div className="mb-3 flex items-center justify-between gap-2 border-b border-white/5 pb-2.5">
                 <span className="font-mono text-[10px] font-black uppercase tracking-wider text-cyan">
-                  Suscripción SkateCoreo
+                  {isUpgradeModalOpen ? 'Planes de Suscripción' : 'Planes y Nuevo Acceso'}
                 </span>
-                <span className="rounded-full border border-cyan/30 bg-cyan/15 px-2.5 py-0.5 text-[10px] font-black uppercase text-cyan">
-                  {selectedPlan === 'annual' ? 'Ahorro 20%' : 'Plan Mensual'}
+                <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-black uppercase ${
+                  selectedRole === 'coach'
+                    ? 'border-[#FF4C79]/40 bg-[#FF4C79]/15 text-[#FF4C79]'
+                    : 'border-cyan/30 bg-cyan/15 text-cyan'
+                }`}>
+                  {selectedPlan === 'annual'
+                    ? `Ahorro ${currentPlan.annualDiscountPercent}%`
+                    : 'Plan Mensual'}
                 </span>
               </div>
 
-              {/* Selector de Plan Individual: Anual vs Mensual */}
-              <div className="mb-4 grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-1.5">
-                <button
-                  type="button"
-                  onClick={() => setSelectedPlan('annual')}
-                  className={`press flex flex-col items-center justify-center rounded-xl py-2 px-2 transition-all ${
-                    selectedPlan === 'annual'
-                      ? 'bg-cyan text-neon-canvas shadow-glow-cyan font-black'
-                      : 'text-slate-300 hover:bg-white/[0.06] font-semibold'
-                  }`}
-                >
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs">Anual</span>
-                    <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-black ${
-                      selectedPlan === 'annual' ? 'bg-slate-950 text-cyan' : 'bg-mint/20 text-mint'
-                    }`}>
-                      -20%
-                    </span>
-                  </div>
-                  <span className="text-sm font-black">$48 / año</span>
-                  <span className="text-[10px] opacity-80">(Solo $4/mes)</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedPlan('monthly')}
-                  className={`press flex flex-col items-center justify-center rounded-xl py-2 px-2 transition-all ${
-                    selectedPlan === 'monthly'
-                      ? 'bg-cyan text-neon-canvas shadow-glow-cyan font-black'
-                      : 'text-slate-300 hover:bg-white/[0.06] font-semibold'
-                  }`}
-                >
-                  <span className="text-xs">Mensual</span>
-                  <span className="text-sm font-black">$5 / mes</span>
-                  <span className="text-[10px] opacity-80">Flexibilidad total</span>
-                </button>
-              </div>
-
-              {/* Tarjeta de Precios Dinámica */}
-              {selectedPlan === 'annual' ? (
-                <div className="flex items-baseline justify-between gap-3">
-                  <div className="min-w-0">
-                    <h2 className="font-display text-lg font-black text-white sm:text-xl">
-                      Plan Anual Pro
-                    </h2>
-                    <p className="mt-0.5 text-xs text-slate-400">
-                      Acceso profesional por 365 días con máxima economía
-                    </p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <span className="text-xs text-slate-500 line-through">$60</span>
-                      <span className="text-2xl font-black text-white sm:text-3xl">$48</span>
+              {/* Selector de Categoría Comercial */}
+              <div className="mb-3">
+                <label className="block text-[11px] font-black uppercase tracking-wider text-slate-300 mb-1.5">
+                  1. Selecciona tu tipo de cuenta
+                </label>
+                <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-1.5">
+                  {/* Categoría Patinador/a */}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRole('skater')}
+                    className={`press flex flex-col items-center justify-center gap-1 rounded-xl py-2.5 px-2 text-center transition-all ${
+                      selectedRole === 'skater'
+                        ? 'bg-cyan text-neon-canvas shadow-glow-cyan font-black'
+                        : 'text-slate-300 hover:bg-white/[0.06] font-semibold'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <Sparkles className="h-4 w-4 shrink-0" />
+                      <span className="text-xs uppercase tracking-wide">Patinador(a)</span>
                     </div>
-                    <span className="block text-[10px] font-bold text-mint">
-                      Ahorras $12/año (20% descuento)
+                    <span className="text-[10px] opacity-85">
+                      Desde $4.00/mes
                     </span>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-baseline justify-between gap-3">
-                  <div className="min-w-0">
-                    <h2 className="font-display text-lg font-black text-white sm:text-xl">
-                      Plan Mensual Pro
-                    </h2>
-                    <p className="mt-0.5 text-xs text-slate-400">
-                      Suscripción recurrente mes a mes
-                    </p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <span className="text-2xl font-black text-white sm:text-3xl">$5</span>
-                    <span className="ml-1 text-xs text-slate-400">USD / mes</span>
-                  </div>
-                </div>
-              )}
+                  </button>
 
-              <ul className="mt-4 space-y-2 text-xs text-slate-300">
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-mint" />
-                  <span>Catálogo reglamentario de figuras y cálculo de BV</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-mint" />
-                  <span>Trazado cinemático 2D y zoom gestual de precisión</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-mint" />
-                  <span>Modo Entrenamiento 100% Offline (sin red en la pista)</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-cyan" />
-                  <span>
-                    Hasta 3 dispositivos: <strong>1 PC + 1 Tablet + 1 Celular</strong>
-                  </span>
-                </li>
-              </ul>
+                  {/* Categoría Entrenador/a */}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRole('coach')}
+                    className={`press flex flex-col items-center justify-center gap-1 rounded-xl py-2.5 px-2 text-center transition-all ${
+                      selectedRole === 'coach'
+                        ? 'bg-[#FF4C79] text-white shadow-[0_0_16px_rgba(255,76,121,0.5)] font-black'
+                        : 'text-slate-300 hover:bg-white/[0.06] font-semibold'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <Users className="h-4 w-4 shrink-0" />
+                      <span className="text-xs uppercase tracking-wide">Entrenador(a)</span>
+                    </div>
+                    <span className="text-[10px] opacity-90">
+                      Desde $5.60/mes
+                    </span>
+                  </button>
+                </div>
 
-              <div className="mt-4 space-y-2 border-t border-white/10 pt-3">
+                {/* Explicación concisa y profesional de la categoría */}
+                <div className="mt-2 rounded-xl bg-white/[0.03] border border-white/5 p-2.5">
+                  <p className="text-[11px] leading-relaxed text-slate-300">
+                    <strong className="text-white">{currentPlan.name}:</strong>{' '}
+                    {currentPlan.tagline}.
+                  </p>
+                </div>
+              </div>
+
+              {/* Selector de Período de Facturación (Anual vs Mensual) */}
+              <div className="mb-3">
+                <label className="block text-[11px] font-black uppercase tracking-wider text-slate-300 mb-1.5">
+                  2. Elige el período de facturación
+                </label>
+                <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-1.5">
+                  {/* Opción Anual con Descuento */}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPlan('annual')}
+                    className={`press flex flex-col items-center justify-center rounded-xl py-2 px-2 transition-all ${
+                      selectedPlan === 'annual'
+                        ? selectedRole === 'coach'
+                          ? 'bg-[#FF4C79] text-white shadow-[0_0_15px_rgba(255,76,121,0.5)] font-black'
+                          : 'bg-cyan text-neon-canvas shadow-glow-cyan font-black'
+                        : 'text-slate-300 hover:bg-white/[0.06] font-semibold'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs">Plan Anual</span>
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-black ${
+                        selectedPlan === 'annual'
+                          ? 'bg-slate-950 text-white'
+                          : 'bg-mint/20 text-mint'
+                      }`}>
+                        -{currentPlan.annualDiscountPercent}%
+                      </span>
+                    </div>
+                    <span className="text-sm font-black mt-0.5">
+                      ${currentPlan.annualPrice.toFixed(2)} USD / año
+                    </span>
+                    <span className="text-[10px] opacity-80">
+                      (Equivale a ${currentPlan.monthlyEquivalent.toFixed(2)}/mes)
+                    </span>
+                  </button>
+
+                  {/* Opción Mensual */}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPlan('monthly')}
+                    className={`press flex flex-col items-center justify-center rounded-xl py-2 px-2 transition-all ${
+                      selectedPlan === 'monthly'
+                        ? selectedRole === 'coach'
+                          ? 'bg-[#FF4C79] text-white shadow-[0_0_15px_rgba(255,76,121,0.5)] font-black'
+                          : 'bg-cyan text-neon-canvas shadow-glow-cyan font-black'
+                        : 'text-slate-300 hover:bg-white/[0.06] font-semibold'
+                    }`}
+                  >
+                    <span className="text-xs">Plan Mensual</span>
+                    <span className="text-sm font-black mt-0.5">
+                      ${currentPlan.monthlyPrice.toFixed(2)} USD / mes
+                    </span>
+                    <span className="text-[10px] opacity-80">
+                      Flexibilidad mensual
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Tarjeta de Precios Dinámica y Ahorro */}
+              <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-3.5 mb-3">
+                {selectedPlan === 'annual' ? (
+                  <div className="flex items-baseline justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="font-display text-base font-black text-white sm:text-lg truncate">
+                        {currentPlan.name} Anual
+                      </h3>
+                      <p className="mt-0.5 text-[11px] text-slate-400">
+                        Acceso integral durante 365 días con precio preferencial
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <span className="text-xs text-slate-500 line-through">
+                          ${currentPlan.baseAnnualPrice.toFixed(2)}
+                        </span>
+                        <span className="text-2xl font-black text-white sm:text-3xl">
+                          ${currentPlan.annualPrice.toFixed(2)}
+                        </span>
+                      </div>
+                      <span className="block text-[10px] font-bold text-mint">
+                        Ahorras ${currentPlan.annualSavings.toFixed(2)}/año ({currentPlan.annualDiscountPercent}% descuento)
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-baseline justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="font-display text-base font-black text-white sm:text-lg truncate">
+                        {currentPlan.name} Mensual
+                      </h3>
+                      <p className="mt-0.5 text-[11px] text-slate-400">
+                        Suscripción recurrente mes a mes sin permanencia
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <span className="text-2xl font-black text-white sm:text-3xl">
+                        ${currentPlan.monthlyPrice.toFixed(2)}
+                      </span>
+                      <span className="ml-1 text-xs text-slate-400">USD / mes</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Lista de características del plan */}
+                <ul className="mt-3 space-y-1.5 border-t border-white/10 pt-2.5 text-xs text-slate-300">
+                  {currentPlan.features.map((feat: string, idx: number) => (
+                    <li key={idx} className="flex items-start gap-2">
+                      <Check className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${selectedRole === 'coach' ? 'text-[#FF4C79]' : 'text-mint'}`} />
+                      <span className="leading-snug">{feat}</span>
+                    </li>
+                  ))}
+                  <li className="flex items-start gap-2 text-slate-200">
+                    <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan" />
+                    <span>
+                      Hasta 3 dispositivos: <strong>1 PC + 1 Tablet + 1 Celular</strong>
+                    </span>
+                  </li>
+                </ul>
+
+                {selectedRole === 'coach' && (
+                  <div className="mt-2.5 rounded-lg bg-white/[0.04] p-2 text-[10px] text-slate-400 border border-white/5">
+                    <strong>Nota de autorización:</strong> La suscripción activa el paquete comercial de entrenador. La asignación y validación de roles en la plataforma es verificada de forma segura por el backend según los registros de club o federación.
+                  </div>
+                )}
+              </div>
+
+              {/* Campo de Correo y Botón de Pago PayPal */}
+              <div className="space-y-2 border-t border-white/10 pt-3">
                 <Field
                   id="buyer-email"
                   type="email"
@@ -414,36 +522,36 @@ export const AuthModal: React.FC = () => {
                   placeholder="tu.correo@ejemplo.com"
                   autoComplete="email"
                 />
-              </div>
 
-              <div className="mt-3">
-                <PayPalButton
-                  amount={selectedPlan === 'monthly' ? '5.00' : '48.00'}
-                  plan={selectedPlan}
-                  buyerEmail={buyerEmail}
-                  onSuccess={(data) => {
-                    setPostPaymentData({
-                      orderID: data.orderID,
-                      payerEmail: data.payerEmail,
-                      payerName: data.payerName,
-                    });
-                    setPostRegName(data.payerName || '');
-                  }}
-                  onError={(errMsg) => {
-                    setPaymentFeedback({ type: 'error', message: errMsg });
-                  }}
-                />
-              </div>
-
-              <p className="mt-2 text-center text-[10px] leading-tight text-slate-400">
-                Cobro recurrente seguro con PayPal. Puedes cancelar tu suscripción en cualquier momento; conservarás tu acceso hasta el final del período pagado.
-              </p>
-
-              {paymentFeedback && (
-                <div className="mt-2.5 rounded-xl border border-coral/30 bg-coral/15 p-2.5 text-center text-xs font-bold text-coral">
-                  {paymentFeedback.message}
+                <div className="mt-2">
+                  <PayPalButton
+                    amount={paypalAmount}
+                    plan={selectedPlan}
+                    buyerEmail={buyerEmail}
+                    onSuccess={(data) => {
+                      setPostPaymentData({
+                        orderID: data.orderID,
+                        payerEmail: data.payerEmail,
+                        payerName: data.payerName,
+                      });
+                      setPostRegName(data.payerName || '');
+                    }}
+                    onError={(errMsg) => {
+                      setPaymentFeedback({ type: 'error', message: errMsg });
+                    }}
+                  />
                 </div>
-              )}
+
+                <p className="mt-2 text-center text-[10px] leading-tight text-slate-400">
+                  Cobro seguro procesado por PayPal. Puedes cancelar tu suscripción en cualquier momento y mantendrás acceso hasta el final del ciclo pagado.
+                </p>
+
+                {paymentFeedback && (
+                  <div className="mt-2.5 rounded-xl border border-coral/30 bg-coral/15 p-2.5 text-center text-xs font-bold text-coral">
+                    {paymentFeedback.message}
+                  </div>
+                )}
+              </div>
             </section>
 
             {/* ══════════ CAMINO 2: INICIAR SESIÓN ══════════ */}
@@ -484,6 +592,7 @@ export const AuthModal: React.FC = () => {
                   placeholder="tu.correo@ejemplo.com"
                   autoComplete="email"
                 />
+
                 <Field
                   id="login-password"
                   type="password"
@@ -674,8 +783,7 @@ export const AuthModal: React.FC = () => {
           </div>
           <p className="font-display text-lg font-black text-white">¡Pago verificado con éxito!</p>
           <p className="mt-1 text-xs text-slate-400">
-            Completa tus datos para activar tu año de acceso y vincular este dispositivo (
-            {detectedLabel}).
+            Completa tus datos para activar tu acceso y vincular este dispositivo ({detectedLabel}).
           </p>
         </div>
 
@@ -787,3 +895,4 @@ export const AuthModal: React.FC = () => {
     </>
   );
 };
+
