@@ -1,59 +1,82 @@
-# SkateCoreo - Ecosistema Digital PWA para Patinaje Artístico (Sistema RollArt)
+# SkateCoreo
 
-Plataforma Web Progresiva (PWA) de alto rendimiento orientada a jueces, panel técnico y entrenadores de patinaje artístico sobre ruedas, alineada estrictamente con las normativas oficiales de la **World Skate Artistic Technical Commission**.
-
----
-
-## 🚀 Características Principales
-
-### 1. Motor de Reglas RollArt Embebido (One-Tap)
-- **Degradaciones de Rotación Automáticas**:
-  - `<` (*Under-rotated*): -30% en saltos simples y dobles; -20% en saltos triples y quads.
-  - `<<` (*Half-rotated*): -50% en simples y dobles; -40% en triples; -30% en quads.
-  - `<<<` (*Downgraded*): Asigna de forma automática el valor base del salto con una rotación menos (ejemplo: `3Lo <<<` recibe el valor de `2Lo` = 1.70 pts).
-- **Validación Estricta de Trompos (Spins)**:
-  - Exige un mínimo obligatorio de **3 rotaciones completas** para cualquier nivel.
-  - Si el evaluador marca menos de 3 vueltas, el botón se bloquea y muestra: `"Requiere 3 vueltas completas para validación"`.
-- **Bono de Distribución y Factor "T" (+10%)**:
-  - Detección automática en la línea de tiempo del programa. Elementos ejecutados en la segunda mitad (`time >= half_time_ms`) reciben +10% sobre el valor base.
-- **Borde de Entrada y Estado Pre-check para Lutz**:
-  - Alerta visual de pre-evaluación para observar el tobillo y el filo exterior (*Outside*) antes del despegue (*stab*).
-- **Botón dedicado para NJ (*No Jump*)**: Conector reglamentario con valor 0.00 pts en combinaciones.
-- **Danza y Ritmo**: Botón dedicado para *Carlos Tango - Tap Down (Beat 3)*.
-- **Componentes Artísticos (PCS)**: Sliders para *Skating Skills*, *Transitions*, *Performance* y *Choreography* convertidos a escala decimal oficial.
-- **Ficha Técnica Oficial (Report Card)**: Desglose completo de TES, PCS, deducciones y Total Segment Score (TSS) con vista de impresión.
-
-### 2. Motor de Audio en Memoria RAM & Mitigaciones WebKit/iOS
-- Decodificación y almacenamiento en RAM con `AudioBufferSourceNode` para soporte nativo de `.m4a`, `.wav` y `.mp3`.
-- Forma de onda interactiva (*waveform*) en Canvas con marcador del Factor T y cursor de tiempo.
-- Modificación no destructiva de tempo/velocidad (0.5x - 1.5x) y enrutamiento estéreo de canales L/R.
-- **Bypass del Interruptor de Silencio en iOS**: `navigator.audioSession.type = "playback"`.
-- **Reproducción en Segundo Plano en Safari**: Topología `MediaStreamAudioDestinationNode` enlazada a elemento `<audio playsinline>` invisible.
-- **Prevención de Bloqueos en iOS 18**: Suspensión y reanudación limpia en eventos `visibilitychange`.
-- **Detección de Latencia Bluetooth / AirPods**: Alerta no bloqueante ante el retraso de hardware (~1s) reportado en el bug WebKit 221334.
-
-### 3. Lienzo Coreográfico 2D (Pista 25x50m)
-- Representación reglamentaria a escala de pista de 50 metros de largo por 25 metros de ancho.
-- Marcas oficiales: bordes redondeados (r = 3.5m), eje longitudinal, eje transversal, círculos reglamentarios y ubicación del panel de jueces.
-- Editor de trayectorias con **Curvas de Bézier cúbicas** interactivas (puntos de anclaje y controladores arrastrables).
-- Patinador animado en tiempo real sincronizado con el cursor del audio.
-- Mapeo de elementos técnicos directamente sobre las coordenadas de la pista.
-
-### 4. Almacenamiento Local Persistente (IndexedDB)
-- 3 Almacenes de Objetos principales según el PRD: `skaters`, `programs`, `elements_log`.
-- Protección contra evicción en Safari/iOS mediante `navigator.storage.persist()`.
-- Exportación e importación completa en formato JSON para copias de seguridad offline.
+Plataforma Web Progresiva (PWA) de alto rendimiento orientada a jueces, panel técnico y entrenadores de patinaje artístico sobre ruedas, alineada estrictamente con las normativas oficiales de la **World Skate Artistic Technical Commission** (Sistema RollArt).
 
 ---
 
-## 🛠️ Comandos de Desarrollo
+## Características Principales Actualmente Operativas
+
+### 1. Panel Técnico y Motor de Reglas RollArt
+- **Evaluación "One-Tap"**: Ingreso rápido de elementos técnicos.
+- **Validaciones Oficiales**: Exigencia de 3 rotaciones en trompos (Spins), detección de borde para Lutz, y cálculos automáticos de degradaciones (`<`, `<<`, `<<<`).
+- **Factor "T" (+10%)**: Detección temporal y bono del 10% para elementos ejecutados en la segunda mitad del programa.
+- **Ficha Técnica (Report Card)**: Desglose completo de TES (Technical Element Score), PCS (Program Component Score), deducciones y Total Segment Score (TSS).
+
+### 2. Lienzo Coreográfico 2D Interactivo
+- **Pista Reglamentaria**: Representación a escala de una pista de 50x25 metros con las marcas oficiales (ejes, círculos, panel de jueces).
+- **Curvas de Bézier**: Editor de trayectorias con puntos de control interactivos que permite trazar el recorrido del patinador.
+- **Mapeo Espacial**: Vinculación de los elementos técnicos directamente a posiciones físicas en la pista.
+
+### 3. Estudio de Audio (Web Audio API)
+- **Motor en RAM**: Decodificación nativa de archivos (`.mp3`, `.wav`, `.m4a`) sin latencia.
+- **Línea de Tiempo Multitrack**: Interfaz estilo DAW con visualización de forma de onda interactiva (Waveform).
+- **Control de Reproducción**: Ajustes no destructivos de velocidad (Tempo), sincronización con la pista 2D y mitigaciones técnicas para iOS/Safari (Bypass del interruptor de silencio, manejo en background).
+
+### 4. Digitalización de Hojas (Paper-to-Digital)
+- **Extracción CV**: Módulo con corrección de perspectiva (Corner Pins) y procesamiento de imágenes para la captura, limpieza y análisis de planillas de papel.
+
+### 5. Portal del Entrenador (Coach Portal)
+- **Gestión de Atletas**: Directorio completo (Athlete Directory), dossiers individuales (Athlete Dossier View) e historial de evaluaciones.
+- **Almacenamiento en la Nube (Cloud Storage)**: Integración modular que permite sincronización y respaldo a través de proveedores como Google Drive, Dropbox, OneDrive y Almacenamiento Local (IndexedDB).
+- **Control de Coreografías**: Versiones de rutinas, almacenamiento de mezclas de audio y herramientas para compartir rutinas con patinadores.
+
+### 6. Sistema SaaS de Seguridad y Autenticación
+- **Control Anti-Piratería (Device Fingerprinting)**: Restricción estricta de hardware por usuario (Máx. 3 dispositivos: 1 Móvil, 1 Tablet, 1 PC).
+- **Gestión de Permisos (Roles)**: Soporte completo para flujos de Superadmin, Entrenador (Coach), Administrador de Club y Patinador (Skater).
+- **Pagos y Promociones**: Integración funcional con PayPal, suscripciones (Individual, Club) y sistema validado de Códigos Promocionales y Licencias.
+
+---
+
+## Arquitectura y Tecnologías Vigentes
+
+- **Frontend Core**: React 18, TypeScript, Vite.
+- **Interfaz y Estilos**: Tailwind CSS, Lucide React (Íconos), Zustand (Gestión de Estados).
+- **Base de Datos y Almacenamiento**:
+  - *Offline-First Local*: IndexedDB (`db.ts`, `coachDb.ts`) para disponibilidad sin internet.
+  - *Backend Auth & Sync*: Supabase (PostgreSQL) para credenciales, licencias y sincronización segura.
+- **Componentes Nativos del Navegador**:
+  - `Web Audio API` (Motor de sonido).
+  - `Canvas API` (Motor 2D de la pista).
+  - `PWA Manifest / Service Workers` (Instalación nativa y caché offline).
+
+---
+
+## Estructura del Proyecto
+
+```text
+SkateCoreo/
+├── public/                 # Assets públicos (Iconos, Manifiesto PWA, Service Worker, Brand kit)
+├── src/
+│   ├── coach/              # Coach Portal: Componentes, Servicios DB, Gestión Cloud
+│   ├── components/         # Componentes UI (RinkCanvas, AudioStudio, UI genérica, Navegación)
+│   ├── store/              # Stores de Zustand (Auth, Coach, Choreography, Audio)
+│   ├── services/           # Lógica central: db.ts, audioEngine.ts, rollartEngine.ts, supabase.ts
+│   ├── types/              # Interfaces TypeScript globales
+│   ├── App.tsx             # Punto de entrada de la aplicación y enrutador principal
+│   └── main.tsx            # Montaje del árbol React
+├── package.json
+├── tailwind.config.js
+├── tsconfig.json
+└── vite.config.ts
+```
+
+---
+
+## Comandos de Desarrollo
 
 ```bash
-# Iniciar servidor de desarrollo en local (puerto 3000)
+# Iniciar servidor de desarrollo en local
 npm run dev
-
-# Ejecutar la suite de pruebas unitarias del Motor RollArt
-npm test
 
 # Compilar para producción (Typecheck + Vite bundle)
 npm run build
@@ -61,40 +84,3 @@ npm run build
 # Previsualizar compilación de producción
 npm run preview
 ```
-
----
-
-## 📂 Estructura del Proyecto
-
-```
-SkateCoreo/
-├── Especificaciones 1.txt        # PRD Original (Fase MVP v1.0)
-├── Informa de investigacion.txt   # Informe Técnico y UX
-├── index.html                    # Shell HTML con audio sink invisible
-├── public/
-│   ├── icon.svg                  # Icono vectorial PWA
-│   ├── manifest.webmanifest      # Manifiesto PWA standalone
-│   └── sw.js                     # Service Worker offline-first
-├── src/
-│   ├── App.tsx                   # Aplicación principal y reproductor flotante
-│   ├── main.tsx                  # Punto de montaje
-│   ├── index.css                 # Estilos Tailwind y animaciones
-│   ├── types/
-│   │   └── index.ts              # Modelos de datos TypeScript (RollArt, Skater, Program)
-│   ├── services/
-│   │   ├── db.ts                 # Servicio IndexedDB y Storage Persist
-│   │   ├── audioEngine.ts        # Motor Web Audio RAM y mitigaciones WebKit
-│   │   ├── rollartEngine.ts      # Motor de Reglas Oficial RollArt
-│   │   └── rollartEngine.test.ts # Pruebas unitarias automatizadas (10/10)
-│   └── components/
-│       ├── Navbar.tsx            # Cabecera, tabs, PWA install y alerta Bluetooth
-│       ├── TechnicalPanel.tsx    # Panel técnico One-Tap y Report Card
-│       ├── RinkCanvas.tsx        # Lienzo 2D de pista 25x50m con Bézier
-│       ├── AudioStudio.tsx       # Estudio de audio con waveform y Factor T
-│       └── SkatersManager.tsx    # Gestión de atletas y programas
-├── package.json
-├── tailwind.config.js
-├── tsconfig.json
-└── vite.config.ts
-```
-
