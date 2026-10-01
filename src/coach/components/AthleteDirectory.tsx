@@ -15,10 +15,10 @@ import {
   Users,
   Search,
   UserPlus,
-  Compass,
   ArrowRight,
   Trash2,
 } from 'lucide-react';
+import { RinkIcon } from '../../components/icons/RinkIcon';
 import { CoachAthlete } from '../types';
 import { useCoachStore } from '../store/useCoachStore';
 import { CategoriaReglamento } from '../../constants/reglamento';
@@ -280,7 +280,7 @@ export const AthleteDirectory: React.FC<AthleteDirectoryProps> = ({
                     e.stopPropagation();
                     onCreateChoreography(athlete);
                   }}
-                  icon={<Compass className="w-3.5 h-3.5" />}
+                  icon={<RinkIcon className="w-3.5 h-3.5" />}
                   title="Crear coreografía directamente en la Pista 2D"
                 >
                   Coreografía

@@ -1,6 +1,7 @@
 import React from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { Home, Compass, AudioLines, Users, Settings2 } from 'lucide-react';
+import { Home, AudioLines, Users, Settings2 } from 'lucide-react';
+import { RinkIcon } from '../icons/RinkIcon';
 
 export type AppTab = 'home' | 'rink' | 'studio' | 'skaters' | 'coach' | 'settings';
 
@@ -34,7 +35,7 @@ export const getAppTabs = (isCoach: boolean = false): AppTabDef[] => [
     id: 'rink',
     label: 'Pista 2D',
     short: 'Pista',
-    icon: Compass,
+    icon: RinkIcon,
     hint: 'Editor de coreografía sobre la pista reglamentaria',
   },
   {

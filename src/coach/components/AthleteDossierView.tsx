@@ -19,7 +19,6 @@ import {
   Phone,
   Edit,
   Plus,
-  Compass,
   Download,
   Share2,
   CloudUpload,
@@ -35,6 +34,7 @@ import { AthleteEditModal } from './AthleteEditModal';
 import { AthleteEvaluationsList } from './technical/AthleteEvaluationsList';
 import { coachDb } from '../services/coachDb';
 import { Badge, Tabs, Button } from '../../components/ui';
+import { RinkIcon } from '../../components/icons/RinkIcon';
 
 interface AthleteDossierViewProps {
   athlete: CoachAthlete;
@@ -204,7 +204,7 @@ export const AthleteDossierView: React.FC<AthleteDossierViewProps> = ({
               variant="outline"
               size="md"
               onClick={() => onCreateNewChoreography(athlete)}
-              icon={<Compass className="w-4 h-4 stroke-[2]" />}
+              icon={<RinkIcon className="w-4 h-4" />}
             >
               Nueva Coreografía
             </Button>
@@ -307,7 +307,7 @@ export const AthleteDossierView: React.FC<AthleteDossierViewProps> = ({
             {
               id: 'choreographies',
               label: 'Coreografías y Archivos .coreo',
-              icon: <Compass className="w-4 h-4" />,
+              icon: <RinkIcon className="w-4 h-4" />,
               badge: athleteChoreographies.length,
             },
           ]}
@@ -327,7 +327,7 @@ export const AthleteDossierView: React.FC<AthleteDossierViewProps> = ({
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <Compass className="w-4 h-4 text-coach-rose" />
+              <RinkIcon className="w-4 h-4 text-coach-rose" />
               Coreografías y Archivos .coreo ({athleteChoreographies.length})
             </h3>
             <p className="text-xs text-slate-400">
@@ -354,7 +354,7 @@ export const AthleteDossierView: React.FC<AthleteDossierViewProps> = ({
               variant="coach"
               size="sm"
               onClick={() => onCreateNewChoreography(athlete)}
-              icon={<Compass className="w-4 h-4" />}
+              icon={<RinkIcon className="w-4 h-4" />}
             >
               Diseñar la primera coreografía
             </Button>
@@ -444,7 +444,7 @@ export const AthleteDossierView: React.FC<AthleteDossierViewProps> = ({
                       size="sm"
                       className="flex-1"
                       onClick={() => onOpenChoreographyInEditor(choreo, latestVersion)}
-                      icon={<Compass className="w-4 h-4 stroke-[2]" />}
+                      icon={<RinkIcon className="w-4 h-4" />}
                     >
                       Abrir en Editor
                     </Button>

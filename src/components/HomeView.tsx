@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  Compass,
   AudioLines,
   FolderOpen,
   ScanLine,
@@ -9,6 +8,7 @@ import {
   Lock,
   Sparkles,
 } from 'lucide-react';
+import { RinkIcon } from './icons/RinkIcon';
 import { SkateCoreoBrand } from './brand/SkateCoreoBrand';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
@@ -298,7 +298,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
           <AccessModule
             tone="blue"
             tag="Editor principal"
-            icon={<Compass className="h-5 w-5" />}
+            icon={<RinkIcon className="h-5 w-5" />}
             eyebrow="Coreografía"
             title="Pista 2D"
             lines={['Trazado técnico y curvas de Bézier', 'Visualización espacial y tiempos']}

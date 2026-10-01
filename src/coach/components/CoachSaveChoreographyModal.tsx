@@ -9,7 +9,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Compass, User, AlertCircle, X } from 'lucide-react';
+import { User, AlertCircle, X } from 'lucide-react';
+import { RinkIcon } from '../../components/icons/RinkIcon';
 import { useCoachStore } from '../store/useCoachStore';
 import { CoachAthlete } from '../types';
 import { ChoreographyPathPoint } from '../../types/choreography';
@@ -151,7 +152,7 @@ export const CoachSaveChoreographyModal: React.FC<CoachSaveChoreographyModalProp
         <div className="flex items-center justify-between pb-3 border-b border-white/10">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-2xl bg-[#0f62fe]/15 text-[#78a9ff] ring-1 ring-[#0f62fe]/30">
-              <Compass className="w-5 h-5" />
+              <RinkIcon className="w-5 h-5" />
             </div>
             <div>
               <h3 className="text-base font-black tracking-tight text-white">
