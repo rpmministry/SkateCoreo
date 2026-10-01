@@ -10,6 +10,8 @@
  *       • Anual: $83.92 USD/año (30% descuento, ahorras $35.96/año, equivalente a $6.99/mes)
  */
 
+export const APP_MODE: 'TESTER' | 'COMMERCIAL' = 'TESTER';
+
 export type PlanPeriod = 'monthly' | 'annual';
 export type PlanRole = 'skater' | 'coach';
 

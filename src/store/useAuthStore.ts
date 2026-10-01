@@ -237,9 +237,14 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
             p_device_name: deviceName,
           });
 
-          if (!error && data?.success) {
-            supabaseSuccess = true;
-            userData = data.user;
+          if (!error) {
+            if (data?.success) {
+              supabaseSuccess = true;
+              userData = data.user;
+            } else if (data?.expired) {
+              set({ isLoading: false });
+              return { success: false, message: data.error || 'Tu acceso ha expirado.', expired: true };
+            }
           }
         } catch (rpcErr) {
           console.warn('RPC login_custom_user call exception:', rpcErr);

@@ -35,8 +35,9 @@ import {
   X,
   User,
   KeyRound,
+  FlaskConical,
 } from 'lucide-react';
-import { PRICING_PLANS, SKATER_PLAN, COACH_PLAN, PlanRole, PlanPeriod } from '../services/pricingService';
+import { PRICING_PLANS, SKATER_PLAN, COACH_PLAN, PlanRole, PlanPeriod, APP_MODE } from '../services/pricingService';
 import { useAuthStore } from '../store/useAuthStore';
 import { PayPalButton } from './PayPalButton';
 import { getDeviceType, getDeviceTypeLabel } from '../utils/deviceDetector';
@@ -47,7 +48,7 @@ import { Field } from './ui/Field';
 import { ModalShell } from './ui/ModalShell';
 
 type AuthTab = 'login' | 'buy';
-type AccessMode = 'credentials' | 'code';
+type AccessMode = 'credentials' | 'tester' | 'code';
 
 export const AuthModal: React.FC = () => {
   const {
@@ -75,12 +76,13 @@ export const AuthModal: React.FC = () => {
   } | null>(null);
 
   // ── Tarjeta 2: Login con Correo y Contraseña ───────────────────────
-  const [accessMode, setAccessMode] = useState<AccessMode>('credentials');
+  const [accessMode, setAccessMode] = useState<AccessMode>(APP_MODE === 'TESTER' ? 'tester' : 'credentials');
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginFeedback, setLoginFeedback] = useState<{
     type: 'success' | 'error';
     message: string;
+    expired?: boolean;
   } | null>(null);
 
   // ── Canje de Código de Licencia / Club / Promo ───────────────────────
@@ -138,7 +140,7 @@ export const AuthModal: React.FC = () => {
 
     const res = await loginWithCredentials(loginEmail, loginPassword);
     if (!res.success) {
-      setLoginFeedback({ type: 'error', message: res.message });
+      setLoginFeedback({ type: 'error', message: res.message, expired: res.expired });
     }
   };
 
@@ -321,7 +323,7 @@ export const AuthModal: React.FC = () => {
                   }`}
                 >
                   <KeyRound className="h-3.5 w-3.5 mr-1.5" />
-                  <span>Iniciar Sesión</span>
+                  <span>Acceso</span>
                 </button>
                 <button
                   type="button"
@@ -335,7 +337,7 @@ export const AuthModal: React.FC = () => {
                   }`}
                 >
                   <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-                  <span>Planes y Registro</span>
+                  <span>Suscripciones</span>
                 </button>
               </div>
             )}
@@ -353,7 +355,7 @@ export const AuthModal: React.FC = () => {
                   {/* Cabecera del formulario con indicador de dispositivo */}
                   <div className="flex items-center justify-between pb-3 border-b border-white/[0.06] mb-4">
                     <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-[#78a9ff]">
-                      Acceso Autorizado
+                      Control de Acceso
                     </span>
                     <span className="inline-flex items-center gap-1.5 rounded-md border border-white/10 bg-surface-2 px-2.5 py-0.5 text-[10px] font-medium text-[#c6c6c6]">
                       {detectedType === 'mobile' && <Smartphone className="h-3 w-3 text-[#78a9ff]" />}
@@ -363,22 +365,37 @@ export const AuthModal: React.FC = () => {
                     </span>
                   </div>
 
-                  {/* Selector de modo de acceso: Credenciales vs Código de Licencia */}
-                  <div className="grid grid-cols-2 gap-1 rounded-lg bg-surface-2 p-1 border border-white/[0.06] mb-4">
+                  {/* Selector de modo de acceso: Credenciales vs Testers vs Código de Licencia */}
+                  <div className="grid grid-cols-3 gap-1 rounded-lg bg-surface-2 p-1 border border-white/[0.06] mb-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAccessMode('tester');
+                        setCodeFeedback(null);
+                      }}
+                      className={`flex flex-col sm:flex-row items-center justify-center gap-1 py-1.5 px-1 text-[11px] sm:text-xs font-medium rounded-md transition-colors ${
+                        accessMode === 'tester'
+                          ? 'bg-[#009d9a] text-white font-semibold shadow-sm'
+                          : 'text-[#8d8d8d] hover:text-white'
+                      }`}
+                    >
+                      <FlaskConical className="h-3.5 w-3.5" />
+                      <span>Testers</span>
+                    </button>
                     <button
                       type="button"
                       onClick={() => {
                         setAccessMode('credentials');
                         setLoginFeedback(null);
                       }}
-                      className={`flex items-center justify-center gap-1.5 py-1.5 px-2 text-xs font-medium rounded-md transition-colors ${
+                      className={`flex flex-col sm:flex-row items-center justify-center gap-1 py-1.5 px-1 text-[11px] sm:text-xs font-medium rounded-md transition-colors ${
                         accessMode === 'credentials'
                           ? 'bg-[#0f62fe] text-white font-semibold shadow-sm'
                           : 'text-[#8d8d8d] hover:text-white'
                       }`}
                     >
                       <User className="h-3.5 w-3.5" />
-                      <span>Con Contraseña</span>
+                      <span>Autorizado</span>
                     </button>
                     <button
                       type="button"
@@ -386,14 +403,14 @@ export const AuthModal: React.FC = () => {
                         setAccessMode('code');
                         setCodeFeedback(null);
                       }}
-                      className={`flex items-center justify-center gap-1.5 py-1.5 px-2 text-xs font-medium rounded-md transition-colors ${
+                      className={`flex flex-col sm:flex-row items-center justify-center gap-1 py-1.5 px-1 text-[11px] sm:text-xs font-medium rounded-md transition-colors ${
                         accessMode === 'code'
-                          ? 'bg-[#009d9a] text-white font-semibold shadow-sm'
+                          ? 'bg-[#8a3ffc] text-white font-semibold shadow-sm'
                           : 'text-[#8d8d8d] hover:text-white'
                       }`}
                     >
                       <Ticket className="h-3.5 w-3.5" />
-                      <span>Con Código / Club</span>
+                      <span>Licencias</span>
                     </button>
                   </div>
 
@@ -402,67 +419,189 @@ export const AuthModal: React.FC = () => {
                     <form onSubmit={handleLoginSubmit} className="space-y-3.5">
                       <div>
                         <h2 className="font-display text-base sm:text-lg font-semibold text-[#f4f4f4]">
-                          Iniciar Sesión
+                          Acceso Autorizado
                         </h2>
                         <p className="text-xs text-[#c6c6c6] mt-0.5">
                           Ingresa tus credenciales para acceder a tus coreografías.
                         </p>
                       </div>
 
+                      {loginFeedback?.expired ? (
+                        <div className="rounded-lg border border-white/[0.08] bg-surface-2 p-5 text-center flex flex-col items-center">
+                          <AlertCircle className="h-10 w-10 text-[#ff8389] mb-3" />
+                          <h3 className="text-base font-bold text-[#f4f4f4] mb-1.5">
+                            Tu período de prueba de 7 días ha finalizado.
+                          </h3>
+                          <p className="text-xs text-[#c6c6c6] mb-4 max-w-[260px] mx-auto leading-relaxed">
+                            Esperamos que hayas disfrutado probar SkateCoreo. Puedes comunicarte con nosotros para solicitar una ampliación o enviarnos tus comentarios.
+                          </p>
+                          <a
+                            href="https://wa.me/593979376810?text=Hola%20AlsizTech,%20mi%20per%C3%ADodo%20de%20prueba%20en%20SkateCoreo%20ha%20finalizado."
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-[#25D366] hover:bg-[#20bd5a] text-white px-4 py-2 text-sm font-semibold shadow-sm transition-colors"
+                          >
+                            <span>Contactar por WhatsApp</span>
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLoginFeedback(null);
+                              setLoginPassword('');
+                            }}
+                            className="mt-3 text-xs text-[#8d8d8d] hover:text-[#f4f4f4] transition-colors"
+                          >
+                            Volver al inicio de sesión
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <Field
+                            id="login-email"
+                            type="email"
+                            required
+                            label="Correo electrónico"
+                            icon={<Mail className="h-4 w-4" />}
+                            value={loginEmail}
+                            onChange={(e) => setLoginEmail(e.target.value)}
+                            placeholder="tu.correo@ejemplo.com"
+                            autoComplete="email"
+                          />
+
+                          <Field
+                            id="login-password"
+                            type="password"
+                            required
+                            label="Contraseña"
+                            icon={<Lock className="h-4 w-4" />}
+                            value={loginPassword}
+                            onChange={(e) => setLoginPassword(e.target.value)}
+                            placeholder="••••••••"
+                            autoComplete="current-password"
+                          />
+
+                          {loginFeedback && (
+                            <div className="flex items-start gap-2 rounded-lg border border-[#da1e28]/40 bg-[#da1e28]/15 p-3 text-xs text-[#ff8389]">
+                              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                              <span className="leading-relaxed">{loginFeedback.message}</span>
+                            </div>
+                          )}
+
+                          <Button
+                            type="submit"
+                            variant="primary"
+                            size="md"
+                            block
+                            disabled={isLoading}
+                            className="mt-2"
+                          >
+                            <span>{isLoading ? 'Comprobando dispositivo...' : 'Entrar a SkateCoreo'}</span>
+                            <ArrowRight className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
+                    </form>
+                  )}
+
+                  {/* ── MODO 2: TESTERS ── */}
+                  {accessMode === 'tester' && (
+                    <form onSubmit={handleCodeSubmit} className="space-y-3">
+                      <div>
+                        <h2 className="font-display text-base sm:text-lg font-semibold text-[#3ddbd9]">
+                          Acceso para testers
+                        </h2>
+                        <p className="text-xs text-[#c6c6c6] mt-0.5">
+                          Ingresa tu código de prueba para activar tus 7 días de acceso completo.
+                        </p>
+                      </div>
+
                       <Field
-                        id="login-email"
+                        id="code-email"
                         type="email"
                         required
                         label="Correo electrónico"
                         icon={<Mail className="h-4 w-4" />}
-                        value={loginEmail}
-                        onChange={(e) => setLoginEmail(e.target.value)}
-                        placeholder="tu.correo@ejemplo.com"
+                        value={codeEmail}
+                        onChange={(e) => setCodeEmail(e.target.value)}
+                        placeholder="correo@ejemplo.com"
                         autoComplete="email"
                       />
 
                       <Field
-                        id="login-password"
-                        type="password"
+                        id="code-name"
+                        type="text"
                         required
-                        label="Contraseña"
-                        icon={<Lock className="h-4 w-4" />}
-                        value={loginPassword}
-                        onChange={(e) => setLoginPassword(e.target.value)}
-                        placeholder="••••••••"
-                        autoComplete="current-password"
+                        label="Nombre completo / Atleta"
+                        icon={<User className="h-4 w-4" />}
+                        value={codeName}
+                        onChange={(e) => setCodeName(e.target.value)}
+                        placeholder="Nombre y apellido"
                       />
 
-                      {loginFeedback && (
-                        <div className="flex items-start gap-2 rounded-lg border border-[#da1e28]/40 bg-[#da1e28]/15 p-3 text-xs text-[#ff8389]">
-                          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                          <span className="leading-relaxed">{loginFeedback.message}</span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <Field
+                          id="code-password"
+                          type="password"
+                          required
+                          label="Contraseña (Mín 6 car.)"
+                          value={codePassword}
+                          onChange={(e) => setCodePassword(e.target.value)}
+                          placeholder="Mínimo 6 car."
+                          autoComplete="new-password"
+                        />
+                        <Field
+                          id="code-confirm"
+                          type="password"
+                          required
+                          label="Confirmar contraseña"
+                          value={codeConfirmPassword}
+                          onChange={(e) => setCodeConfirmPassword(e.target.value)}
+                          placeholder="Confirmar clave"
+                          autoComplete="new-password"
+                        />
+                      </div>
+
+                      <Field
+                        id="code-activation"
+                        type="text"
+                        required
+                        label="Código de Tester"
+                        icon={<FlaskConical className="h-4 w-4" />}
+                        value={activationCode}
+                        onChange={(e) => setActivationCode(e.target.value.toUpperCase())}
+                        placeholder="SC-BETA-XXXX-XXXX"
+                        className="font-mono font-bold uppercase tracking-wider text-[#3ddbd9]"
+                      />
+
+                      {codeFeedback && (
+                        <div className="rounded-lg border border-[#da1e28]/40 bg-[#da1e28]/15 p-2.5 text-xs text-[#ff8389]">
+                          {codeFeedback.message}
                         </div>
                       )}
 
                       <Button
                         type="submit"
-                        variant="primary"
+                        variant="mint"
                         size="md"
                         block
-                        disabled={isLoading}
-                        className="mt-2"
+                        disabled={codeLoading}
+                        className="mt-1"
                       >
-                        <span>{isLoading ? 'Comprobando dispositivo...' : 'Entrar a SkateCoreo'}</span>
-                        <ArrowRight className="h-4 w-4" />
+                        <span>{codeLoading ? 'Activando...' : 'Activar prueba de 7 días'}</span>
+                        <Sparkles className="h-4 w-4" />
                       </Button>
                     </form>
                   )}
 
-                  {/* ── MODO 2: Activar con Código de Club o Licencia ── */}
+                  {/* ── MODO 3: LICENCIAS ── */}
                   {accessMode === 'code' && (
                     <form onSubmit={handleCodeSubmit} className="space-y-3">
                       <div>
                         <h2 className="font-display text-base sm:text-lg font-semibold text-[#f4f4f4]">
-                          Activar Licencia o Club
+                          Licencias de Club
                         </h2>
                         <p className="text-xs text-[#c6c6c6] mt-0.5">
-                          Vincula tu código único de activación (SKC-XXXX) o cupón.
+                          Vincula tu código único de activación (SKC-XXXX).
                         </p>
                       </div>
 
@@ -532,14 +671,14 @@ export const AuthModal: React.FC = () => {
 
                       <Button
                         type="submit"
-                        variant="mint"
+                        variant="primary"
                         size="md"
                         block
                         disabled={codeLoading}
                         className="mt-1"
                       >
                         <span>{codeLoading ? 'Activando...' : 'Activar licencia y entrar'}</span>
-                        <Sparkles className="h-4 w-4" />
+                        <ArrowRight className="h-4 w-4" />
                       </Button>
                     </form>
                   )}
@@ -599,16 +738,20 @@ export const AuthModal: React.FC = () => {
                       {isUpgradeModalOpen ? 'Actualización de Cuenta' : 'Planes y Nuevo Acceso'}
                     </span>
                     <Badge variant={selectedRole === 'coach' ? 'coral' : 'cobalt'} size="xs">
-                      {selectedPlan === 'annual'
-                        ? `Ahorro ${currentPlan.annualDiscountPercent}%`
-                        : 'Plan Mensual'}
+                      {APP_MODE === 'COMMERCIAL' ? (
+                        selectedPlan === 'annual'
+                          ? `Ahorro ${currentPlan.annualDiscountPercent}%`
+                          : 'Plan Mensual'
+                      ) : (
+                        'Próximamente'
+                      )}
                     </Badge>
                   </div>
 
                   {/* 1. Selector de Tipo de Cuenta (Patinador vs Entrenador) */}
                   <div className="mb-3">
                     <span className="block text-[10px] font-mono font-medium uppercase tracking-wider text-[#8d8d8d] mb-1.5">
-                      1. Tipo de cuenta
+                      1. Estructura de suscripción
                     </span>
 
                     <div className="grid grid-cols-2 gap-2">
@@ -626,9 +769,15 @@ export const AuthModal: React.FC = () => {
                           <Sparkles className="h-3.5 w-3.5 text-[#78a9ff]" />
                           <span className="text-xs font-semibold">Patinador(a)</span>
                         </div>
-                        <span className="text-[11px] font-mono text-[#78a9ff] font-bold mt-0.5">
-                          ${SKATER_PLAN.monthlyPrice.toFixed(2)} USD / mes
-                        </span>
+                        {APP_MODE === 'COMMERCIAL' ? (
+                          <span className="text-[11px] font-mono text-[#78a9ff] font-bold mt-0.5">
+                            ${SKATER_PLAN.monthlyPrice.toFixed(2)} USD / mes
+                          </span>
+                        ) : (
+                          <span className="text-[11px] font-mono text-[#78a9ff] font-bold mt-0.5">
+                            Modalidad Patinador
+                          </span>
+                        )}
                       </button>
 
                       {/* Tarjeta Entrenador */}
@@ -645,9 +794,15 @@ export const AuthModal: React.FC = () => {
                           <Users className="h-3.5 w-3.5 text-[#ff7eb6]" />
                           <span className="text-xs font-semibold">Entrenador(a)</span>
                         </div>
-                        <span className="text-[11px] font-mono text-[#ff7eb6] font-bold mt-0.5">
-                          ${COACH_PLAN.monthlyPrice.toFixed(2)} USD / mes
-                        </span>
+                        {APP_MODE === 'COMMERCIAL' ? (
+                          <span className="text-[11px] font-mono text-[#ff7eb6] font-bold mt-0.5">
+                            ${COACH_PLAN.monthlyPrice.toFixed(2)} USD / mes
+                          </span>
+                        ) : (
+                          <span className="text-[11px] font-mono text-[#ff7eb6] font-bold mt-0.5">
+                            Modalidad Entrenador
+                          </span>
+                        )}
                       </button>
                     </div>
 
@@ -659,7 +814,7 @@ export const AuthModal: React.FC = () => {
                   {/* 2. Selector de Período de Facturación (Anual con Ahorro vs Mensual) */}
                   <div className="mb-3.5">
                     <span className="block text-[10px] font-mono font-medium uppercase tracking-wider text-[#8d8d8d] mb-1.5">
-                      2. Período de facturación
+                      2. Período de suscripción
                     </span>
 
                     <div className="grid grid-cols-2 gap-2 rounded-lg bg-surface-2 p-1 border border-white/[0.06]">
@@ -674,13 +829,21 @@ export const AuthModal: React.FC = () => {
                       >
                         <div className="flex items-center gap-1">
                           <span className="text-xs font-semibold">Plan Anual</span>
-                          <span className="text-[9px] px-1.5 py-0.2 rounded font-bold bg-[#009d9a]/20 text-[#3ddbd9]">
-                            -{currentPlan.annualDiscountPercent}%
-                          </span>
+                          {APP_MODE === 'COMMERCIAL' && (
+                            <span className="text-[9px] px-1.5 py-0.2 rounded font-bold bg-[#009d9a]/20 text-[#3ddbd9]">
+                              -{currentPlan.annualDiscountPercent}%
+                            </span>
+                          )}
                         </div>
-                        <span className="text-[10px] font-mono text-[#c6c6c6] mt-0.5">
-                          ${currentPlan.annualPrice.toFixed(2)} USD / año
-                        </span>
+                        {APP_MODE === 'COMMERCIAL' ? (
+                          <span className="text-[10px] font-mono text-[#c6c6c6] mt-0.5">
+                            ${currentPlan.annualPrice.toFixed(2)} USD / año
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-mono text-[#c6c6c6] mt-0.5">
+                            Pago Anualizado
+                          </span>
+                        )}
                       </button>
 
                       <button
@@ -693,9 +856,15 @@ export const AuthModal: React.FC = () => {
                         }`}
                       >
                         <span className="text-xs font-semibold">Plan Mensual</span>
-                        <span className="text-[10px] font-mono text-[#c6c6c6] mt-0.5">
-                          ${currentPlan.monthlyPrice.toFixed(2)} USD / mes
-                        </span>
+                        {APP_MODE === 'COMMERCIAL' ? (
+                          <span className="text-[10px] font-mono text-[#c6c6c6] mt-0.5">
+                            ${currentPlan.monthlyPrice.toFixed(2)} USD / mes
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-mono text-[#c6c6c6] mt-0.5">
+                            Pago Mensual
+                          </span>
+                        )}
                       </button>
                     </div>
                   </div>
@@ -715,29 +884,35 @@ export const AuthModal: React.FC = () => {
                       </div>
 
                       <div className="text-right shrink-0">
-                        {selectedPlan === 'annual' ? (
-                          <div>
-                            <div className="flex items-baseline justify-end gap-1.5">
-                              <span className="text-xs text-[#8d8d8d] line-through">
-                                ${currentPlan.baseAnnualPrice.toFixed(2)}
+                        {APP_MODE === 'COMMERCIAL' ? (
+                          selectedPlan === 'annual' ? (
+                            <div>
+                              <div className="flex items-baseline justify-end gap-1.5">
+                                <span className="text-xs text-[#8d8d8d] line-through">
+                                  ${currentPlan.baseAnnualPrice.toFixed(2)}
+                                </span>
+                                <span className="text-xl sm:text-2xl font-bold font-mono text-[#f4f4f4]">
+                                  ${currentPlan.annualPrice.toFixed(2)}
+                                </span>
+                              </div>
+                              <span className="text-[10px] text-[#3ddbd9] font-semibold block">
+                                Ahorras ${currentPlan.annualSavings.toFixed(2)}/año ({currentPlan.annualDiscountPercent}%)
                               </span>
-                              <span className="text-xl sm:text-2xl font-bold font-mono text-[#f4f4f4]">
-                                ${currentPlan.annualPrice.toFixed(2)}
+                              <span className="text-[10px] text-[#8d8d8d] block font-mono">
+                                (Equivale a ${currentPlan.monthlyEquivalent.toFixed(2)}/mes)
                               </span>
                             </div>
-                            <span className="text-[10px] text-[#3ddbd9] font-semibold block">
-                              Ahorras ${currentPlan.annualSavings.toFixed(2)}/año ({currentPlan.annualDiscountPercent}%)
-                            </span>
-                            <span className="text-[10px] text-[#8d8d8d] block font-mono">
-                              (Equivale a ${currentPlan.monthlyEquivalent.toFixed(2)}/mes)
-                            </span>
-                          </div>
+                          ) : (
+                            <div>
+                              <span className="text-xl sm:text-2xl font-bold font-mono text-[#f4f4f4]">
+                                ${currentPlan.monthlyPrice.toFixed(2)}
+                              </span>
+                              <span className="text-[10px] text-[#8d8d8d] block">USD / mes</span>
+                            </div>
+                          )
                         ) : (
                           <div>
-                            <span className="text-xl sm:text-2xl font-bold font-mono text-[#f4f4f4]">
-                              ${currentPlan.monthlyPrice.toFixed(2)}
-                            </span>
-                            <span className="text-[10px] text-[#8d8d8d] block">USD / mes</span>
+                             <span className="text-sm font-bold text-[#f4f4f4] block">Próximamente</span>
                           </div>
                         )}
                       </div>
@@ -794,41 +969,54 @@ export const AuthModal: React.FC = () => {
 
                   {/* 4. Campo de Correo y Botón de Pago PayPal */}
                   <div className="space-y-2 pt-1">
-                    <Field
-                      id="buyer-email"
-                      type="email"
-                      required
-                      label="Correo para vincular tu suscripción"
-                      icon={<Mail className="h-4 w-4" />}
-                      value={buyerEmail}
-                      onChange={(e) => setBuyerEmail(e.target.value)}
-                      placeholder="tu.correo@ejemplo.com"
-                      autoComplete="email"
-                    />
+                    {APP_MODE === 'COMMERCIAL' ? (
+                      <>
+                        <Field
+                          id="buyer-email"
+                          type="email"
+                          required
+                          label="Correo para vincular tu suscripción"
+                          icon={<Mail className="h-4 w-4" />}
+                          value={buyerEmail}
+                          onChange={(e) => setBuyerEmail(e.target.value)}
+                          placeholder="tu.correo@ejemplo.com"
+                          autoComplete="email"
+                        />
 
-                    <div className="mt-2.5">
-                      <PayPalButton
-                        amount={paypalAmount}
-                        plan={selectedPlan}
-                        role={selectedRole}
-                        buyerEmail={buyerEmail}
-                        onSuccess={(data) => {
-                          setPostPaymentData({
-                            orderID: data.orderID,
-                            payerEmail: data.payerEmail,
-                            payerName: data.payerName,
-                          });
-                          setPostRegName(data.payerName || '');
-                        }}
-                        onError={(errMsg) => {
-                          setPaymentFeedback({ type: 'error', message: errMsg });
-                        }}
-                      />
-                    </div>
+                        <div className="mt-2.5">
+                          <PayPalButton
+                            amount={paypalAmount}
+                            plan={selectedPlan}
+                            role={selectedRole}
+                            buyerEmail={buyerEmail}
+                            onSuccess={(data) => {
+                              setPostPaymentData({
+                                orderID: data.orderID,
+                                payerEmail: data.payerEmail,
+                                payerName: data.payerName,
+                              });
+                              setPostRegName(data.payerName || '');
+                            }}
+                            onError={(errMsg) => {
+                              setPaymentFeedback({ type: 'error', message: errMsg });
+                            }}
+                          />
+                        </div>
 
-                    <p className="text-center text-[10px] text-[#8d8d8d] mt-1 leading-snug">
-                      Pago seguro encriptado procesado directamente por PayPal. Cancelación mes a mes sin permanencia.
-                    </p>
+                        <p className="text-center text-[10px] text-[#8d8d8d] mt-1 leading-snug">
+                          Pago seguro encriptado procesado directamente por PayPal. Cancelación mes a mes sin permanencia.
+                        </p>
+                      </>
+                    ) : (
+                      <div className="mt-2.5 p-4 rounded-lg bg-surface-2 border border-white/[0.06] text-center">
+                        <span className="text-sm text-[#c6c6c6] font-medium block mb-1">
+                          Suscripciones temporalmente inactivas
+                        </span>
+                        <span className="text-xs text-[#8d8d8d] leading-relaxed block">
+                          SkateCoreo se encuentra actualmente en fase de pruebas para Testers. La estructura de suscripciones públicas se habilitará próximamente.
+                        </span>
+                      </div>
+                    )}
 
                     {paymentFeedback && (
                       <div className="rounded-lg border border-[#da1e28]/40 bg-[#da1e28]/15 p-2.5 text-center text-xs text-[#ff8389]">
