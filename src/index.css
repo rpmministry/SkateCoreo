@@ -444,8 +444,8 @@ body {
 @media (orientation: landscape), (max-height: 800px) {
   .audio-dock {
     min-height: 96px;
-    max-height: clamp(100px, 16vh, 120px);
-    max-height: clamp(100px, 16dvh, 120px);
+    max-height: clamp(140px, 22vh, 180px);
+    max-height: clamp(140px, 22dvh, 180px);
   }
 }
 
@@ -879,3 +879,6 @@ body {
     display: inline;
   }
 }
+
+@media (min-width: 1024px) { .audio-dock { min-height: 180px !important; max-height: clamp(200px, 25vh, 260px) !important; max-height: clamp(200px, 25dvh, 260px) !important; } }
+

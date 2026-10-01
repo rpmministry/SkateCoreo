@@ -245,7 +245,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
     const height = canvas.clientHeight || 90;
 
     canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
+    // canvas.style.height = `${height}px`;
 
     if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
       canvas.width = Math.round(width * dpr);
@@ -550,7 +550,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
   return (
     <div
       ref={containerRef}
-      className="w-full h-full bg-surface-canvas text-text-primary px-3 sm:px-4 py-1 flex flex-col justify-between select-none relative overflow-hidden timeline-safe-zone"
+      className="flex-1 w-full bg-surface-canvas text-text-primary px-3 sm:px-4 py-1 flex flex-col justify-between select-none relative overflow-hidden timeline-safe-zone"
     >
       {/* ── Cabecera del Waveform: identidad de pista + zoom + mezcla ──
           El tiempo y la duración viven en el transporte único (RinkAudioPlayer)
@@ -737,7 +737,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
           style={{
             width: `${contentWidth}px`,
             minWidth: `${contentWidth}px`,
-            height: '100%',
+            
             cursor: 'crosshair',
           }}
           className="flex-1 min-h-0 block select-none rounded-xl"
