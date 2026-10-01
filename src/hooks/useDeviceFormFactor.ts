@@ -37,9 +37,12 @@ function isLandscape(width: number, height: number): boolean {
 }
 
 /** ¿El inspector acoplado está visible con este espacio/clase? */
-function computeDockedInspector(formFactor: FormFactor, width: number): boolean {
+function computeDockedInspector(formFactor: FormFactor, width: number, height: number): boolean {
   if (formFactor === 'desktop') return width >= 1024;
-  if (formFactor === 'tablet') return width >= 768;
+  if (formFactor === 'tablet') {
+    // En tablet horizontal (landscape) o en pantallas muy anchas (>=1024px)
+    return (isLandscape(width, height) && width >= 768) || width >= 1024;
+  }
   return false;
 }
 
@@ -57,7 +60,7 @@ function buildState(caps: DeviceCapabilities): DeviceFormFactorState {
     coarsePointer: caps.coarsePointer,
     orientation: isLandscape(width, height) ? 'landscape' : 'portrait',
     preferredOrientation: getPreferredOrientation(formFactor),
-    hasDockedInspector: computeDockedInspector(formFactor, width),
+    hasDockedInspector: computeDockedInspector(formFactor, width, height),
   };
 }
 
@@ -72,7 +75,7 @@ function decisionKey(caps: DeviceCapabilities): string {
   const height = Math.round(caps.height);
   return [
     formFactor,
-    computeDockedInspector(formFactor, width) ? '1' : '0',
+    computeDockedInspector(formFactor, width, height) ? '1' : '0',
     isLandscape(width, height) ? 'L' : 'P',
     caps.hasTouch ? '1' : '0',
     caps.coarsePointer ? '1' : '0',

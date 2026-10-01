@@ -9,7 +9,8 @@ import {
   Route,
   Undo2,
   Eraser,
-  Hash
+  Hash,
+  PanelRightClose,
 } from 'lucide-react';
 
 import { useChoreographyStore } from '../store/useChoreographyStore';
@@ -32,6 +33,8 @@ export interface RightInspectorPanelProps {
   showHeader?: boolean;
   isMobileModal?: boolean;
   onClose?: () => void;
+  /** Colapsar inspector para maximizar el lienzo de la Pista 2D. */
+  onToggleCollapse?: () => void;
 }
 
 /**
@@ -42,6 +45,7 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
   showHeader = true,
   isMobileModal = false,
   onClose,
+  onToggleCollapse,
 }) => {
   const audio = useAudioEngine();
 
@@ -629,7 +633,7 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
     >
       {/* ── Panel header ── */}
       {showHeader && (
-        <div className="flex-none flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
+        <div className="flex-none flex items-center justify-between px-3.5 sm:px-4 py-2.5 sm:py-3 border-b border-white/[0.06]">
           <p
             className={[
               'text-[10px] font-semibold uppercase tracking-widest transition-colors',
@@ -638,6 +642,17 @@ export const RightInspectorPanel: React.FC<RightInspectorPanelProps> = ({
           >
             {selectedPoint ? 'Inspector de Nodo' : 'Sin Selección'}
           </p>
+          {onToggleCollapse && (
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              className="press flex h-7 w-7 items-center justify-center rounded-lg text-neutral-400 hover:bg-white/[0.06] hover:text-white transition-colors"
+              title="Colapsar inspector (más espacio para la pista)"
+              aria-label="Colapsar inspector"
+            >
+              <PanelRightClose className="h-4 w-4" />
+            </button>
+          )}
         </div>
       )}
 

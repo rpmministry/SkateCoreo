@@ -150,7 +150,7 @@ const AccessModule: React.FC<AccessModuleProps> = ({
   const config = {
     blue: {
       border: 'border-white/[0.07] hover:border-ice-primary/40',
-      iconBox: 'bg-ice-primary/10 text-ice-primary border border-ice-primary/20',
+      iconBox: 'bg-white/[0.04] text-white border border-white/20',
       eyebrow: 'text-ice-light',
       dot: 'bg-ice-primary',
       badgeVariant: 'cobalt' as const,
@@ -158,7 +158,7 @@ const AccessModule: React.FC<AccessModuleProps> = ({
     },
     teal: {
       border: 'border-white/[0.07] hover:border-studio-primary/40',
-      iconBox: 'bg-studio-primary/10 text-studio-light border border-studio-primary/20',
+      iconBox: 'bg-white/[0.04] text-white border border-white/20',
       eyebrow: 'text-studio-light',
       dot: 'bg-studio-primary',
       badgeVariant: 'mint' as const,
@@ -166,7 +166,7 @@ const AccessModule: React.FC<AccessModuleProps> = ({
     },
     magenta: {
       border: 'border-white/[0.07] hover:border-coach-primary/40',
-      iconBox: 'bg-coach-primary/10 text-coach-light border border-coach-primary/20',
+      iconBox: 'bg-white/[0.04] text-white border border-white/20',
       eyebrow: 'text-coach-light',
       dot: 'bg-coach-primary',
       badgeVariant: 'coral' as const,

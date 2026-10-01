@@ -22,6 +22,7 @@ import {
   FileDown,
   CheckCircle2,
   Building2,
+  PanelLeftClose,
 } from 'lucide-react';
 import { audioEngine } from '../services/audioEngine';
 import { TIME_SIGNATURES, METRONOME_SUBDIVISIONS } from '../core/audio/Metronome';
@@ -67,6 +68,8 @@ interface LeftSidebarPanelProps {
   onLogout?: () => void;
   showHeader?: boolean;
   isMobileModal?: boolean;
+  /** Colapsar panel lateral para maximizar el espacio útil de la Pista 2D. */
+  onToggleCollapse?: () => void;
 }
 
 
@@ -80,6 +83,7 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
   onLogout,
   showHeader = true,
   isMobileModal = false,
+  onToggleCollapse,
 }) => {
   const audio = useAudioEngine();
 
@@ -767,10 +771,21 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
     >
       {/* ── Panel header ── */}
       {showHeader && (
-        <div className="flex-none flex items-center px-4 py-3 border-b border-white/5">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+        <div className="flex-none flex items-center justify-between px-3.5 sm:px-4 py-2.5 sm:py-3 border-b border-white/5">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
             Preparación &amp; Audio
           </p>
+          {onToggleCollapse && (
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              className="press flex h-7 w-7 items-center justify-center rounded-lg text-neutral-400 hover:bg-white/[0.06] hover:text-white transition-colors"
+              title="Colapsar panel lateral (más espacio para la pista)"
+              aria-label="Colapsar panel lateral"
+            >
+              <PanelLeftClose className="h-4 w-4" />
+            </button>
+          )}
         </div>
       )}
 

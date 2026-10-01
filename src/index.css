@@ -437,6 +437,28 @@ body {
   overflow: hidden;
 }
 
+/* En orientación apaisada (landscape) o viewports con poca altura (<=800px):
+   la Pista 2D tiene la MÁXIMA prioridad espacial. El visor de audio se compacta a
+   la altura exacta que requiere la onda y los marcadores (~100-116px), devolviendo
+   más de 120px de espacio vertical útil al lienzo de la Pista 2D. */
+@media (orientation: landscape), (max-height: 800px) {
+  .audio-dock {
+    min-height: 96px;
+    max-height: clamp(100px, 16vh, 120px);
+    max-height: clamp(100px, 16dvh, 120px);
+  }
+}
+
+@media (max-height: 600px) and (orientation: landscape) {
+  .audio-dock {
+    min-height: 84px;
+    max-height: 98px;
+  }
+  .fm-header-grid {
+    min-height: 48px !important;
+  }
+}
+
 /* En viewports bajos (móviles apaisados o ventanas pequeñas) se reduce el
    mínimo del lienzo para que sigan cabiendo dock + barra + navegación sin
    recortes, sin llegar a ocultar ningún control. */
@@ -445,21 +467,21 @@ body {
     min-height: 132px;
   }
   .audio-dock {
-    min-height: 150px;
-    max-height: clamp(160px, 34vh, 210px);
-    max-height: clamp(160px, 34dvh, 210px);
+    min-height: 96px;
+    max-height: clamp(100px, 20vh, 130px);
+    max-height: clamp(100px, 20dvh, 130px);
   }
 }
 
 /* Alturas amplias (teléfonos Pro/Pro Max y tablet vertical): el visor de audio
    aprovecha el espacio extra para que waveform y nodos respiren. */
-@media (min-height: 780px) {
+@media (min-height: 780px) and (orientation: portrait) {
   .audio-dock {
     max-height: clamp(220px, 30vh, 320px);
     max-height: clamp(220px, 30dvh, 320px);
   }
 }
-@media (min-height: 860px) {
+@media (min-height: 860px) and (orientation: portrait) {
   .audio-dock {
     max-height: clamp(240px, 28vh, 340px);
     max-height: clamp(240px, 28dvh, 340px);
@@ -664,7 +686,9 @@ body {
    Los teléfonos (<768 px) y el escritorio no se ven afectados.
    ═══════════════════════════════════════════════════════════════════ */
 
-@media (min-width: 768px) {
+/* Tablet en HORIZONTAL (landscape ≥768px) o pantallas amplias (≥1024px):
+   composición de escritorio donde la Pista 2D es la protagonista absoluta. */
+@media (min-width: 1024px), (min-width: 768px) and (orientation: landscape) {
   /* Elementos que pertenecen a la presentación de teléfono
      (navegación inferior, hojas inferiores, cajones, barra contextual). */
   [data-form-factor='tablet'] .fm-mobile-only {
@@ -677,7 +701,7 @@ body {
     justify-self: center;
   }
 
-  /* Contenedores que pasan de columna a fila en cualquier orientación. */
+  /* Contenedores que pasan de columna a fila en landscape. */
   [data-form-factor='tablet'] .fm-tablet-cols {
     flex-direction: row !important;
   }
@@ -685,8 +709,20 @@ body {
   /* Cabecera de tablet grande/escritorio: rejilla de 3 carriles
      (marca · navegación · acciones), igual que en desktop. */
   [data-form-factor='tablet'] .fm-header-grid {
-    min-height: 60px;
+    min-height: 54px;
     align-items: center;
+  }
+}
+
+/* Tablet en VERTICAL (portrait 768–1023.98px): la Pista 2D ocupa el 100%
+   del ancho en columna única, sin paneles laterales que la reduzcan.
+   Los cajones y la navegación táctil conservan toda su ergonomía. */
+@media (min-width: 768px) and (max-width: 1023.98px) and (orientation: portrait) {
+  [data-form-factor='tablet'] .fm-tablet-cols {
+    flex-direction: column !important;
+  }
+  [data-form-factor='tablet'] aside.fm-desktop-flex {
+    display: none !important;
   }
 }
 
@@ -768,39 +804,39 @@ body {
   }
 }
 
-/* Tablet en HORIZONTAL (orientación prioritaria): paneles laterales y la
-   bandeja de nodos como columna, igual que en escritorio. */
-@media (min-width: 768px) and (orientation: landscape) {
-  [data-form-factor='tablet'] .fm-tablet-row {
-    flex-direction: row !important;
+/* Paneles laterales en tablets y pantallas compactas (768px a 1279.98px):
+   Anchos estilizados que garantizan que la Pista 2D sea la protagonista absoluta
+   ocupando la mayor proporción posible del viewport. */
+@media (min-width: 768px) and (max-width: 1279.98px) {
+  [data-form-factor='tablet'] .fm-tablet-w-left:not(.is-collapsed),
+  .fm-tablet-w-left:not(.is-collapsed) {
+    width: 12rem !important; /* 192px */
+  }
+  [data-form-factor='tablet'] .fm-tablet-w-right:not(.is-collapsed),
+  .fm-tablet-w-right:not(.is-collapsed) {
+    width: 12.5rem !important; /* 200px */
   }
 }
 
-@media (min-width: 768px) and (max-width: 1023.98px) {
-  /* Paneles laterales compactos: siguen siendo paneles reales (no hojas
-     inferiores ni cajones), con más ancho para el lienzo de la Pista 2D. */
-  [data-form-factor='tablet'] .fm-tablet-w-left {
-    width: 13.75rem; /* 220px */
+/* Dispositivos como iPad Air 2 de 9.7" (1024x768) y tablets Android en landscape:
+   Columnas ultra-optimizadas para que el lienzo de la pista alcance más de 640px de ancho. */
+@media (min-width: 768px) and (max-width: 1050px) and (orientation: landscape) {
+  [data-form-factor='tablet'] .fm-tablet-w-left:not(.is-collapsed),
+  .fm-tablet-w-left:not(.is-collapsed) {
+    width: 11.5rem !important; /* 184px */
   }
-  [data-form-factor='tablet'] .fm-tablet-w-right {
-    width: 13rem; /* 208px */
-  }
-}
-
-@media (min-width: 768px) and (max-width: 1023.98px) and (orientation: landscape) {
-  /* «Nodos por colocar» como columna lateral de la Pista 2D en tablet
-     horizontal, sin robar el ancho completo al lienzo. */
-  [data-form-factor='tablet'] .fm-tablet-tray {
-    max-height: none;
-    height: 100%;
-    width: 15rem; /* 240px */
-    border-bottom-width: 0;
-    border-right-width: 1px;
+  [data-form-factor='tablet'] .fm-tablet-w-right:not(.is-collapsed),
+  .fm-tablet-w-right:not(.is-collapsed) {
+    width: 12rem !important; /* 192px */
   }
 }
 
-/* En tablet VERTICAL la bandeja conserva la franja superior compacta para que
-   la Pista 2D mantenga todo el ancho útil. `.fm-tablet-row` no aplica. */
+/* En tablets y pantallas < 1280px, la bandeja de nodos se mantiene como
+   una franja horizontal superior compacta (fm-tablet-tray) para NO robar ancho
+   a la Pista 2D. Solo en pantallas muy anchas (>=1280px) pasa a ser columna lateral. */
+.fm-tablet-tray {
+  width: 100%;
+}
 
 /* ═══════════════════════════════════════════════════════════════════
    CONTAINER QUERIES — el CONTENEDOR decide, no el viewport

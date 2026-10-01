@@ -47,7 +47,7 @@ export const NodePlacementTray: React.FC = () => {
   };
 
   return (
-    <div className="node-tray fm-tablet-tray flex min-h-0 max-h-[42%] shrink-0 flex-col overflow-hidden border-b border-white/[0.07] bg-surface-1 shadow-elevation-1 lg:max-h-none lg:h-full lg:w-60 lg:border-b-0 lg:border-r lg:border-white/[0.07] xl:w-64">
+    <div className="node-tray fm-tablet-tray flex min-h-0 shrink-0 flex-col overflow-hidden border-b border-white/[0.07] bg-surface-1 shadow-elevation-1 max-h-[140px] xl:max-h-none xl:h-full xl:w-60 xl:border-b-0 xl:border-r xl:border-white/[0.07] 2xl:w-64">
       {/* ── Cabecera de la Bandeja ── */}
       <div className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-white/[0.07] bg-surface-2/90 px-3 py-2">
         <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -120,7 +120,7 @@ export const NodePlacementTray: React.FC = () => {
 
           {/* ── Rejilla de Nodos ── */}
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2">
-            <div className="node-tray-grid grid grid-cols-6 gap-1.5 sm:grid-cols-8 lg:grid-cols-6">
+            <div className="node-tray-grid grid grid-cols-6 gap-1.5 sm:grid-cols-8 md:grid-cols-10 xl:grid-cols-6">
               {unplacedNodes.map((node, index) => {
                 const isPlaced = index < activeTrayNodeIndex;
                 const isCurrent = index === activeTrayNodeIndex;

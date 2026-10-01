@@ -14,7 +14,8 @@ import { useState, useEffect, useCallback, useMemo, useRef, startTransition, laz
 import {
   Music,
   X, ChevronDown, MoreVertical,
-  Upload, Save, HardDrive, Trash2, LogOut, Sparkles, Users
+  Upload, Save, HardDrive, Trash2, LogOut, Sparkles, Users,
+  PanelLeftOpen, PanelRightOpen
 } from 'lucide-react';
 import { Skater, Program, ElementLog, AudioEngineState } from './types';
 import type { CoachAthlete, CoachChoreography, CoachChoreographyVersion } from './coach/types';
@@ -234,6 +235,10 @@ export function App() {
   // ── Mobile overlay state ───────────────────────────────
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [sheetOpen, setSheetOpen]   = useState(false);
+
+  // ── Paneles laterales colapsables (Pista 2D) ───────────
+  const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(false);
+  const [isRightInspectorCollapsed, setIsRightInspectorCollapsed] = useState(false);
 
   // ── Clasificación de dispositivo ───────────────────────
   // Publica `data-form-factor` en <html> (tablet ≥7" → composición de
@@ -573,7 +578,12 @@ export function App() {
 
   const handleNodeSelect = useCallback((id: string | null) => {
     // Solo se abre la hoja inferior cuando el inspector NO está acoplado.
-    if (!hasDockedInspector) setSheetOpen(!!id);
+    if (!hasDockedInspector) {
+      setSheetOpen(!!id);
+    } else if (id) {
+      // Auto-expandir inspector acoplado cuando el usuario toca un nodo
+      setIsRightInspectorCollapsed(false);
+    }
   }, [hasDockedInspector]);
 
   const handleDragChange = useCallback((isDragging: boolean) => {
@@ -1216,13 +1226,20 @@ export function App() {
           <div className="fm-tablet-cols flex-1 min-w-0 min-h-0 flex flex-col lg:flex-row overflow-hidden relative">
             {/* ── DESKTOP LEFT ASIDE (Preparación y Mezcla) ──
                 En tablet ≥7" también se muestra (panel real, no cajón). */}
-            <aside className="fm-desktop-flex fm-tablet-w-left hidden lg:flex lg:w-[272px] xl:w-[288px] shrink-0 flex-col bg-neon-surface border-r border-white/5 overflow-hidden shadow-soft-elevation">
+            <aside
+              className={`fm-desktop-flex fm-tablet-w-left hidden lg:flex ${
+                isLeftSidebarCollapsed
+                  ? 'is-collapsed !w-0 !min-w-0 !max-w-0 !border-0 !p-0 overflow-hidden'
+                  : 'lg:w-[272px] xl:w-[288px] border-r border-white/5 shadow-soft-elevation'
+              } shrink-0 flex-col bg-neon-surface overflow-hidden transition-all duration-200`}
+            >
               {hasDockedInspector && (
                 <LeftSidebarPanel
                   preRollSec={preRollSec}
                   onPreRollSecChange={handlePreRollSecChange}
                   onClearRink={requestClearRink}
                   onLogout={handleLogout}
+                  onToggleCollapse={() => setIsLeftSidebarCollapsed(true)}
                 />
               )}
             </aside>
@@ -1286,15 +1303,43 @@ export function App() {
           )}
 
           {/* Workspace: Pista 2D + panel de Nodos RESERVADO (NO overlay).
-              En desktop/tablet-landscape el panel va a la DERECHA; en portrait va
-              ARRIBA como franja compacta. La Pista 2D conserva SIEMPRE su área útil
-              (nunca queda cubierta por la bandeja). */}
-          <div className="fm-tablet-row flex flex-1 min-h-0 flex-col lg:flex-row">
+              En pantallas de escritorio muy anchas (xl: >=1280px) el panel va a la DERECHA;
+              en tablets y pantallas menores va ARRIBA como franja compacta (w-full).
+              La Pista 2D conserva SIEMPRE su área útil (nunca queda reducida ni cubierta). */}
+          <div className="fm-tablet-row flex flex-1 min-h-0 flex-col xl:flex-row">
             <NodePlacementTray />
 
             {/* 2D Canvas Rink Engine — Zero Distortion. Zona protegida: conserva
                 una altura mínima útil y absorbe el espacio restante (protagonista). */}
-            <div className="workspace-canvas flex-1 min-w-0 min-h-0 overflow-hidden">
+            <div className="workspace-canvas flex-1 min-w-0 min-h-0 overflow-hidden relative">
+              {/* Botón flotante para expandir el panel izquierdo cuando está colapsado */}
+              {isLeftSidebarCollapsed && (
+                <button
+                  type="button"
+                  onClick={() => setIsLeftSidebarCollapsed(false)}
+                  className="press absolute top-2.5 left-2.5 z-20 flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-surface-2/95 hover:bg-surface-3 border border-white/10 text-neutral-300 hover:text-white text-xs font-medium backdrop-blur-md shadow-elevation-2 transition-all"
+                  title="Expandir panel de preparación"
+                  aria-label="Expandir panel de preparación"
+                >
+                  <PanelLeftOpen className="w-4 h-4 text-ice-primary" />
+                  <span className="hidden sm:inline">Preparación</span>
+                </button>
+              )}
+
+              {/* Botón flotante para expandir el inspector derecho cuando está colapsado */}
+              {isRightInspectorCollapsed && (
+                <button
+                  type="button"
+                  onClick={() => setIsRightInspectorCollapsed(false)}
+                  className="press absolute top-2.5 right-2.5 z-20 flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-surface-2/95 hover:bg-surface-3 border border-white/10 text-neutral-300 hover:text-white text-xs font-medium backdrop-blur-md shadow-elevation-2 transition-all"
+                  title="Expandir inspector de nodo"
+                  aria-label="Expandir inspector de nodo"
+                >
+                  <PanelRightOpen className="w-4 h-4 text-studio-mint" />
+                  <span className="hidden sm:inline">Inspector</span>
+                </button>
+              )}
+
               <RinkCanvas
                 layoutMode="ide"
                 currentProgram={selectedProgram}
@@ -1345,9 +1390,20 @@ export function App() {
         </main>
 
         {/* ── DESKTOP RIGHT ASIDE (Inspector de Nodo) ── */}
-        <aside className="fm-desktop-flex fm-tablet-w-right hidden lg:flex lg:w-[272px] xl:w-[288px] shrink-0 flex-col bg-neon-surface border-l border-white/5 overflow-hidden shadow-soft-elevation">
+        <aside
+          className={`fm-desktop-flex fm-tablet-w-right hidden lg:flex ${
+            isRightInspectorCollapsed
+              ? 'is-collapsed !w-0 !min-w-0 !max-w-0 !border-0 !p-0 overflow-hidden'
+              : 'lg:w-[272px] xl:w-[288px] border-l border-white/5 shadow-soft-elevation'
+          } shrink-0 flex-col bg-neon-surface overflow-hidden transition-all duration-200`}
+        >
           {hasDockedInspector && (
-            <RightInspectorPanel onClose={() => useChoreographyStore.getState().setSelectedPointId(null)} />
+            <RightInspectorPanel
+              onClose={() => {
+                useChoreographyStore.getState().setSelectedPointId(null);
+              }}
+              onToggleCollapse={() => setIsRightInspectorCollapsed(true)}
+            />
           )}
         </aside>
 
