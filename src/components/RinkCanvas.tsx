@@ -2434,13 +2434,15 @@ export const RinkCanvas: React.FC<RinkCanvasProps> = ({
       </div>
 
       {/* 3. INTERFAZ AUDIO-FIRST: ONDA MUSICAL INTERACTIVA Y GENERADOR DE NODOS */}
-      <InteractiveWaveform
-        currentTimeMs={audio.currentTimeMs}
-        durationMs={audio.durationMs}
-        isPlaying={audio.isAudioActive}
-        onSeek={audio.seek}
-        fileName={audio.fileName}
-      />
+      <div className="flex-1 min-w-0 min-h-[112px] flex flex-col">
+        <InteractiveWaveform
+          currentTimeMs={audio.currentTimeMs}
+          durationMs={audio.durationMs}
+          isPlaying={audio.isAudioActive}
+          onSeek={audio.seek}
+          fileName={audio.fileName}
+        />
+      </div>
 
       {/* 4. TELEMETRÍA EN VIVO */}
       <div className="w-full flex flex-wrap items-center justify-between text-[11px] font-mono border-t border-zinc-800/80 pt-2 px-1 gap-2 text-zinc-400">

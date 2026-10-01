@@ -717,7 +717,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
       {/* ── Contenedor del Track Desplazable (Scroll & Paneo Nativo Horizontal) ── */}
       <div
         ref={trackRef}
-        className="relative w-full flex-1 min-h-0 overflow-x-auto overflow-y-hidden rounded-xl border border-white/[0.07] bg-[#0E1013] group mt-1"
+        className="relative w-full flex-1 min-h-0 flex flex-col overflow-x-auto overflow-y-hidden rounded-xl border border-white/[0.07] bg-[#0E1013] group mt-1"
         style={{
           overflowX: 'auto',
           overflowY: 'hidden',
@@ -740,7 +740,7 @@ export const InteractiveWaveform: React.FC<InteractiveWaveformProps> = ({
             height: '100%',
             cursor: 'crosshair',
           }}
-          className="h-full block select-none rounded-xl"
+          className="flex-1 min-h-0 block select-none rounded-xl"
           title="Línea de tiempo de audio. Ctrl + Scroll o Pellizco para Zoom. Toca para reproducir. Arrastra marcadores para sincronizar."
         />
 

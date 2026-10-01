@@ -1375,7 +1375,7 @@ export function App() {
 
             {/* Waveform Timeline — min-height suficiente para que el header del
                 visor + la pista de onda + los marcadores quepan sin recortes. */}
-            <div className="flex-1 min-w-0 min-h-[112px] bg-neon-surface/40">
+            <div className="flex-1 min-w-0 min-h-[112px] flex flex-col bg-neon-surface/40">
               <InteractiveWaveform
                 currentTimeMs={currentTimeMs}
                 durationMs={audioState.durationMs}
