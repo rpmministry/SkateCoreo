@@ -324,12 +324,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
             tag={isCoach ? 'Entrenador Activo' : 'Exclusivo Entrenadores'}
             icon={<Users className="h-5 w-5" />}
             eyebrow="Gestión Deportiva"
-            title="Panel de Entrenador"
+            title="Panel del Entrenador"
             lines={[
               'Atletas y expedientes deportivos',
               'Evaluación técnica oficial RollArt / FEP',
             ]}
-            cta={isCoach ? 'Abrir Panel de Entrenador' : 'Conocer Plan Entrenador'}
+            cta={isCoach ? 'Abrir Panel del Entrenador' : 'Conocer Plan Entrenador'}
             glyph={<CoachGlyph />}
             onClick={isCoach ? (onOpenCoach || (() => {})) : (onUpgradeToCoach || (() => {}))}
             locked={!isCoach}
@@ -352,13 +352,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
               <Button variant="secondary" size="sm" onClick={onOpenPaperToDigital}>
                 <ScanLine className="h-3.5 w-3.5 text-studio-primary" />
                 <span>Digitalizar plantilla A4</span>
-              </Button>
-            )}
-
-            {onOpenCoach && (
-              <Button variant="secondary" size="sm" onClick={onOpenCoach}>
-                <Users className="h-3.5 w-3.5 text-coach-primary" />
-                <span>Panel de Entrenadores</span>
               </Button>
             )}
           </div>

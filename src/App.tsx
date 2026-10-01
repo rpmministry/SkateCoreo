@@ -934,6 +934,21 @@ export function App() {
             <SkateCoreoBrand size="md" showTagline={false} className="hidden sm:flex" />
           </button>
 
+          {/* Acceso prioritario al Panel del Entrenador (solo para usuarios con rol Coach) */}
+          {isCoach && (
+            <button
+              type="button"
+              onClick={() => startTransition(() => setActiveView('coach'))}
+              className="press flex shrink-0 items-center gap-1.5 rounded-lg border border-coach-primary/30 bg-coach-primary/10 px-2 sm:px-2.5 py-1 text-xs text-coach-light hover:bg-coach-primary/20 hover:border-coach-primary/50 transition-all select-none"
+              title="Panel del Entrenador: Gestión de atletas, fichas, coreografías y almacenamiento"
+              aria-label="Abrir Panel del Entrenador"
+            >
+              <Users className="h-3.5 w-3.5 text-coach-primary shrink-0 stroke-[2]" />
+              <span className="font-semibold tracking-wide hidden sm:inline">Panel del Entrenador</span>
+              <span className="font-semibold tracking-wide sm:hidden">Entrenador</span>
+            </button>
+          )}
+
           {/* Contexto del Atleta Activo (solo en pantallas muy anchas).
               La CATEGORÍA se omite deliberadamente: ya se muestra en la sección
               «Reglamento 2026» del panel de preparación, y repetirla aquí solo
@@ -1083,20 +1098,22 @@ export function App() {
                     </span>
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowExportMenu(false);
-                      startTransition(() => setActiveView('coach'));
-                    }}
-                    className="press flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-neutral-200 hover:bg-white/[0.05] hover:text-white transition-colors"
-                  >
-                    <Users className="w-4 h-4 text-ice-primary shrink-0 stroke-[1.75]" />
-                    <span>
-                      <span className="block font-medium leading-tight">Panel de Entrenadores</span>
-                      <span className="block text-[10px] font-normal text-neutral-400">Atletas, fichas y almacenamiento personal</span>
-                    </span>
-                  </button>
+                  {isCoach && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowExportMenu(false);
+                        startTransition(() => setActiveView('coach'));
+                      }}
+                      className="press flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-neutral-200 hover:bg-white/[0.05] hover:text-white transition-colors"
+                    >
+                      <Users className="w-4 h-4 text-coach-primary shrink-0 stroke-[1.75]" />
+                      <span>
+                        <span className="block font-medium leading-tight">Panel del Entrenador</span>
+                        <span className="block text-[10px] font-normal text-neutral-400">Atletas, fichas y almacenamiento personal</span>
+                      </span>
+                    </button>
+                  )}
 
                   <span aria-hidden="true" className="my-1 h-px bg-white/[0.06]" />
 
@@ -1214,7 +1231,6 @@ export function App() {
                   onPreRollSecChange={handlePreRollSecChange}
                   onClearRink={requestClearRink}
                   onLogout={handleLogout}
-                  onOpenCoachPortal={() => startTransition(() => setActiveView('coach'))}
                 />
               )}
             </aside>
@@ -1541,10 +1557,6 @@ export function App() {
                 onLogout={handleLogout}
                 showHeader={false}
                 isMobileModal={true}
-                onOpenCoachPortal={() => {
-                  setDrawerOpen(false);
-                  startTransition(() => setActiveView('coach'));
-                }}
               />
             )}
         </div>

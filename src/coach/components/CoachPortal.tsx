@@ -95,7 +95,7 @@ export const CoachPortal: React.FC<CoachPortalProps> = ({
 
             <div className="flex items-center gap-2 border-l border-white/[0.06] pl-3">
               <span className="text-sm font-semibold tracking-normal text-white flex items-center gap-1.5">
-                <span className="text-coach-rose font-medium">Panel</span> Entrenadores
+                <span className="text-coach-rose font-medium">Panel</span> del Entrenador
               </span>
               <Badge variant="rose" size="xs" className="hidden md:inline-flex">
                 PRO 2026
