@@ -917,10 +917,10 @@ export function App() {
           ═══════════════════════════════════════════════ */}
       {activeView !== 'studio' && activeView !== 'coach' && (
         <header className="relative z-30 shrink-0 bg-surface-1/90 backdrop-blur-md border-b border-white/[0.08] pt-safe px-safe">
-          <div className="fm-header-grid flex min-h-[54px] items-center justify-between gap-2 px-2 py-1 sm:px-3 lg:grid lg:min-h-[60px] lg:grid-cols-[minmax(0,auto)_minmax(0,1fr)_minmax(0,auto)] lg:items-center lg:gap-3 lg:px-4">
+          <div className="fm-header-grid flex min-h-[54px] lg:min-h-[60px] items-center justify-between gap-3 px-2 py-1 sm:px-3 lg:px-4">
 
-        {/* ── IZQUIERDA: Marca (navega a Inicio) + contexto del atleta ── */}
-        <div className="flex min-w-0 items-center gap-2">
+        {/* ── BLOQUE IZQUIERDO: Marca + Navegación («Inicio», «Pista», «Estudio», «Atletas») ── */}
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3 lg:gap-3.5 xl:gap-4">
           <button
             type="button"
             onClick={() => handleNav('home')}
@@ -932,24 +932,26 @@ export function App() {
             <SkateCoreoBrand size="md" showTagline={false} className="hidden sm:flex" />
           </button>
 
-          {/* Contexto del Atleta Activo (solo en pantallas muy anchas).
+          {/* Navegación principal de escritorio y tablet: Inicio · Pista · Estudio · Atletas */}
+          <DesktopHeaderNav active={activeTab} onSelect={handleNav} badges={navBadges} isCoach={isCoach} />
+
+          {/* Contexto del Atleta Activo (solo en pantallas muy anchas ≥2xl).
               La CATEGORÍA se omite deliberadamente: ya se muestra en la sección
-              «Reglamento 2026» del panel de preparación, y repetirla aquí solo
-              robaba espacio horizontal al menú de navegación. */}
-          <div className="hidden min-w-0 items-center gap-2 border-l border-white/10 pl-3 text-xs xl:flex">
+              «Reglamento 2026» del panel de preparación. */}
+          <div className="hidden min-w-0 items-center gap-2 border-l border-white/10 pl-3 text-xs 2xl:flex">
             <span className="max-w-[140px] truncate font-semibold text-slate-200" title={selectedSkater?.name}>
               {selectedSkater?.name || 'Sin Atleta'}
             </span>
           </div>
 
-          {/* Insignia Beta Tester (acceso de 30 días) */}
+          {/* Insignia Beta Tester (acceso de 30 días, en pantallas ≥2xl para preservar espacio) */}
           {authPlan === 'beta_tester' && (
             <div
-              className="ml-2 hidden items-center gap-1.5 rounded-full border border-amber-500/25 bg-amber-500/10 px-2.5 py-0.5 sm:flex"
+              className="ml-2 hidden items-center gap-1.5 rounded-full border border-amber-500/25 bg-amber-500/10 px-2.5 py-0.5 2xl:flex"
               title={`Acceso Beta Tester · vence el ${getFormattedExpiration() ?? '—'}`}
             >
               <Sparkles className="h-3 w-3 shrink-0 text-amber-400" />
-              <span className="hidden xl:inline text-[10px] font-semibold uppercase tracking-wider text-amber-300">Beta Tester</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-300">Beta Tester</span>
               <span className="rounded-full bg-white/[0.08] px-1.5 py-0.5 font-mono text-[9px] font-medium text-neutral-200">
                 {getDaysRemaining()}d
               </span>
@@ -957,11 +959,8 @@ export function App() {
           )}
         </div>
 
-        {/* ── CENTRO: Navegación principal de escritorio ── */}
-        <DesktopHeaderNav active={activeTab} onSelect={handleNav} badges={navBadges} isCoach={isCoach} />
-
-        {/* ── DERECHA: Transporte maestro + carga de audio + desbordamiento ── */}
-        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2 lg:min-w-0 lg:justify-self-end">
+        {/* ── BLOQUE DERECHO: Transporte maestro + carga de audio + desbordamiento ── */}
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           {activeView === 'rink' && hasDockedInspector && (
             <div className="fm-desktop-flex hidden lg:flex">
               <RinkAudioPlayer
@@ -975,14 +974,14 @@ export function App() {
               />
             </div>
           )}
-          {/* Limpiar Pista 2D — acción rápida de la barra principal (desktop).
-              En móvil/tablet vive en el rail de herramientas de la pista. */}
+          {/* Limpiar Pista 2D — acción rápida de la barra principal (desktop xl).
+              En tablet landscape y móvil vive en el rail de herramientas de la pista y en el menú (...). */}
           {activeView === 'rink' && (
             <button
               type="button"
               onClick={requestClearRink}
               disabled={points.length === 0 && unplacedNodes.length === 0 && !hasPaperTraceOverlay}
-              className="press hidden min-h-[36px] items-center justify-center gap-1.5 rounded-lg border border-danger/25 bg-danger/10 px-2.5 2xl:px-3 text-xs font-medium text-red-300 hover:bg-danger/20 hover:text-white disabled:pointer-events-none disabled:opacity-30 lg:flex transition-colors"
+              className="press hidden min-h-[36px] items-center justify-center gap-1.5 rounded-lg border border-danger/25 bg-danger/10 px-2.5 2xl:px-3 text-xs font-medium text-red-300 hover:bg-danger/20 hover:text-white disabled:pointer-events-none disabled:opacity-30 xl:flex transition-colors"
               title={
                 points.length === 0 && unplacedNodes.length === 0 && !hasPaperTraceOverlay
                   ? 'La pista ya está vacía'
@@ -995,12 +994,12 @@ export function App() {
             </button>
           )}
 
-          {/* Botón Subir pista (escritorio). En móvil/tablet vive en la segunda
-              fila del header con TEXTO visible (el icono solo era ambiguo). */}
+          {/* Botón Subir pista (escritorio xl). En tablet landscape y móvil vive en el
+              menú de desbordamiento (...) y en la fila secundaria de acciones. */}
           <button
             type="button"
             onClick={() => audioInputRef.current?.click()}
-            className="press hidden min-h-[36px] items-center justify-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.04] px-2.5 2xl:px-3.5 text-xs font-medium text-neutral-200 hover:bg-white/[0.08] hover:text-white lg:flex transition-colors"
+            className="press hidden min-h-[36px] items-center justify-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.04] px-2.5 2xl:px-3.5 text-xs font-medium text-neutral-200 hover:bg-white/[0.08] hover:text-white xl:flex transition-colors"
             title="Subir una pista de audio directamente al visor de la Pista 2D"
             aria-label="Subir pista al visor"
           >
@@ -1008,12 +1007,12 @@ export function App() {
             <span className="hidden 2xl:inline">Subir pista al visor</span>
           </button>
 
-          {/* Botón de Salir / Cerrar Sesión (header en ≥ sm; en móvil vive en el
-              menú de desbordamiento y en el panel de Preparación) */}
+          {/* Botón de Salir / Cerrar Sesión (header en ≥ xl; en tablet y móvil vive en el
+              menú de desbordamiento (...) y en el panel de Preparación) */}
           <button
             type="button"
             onClick={() => { void handleLogout(); }}
-            className="press hidden h-9 w-9 items-center justify-center rounded-lg border border-white/[0.07] bg-surface-2 text-neutral-400 hover:border-danger/30 hover:bg-danger/10 hover:text-danger sm:flex transition-colors"
+            className="press hidden h-9 w-9 items-center justify-center rounded-lg border border-white/[0.07] bg-surface-2 text-neutral-400 hover:border-danger/30 hover:bg-danger/10 hover:text-danger xl:flex transition-colors"
             title="Cerrar sesión y salir de la aplicación"
             aria-label="Cerrar sesión"
           >
@@ -1080,6 +1079,33 @@ export function App() {
                       <span className="block text-[10px] font-normal text-neutral-400">Cargar rutina previamente guardada</span>
                     </span>
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { setShowExportMenu(false); audioInputRef.current?.click(); }}
+                    className="press flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-neutral-200 hover:bg-white/[0.05] hover:text-white transition-colors"
+                  >
+                    <Upload className="w-4 h-4 text-ice-primary shrink-0 stroke-[1.75]" />
+                    <span>
+                      <span className="block font-medium leading-tight">Subir Pista de Audio</span>
+                      <span className="block text-[10px] font-normal text-neutral-400">Cargar archivo .mp3 o .wav al visor</span>
+                    </span>
+                  </button>
+
+                  {activeView === 'rink' && (
+                    <button
+                      type="button"
+                      onClick={() => { setShowExportMenu(false); requestClearRink(); }}
+                      disabled={points.length === 0 && unplacedNodes.length === 0 && !hasPaperTraceOverlay}
+                      className="press flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-red-300 hover:bg-danger/10 hover:text-danger disabled:opacity-40 transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4 text-red-400 shrink-0 stroke-[1.75]" />
+                      <span>
+                        <span className="block font-medium leading-tight">Limpiar Pista 2D</span>
+                        <span className="block text-[10px] font-normal text-neutral-400">Vaciar todos los nodos de la pista</span>
+                      </span>
+                    </button>
+                  )}
 
                   <span aria-hidden="true" className="my-1 h-px bg-white/[0.06]" />
 

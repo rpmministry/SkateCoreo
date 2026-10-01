@@ -181,7 +181,7 @@ export const DesktopHeaderNav: React.FC<NavProps> = ({ active, onSelect, badges,
   return (
     <nav
       aria-label="Navegación principal"
-      className="fm-desktop-flex hidden lg:flex lg:justify-self-center items-center gap-1 rounded-xl border border-white/[0.07] bg-surface-1/90 backdrop-blur-md p-1 min-w-0 max-w-full touch-manipulation shadow-elevation-1"
+      className="fm-desktop-flex hidden lg:flex items-center gap-1 rounded-xl border border-white/[0.07] bg-surface-1/90 backdrop-blur-md p-1 min-w-0 max-w-full touch-manipulation shadow-elevation-1"
     >
       {tabs.map((tab) => {
         const Icon = tab.icon;
