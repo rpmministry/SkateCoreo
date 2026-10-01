@@ -2,24 +2,27 @@ import React from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { Home, Compass, AudioLines, Users, Settings2 } from 'lucide-react';
 
-export type AppTab = 'home' | 'rink' | 'studio' | 'skaters' | 'settings';
+export type AppTab = 'home' | 'rink' | 'studio' | 'skaters' | 'coach' | 'settings';
 
 export interface AppTabDef {
   id: AppTab;
   label: string;
   short: string;
+  desktopLabel?: string;
   icon: LucideIcon;
   hint: string;
   /** `false` cuando la pestaña no aplica en la barra superior de escritorio. */
   desktop?: boolean;
+  /** `true` para resaltar sutilmente la pestaña del rol de entrenador. */
+  isCoachTab?: boolean;
 }
 
 /**
- * Fuente única de verdad para la navegación principal de la app.
- * Alimenta la Bottom Navigation Bar (portrait), la Sidebar compacta
- * (landscape) y la barra superior (desktop), evitando duplicar lógica.
+ * Genera la lista oficial de pestañas de navegación según el rol del usuario.
+ * Para entrenadores, la gestión de atletas y expedientes se eleva y prioriza como
+ * «Panel del Entrenador» directamente en la barra principal de navegación.
  */
-export const APP_TABS: AppTabDef[] = [
+export const getAppTabs = (isCoach: boolean = false): AppTabDef[] => [
   {
     id: 'home',
     label: 'Inicio',
@@ -41,13 +44,23 @@ export const APP_TABS: AppTabDef[] = [
     icon: AudioLines,
     hint: 'Editar mezcla en Estudio: cortar, mezclar y publicar al visor',
   },
-  {
-    id: 'skaters',
-    label: 'Atletas y Programas',
-    short: 'Atletas',
-    icon: Users,
-    hint: 'Gestión de patinadores y programas',
-  },
+  isCoach
+    ? {
+        id: 'coach',
+        label: 'Panel del Entrenador',
+        short: 'Entrenador',
+        desktopLabel: 'Panel del Entrenador',
+        icon: Users,
+        hint: 'Panel del Entrenador: Gestión de atletas, fichas, coreografías y almacenamiento',
+        isCoachTab: true,
+      }
+    : {
+        id: 'skaters',
+        label: 'Atletas y Programas',
+        short: 'Atletas',
+        icon: Users,
+        hint: 'Gestión de patinadores y programas',
+      },
   {
     id: 'settings',
     label: 'Preparación y Ajustes',
@@ -58,8 +71,8 @@ export const APP_TABS: AppTabDef[] = [
   },
 ];
 
-/** Pestañas visibles en la barra superior de escritorio. */
-export const DESKTOP_TABS = APP_TABS.filter((t) => t.desktop !== false);
+/** Pestañas visibles por defecto en la barra superior de escritorio. */
+export const DESKTOP_TABS = getAppTabs(false).filter((t) => t.desktop !== false);
 
 export type NavBadges = Partial<Record<AppTab, number>>;
 
@@ -67,92 +80,167 @@ interface NavProps {
   active: AppTab;
   onSelect: (tab: AppTab) => void;
   badges?: NavBadges;
+  isCoach?: boolean;
 }
 
 /* ────────────────────────────────────────────────────────────────
    BOTTOM NAVIGATION BAR — SOLO TELÉFONO
    ──────────────────────────────────────────────────────────────── */
-export const BottomNav: React.FC<NavProps> = ({ active, onSelect, badges }) => (
-  <nav
-    aria-label="Navegación principal"
-    className="fm-mobile-only lg:hidden shrink-0 z-40 grid grid-cols-5 items-stretch bg-surface-1/95 backdrop-blur-md border-t border-white/[0.07] nav-safe-bottom pl-safe pr-safe touch-manipulation overscroll-contain shadow-elevation-2"
-  >
-    {APP_TABS.map((tab) => {
-      const Icon = tab.icon;
-      const isActive = active === tab.id;
-      const badge = badges?.[tab.id] ?? 0;
-      return (
-        <button
-          key={tab.id}
-          type="button"
-          onClick={() => onSelect(tab.id)}
-          aria-current={isActive ? 'page' : undefined}
-          aria-label={tab.hint}
-          title={tab.hint}
-          className={[
-            'press relative flex min-h-[52px] flex-1 flex-col items-center justify-center gap-1',
-            'rounded-lg px-1 py-1.5 transition-colors',
-            isActive ? 'text-white' : 'text-neutral-400 hover:text-neutral-200',
-          ].join(' ')}
-        >
-          {/* Indicador superior de pestaña activa */}
-          <span
-            aria-hidden="true"
+export const BottomNav: React.FC<NavProps> = ({ active, onSelect, badges, isCoach = false }) => {
+  const tabs = React.useMemo(() => getAppTabs(isCoach), [isCoach]);
+
+  return (
+    <nav
+      aria-label="Navegación principal"
+      className="fm-mobile-only lg:hidden shrink-0 z-40 grid grid-cols-5 items-stretch bg-surface-1/95 backdrop-blur-md border-t border-white/[0.07] nav-safe-bottom pl-safe pr-safe touch-manipulation overscroll-contain shadow-elevation-2"
+    >
+      {tabs.map((tab) => {
+        const Icon = tab.icon;
+        const isActive = active === tab.id;
+        const badge = badges?.[tab.id] ?? 0;
+        const isCoachStyle = tab.isCoachTab;
+
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => onSelect(tab.id)}
+            aria-current={isActive ? 'page' : undefined}
+            aria-label={tab.hint}
+            title={tab.hint}
             className={[
-              'absolute top-0 h-[2px] w-6 rounded-full transition-all duration-200',
-              isActive ? 'bg-ice-primary opacity-100' : 'opacity-0',
+              'press relative flex min-h-[52px] flex-1 flex-col items-center justify-center gap-1',
+              'rounded-lg px-1 py-1.5 transition-colors',
+              isActive
+                ? 'text-white'
+                : isCoachStyle
+                  ? 'text-coach-light/80 hover:text-white'
+                  : 'text-neutral-400 hover:text-neutral-200',
             ].join(' ')}
-          />
-          <span className="relative flex items-center justify-center">
-            <Icon className={`h-5 w-5 transition-transform ${isActive ? 'stroke-[2] text-ice-primary' : 'stroke-[1.75]'}`} />
-            {badge > 0 && (
-              <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-ice-primary px-1 text-[9px] font-semibold text-white">
-                {badge > 9 ? '9+' : badge}
-              </span>
-            )}
-          </span>
-          <span className={`max-w-full truncate text-[10px] leading-none ${isActive ? 'font-medium text-white' : 'font-normal text-neutral-400'}`}>{tab.short}</span>
-        </button>
-      );
-    })}
-  </nav>
-);
+          >
+            {/* Indicador superior de pestaña activa */}
+            <span
+              aria-hidden="true"
+              className={[
+                'absolute top-0 h-[2px] w-6 rounded-full transition-all duration-200',
+                isActive
+                  ? isCoachStyle
+                    ? 'bg-coach-primary opacity-100'
+                    : 'bg-ice-primary opacity-100'
+                  : 'opacity-0',
+              ].join(' ')}
+            />
+            <span className="relative flex items-center justify-center">
+              <Icon
+                className={[
+                  'h-5 w-5 transition-transform',
+                  isActive
+                    ? isCoachStyle
+                      ? 'stroke-[2] text-coach-primary'
+                      : 'stroke-[2] text-ice-primary'
+                    : isCoachStyle
+                      ? 'stroke-[1.75] text-coach-primary/80'
+                      : 'stroke-[1.75]',
+                ].join(' ')}
+              />
+              {badge > 0 && (
+                <span
+                  className={`absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-semibold text-white ${
+                    isCoachStyle ? 'bg-coach-primary' : 'bg-ice-primary'
+                  }`}
+                >
+                  {badge > 9 ? '9+' : badge}
+                </span>
+              )}
+            </span>
+            <span
+              className={[
+                'max-w-full truncate text-[10px] leading-none',
+                isActive
+                  ? 'font-medium text-white'
+                  : isCoachStyle
+                    ? 'font-medium text-coach-light/90'
+                    : 'font-normal text-neutral-400',
+              ].join(' ')}
+            >
+              {tab.short}
+            </span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+};
 
 /* ────────────────────────────────────────────────────────────────
    BARRA DE NAVEGACIÓN SUPERIOR — Escritorio y tablet ≥7"
    ──────────────────────────────────────────────────────────────── */
-export const DesktopHeaderNav: React.FC<NavProps> = ({ active, onSelect, badges }) => (
-  <nav
-    aria-label="Navegación principal"
-    className="fm-desktop-flex hidden lg:flex lg:justify-self-center items-center gap-1 rounded-xl border border-white/[0.07] bg-surface-1/90 backdrop-blur-md p-1 min-w-0 max-w-full touch-manipulation shadow-elevation-1"
-  >
-    {DESKTOP_TABS.map((tab) => {
-      const Icon = tab.icon;
-      const isActive = active === tab.id;
-      const badge = badges?.[tab.id] ?? 0;
-      return (
-        <button
-          key={tab.id}
-          type="button"
-          onClick={() => onSelect(tab.id)}
-          aria-current={isActive ? 'page' : undefined}
-          title={tab.hint}
-          className={[
-            'press relative flex min-h-[34px] items-center gap-1.5 xl:gap-2 rounded-lg px-2.5 xl:px-3 py-1 text-xs transition-all select-none shrink-0',
-            isActive
-              ? 'bg-surface-2 text-white font-medium border border-white/[0.08] shadow-elevation-1'
-              : 'text-neutral-400 hover:bg-white/[0.04] hover:text-neutral-200 font-normal border border-transparent',
-          ].join(' ')}
-        >
-          <Icon className={`h-4 w-4 shrink-0 transition-colors ${isActive ? 'text-ice-primary stroke-[2]' : 'text-neutral-400 stroke-[1.75]'}`} />
-          <span className="fm-nav-label inline whitespace-nowrap">{tab.short}</span>
-          {badge > 0 && (
-            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-ice-primary/20 text-ice-light border border-ice-primary/30 px-1 text-[9px] font-semibold">
-              {badge > 9 ? '9+' : badge}
-            </span>
-          )}
-        </button>
-      );
-    })}
-  </nav>
-);
+export const DesktopHeaderNav: React.FC<NavProps> = ({ active, onSelect, badges, isCoach = false }) => {
+  const tabs = React.useMemo(() => getAppTabs(isCoach).filter((t) => t.desktop !== false), [isCoach]);
+
+  return (
+    <nav
+      aria-label="Navegación principal"
+      className="fm-desktop-flex hidden lg:flex lg:justify-self-center items-center gap-1 rounded-xl border border-white/[0.07] bg-surface-1/90 backdrop-blur-md p-1 min-w-0 max-w-full touch-manipulation shadow-elevation-1"
+    >
+      {tabs.map((tab) => {
+        const Icon = tab.icon;
+        const isActive = active === tab.id;
+        const badge = badges?.[tab.id] ?? 0;
+        const isCoachStyle = tab.isCoachTab;
+
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => onSelect(tab.id)}
+            aria-current={isActive ? 'page' : undefined}
+            title={tab.hint}
+            className={[
+              'press relative flex min-h-[34px] items-center gap-1.5 xl:gap-2 rounded-lg px-2.5 xl:px-3 py-1 text-xs transition-all select-none shrink-0',
+              isActive
+                ? isCoachStyle
+                  ? 'bg-coach-primary/20 text-white font-medium border border-coach-primary/40 shadow-elevation-1'
+                  : 'bg-surface-2 text-white font-medium border border-white/[0.08] shadow-elevation-1'
+                : isCoachStyle
+                  ? 'text-coach-light/90 hover:bg-coach-primary/10 hover:text-white font-normal border border-transparent'
+                  : 'text-neutral-400 hover:bg-white/[0.04] hover:text-neutral-200 font-normal border border-transparent',
+            ].join(' ')}
+          >
+            <Icon
+              className={[
+                'h-4 w-4 shrink-0 transition-colors',
+                isActive
+                  ? isCoachStyle
+                    ? 'text-coach-primary stroke-[2]'
+                    : 'text-ice-primary stroke-[2]'
+                  : isCoachStyle
+                    ? 'text-coach-primary/80 stroke-[1.75]'
+                    : 'text-neutral-400 stroke-[1.75]',
+              ].join(' ')}
+            />
+            {tab.desktopLabel ? (
+              <>
+                <span className="fm-nav-label hidden 2xl:inline whitespace-nowrap">{tab.desktopLabel}</span>
+                <span className="fm-nav-label inline 2xl:hidden whitespace-nowrap">{tab.short}</span>
+              </>
+            ) : (
+              <span className="fm-nav-label inline whitespace-nowrap">{tab.short}</span>
+            )}
+            {badge > 0 && (
+              <span
+                className={`flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-semibold ${
+                  isCoachStyle
+                    ? 'bg-coach-primary/20 text-coach-light border border-coach-primary/30'
+                    : 'bg-ice-primary/20 text-ice-light border border-ice-primary/30'
+                }`}
+              >
+                {badge > 9 ? '9+' : badge}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </nav>
+  );
+};

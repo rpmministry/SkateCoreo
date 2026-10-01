@@ -27,12 +27,12 @@ function computeHeaderSpacing(
   const is2xlOrLarger = viewportWidth >= 1536;
 
   const paddingX = viewportWidth >= 1024 ? 32 : 16;
-  // Botón prioritario "Panel del Entrenador" (~140px con icono y padding)
-  const coachBadgeWidth = isCoach ? 140 : 0;
-  const brandWidth = (isXlOrLarger ? 220 : 150) + coachBadgeWidth;
+  const brandWidth = isXlOrLarger ? 220 : 150; // SkateCoreo logo + texto (+ atleta en xl)
 
-  // DesktopHeaderNav: 4 pestañas ("Inicio", "Pista", "Estudio", "Atletas") con etiquetas e iconos
-  const navWidth = 285;
+  // DesktopHeaderNav: 4 pestañas integradas
+  // - Usuario común: ("Inicio", "Pista", "Estudio", "Atletas") -> 285px
+  // - Entrenador: ("Inicio", "Pista", "Estudio", "Entrenador" / "Panel del Entrenador") -> 300px (<2xl) / 360px (>=2xl)
+  const navWidth = isCoach ? (is2xlOrLarger ? 360 : 300) : 285;
 
   // Acciones a la derecha en la vista de Pista (la más densa):
   // RinkAudioPlayer (transport: rewind 32 + play 36 + stop 32 + time 80 + gaps/paddings ≈ 200px)
@@ -55,7 +55,7 @@ function computeHeaderSpacing(
   const remainingForNav = availableGridWidth - brandWidth - actionsWidth;
   const clearanceMargin = remainingForNav - navWidth;
 
-  // Distancia libre entre el borde derecho de "Atletas" y el borde izquierdo del botón de Play/Transporte
+  // Distancia libre entre el borde derecho de "Atletas" / "Entrenador" y el borde izquierdo del botón de Play/Transporte
   const athletesToPlayClearance = clearanceMargin / 2;
 
   const isTwoRows = !isDesktopOrTabletLandscape && (orientation === 'portrait' || viewportWidth >= 768);
@@ -92,11 +92,11 @@ assert(tablet1024.remainingForNav >= 380, `Carril central para navegación tiene
 assert(tablet1024.clearanceMargin > 90, `Margen de seguridad libre > 90px en 1024px (obtenido: ${tablet1024.clearanceMargin}px)`);
 assert(tablet1024.athletesToPlayClearance > 40, `"Atletas" separado de Play por > 40px en 1024px (obtenido: ${tablet1024.athletesToPlayClearance}px)`);
 
-// 1b. Tabletas en Landscape con rol de Entrenador activo (1024px)
+// 1b. Tabletas en Landscape con rol de Entrenador integrado en navegación principal (1024px)
 const tablet1024Coach = computeHeaderSpacing(1024, 'landscape', true);
-assert(tablet1024Coach.remainingForNav >= 330, `Carril central con botón de Entrenador tiene >= 330px de espacio (obtenido: ${tablet1024Coach.remainingForNav}px)`);
-assert(tablet1024Coach.clearanceMargin > 40, `Margen libre con rol Entrenador en 1024px > 40px (obtenido: ${tablet1024Coach.clearanceMargin}px)`);
-assert(tablet1024Coach.athletesToPlayClearance > 20, `"Atletas" separado de Play con rol Entrenador por > 20px en 1024px (obtenido: ${tablet1024Coach.athletesToPlayClearance}px)`);
+assert(tablet1024Coach.remainingForNav >= 400, `Carril central con pestaña de Entrenador tiene >= 400px de espacio (obtenido: ${tablet1024Coach.remainingForNav}px)`);
+assert(tablet1024Coach.clearanceMargin > 150, `Margen libre con pestaña de Entrenador en 1024px > 150px (obtenido: ${tablet1024Coach.clearanceMargin}px)`);
+assert(tablet1024Coach.athletesToPlayClearance > 75, `"Entrenador" separado de Play por > 75px en 1024px (obtenido: ${tablet1024Coach.athletesToPlayClearance}px)`);
 
 // 2. iPad 10.2" / 10.5" Landscape (1080px - 1112px)
 const tablet1112 = computeHeaderSpacing(1112, 'landscape');
