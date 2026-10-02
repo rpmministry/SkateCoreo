@@ -24,7 +24,7 @@ export const AdminUnifiedPanel: React.FC = () => {
     const user = useAuthStore.getState().user;
     if (!user) return;
     try {
-      const { data, error } = await supabase?.rpc('admin_get_dashboard_stats', {
+      const { data } = await supabase?.rpc('admin_get_dashboard_stats', {
         p_admin_email: user.email,
       }) || { data: null, error: new Error('Supabase no inicializado') };
       if (data?.success) {
