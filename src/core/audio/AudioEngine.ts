@@ -310,6 +310,7 @@ export class AudioEngine {
 
   // Playback state
   private isPlaying = false;
+  private isFinished = false;
   private startTime = 0;
   private pausedAtTime = 0;
   private playbackRate = 1.0;
@@ -1986,7 +1987,7 @@ export class AudioEngine {
         this.musicSourceId = null;
       }
       if (!musicNode.loop && this.isPlaying && this.getCurrentTimeMs() >= this.durationMs - 150) {
-        this.stop();
+        this.finish();
       }
     };
 
@@ -2011,6 +2012,7 @@ export class AudioEngine {
     this.preRollState = 'idle';
     this.preRollCountdown = 0;
     this.isPlaying = true;
+    this.isFinished = false;
     playbackCore.setPhase('playing');
     // Protege la reproducción ante reclamos de otras pestañas.
     this.ownership.setPlaying(true);
@@ -2226,6 +2228,7 @@ export class AudioEngine {
 
     this.pausedAtTime = 0;
     this.isPlaying = false;
+    this.isFinished = false;
     playbackCore.setPhase('idle');
     this.stopTracking();
 
@@ -2236,9 +2239,30 @@ export class AudioEngine {
     this.emitStateChange();
   }
 
+  public finish() {
+    this.stopAllAudioSources('finish');
+
+    this.isPreRollActive = false;
+    this.preRollState = 'idle';
+    this.preRollCountdown = 0;
+
+    this.pausedAtTime = this.durationMs;
+    this.isPlaying = false;
+    this.isFinished = true;
+    playbackCore.setPhase('idle');
+    this.stopTracking();
+
+    this.mediaSession.updatePlaybackState(false);
+    this.mediaSession.updatePositionState(this.durationMs / 1000, this.durationMs / 1000, this.playbackRate);
+
+    this.emitTimeUpdate(this.durationMs);
+    this.emitStateChange();
+  }
+
   public seek(timeMs: number) {
     const clamped = Math.max(0, Math.min(timeMs, this.durationMs));
     this.pausedAtTime = clamped;
+    this.isFinished = false;
     this.voiceCueEngine.resetTriggeredCues(clamped);
 
     if (this.isPlaying) {
@@ -2561,6 +2585,7 @@ export class AudioEngine {
   public getState(): AudioEngineState {
     return {
       isPlaying: this.isPlaying,
+      isFinished: this.isFinished,
       currentTimeMs: this.getCurrentTimeMs(),
       durationMs: this.durationMs,
       playbackRate: this.playbackRate,

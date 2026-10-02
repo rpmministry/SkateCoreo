@@ -16,6 +16,7 @@ export type AudioPlaybackDomain = 'rink' | 'studio';
 
 export interface AudioEngineState {
   isPlaying: boolean;
+  isFinished: boolean;
   currentTimeMs: number;
   durationMs: number;
   playbackRate: number;
