@@ -653,7 +653,7 @@ export const LeftSidebarPanel: React.FC<LeftSidebarPanelProps> = ({
             >
               <span className="flex items-center gap-1.5">
                 <Building2 className="w-3.5 h-3.5 text-ice-primary" />
-                <span>Panel Clubes &amp; Licencias</span>
+                <span>Panel Administrativo</span>
               </span>
               <span className="text-[10px] text-ice-light font-medium">Admin &gt;</span>
             </button>

@@ -8,6 +8,7 @@ import { Field } from '../ui/Field';
 // 1. Dashboard Stats Component
 export const AdminDashboardStats: React.FC = () => {
   const [stats, setStats] = useState<any>(null);
+  const [expandedCard, setExpandedCard] = useState<'users' | 'testers' | null>(null);
 
   const loadStats = async () => {
     const user = useAuthStore.getState().user;
@@ -24,6 +25,11 @@ export const AdminDashboardStats: React.FC = () => {
 
   useEffect(() => {
     loadStats();
+    
+    // Configurar actualización en tiempo real simple mediante polling cada 30 segundos
+    // para reflejar "a medida que otros usuarios se registren"
+    const interval = setInterval(loadStats, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   return (
@@ -35,27 +41,89 @@ export const AdminDashboardStats: React.FC = () => {
       
       {stats ? (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <div className="bg-surface-2 rounded-xl p-4 border border-white/[0.08]">
-            <div className="text-xs text-neutral-400">Usuarios Totales</div>
-            <div className="text-2xl font-bold mt-1">{stats.total_users}</div>
+          <div 
+            className={`bg-surface-2 rounded-xl p-4 border transition-all cursor-pointer ${expandedCard === 'users' ? 'border-ice-primary shadow-elevation-2 col-span-2 md:col-span-3' : 'border-white/[0.08] hover:border-white/[0.2]'}`}
+            onClick={() => setExpandedCard(expandedCard === 'users' ? null : 'users')}
+          >
+            <div className="flex justify-between items-start">
+              <div>
+                <div className="text-xs text-neutral-400">Usuarios Totales (Haz click)</div>
+                <div className="text-2xl font-bold mt-1">{stats.total_users}</div>
+              </div>
+            </div>
+            
+            {expandedCard === 'users' && stats.users_list && (
+              <div className="mt-4 pt-4 border-t border-white/[0.08] max-h-60 overflow-y-auto pr-2">
+                <table className="w-full text-left text-xs text-neutral-300">
+                  <thead>
+                    <tr className="text-neutral-500">
+                      <th className="pb-2 font-medium">Email</th>
+                      <th className="pb-2 font-medium">Rol</th>
+                      <th className="pb-2 font-medium text-right">Registro</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/[0.05]">
+                    {stats.users_list.map((u: any, i: number) => (
+                      <tr key={i} className="hover:bg-white/[0.02]">
+                        <td className="py-2">{u.email}</td>
+                        <td className="py-2">
+                          <span className="bg-surface-3 px-2 py-0.5 rounded text-[10px]">{u.role}</span>
+                        </td>
+                        <td className="py-2 text-right">{new Date(u.created_at).toLocaleDateString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-          <div className="bg-surface-2 rounded-xl p-4 border border-white/[0.08]">
-            <div className="text-xs text-neutral-400">Testers Activos</div>
-            <div className="text-2xl font-bold mt-1 text-ice-light">{stats.active_testers}</div>
+          
+          <div 
+            className={`bg-surface-2 rounded-xl p-4 border transition-all cursor-pointer ${expandedCard === 'testers' ? 'border-ice-light shadow-elevation-2 col-span-2 md:col-span-3' : 'border-white/[0.08] hover:border-white/[0.2]'}`}
+            onClick={() => setExpandedCard(expandedCard === 'testers' ? null : 'testers')}
+          >
+            <div className="flex justify-between items-start">
+              <div>
+                <div className="text-xs text-neutral-400">Testers Activos (Haz click)</div>
+                <div className="text-2xl font-bold mt-1 text-ice-light">{stats.active_testers}</div>
+              </div>
+            </div>
+            
+            {expandedCard === 'testers' && stats.testers_list && (
+              <div className="mt-4 pt-4 border-t border-white/[0.08] max-h-60 overflow-y-auto pr-2">
+                <table className="w-full text-left text-xs text-neutral-300">
+                  <thead>
+                    <tr className="text-neutral-500">
+                      <th className="pb-2 font-medium">Email del Tester</th>
+                      <th className="pb-2 font-medium text-right">Vencimiento</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/[0.05]">
+                    {stats.testers_list.map((t: any, i: number) => (
+                      <tr key={i} className="hover:bg-white/[0.02]">
+                        <td className="py-2 text-ice-light">{t.email}</td>
+                        <td className="py-2 text-right text-neutral-400">{new Date(t.expires_at).toLocaleDateString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-          <div className="bg-surface-2 rounded-xl p-4 border border-white/[0.08]">
+          
+          <div className={`bg-surface-2 rounded-xl p-4 border border-white/[0.08] ${expandedCard ? 'hidden md:block' : ''}`}>
             <div className="text-xs text-neutral-400">Códigos Activos</div>
             <div className="text-2xl font-bold mt-1 text-studio-mint">{stats.active_codes}</div>
           </div>
-          <div className="bg-surface-2 rounded-xl p-4 border border-white/[0.08]">
+          <div className={`bg-surface-2 rounded-xl p-4 border border-white/[0.08] ${expandedCard ? 'hidden md:block' : ''}`}>
             <div className="text-xs text-neutral-400">Códigos Pendientes</div>
             <div className="text-2xl font-bold mt-1 text-coach-rose">{stats.pending_codes}</div>
           </div>
-          <div className="bg-surface-2 rounded-xl p-4 border border-white/[0.08]">
+          <div className={`bg-surface-2 rounded-xl p-4 border border-white/[0.08] ${expandedCard ? 'hidden md:block' : ''}`}>
             <div className="text-xs text-neutral-400">Sesiones (24h)</div>
             <div className="text-2xl font-bold mt-1 text-blue-400">{stats.recent_sessions}</div>
           </div>
-          <div className="bg-surface-2 rounded-xl p-4 border border-white/[0.08]">
+          <div className={`bg-surface-2 rounded-xl p-4 border border-white/[0.08] ${expandedCard ? 'hidden md:block' : ''}`}>
             <div className="text-xs text-neutral-400">Errores (24h)</div>
             <div className="text-2xl font-bold mt-1 text-danger">{stats.recent_errors}</div>
           </div>
@@ -63,7 +131,6 @@ export const AdminDashboardStats: React.FC = () => {
       ) : (
         <div className="text-sm text-neutral-400">Cargando estadísticas...</div>
       )}
-      
       <div className="mt-8 bg-surface-2 rounded-xl p-4 border border-white/[0.08]">
          <h3 className="text-sm font-bold text-white mb-2">Arquitectura de Telemetría</h3>
          <p className="text-xs text-neutral-400 mb-2">
@@ -221,38 +288,201 @@ export const AdminCodeGenerator: React.FC = () => {
 
 // 3. Reports Component
 export const AdminReports: React.FC = () => {
+  const [isGoogleConnected, setIsGoogleConnected] = useState(false);
+  const [googleToken, setGoogleToken] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
+  const [syncMessage, setSyncMessage] = useState('');
+
+  // Cargar Google Identity Services
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    document.body.appendChild(script);
+    
+    // Recuperar token y config de autoguardado
+    const savedToken = localStorage.getItem('google_drive_token');
+    const autoSync = localStorage.getItem('google_drive_autosync');
+    if (savedToken) {
+      setGoogleToken(savedToken);
+      setIsGoogleConnected(true);
+    }
+    if (autoSync === 'true') {
+      setAutoSyncEnabled(true);
+    }
+
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, []);
+
+  const handleConnectGoogle = () => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      setSyncMessage('Error: Falta VITE_GOOGLE_CLIENT_ID en el archivo .env');
+      return;
+    }
+    
+    try {
+      const client = (window as any).google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: 'https://www.googleapis.com/auth/drive.file',
+        callback: (response: any) => {
+          if (response.error) {
+            setSyncMessage('Error al conectar: ' + response.error);
+            return;
+          }
+          setGoogleToken(response.access_token);
+          setIsGoogleConnected(true);
+          localStorage.setItem('google_drive_token', response.access_token);
+          setSyncMessage('Google Drive conectado exitosamente.');
+        },
+      });
+      client.requestAccessToken();
+    } catch (err: any) {
+      setSyncMessage('Fallo al inicializar Google Auth. ¿Está cargado el script?');
+    }
+  };
+
+  const uploadToDrive = async (filename: string, csvContent: string) => {
+    if (!googleToken) return false;
+    
+    const fileMetadata = {
+      name: filename,
+      mimeType: 'text/csv'
+    };
+    
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(fileMetadata)], { type: 'application/json' }));
+    form.append('file', new Blob([csvContent], { type: 'text/csv' }));
+
+    try {
+      const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${googleToken}`
+        },
+        body: form
+      });
+      return res.ok;
+    } catch (e) {
+      console.error(e);
+      return false;
+    }
+  };
+
+  const generateAndUploadTelemetry = async () => {
+    if (!isGoogleConnected) return;
+    setIsSyncing(true);
+    setSyncMessage('Obteniendo datos de telemetría...');
+    
+    try {
+      // Obtener sesiones recientes (ejemplo de telemetría)
+      const res = await supabase?.from('telemetry_sessions').select('*').limit(100);
+      const sessions = res?.data;
+      
+      let csv = 'session_id,user_id,device,os,login_at\n';
+      if (sessions) {
+        sessions.forEach((s: any) => {
+          csv += `${s.session_id},${s.user_id},${s.device_type},${s.operating_system},${s.login_at}\n`;
+        });
+      }
+      
+      setSyncMessage('Subiendo archivo a Drive...');
+      const dateStr = new Date().toISOString().split('T')[0];
+      const success = await uploadToDrive(`telemetry_export_${dateStr}.csv`, csv);
+      
+      if (success) {
+        setSyncMessage('¡Datos sincronizados a Google Drive con éxito!');
+      } else {
+        setSyncMessage('Error al subir. El token pudo haber expirado.');
+        setIsGoogleConnected(false);
+        localStorage.removeItem('google_drive_token');
+      }
+    } catch (err: any) {
+      setSyncMessage('Error en la sincronización: ' + err.message);
+    }
+    
+    setIsSyncing(false);
+  };
+  
+  // Ejecutar auto-sync al montar si está habilitado y conectado
+  useEffect(() => {
+    if (isGoogleConnected && autoSyncEnabled) {
+      // Simula el proceso automático
+      generateAndUploadTelemetry();
+      
+      // Auto-sync cada 1 hora
+      const interval = setInterval(generateAndUploadTelemetry, 3600000);
+      return () => clearInterval(interval);
+    }
+  }, [isGoogleConnected, autoSyncEnabled]);
+
+  const toggleAutoSync = () => {
+    const newVal = !autoSyncEnabled;
+    setAutoSyncEnabled(newVal);
+    localStorage.setItem('google_drive_autosync', newVal ? 'true' : 'false');
+  };
+
   return (
     <div className="animate-fade-in space-y-6">
        <h2 className="text-lg font-bold flex items-center gap-2 mb-6">
         <Download className="h-5 w-5 text-blue-400" />
-        Reportes & Almacenamiento Externo
+        Reportes & Google Drive
       </h2>
       <div className="bg-surface-2 rounded-xl p-5 border border-white/[0.08]">
-        <h3 className="text-sm font-semibold mb-2">Generación de Reportes bajo Demanda</h3>
+        <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
+           <span className={`w-2 h-2 rounded-full ${isGoogleConnected ? 'bg-studio-mint' : 'bg-coach-rose'}`}></span>
+           Estado: {isGoogleConnected ? 'Conectado a Google Drive' : 'No Conectado'}
+        </h3>
         <p className="text-xs text-neutral-400 mb-4">
-          Los eventos de telemetría se procesan en lotes y pueden exportarse a CSV para su almacenamiento en Google Drive (o el bucket de reportes). 
-          La base de datos se mantiene ligera.
+          Conecta tu cuenta de Google Drive para subir y respaldar automáticamente los datos de telemetría (usuarios, códigos, sesiones y errores) en formato CSV.
         </p>
         
-        <div className="flex flex-wrap gap-3">
-          <Button variant="ghost" className="border border-white/[0.1]" onClick={() => alert('Exportando Reporte Diario a Drive...')}>
-            Generar Reporte Diario
+        {!isGoogleConnected ? (
+          <Button variant="primary" className="border border-white/[0.1] bg-blue-600 hover:bg-blue-500 text-white" onClick={handleConnectGoogle}>
+            Conectar Cuenta de Google Drive
           </Button>
-          <Button variant="ghost" className="border border-white/[0.1]" onClick={() => alert('Exportando Reporte de Errores...')}>
-            Reporte de Errores
-          </Button>
-          <Button variant="ghost" className="border border-white/[0.1]" onClick={() => alert('Exportando Sincronización...')}>
-            Análisis de Sincronización
-          </Button>
-        </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+             <div className="flex flex-wrap gap-3">
+               <Button variant="primary" className="border border-white/[0.1]" onClick={generateAndUploadTelemetry} disabled={isSyncing}>
+                 {isSyncing ? 'Subiendo...' : 'Sincronizar Telemetría Ahora'}
+               </Button>
+               <Button 
+                  variant="ghost" 
+                  className={`border ${autoSyncEnabled ? 'border-studio-mint text-studio-mint' : 'border-white/[0.1]'}`}
+                  onClick={toggleAutoSync}
+               >
+                 {autoSyncEnabled ? 'Autoguardado Activado' : 'Activar Autoguardado'}
+               </Button>
+               <Button variant="ghost" className="border border-danger/30 text-danger hover:bg-danger/10" onClick={() => {
+                 setIsGoogleConnected(false);
+                 setGoogleToken(null);
+                 localStorage.removeItem('google_drive_token');
+                 setSyncMessage('Desconectado.');
+               }}>
+                 Desconectar
+               </Button>
+             </div>
+          </div>
+        )}
+        
+        {syncMessage && (
+          <div className="mt-4 p-3 bg-black/40 border border-white/[0.1] rounded-lg text-xs font-mono text-neutral-300">
+            &gt; {syncMessage}
+          </div>
+        )}
       </div>
       
       <div className="bg-black/30 rounded-xl p-4 border border-white/[0.05]">
         <div className="text-xs text-neutral-500 font-mono">
-          [STORAGE] skatecore_reports/Users/<br/>
-          [STORAGE] skatecore_reports/Access Codes/<br/>
-          [STORAGE] skatecore_reports/Sessions/<br/>
-          [STORAGE] skatecore_reports/Errors/
+          [STORAGE] drive/skatecore_reports/Users/<br/>
+          [STORAGE] drive/skatecore_reports/Access Codes/<br/>
+          [STORAGE] drive/skatecore_reports/Sessions/<br/>
+          [STORAGE] drive/skatecore_reports/Errors/
         </div>
       </div>
     </div>
