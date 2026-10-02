@@ -13,26 +13,8 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { AdminUnifiedPanel } from './AdminUnifiedPanel';
-import {
-  ShieldCheck,
-  Users,
-  Building2,
-  Plus,
-  FileText,
-  Copy,
-  Check,
-  RefreshCw,
-  Trash2,
-  Search,
-  Ticket,
-  X,
-  History,
-  Tag,
-  Percent,
-  CreditCard,
-  Sparkles,
-} from 'lucide-react';
+import { ShieldCheck, Activity, Download, Key, Users, Building2, Plus, FileText, Copy, Check, RefreshCw, Trash2, Search, Ticket, X, Tag, Percent, Sparkles } from 'lucide-react';
+import { AdminDashboardStats, AdminCodeGenerator, AdminReports } from './AdminUnifiedPanel';
 import { useAuthStore, isOwnerOrAdmin } from '../../store/useAuthStore';
 import { SKATER_PLAN, COACH_PLAN } from '../../services/pricingService';
 import {
@@ -52,7 +34,7 @@ interface AdminDashboardModalProps {
   onClose: () => void;
 }
 
-type AdminTab = 'packages' | 'new-package' | 'codes' | 'audit' | 'tiers' | 'users' | 'plans' | 'generator' | 'telemetry';
+type AdminTab = 'dashboard' | 'packages' | 'new-package' | 'codes' | 'audit' | 'tiers' | 'users' | 'plans' | 'generator' | 'reports';
 
 export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen, onClose }) => {
   const currentUser = useAuthStore((s) => s.user);
@@ -62,7 +44,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
     currentUser && (currentRole === 'superadmin' || isOwnerOrAdmin(currentUser.email))
   );
 
-  const [activeTab, setActiveTab] = useState<AdminTab>('packages');
+  const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
   const [packages, setPackages] = useState<LicensePackage[]>([]);
   const [isLoadingPackages, setIsLoadingPackages] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -342,7 +324,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
       aria-modal="true"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-xl p-3 sm:p-5 animate-fade-in select-none"
     >
-      <div className="relative flex flex-col w-full max-w-6xl h-[90vh] max-h-[850px] rounded-2xl border border-white/[0.08] bg-surface-2 shadow-elevation-2 overflow-hidden text-neutral-200">
+      <div className="relative flex flex-col w-full max-w-[1400px] h-[90vh] max-h-[900px] rounded-2xl border border-white/[0.08] bg-surface-2 shadow-elevation-2 overflow-hidden text-neutral-200">
         {/* ── Cabecera Superior del Panel ── */}
         <header className="flex items-center justify-between border-b border-white/[0.07] px-5 py-4 bg-surface-1">
           <div className="flex items-center gap-3">
@@ -352,14 +334,14 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base font-semibold text-white sm:text-lg">
-                  Panel Comercial y Licencias
+                  Panel de Administración
                 </h1>
                 <span className="rounded-full border border-studio-mint/25 bg-studio-mint/15 px-2 py-0.5 text-[9px] font-mono font-medium uppercase text-studio-mint">
                   Superadmin
                 </span>
               </div>
               <p className="text-xs text-neutral-400">
-                Gestión oficial de clubes, paquetes corporativos, códigos únicos y documentos PDF
+                Centro de control unificado: Clubes, Licencias, Usuarios, Reportes y Códigos.
               </p>
             </div>
           </div>
@@ -373,129 +355,74 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
           </button>
         </header>
 
-        {/* ── Pestañas de Navegación ── */}
-        <div className="flex border-b border-white/[0.07] px-5 bg-surface-1 overflow-x-auto gap-1.5 py-2">
-          <button
-            type="button"
-            onClick={() => setActiveTab('packages')}
-            className={`press flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-              activeTab === 'packages'
-                ? 'bg-ice-primary text-white shadow-elevation-1'
-                : 'text-neutral-400 hover:bg-white/[0.04] hover:text-white'
-            }`}
-          >
-            <Building2 className="h-4 w-4 stroke-[1.75]" />
-            <span>Paquetes de Clubes</span>
-            <span className="ml-1 rounded-full bg-surface-3 px-1.5 py-0.2 text-[10px] text-neutral-300">
-              {packages.length}
-            </span>
-          </button>
+        {/* ── CUERPO PRINCIPAL (SIDEBAR + CONTENIDO) ── */}
+        <div className="flex flex-1 overflow-hidden">
+          {/* Sidebar */}
+          <div className="w-full sm:w-64 bg-surface-1/50 border-r border-white/[0.07] p-3 flex flex-col gap-1 overflow-y-auto hidden sm:flex shrink-0">
+             <div className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1 px-2 mt-2">Visión General</div>
+             <button
+               onClick={() => setActiveTab('dashboard')}
+               className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'dashboard' ? 'bg-ice-primary text-white shadow-elevation-1' : 'text-neutral-400 hover:bg-white/[0.04]'}`}
+             >
+               <Activity className="h-4 w-4" /> Resumen / Dashboard
+             </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('new-package');
-              setCreateFeedback(null);
-            }}
-            className={`press flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-              activeTab === 'new-package'
-                ? 'bg-ice-primary text-white shadow-elevation-1'
-                : 'text-neutral-400 hover:bg-white/[0.04] hover:text-white'
-            }`}
-          >
-            <Plus className="h-4 w-4 stroke-[1.75]" />
-            <span>Nuevo Paquete</span>
-          </button>
+             <div className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1 px-2 mt-4">Gestión Principal</div>
+             <button
+               onClick={() => setActiveTab('packages')}
+               className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${(activeTab === 'packages' || activeTab === 'new-package' || activeTab === 'codes') ? 'bg-ice-primary text-white shadow-elevation-1' : 'text-neutral-400 hover:bg-white/[0.04]'}`}
+             >
+               <Building2 className="h-4 w-4" /> Clubes & Licencias
+             </button>
+             <button
+               onClick={() => setActiveTab('generator')}
+               className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'generator' ? 'bg-ice-primary text-white shadow-elevation-1' : 'text-neutral-400 hover:bg-white/[0.04]'}`}
+             >
+               <Key className="h-4 w-4" /> Generador de Códigos
+             </button>
+             
+             <div className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1 px-2 mt-4">Usuarios & Seguridad</div>
+             <button
+               onClick={() => { setActiveTab('users'); loadUsersList && void loadUsersList(); }}
+               className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'users' ? 'bg-ice-primary text-white shadow-elevation-1' : 'text-neutral-400 hover:bg-white/[0.04]'}`}
+             >
+               <Users className="h-4 w-4" /> Usuarios & Roles
+             </button>
+             <button
+               onClick={() => { setActiveTab('audit'); loadAuditLogs && void loadAuditLogs(); }}
+               className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'audit' ? 'bg-ice-primary text-white shadow-elevation-1' : 'text-neutral-400 hover:bg-white/[0.04]'}`}
+             >
+               <ShieldCheck className="h-4 w-4" /> Actividad & Auditoría
+             </button>
+             
+             <div className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1 px-2 mt-4">Configuración & Reportes</div>
+             <button
+               onClick={() => setActiveTab('plans')}
+               className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'plans' ? 'bg-ice-primary text-white shadow-elevation-1' : 'text-neutral-400 hover:bg-white/[0.04]'}`}
+             >
+               <FileText className="h-4 w-4" /> Suscripciones & Membresías
+             </button>
+             <button
+               onClick={() => setActiveTab('tiers')}
+               className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'tiers' ? 'bg-ice-primary text-white shadow-elevation-1' : 'text-neutral-400 hover:bg-white/[0.04]'}`}
+             >
+               <Percent className="h-4 w-4" /> Escala de Descuentos
+             </button>
+             <button
+               onClick={() => setActiveTab('reports')}
+               className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'reports' ? 'bg-ice-primary text-white shadow-elevation-1' : 'text-neutral-400 hover:bg-white/[0.04]'}`}
+             >
+               <Download className="h-4 w-4" /> Reportes & Mantenimiento
+             </button>
+          </div>
 
-          {selectedPackage && (
-            <button
-              type="button"
-              onClick={() => setActiveTab('codes')}
-              className={`press flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                activeTab === 'codes'
-                  ? 'bg-ice-primary text-white shadow-elevation-1'
-                  : 'text-neutral-400 hover:bg-white/[0.04] hover:text-white'
-              }`}
-            >
-              <Ticket className="h-4 w-4 stroke-[1.75]" />
-              <span>Códigos: {selectedPackage.client_name}</span>
-            </button>
-          )}
+          {/* ── Contenido Principal ── */}
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-surface-1/30">
+            {activeTab === 'dashboard' && <div className="animate-fade-in"><AdminDashboardStats /></div>}
+            {activeTab === 'generator' && <div className="animate-fade-in"><AdminCodeGenerator /></div>}
+            {activeTab === 'reports' && <div className="animate-fade-in"><AdminReports /></div>}
 
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('tiers');
-            }}
-            className={`press flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-              activeTab === 'tiers'
-                ? 'bg-ice-primary text-white shadow-elevation-1'
-                : 'text-neutral-400 hover:bg-white/[0.04] hover:text-white'
-            }`}
-          >
-            <Percent className="h-4 w-4 stroke-[1.75]" />
-            <span>Escala de Descuentos</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('users');
-              void loadUsersList();
-            }}
-            className={`press flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-              activeTab === 'users'
-                ? 'bg-ice-primary text-white shadow-elevation-1'
-                : 'text-neutral-400 hover:bg-white/[0.04] hover:text-white'
-            }`}
-          >
-            <Users className="h-4 w-4 stroke-[1.75]" />
-            <span>Usuarios & Roles</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('audit');
-              void loadAuditLogs();
-            }}
-            className={`press flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-              activeTab === 'audit'
-                ? 'bg-ice-primary text-white shadow-elevation-1'
-                : 'text-neutral-400 hover:bg-white/[0.04] hover:text-white'
-            }`}
-          >
-            <History className="h-4 w-4 stroke-[1.75]" />
-            <span>Auditoría</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setActiveTab('plans');
-            }}
-            className={`press flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-              activeTab === 'plans'
-                ? 'bg-ice-primary text-white shadow-elevation-1'
-                : 'text-neutral-400 hover:bg-white/[0.04] hover:text-white'
-            }`}
-          >
-            <CreditCard className="h-4 w-4 stroke-[1.75]" />
-            <span>Tarifas & Planes</span>
-          </button>
-        </div>
-
-        {/* ── Contenido de las Pestañas ── */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-
-          {/* TAB: CENTRO DE CONTROL */}
-          {activeTab === 'telemetry' && (
-            <div className="h-[600px] animate-fade-in">
-              <AdminUnifiedPanel />
-            </div>
-          )}
-
-          {/* ══════════ TAB 1: LISTADO DE PAQUETES ══════════ */}
+            {/* ══════════ TAB 1: LISTADO DE PAQUETES ══════════ */}
           {activeTab === 'packages' && (
             <div className="space-y-4">
               {/* Barra de Búsqueda y Botón Nuevo */}
@@ -1507,6 +1434,4 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
           </div>
         </div>
       )}
-    </div>
-  );
-};
+    </div>    </div>  );};
