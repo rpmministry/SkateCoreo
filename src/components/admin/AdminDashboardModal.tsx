@@ -51,7 +51,7 @@ interface AdminDashboardModalProps {
   onClose: () => void;
 }
 
-type AdminTab = 'packages' | 'new-package' | 'codes' | 'audit' | 'tiers' | 'users' | 'plans';
+type AdminTab = 'packages' | 'new-package' | 'codes' | 'audit' | 'tiers' | 'users' | 'plans' | 'generator' | 'telemetry';
 
 export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen, onClose }) => {
   const currentUser = useAuthStore((s) => s.user);
@@ -486,6 +486,14 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({ isOpen
 
         {/* ── Contenido de las Pestañas ── */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+
+          {/* TAB: CENTRO DE CONTROL */}
+          {activeTab === 'telemetry' && (
+            <div className="h-[600px] animate-fade-in">
+              <AdminUnifiedPanel />
+            </div>
+          )}
+
           {/* ══════════ TAB 1: LISTADO DE PAQUETES ══════════ */}
           {activeTab === 'packages' && (
             <div className="space-y-4">
